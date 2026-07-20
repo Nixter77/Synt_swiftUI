@@ -1,90 +1,40 @@
-# PLAN.md — D³ Phase 2: DEFINE
+# 🎹 Прогресс и План Разработки Synt_swiftUI
 
-**Date**: 2026-04-28
-**Status**: APPROVED — proceeding to DELIVER
-**Bugs addressed**: 14 (from DISCOVER audit)
+## ✅ РЕАЛИЗОВАНО (Verified)
+- **Звуковой движок**: 2 осциллятора, PolyBLEP (Saw/Square), ADSR (Экспоненциальные кривые), Filter (Cached Biquad), LFO.
+- **Полифония**: Поддержка нескольких нот одновременно (сейчас через NSLock).
+- **Эффекты**: Stereo Chorus, Reverb, Delay, Master Limiter.
+- **Модуляция**: Unison (до 7 голосов), Modulation Matrix (6 слотов: LFO/Env/Vel -> Pitch/Amp/Pan/Cutoff).
+- **Инструментарий**: Arpeggiator (Up/Down/Random), Step Sequencer (16 шагов, Pitch/Vel/Gate/Swing).
+- **Интерфейс**: Apple-style Neumorphic Design, VU-метры, Осциллограф, FFT Спектрограмма.
+- **Пресеты**: Система фабричных (20+) и пользовательских пресетов (UserDefaults).
+- **Input**: QWERTY-клавиатура (macOS) и MIDI-контроллеры (CoreMIDI).
 
-## Architecture Decision: Reuse Existing Infrastructure
+## ⚠️ В ОЖИДАНИИ ИНТЕГРАЦИИ (Modules Ready)
+*Эти модули созданы, скомпилированы, но временно отключены или не подключены к `AudioEngine.swift` (после отката):*
+- [ ] **Lock-Free Engine**: `AudioCommandQueue` & `VoiceManager` (готовы к замене NSLock).
+- [ ] **Atomic Metering**: `AtomicMeteringState` (готов к замене DispatchQueue.main.async).
+- [ ] **Wavetable Engine**: `WavetableOscillator` с поддержкой mip-mapping.
+- [ ] **Advanced Effects**: `Distortion` (6 типов), `ParametricEQ` (3-band), `Phaser`.
 
-The codebase already contains these battle-tested modules that are NOT wired up:
-- `AudioCommandQueue.swift` — Lock-free SPSC queue (READY)
-- `AtomicMeteringState.swift` — Atomic metering + triple-buffered scope (READY)
-- `CachedBiquadFilter.swift` — Biquad with coefficient caching (READY)
-- `VoiceManager` in `VoiceState.swift` — Pre-allocated flat voice pool (READY)
-- `Compressor.swift` — Dynamics compressor with limiter mode (READY)
+## 🚀 СЛЕДУЮЩИЕ ШАГИ (Action Plan)
 
-**Decision**: Wire these in instead of writing new code. Minimal new code needed.
+### Фаза 1: Thread Safety & Performance (P0)
+- [ ] **Удаление NSLock**: Перейти на `AudioCommandQueue` для всех взаимодействий UI -> Audio Thread.
+- [ ] **Оптимизация голосов**: Интегрировать `VoiceManager` (фиксированный пул голосов, эффективная итерация по массиву).
+- [ ] **Thread-safe UI Update**: Заменить `DispatchQueue.main.async` в аудио-потоке на чтение из `AtomicMeteringState` по таймеру в UI (60Hz).
+- [ ] **Dynamic Sample Rate**: Автоматически подстраивать DSP под частоту дискретизации оборудования.
 
----
+### Фаза 2: Улучшение звукового тракта
+- [ ] **Stereo Gain Staging**: Исправить расчет громкости при панорамировании и унисоне.
+- [ ] **Polyphony Scaling**: Реализовать `1/√(activeVoices)` для предотвращения перегрузки до лимитера.
+- [ ] **True Stereo Filter**: Убедиться, что L/R фильтры работают независимо для сохранения стерео-базы.
 
-## Phase 1: Thread Safety + Voice Architecture (BUG-01, 05, 10, 11, 13, 14)
-
-**Goal**: Remove NSLock, Dictionary, DispatchQueue.main.async from audio thread.
-
-### Changes:
-1. `AudioEngine.swift` — Replace `notesLock` + `activeNotes: [Int: [ActiveNote]]` with `AudioCommandQueue` + `VoiceManager`
-2. `AudioEngine.swift` — Replace `DispatchQueue.main.async` metering with `AtomicMeteringState` + UI polling timer
-3. `AudioEngine.swift` — Add `AudioCommand` cases for preset parameter snapshots
-4. `AudioEngine.swift` — Make `oscillator1/2`, `envelope`, `lfo` private (audio-thread-owned)
-5. `AudioCommandQueue.swift` — Add snapshot command cases
-
-### Thread ownership after fix:
-- **UI thread**: pushes commands via `commandQueue.push()`
-- **Audio thread**: pops commands in `prepareBlock()`, owns all DSP state
-
----
-
-## Phase 2: Stereo Pipeline + Gain Staging (BUG-02, 03, 04, 06)
-
-**Goal**: True stereo path, proper polyphony scaling, real limiter.
-
-### Changes:
-1. `AudioEngine.swift` — Replace `SynthFilter` (mono) with two `CachedBiquadFilter` instances (L/R)
-2. `AudioEngine.swift` — Remove mono collapse `(mixedSampleL + mixedSampleR) * 0.7`
-3. `AudioEngine.swift` — Add polyphony scaling: `1/√(activeVoiceCount)`
-4. `AudioEngine.swift` — Add pre-limiter trim (0.9)
-5. `AudioEngine.swift` — Replace hard clip with `Compressor` in limiter mode
-6. `AudioEngine.swift` — Remove `* 1.414` from pan LFO
-7. `AudioEngine.swift` — Add `mainMixerNode.outputVolume = 0.5` for reverb/delay headroom
-8. `DSPChorus.swift` — Add stereo input method `process(inputL:inputR:)`
+### Фаза 3: Новые возможности
+- [ ] **Wavetable Synthesis**: Добавить выбор волновых таблиц в UI и их поддержку в движке.
+- [ ] **Effects Rack**: Интеграция Distortion и EQ в цепочку эффектов.
+- [ ] **Step Sequencer Pro**: Добавить сохранение паттернов в пресеты и поддержку Tie-нот.
 
 ---
-
-## Phase 3: Sample Rate + Filter Performance (BUG-07, 08)
-
-**Goal**: Dynamic sample rate, cached filter coefficients.
-
-### Changes:
-1. `AudioEngine.swift` — Query hardware sample rate from `engine.outputNode`
-2. `AudioEngine.swift` — Reinitialize DSP on configuration change
-3. Filter already solved by `CachedBiquadFilter` (Phase 2)
-
----
-
-## Phase 4: Sound Quality (BUG-09)
-
-**Goal**: Natural-sounding envelopes.
-
-### Changes:
-1. `ADSREnvelope.swift` — Replace linear decay with exponential: `value *= exp(-5.0 * deltaTime / decayTime)`
-2. `ADSREnvelope.swift` — Replace linear release with exponential
-
----
-
-## Phase 5: Cleanup (BUG-12)
-
-### Changes:
-1. `AudioEngine.swift` — Remove duplicate `reverb.setRoomSize()` call
-
----
-
-## Reviewer Debate Notes
-
-**Reviewer attack**: "Phase 1 is too aggressive — you're rewriting the entire voice path."
-**DSP Builder defense**: "We're not rewriting. VoiceManager already exists. We're replacing ~200 lines of Dictionary+NSLock code with ~30 lines of commandQueue.push() calls and a prepareBlock() function."
-
-**Reviewer attack**: "Exponential ADSR in Phase 4 — won't it cause discontinuities?"
-**DSP Builder defense**: "No. We use exp(-k*dt) per sample, which is inherently continuous. The transition from decay to sustain is smooth because exp approaches sustain asymptotically."
-
-**Consensus**: All phases approved. Execute in order.
-
+**Последнее обновление**: 2026-05-06
+**Статус**: В процессе стабилизации архитектуры.
