@@ -47,20 +47,13 @@ final class VoiceManager {
     var lastPlayedFrequency: Double? = nil
 
     init() {
-        // Pre-allocate all voices
         for i in 0..<VoiceManager.maxVoices {
             voices[i] = VoiceState()
         }
     }
 
-    /// Add voices for a note with unison
-    /// - Parameters:
-    ///   - midiNote: MIDI note number
-    ///   - velocity: Note velocity
-    ///   - unisonVoices: Number of unison voices
-    ///   - detuneAmount: Detune amount in cents
-    ///   - spreadAmount: Stereo spread amount
-    ///   - portamento: Portamento time
+    /// Add voices for a note with unison.
+    /// Re-triggers of the same MIDI note hard-kill prior voices (no double-trigger).
     func addVoices(
         midiNote: Int,
         velocity: Float,
@@ -69,12 +62,11 @@ final class VoiceManager {
         spreadAmount: Float,
         portamento: Float
     ) {
-        // First, release any existing voices for this note
-        releaseVoices(midiNote: midiNote)
+        // Hard-kill existing voices for this note to avoid double-trigger hang
+        killVoices(midiNote: midiNote)
 
         let baseFrequency = 440.0 * pow(2.0, Double(midiNote - 69) / 12.0)
 
-        // Determine start frequency for portamento
         let startFreq: Double
         if portamento > 0.001, let lastFreq = lastPlayedFrequency {
             startFreq = lastFreq
@@ -87,7 +79,7 @@ final class VoiceManager {
 
         for i in 0..<voiceCount {
             guard let voiceIndex = findFreeVoice() else {
-                break // No free voices
+                break
             }
 
             var voice = VoiceState()
@@ -96,7 +88,6 @@ final class VoiceManager {
             voice.velocity = velocity
             voice.unisonIndex = i
 
-            // Calculate detune for this unison voice
             if voiceCount > 1 {
                 let centerOffset = Float(i) - Float(voiceCount - 1) / 2.0
                 let detuneCents = centerOffset * detuneAmount
@@ -105,7 +96,6 @@ final class VoiceManager {
                 voice.targetFrequency = baseFrequency * detuneMultiplier
                 voice.currentFrequency = startFreq * detuneMultiplier
 
-                // Calculate pan spread
                 let panPos = (Float(i) / Float(voiceCount - 1)) * 2.0 - 1.0
                 voice.pan = panPos * spreadAmount
             } else {
@@ -114,7 +104,6 @@ final class VoiceManager {
                 voice.pan = 0.0
             }
 
-            // Initialize envelope
             voice.envelopePhase = .attack
             voice.envelopeValue = 0.0
             voice.envelopeTime = 0.0
@@ -125,7 +114,7 @@ final class VoiceManager {
         }
     }
 
-    /// Release all voices for a given MIDI note
+    /// Release all voices for a given MIDI note (enter ADSR release).
     func releaseVoices(midiNote: Int) {
         for i in 0..<VoiceManager.maxVoices {
             if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
@@ -135,17 +124,31 @@ final class VoiceManager {
         }
     }
 
+    /// Immediately deactivate all voices for a MIDI note (re-trigger / kill).
+    func killVoices(midiNote: Int) {
+        for i in 0..<VoiceManager.maxVoices {
+            if voices[i].isActive && voices[i].midiNote == midiNote {
+                voices[i].isActive = false
+                voices[i].envelopeValue = 0.0
+                voices[i].envelopePhase = .finished
+                activeVoiceCount -= 1
+            }
+        }
+    }
+
     /// Clear all voices immediately
     func clearAll() {
         for i in 0..<VoiceManager.maxVoices {
             voices[i].isActive = false
+            voices[i].envelopeValue = 0.0
+            voices[i].envelopePhase = .finished
         }
         activeVoiceCount = 0
         lastPlayedFrequency = nil
     }
 
-    /// Iterate over all active voices
-    /// The closure receives a mutable reference to the voice and can return false to deactivate it
+    /// Iterate over all active voices.
+    /// The closure receives a mutable reference and can return false to deactivate it.
     @inline(__always)
     func forEachActiveVoice(_ body: (inout VoiceState) -> Bool) {
         for i in 0..<VoiceManager.maxVoices {
@@ -159,42 +162,51 @@ final class VoiceManager {
         }
     }
 
-    /// Get the number of active voices
     var activeCount: Int {
         activeVoiceCount
     }
 
-    /// Check if there are any active voices
     var hasActiveVoices: Bool {
         activeVoiceCount > 0
     }
 
-    /// Find a free voice slot
+    /// Find a free voice slot. Prefers inactive, then quietest releasing, then quietest active.
     private func findFreeVoice() -> Int? {
-        // First, try to find a completely inactive voice
         for i in 0..<VoiceManager.maxVoices {
             if !voices[i].isActive {
                 return i
             }
         }
 
-        // Voice stealing: find the oldest releasing voice
-        var oldestReleasingIndex: Int? = nil
+        // Prefer stealing a releasing voice with the lowest envelope (least click risk)
+        var stealIndex: Int? = nil
         var lowestEnvelope: Float = Float.greatestFiniteMagnitude
+        var preferReleasing = false
 
         for i in 0..<VoiceManager.maxVoices {
-            if voices[i].isReleasing && voices[i].envelopeValue < lowestEnvelope {
-                lowestEnvelope = voices[i].envelopeValue
-                oldestReleasingIndex = i
+            guard voices[i].isActive else { continue }
+            let env = voices[i].envelopeValue
+            if voices[i].isReleasing {
+                if !preferReleasing || env < lowestEnvelope {
+                    preferReleasing = true
+                    lowestEnvelope = env
+                    stealIndex = i
+                }
+            } else if !preferReleasing && env < lowestEnvelope {
+                lowestEnvelope = env
+                stealIndex = i
             }
         }
 
-        if let index = oldestReleasingIndex {
+        if let index = stealIndex {
+            // Hard-kill stolen voice (caller starts a fresh envelope at 0)
             voices[index].isActive = false
+            voices[index].envelopeValue = 0.0
+            voices[index].envelopePhase = .finished
             activeVoiceCount -= 1
             return index
         }
 
-        return nil // No voices available
+        return nil
     }
 }

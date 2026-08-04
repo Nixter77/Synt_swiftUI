@@ -18,7 +18,8 @@ final class AtomicMeteringState: @unchecked Sendable {
     private let scopeBufferSize = 512
     private var scopeBuffers: [[Float]]
     private let writeIndex = Atomic<Int>(0)
-    private let readIndex = Atomic<Int>(1)
+    // Must not equal (writeIndex+1)%3 or the first scope write is dropped.
+    private let readIndex = Atomic<Int>(2)
 
     init() {
         scopeBuffers = [
@@ -26,6 +27,10 @@ final class AtomicMeteringState: @unchecked Sendable {
             Array(repeating: 0.0, count: scopeBufferSize),
             Array(repeating: 0.0, count: scopeBufferSize)
         ]
+        // writeIndex starts at 0; readIndex must not equal (writeIndex+1)%3
+        // or the first write is dropped as a collision with the "reader" slot.
+        writeIndex.store(0, ordering: .relaxed)
+        readIndex.store(2, ordering: .relaxed)
     }
 
     // MARK: - Audio Thread (Writer)

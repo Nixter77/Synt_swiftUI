@@ -2,6 +2,12 @@
 //  AudioEngine.swift
 //  Synt_swiftUI
 //
+//  Real-time audio render path rules:
+//  - No NSLock / notesLock in generateSample
+//  - No DispatchQueue.main from generateSample
+//  - No direct preset.<field> reads on the audio path (use caches only)
+//  - Note on/off via AudioCommandQueue; metering via AtomicMeteringState + UI poll
+//
 
 import AVFoundation
 import Combine
@@ -20,12 +26,13 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         didSet { applyPreset() }
     }
 
-    // VU Meter levels (0.0 to 1.0)
+    // VU Meter levels (0.0 to 1.0) — written only on main via pollMetering()
     @Published var outputLevel: Float = 0.0
     @Published var peakLevel: Float = 0.0
-    
+
     // UI Visualization
     @Published var pressedKeys: Set<Int> = []
+    @Published var scopeData: [Float] = Array(repeating: 0.0, count: 512)
 
     var oscillator1 = Oscillator()
     var oscillator2 = Oscillator()
@@ -34,13 +41,19 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var filterR = CachedBiquadFilter()
     var lfo = LFO()
     private let limiter = Compressor(sampleRate: 44100.0)
-    private let commandQueue = AudioCommandQueue(capacity: 1024)
 
-    private var activeNotes: [Int: [ActiveNote]] = [:] // Key: MIDI Note, Value: Array of unison voices
-    private let notesLock = NSLock()
+    /// UI → audio command path (SPSC). Only audio thread mutates activeNotes.
+    private let commandQueue = AudioCommandQueue(capacity: 1024)
+    /// Audio → UI metering path. Audio writes atomics; main polls.
+    private let meteringState = AtomicMeteringState()
+    private var cancellables = Set<AnyCancellable>()
+
+    /// Active notes: audio-thread only after command drain (no lock).
+    private var activeNotes: [Int: [ActiveNote]] = [:]
 
     private let sampleRate: Double = 44100.0
 
+    // MARK: - Cached parameters (written on applyPreset / main; read on audio path)
     private var cachedOsc2Enabled: Bool = true
     private var cachedFilterCutoff: Float = 5000.0
     private var cachedMasterVolume: Float = 0.5
@@ -50,18 +63,16 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private var cachedUnisonSpread: Float = 0.0
     private var cachedBPM: Float = 120.0
     private var cachedArpMode: ArpeggiatorMode = .off
-    
-    // Mod Matrix Cache
     private var cachedModMatrix: [ModMatrixEntry] = []
-    
-    // Portamento state
+
+    // Portamento state (audio thread)
     private var lastPlayedFrequency: Double? = nil
 
-    // Level metering
+    // Level metering (audio-thread accumulators → AtomicMeteringState)
     private var currentLevel: Float = 0.0
     private var currentPeak: Float = 0.0
     private var sampleCounter: Int = 0
-    private let levelUpdateInterval: Int = 2048  // Update UI every N samples
+    private let levelUpdateInterval: Int = 2048
     private let levelDecay: Float = 0.95
     private let peakDecay: Float = 0.9995
 
@@ -69,33 +80,44 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private var smoothedFilterCutoff: Float = 5000.0
     private var smoothedMasterVolume: Float = 0.5
     private let smoothingCoeff: Float = 0.999
-    
-    // Oscilloscope Capture
-    @Published var scopeData: [Float] = Array(repeating: 0.0, count: 512)
+
+    // Oscilloscope Capture (audio thread buffer → AtomicMeteringState)
     private var scopeBuffer: [Float] = Array(repeating: 0.0, count: 512)
     private var scopeIndex: Int = 0
-    private let scopeUpdateInterval: Int = 5 
     private var isCapturingScope: Bool = true
 
-    // Clock & Arpeggiator
+    // Clock & Arpeggiator (audio-thread state)
     private var clockPhase: Double = 0.0
     private var samplesPerTick: Double = 0.0
-    private var currentTick: Int = 0
-    private var arpNoteIndex: Int = 0
-    private var arpSortedNotes: [Int] = [] // Notes held down sorted for arp
-    private var currentArpNote: Int? = nil // Currently playing arp note
-    private var arpTimer: Int = 0
-    private var heldKeysForArp: Set<Int> = [] // Physical keys held
+    private var arp = ArpeggiatorEngine()
+    private var heldKeysForArp: Set<Int> = []
 
-    // Random noise seed
+    // Random noise seed (also used by arp random mode)
     private var noiseSeed: UInt32 = 12345
-
 
     init() {
         setupAudioSession()
         setupLimiter()
         setupAudioEngine()
         applyPreset()
+        startMeteringPoll()
+    }
+
+    private func startMeteringPoll() {
+        // UI-side poll — never hop to main from the render callback
+        Timer.publish(every: 1.0 / 60.0, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.pollMetering()
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Main-thread only: copy atomics into @Published properties for SwiftUI.
+    private func pollMetering() {
+        outputLevel = meteringState.getOutputLevel()
+        peakLevel = meteringState.getPeakLevel()
+        scopeData = meteringState.readScopeBuffer()
     }
 
     private func setupLimiter() {
@@ -131,13 +153,13 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                 let (sampleL, sampleR) = self.generateSample()
 
                 if ablPointer.count >= 2 {
-                     let bufL = ablPointer[0].mData?.assumingMemoryBound(to: Float.self)
-                     let bufR = ablPointer[1].mData?.assumingMemoryBound(to: Float.self)
-                     bufL?[frame] = sampleL
-                     bufR?[frame] = sampleR
+                    let bufL = ablPointer[0].mData?.assumingMemoryBound(to: Float.self)
+                    let bufR = ablPointer[1].mData?.assumingMemoryBound(to: Float.self)
+                    bufL?[frame] = sampleL
+                    bufR?[frame] = sampleR
                 } else if ablPointer.count == 1 {
-                     let buf = ablPointer[0].mData?.assumingMemoryBound(to: Float.self)
-                     buf?[frame] = (sampleL + sampleR) * 0.5
+                    let buf = ablPointer[0].mData?.assumingMemoryBound(to: Float.self)
+                    buf?[frame] = (sampleL + sampleR) * 0.5
                 }
             }
 
@@ -158,43 +180,33 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.prepare()
     }
 
+    // MARK: - Audio thread render path
+
     private func generateSample() -> (Float, Float) {
-        notesLock.lock()
-        defer { notesLock.unlock() }
+        // Drain UI commands first (only mutator of activeNotes / arp held keys)
+        processCommandQueue()
 
         var mixedSampleL: Float = 0.0
         var mixedSampleR: Float = 0.0
         var notesToRemove: [Int] = []
-        
-        // --- CLOCK & ARP PROCESSING ---
-        // Calculate samples per tick (16th note)
-        // BPM / 60 = BPS
-        // BPS * 4 = Beats (quarter notes)
-        // BPS * 4 * 4 = 16th notes per second?
-        // Wait: 120 BPM = 2 beats per sec = 8 16th notes per sec.
-        // SamplesPerTick = SampleRate / (BPM / 60 * 4)
-        
-        let bpm = preset.bpm
+
+        // --- CLOCK & ARP PROCESSING (cached BPM / mode only) ---
+        let bpm = cachedBPM
         let ticksPerBeat = 4.0 // 16th notes
         let samplesPerBeat = sampleRate * 60.0 / Double(max(20, bpm))
         samplesPerTick = samplesPerBeat / ticksPerBeat
-        
-        // Advance Clock
-        if preset.arpMode != .off {
-           clockPhase += 1.0
-           if clockPhase >= samplesPerTick {
-               clockPhase -= samplesPerTick
-               handleArpTick()
-           }
+
+        if cachedArpMode != .off {
+            arp.mode = cachedArpMode
+            clockPhase += 1.0
+            if clockPhase >= samplesPerTick {
+                clockPhase -= samplesPerTick
+                handleArpTick()
+            }
         } else {
-            // Reset state if arp disabled
-            if currentArpNote != nil {
-                // Panic/Kill arp note
-                if let n = currentArpNote {
-                    // Use internal noteOff NO LOCK because we are inside generateSample Lock
-                    internalNoteOffNoLock(midiNote: n)
-                }
-                currentArpNote = nil
+            if let n = arp.currentNote {
+                internalNoteOff(midiNote: n)
+                arp.currentNote = nil
             }
         }
 
@@ -207,39 +219,32 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         noiseSeed = noiseSeed &* 1664525 &+ 1013904223
         let noiseValue = Float(noiseSeed) / Float(UInt32.max) * 2.0 - 1.0
 
-        // Flatten active notes for processing
-        // We iterate over the dictionary values (arrays of ActiveNote)
         for (midiNote, var notes) in activeNotes {
             var allNotesEnded = true
-            
+
             for i in 0..<notes.count {
                 var activeNote = notes[i]
-                
-                let targetFrequency = activeNote.targetFrequency // Use specific target (detuned)
-                
+
+                let targetFrequency = activeNote.targetFrequency
+
                 // Portamento / Glide Update
                 if cachedPortamento > 0.001 {
                     let glideRate = 1.0 - exp(-5.0 / (Double(cachedPortamento) * sampleRate))
                     activeNote.currentFrequency += (targetFrequency - activeNote.currentFrequency) * glideRate
-                    
+
                     if abs(activeNote.currentFrequency - targetFrequency) < 0.1 {
                         activeNote.currentFrequency = targetFrequency
                     }
                 } else {
                     activeNote.currentFrequency = targetFrequency
                 }
-                
-                // --- MATRIX MODULATION & AUDIO GENERATION ---
-                
-                // 1. Initial Values
+
                 let baseFrequency = activeNote.currentFrequency
                 var osc1Freq = oscillator1.frequencyWithModifiers(baseFrequency)
                 var osc2Freq = oscillator2.frequencyWithModifiers(baseFrequency)
-                
+
                 let velValue = activeNote.velocity
-                
-                // Step 1: Envelope (Control Signal)
-                // We process envelope first to get value for modulation
+
                 let envelopeValue = envelope.process(
                     currentValue: activeNote.envelopeValue,
                     phase: &activeNote.envelopePhase,
@@ -249,13 +254,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                     sampleRate: sampleRate
                 )
                 activeNote.envelopeValue = envelopeValue
-                
-                // Step 2: Matrix Modulation (Pitch & Cutoff Pre-calculation)
+
                 var pitchMod1: Float = 0.0
                 var pitchMod2: Float = 0.0
                 var ampMod: Float = 0.0
                 var panMod: Float = 0.0
-                
+
                 for entry in modMatrix {
                     var sourceVal: Float = 0.0
                     switch entry.source {
@@ -263,10 +267,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                     case .env1: sourceVal = envelopeValue
                     case .velocity: sourceVal = velValue
                     }
-                    
-                    let amount = entry.amount
-                    let modVal = sourceVal * amount
-                    
+
+                    let modVal = sourceVal * entry.amount
+
                     switch entry.destination {
                     case .pitch1:  pitchMod1 += modVal
                     case .pitch2:  pitchMod2 += modVal
@@ -276,20 +279,16 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                     default: break
                     }
                 }
-                
-                // Apply Pitch Mod
-                // 1.0 mod = 1 octave (doubling frequency)
+
                 osc1Freq *= pow(2.0, Double(pitchMod1))
                 osc2Freq *= pow(2.0, Double(pitchMod2))
-                
-                // Legacy LFO Pitch (keep for compatibility if matrix empty?)
+
                 if lfoEnabled && lfoTarget == .pitch {
-                     let mod = lfoValue
-                     osc1Freq *= pow(2.0, Double(mod))
-                     osc2Freq *= pow(2.0, Double(mod))
+                    let mod = lfoValue
+                    osc1Freq *= pow(2.0, Double(mod))
+                    osc2Freq *= pow(2.0, Double(mod))
                 }
 
-                // Step 3: Oscillators
                 let phaseIncrement1 = AudioMath.twoPi * osc1Freq / sampleRate
                 let phaseIncrement2 = AudioMath.twoPi * osc2Freq / sampleRate
 
@@ -306,45 +305,37 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                 if activeNote.phase >= AudioMath.twoPi { activeNote.phase -= AudioMath.twoPi }
                 if activeNote.phase2 >= AudioMath.twoPi { activeNote.phase2 -= AudioMath.twoPi }
 
-                // Step 4: Amplitude & Pan
                 let unisonScale = 1.0 / sqrt(Double(max(1, cachedUnisonVoices)))
                 var amplitude = sample * envelopeValue * Float(unisonScale)
-                
-                // Apply Amp Mod
+
                 amplitude *= max(0.0, 1.0 + ampMod)
-                
-                // Legacy LFO Amp
+
                 if lfoEnabled && lfoTarget == .amplitude {
                     amplitude = lfo.modulateAmplitude(amplitude, lfoValue: lfoValue)
                 }
-                
+
                 var pan = activeNote.pan
                 pan += panMod
-                
-                // Legacy LFO Pan
+
                 if lfoEnabled && lfoTarget == .pan {
                     pan += lfoValue
                 }
-                
+
                 pan = max(-1.0, min(1.0, pan))
-                
-                // Check ended
+
                 if activeNote.envelopePhase != .finished {
                     allNotesEnded = false
                 }
                 notes[i] = activeNote
-                
-                // Mix
+
                 let angle = (pan + 1.0) * Float.pi / 4.0
                 let gainL = cos(angle)
                 let gainR = sin(angle)
-                
+
                 mixedSampleL += amplitude * gainL
                 mixedSampleR += amplitude * gainR
-               
             }
-            
-            // If all unison voices for this note are finished, mark for removal
+
             if allNotesEnded {
                 notesToRemove.append(midiNote)
             } else {
@@ -356,7 +347,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             activeNotes.removeValue(forKey: midiNote)
         }
 
-        // Apply parameter smoothing
         smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1.0 - smoothingCoeff)
         smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1.0 - smoothingCoeff)
 
@@ -371,23 +361,19 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         let filteredSampleR = filterR.process(mixedSampleR, sampleRate: Float(sampleRate))
         let finalSampleL = filteredSampleL * smoothedMasterVolume
         let finalSampleR = filteredSampleR * smoothedMasterVolume
-        
-        // Apply Chorus
+
         var (chorusL, chorusR) = dspChorus.process(inputL: finalSampleL, inputR: finalSampleR)
-        
-        // Apply Pan Modulation GLOBALLY here (Post-Filter, Post-Chorus/Pre-Chorus?)
-        // If we Pan Post-Chorus, we pan the reverb/chorus tail too? No, Chorus is insert.
-        // Let's Pan the result of Chorus.
-             if lfoEnabled && lfoTarget == .pan {
-                 let panVal = max(-1.0, min(1.0, lfoValue))
-                 let angle = (panVal + 1.0) * Float.pi / 4.0
-                 chorusL *= cos(angle)
-                 chorusR *= sin(angle)
-            }
+
+        if lfoEnabled && lfoTarget == .pan {
+            let panVal = max(-1.0, min(1.0, lfoValue))
+            let angle = (panVal + 1.0) * Float.pi / 4.0
+            chorusL *= cos(angle)
+            chorusR *= sin(angle)
+        }
 
         (chorusL, chorusR) = limiter.processStereo(inputL: chorusL, inputR: chorusR)
 
-        // Level metering (use max of L/R)
+        // Level metering → atomics only (no main-queue hop)
         let absSample = max(abs(chorusL), abs(chorusR))
         currentLevel = max(currentLevel * levelDecay, absSample)
         if absSample > currentPeak {
@@ -399,36 +385,124 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         sampleCounter += 1
         if sampleCounter >= levelUpdateInterval {
             sampleCounter = 0
-            let level = min(currentLevel * 2.0, 1.0)  // Scale for better visibility
+            let level = min(currentLevel * 2.0, 1.0)
             let peak = min(currentPeak * 2.0, 1.0)
-            DispatchQueue.main.async { [weak self] in
-                self?.outputLevel = level
-                self?.peakLevel = peak
-            }
+            meteringState.setOutputLevel(level)
+            meteringState.setPeakLevel(peak)
         }
-        
-        // Oscilloscope Capture (Mono mix for viz)
+
         if isCapturingScope {
             let monoOut = (chorusL + chorusR) * 0.5
             scopeBuffer[scopeIndex] = monoOut
             scopeIndex += 1
-            
+
             if scopeIndex >= scopeBuffer.count {
                 scopeIndex = 0
-                // Publish copy
-                let dataCopy = scopeBuffer
-                DispatchQueue.main.async { [weak self] in
-                    self?.scopeData = dataCopy
-                }
+                meteringState.writeScopeBuffer(scopeBuffer)
             }
         }
-        
-        // Final safety clamp after limiter envelope response.
+
         chorusL = max(-1.0, min(1.0, chorusL))
         chorusR = max(-1.0, min(1.0, chorusR))
 
         return (chorusL, chorusR)
     }
+
+    private func processCommandQueue() {
+        commandQueue.drain(limit: 128) { [self] command in
+            switch command {
+            case .noteOn(let midiNote, let velocity):
+                createVoice(midiNote: midiNote, velocity: velocity)
+            case .noteOff(let midiNote):
+                internalNoteOff(midiNote: midiNote)
+            case .clearAll:
+                activeNotes.removeAll()
+                heldKeysForArp.removeAll()
+                arp.reset()
+                filterL.reset()
+                filterR.reset()
+                lfo.reset()
+            case .arpKeyDown(let midiNote):
+                heldKeysForArp.insert(midiNote)
+                arp.mode = cachedArpMode
+                arp.setHeldKeys(heldKeysForArp)
+            case .arpKeyUp(let midiNote):
+                heldKeysForArp.remove(midiNote)
+                arp.mode = cachedArpMode
+                arp.setHeldKeys(heldKeysForArp)
+            }
+        }
+    }
+
+    private func handleArpTick() {
+        if let oldNote = arp.currentNote {
+            internalNoteOff(midiNote: oldNote)
+        }
+
+        guard let newNote = arp.advanceTick(randomSource: &noiseSeed) else {
+            return
+        }
+        createVoice(midiNote: newNote, velocity: 0.8)
+    }
+
+    /// Audio-thread voice allocation using cached unison/portamento only.
+    private func createVoice(midiNote: Int, velocity: Float) {
+        if activeNotes[midiNote] != nil {
+            activeNotes.removeValue(forKey: midiNote)
+        }
+
+        let note = Note(midiNote: midiNote)
+
+        let startFreq: Double
+        if activeNotes.isEmpty {
+            startFreq = note.frequency
+        } else {
+            startFreq = cachedPortamento > 0 ? (lastPlayedFrequency ?? note.frequency) : note.frequency
+        }
+        lastPlayedFrequency = note.frequency
+
+        let voices = cachedUnisonVoices
+        let detuneAmount = cachedUnisonDetune
+        let spreadAmount = cachedUnisonSpread
+
+        var newNotes: [ActiveNote] = []
+
+        if voices <= 1 {
+            var activeNote = ActiveNote(note: note, velocity: velocity)
+            activeNote.currentFrequency = startFreq
+            activeNote.targetFrequency = note.frequency
+            activeNote.pan = 0.0
+            newNotes.append(activeNote)
+        } else {
+            for i in 0..<voices {
+                var activeNote = ActiveNote(note: note, velocity: velocity)
+                let centerOffset = Float(i) - Float(voices - 1) / 2.0
+                let detuneCents = centerOffset * detuneAmount
+                let targetDetuned = AudioMath.detuneFrequency(note.frequency, cents: detuneCents)
+                let startDetuned = AudioMath.detuneFrequency(startFreq, cents: detuneCents)
+                activeNote.currentFrequency = startDetuned
+                activeNote.targetFrequency = targetDetuned
+                if voices > 1 {
+                    let panPos = (Float(i) / Float(voices - 1)) * 2.0 - 1.0
+                    activeNote.pan = panPos * spreadAmount
+                }
+                newNotes.append(activeNote)
+            }
+        }
+        activeNotes[midiNote] = newNotes
+    }
+
+    private func internalNoteOff(midiNote: Int) {
+        if var notes = activeNotes[midiNote] {
+            for i in 0..<notes.count {
+                notes[i].isReleasing = true
+                notes[i].releaseStartValue = notes[i].envelopeValue
+            }
+            activeNotes[midiNote] = notes
+        }
+    }
+
+    // MARK: - Public API (non-audio / UI thread)
 
     func start() {
         guard !engine.isRunning else { return }
@@ -445,255 +519,46 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.stop()
         isPlaying = false
         clearAllNotes()
-        // Reset levels
         outputLevel = 0.0
         peakLevel = 0.0
         currentLevel = 0.0
         currentPeak = 0.0
+        meteringState.setOutputLevel(0)
+        meteringState.setPeakLevel(0)
     }
 
-
-
-    // Split NoteOn into Public (External/UI) and Internal (Engine)
-    // External handles Arp logic. Internal handles Voice allocation.
-    
     func noteOn(midiNote: Int, velocity: Float = 1.0) {
-        // If ARP is ON, we don't trigger sound immediately. We add to Arp pool.
+        // Read preset only on non-audio path; push RT-safe command
         if preset.arpMode != .off {
-            notesLock.lock()
-            heldKeysForArp.insert(midiNote)
-            updateArpSequence()
-            
-            // If this is the FIRST note and nothing is playing, maybe start arp immediately?
-            // Or wait for next clock? Let's align to grid for now, but ensure clock starts.
-            notesLock.unlock()
-            
-            DispatchQueue.main.async {
-                self.pressedKeys.insert(midiNote)
-            }
+            _ = commandQueue.push(.arpKeyDown(midiNote: midiNote))
         } else {
-             internalNoteOn(midiNote: midiNote, velocity: velocity)
+            _ = commandQueue.push(.noteOn(midiNote: midiNote, velocity: velocity))
         }
-    }
-
-    private func internalNoteOn(midiNote: Int, velocity: Float) {
-        notesLock.lock()
-        defer { notesLock.unlock() }
-        
-        if activeNotes[midiNote] != nil {
-            activeNotes.removeValue(forKey: midiNote)
-        }
-
-        let note = Note(midiNote: midiNote)
-        
-        // Portamento Logic
-        let startFreq: Double
-        if activeNotes.isEmpty {
-           startFreq = note.frequency
-        } else {
-             startFreq = preset.portamento > 0 ? (lastPlayedFrequency ?? note.frequency) : note.frequency
-        }
-        lastPlayedFrequency = note.frequency
-
-        // Unison Logic
-        let voices = preset.unisonVoices
-        let detuneAmount = preset.unisonDetune
-        let spreadAmount = preset.unisonSpread
-        
-        var newNotes: [ActiveNote] = []
-        
-        if voices <= 1 {
-            // Single voice
-            var activeNote = ActiveNote(note: note, velocity: velocity)
-            activeNote.currentFrequency = startFreq
-            activeNote.targetFrequency = note.frequency
-            activeNote.pan = 0.0
-            newNotes.append(activeNote)
-        } else {
-            // Multi-voice Unison
-            for i in 0..<voices {
-                var activeNote = ActiveNote(note: note, velocity: velocity)
-                
-                // Calculate Detune
-                // Spread voices around center. e.g. -2, -1, 0, 1, 2 for 5 voices
-                // Formula: (i - (voices-1)/2)
-                let centerOffset = Float(i) - Float(voices - 1) / 2.0
-                let detuneCents = centerOffset * detuneAmount
-                
-                let targetDetuned = AudioMath.detuneFrequency(note.frequency, cents: detuneCents)
-                let startDetuned = AudioMath.detuneFrequency(startFreq, cents: detuneCents)
-
-                activeNote.currentFrequency = startDetuned
-                activeNote.targetFrequency = targetDetuned
-                
-                // Spread (Pan)
-                // Spread linearly from -spread to +spread
-                if voices > 1 {
-                     let panPos = (Float(i) / Float(voices - 1)) * 2.0 - 1.0 // -1 to 1 normal
-                     activeNote.pan = panPos * spreadAmount
-                }
-                
-                newNotes.append(activeNote)
-            }
-        }
-        
-        activeNotes[midiNote] = newNotes
-        
-        if preset.arpMode == .off {
-           // Only update pressedKeys if not handled by Arp NoteOn
-           DispatchQueue.main.async {
-               self.pressedKeys.insert(midiNote)
-           }
-        }
-    }
-    
-    // Arpeggiator Tick Handler (Called from Audio Thread)
-    private func handleArpTick() {
-        // Stop previous note
-        if let oldNote = currentArpNote {
-            internalNoteOffNoLock(midiNote: oldNote)
-        }
-        
-        if arpSortedNotes.isEmpty {
-            currentArpNote = nil
-            return
-        }
-        
-        // Advance Index
-        // Simple UP for now
-        // TODO: Implement modes properly
-        switch preset.arpMode {
-        case .up:
-             arpNoteIndex = (arpNoteIndex + 1) % arpSortedNotes.count
-        case .down:
-              if arpNoteIndex <= 0 { arpNoteIndex = arpSortedNotes.count - 1 }
-              else { arpNoteIndex -= 1 }
-        case .random:
-              arpNoteIndex = Int.random(in: 0..<arpSortedNotes.count)
-        default: break
-        }
-        
-        let newNote = arpSortedNotes[arpNoteIndex]
-        currentArpNote = newNote
-        
-        // Trigger Note On (Internal) - must NOT lock again if we are already in lock?
-        // YES. generateSample locks. handleArpTick is called from generateSample.
-        // internalNoteOn ALSO locks. DEADLOCK.
-        // We must split internalNoteOn into "logic" (no lock) and "wrapper" (lock).
-        // Or simply refactor code to inline note creation here.
-        // For safety, let's create `internalNoteOnNoLock`.
-        
-        createVoiceNoLock(midiNote: newNote, velocity: 0.8)
-    }
-    
-    private func createVoiceNoLock(midiNote: Int, velocity: Float) {
-        // COPY PASTE of Voice Creation Logic but WITHOUT Lock
-         if activeNotes[midiNote] != nil {
-             activeNotes.removeValue(forKey: midiNote)
-         }
-
-         let note = Note(midiNote: midiNote)
-         
-         let startFreq: Double
-         if activeNotes.isEmpty {
-            startFreq = note.frequency
-         } else {
-              startFreq = preset.portamento > 0 ? (lastPlayedFrequency ?? note.frequency) : note.frequency
-         }
-         lastPlayedFrequency = note.frequency
-
-         let voices = cachedUnisonVoices // Use CACHED values in Audio Thread
-         let detuneAmount = cachedUnisonDetune
-         let spreadAmount = cachedUnisonSpread
-         
-         var newNotes: [ActiveNote] = []
-         
-         if voices <= 1 {
-             var activeNote = ActiveNote(note: note, velocity: velocity)
-             activeNote.currentFrequency = startFreq
-             activeNote.targetFrequency = note.frequency
-             activeNote.pan = 0.0
-             newNotes.append(activeNote)
-         } else {
-             for i in 0..<voices {
-                 var activeNote = ActiveNote(note: note, velocity: velocity)
-                 let centerOffset = Float(i) - Float(voices - 1) / 2.0
-                 let detuneCents = centerOffset * detuneAmount
-                 let targetDetuned = AudioMath.detuneFrequency(note.frequency, cents: detuneCents)
-                 let startDetuned = AudioMath.detuneFrequency(startFreq, cents: detuneCents)
-                 activeNote.currentFrequency = startDetuned
-                 activeNote.targetFrequency = targetDetuned
-                 if voices > 1 {
-                      let panPos = (Float(i) / Float(voices - 1)) * 2.0 - 1.0
-                      activeNote.pan = panPos * spreadAmount
-                 }
-                 newNotes.append(activeNote)
-             }
-         }
-         activeNotes[midiNote] = newNotes
-    }
-
-    private func updateArpSequence() {
-        // Called when keys change
-        let keys = Array(heldKeysForArp).sorted()
-        
-        // Re-sort based on mode? For now just keep sorted
-        arpSortedNotes = keys
-        
-        // If mode is Down, maybe reverse?
-        if preset.arpMode == .down {
-            arpSortedNotes = keys.reversed()
-        }
-       
-       // Reset index if out of bounds
-       if arpNoteIndex >= arpSortedNotes.count {
-           arpNoteIndex = 0
-       }
+        updatePressedKeys { $0.insert(midiNote) }
     }
 
     func noteOff(midiNote: Int) {
         if preset.arpMode != .off {
-            notesLock.lock()
-            heldKeysForArp.remove(midiNote)
-            updateArpSequence()
-            notesLock.unlock()
-            
-            DispatchQueue.main.async {
-                self.pressedKeys.remove(midiNote)
-            }
+            _ = commandQueue.push(.arpKeyUp(midiNote: midiNote))
         } else {
-            notesLock.lock()
-            internalNoteOffNoLock(midiNote: midiNote)
-            notesLock.unlock()
-            
-            DispatchQueue.main.async {
-                self.pressedKeys.remove(midiNote)
-            }
+            _ = commandQueue.push(.noteOff(midiNote: midiNote))
         }
-    }
-    
-    // Must be called with Lock held!
-    private func internalNoteOffNoLock(midiNote: Int) {
-        if var notes = activeNotes[midiNote] {
-            // Release ALL unison voices for this key
-            for i in 0..<notes.count {
-                notes[i].isReleasing = true
-                notes[i].releaseStartValue = notes[i].envelopeValue
-            }
-            activeNotes[midiNote] = notes
-        }
+        updatePressedKeys { $0.remove(midiNote) }
     }
 
     func clearAllNotes() {
-        notesLock.lock()
-        activeNotes.removeAll()
-        filterL.reset()
-        filterR.reset()
-        lfo.reset()
-        notesLock.unlock()
-        
-        DispatchQueue.main.async {
-            self.pressedKeys.removeAll()
+        _ = commandQueue.push(.clearAll)
+        updatePressedKeys { $0.removeAll() }
+    }
+
+    private func updatePressedKeys(_ body: @escaping (inout Set<Int>) -> Void) {
+        if Thread.isMainThread {
+            body(&pressedKeys)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                body(&self.pressedKeys)
+            }
         }
     }
 
@@ -739,7 +604,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         delay.feedback = preset.delayFeedback
         delay.wetDryMix = preset.delayMix * 100
 
-        // Update cached values for audio thread
+        // Snapshot all parameters the audio path needs
         cachedPortamento = preset.portamento
         cachedUnisonVoices = preset.unisonVoices
         cachedUnisonDetune = preset.unisonDetune
@@ -748,9 +613,70 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         cachedOsc2Enabled = preset.osc2Enabled
         cachedFilterCutoff = preset.filterCutoff
         cachedMasterVolume = preset.masterVolume
+        cachedBPM = preset.bpm
+        cachedArpMode = preset.arpMode
+        // Do NOT touch `arp` here — it is audio-thread state.
+        // generateSample / processCommandQueue apply cachedArpMode on the audio path.
     }
 
     func loadPreset(_ preset: SynthPreset) {
         self.preset = preset
     }
+
+    // MARK: - Test / diagnostic hooks (drive shipped types without AVAudioEngine)
+
+    /// Applies current preset caches (same path as didSet). Exposed for unit tests.
+    func applyPresetForTesting() {
+        applyPreset()
+    }
+
+    /// Snapshot values currently held for the audio path.
+    func cachedAudioParamsForTesting() -> (
+        bpm: Float,
+        arpMode: ArpeggiatorMode,
+        osc2Enabled: Bool,
+        unisonVoices: Int,
+        portamento: Float,
+        filterCutoff: Float,
+        masterVolume: Float,
+        modMatrixCount: Int
+    ) {
+        (
+            cachedBPM,
+            cachedArpMode,
+            cachedOsc2Enabled,
+            cachedUnisonVoices,
+            cachedPortamento,
+            cachedFilterCutoff,
+            cachedMasterVolume,
+            cachedModMatrix.count
+        )
+    }
+
+    /// Process pending commands as the audio thread would (for unit tests).
+    func processCommandsForTesting() {
+        processCommandQueue()
+    }
+
+    /// Active note count after command processing (audio-thread state).
+    var activeNoteCountForTesting: Int {
+        activeNotes.count
+    }
+
+    /// Whether a note key is present in the active voice map.
+    func isNoteActiveForTesting(_ midiNote: Int) -> Bool {
+        activeNotes[midiNote] != nil
+    }
+
+    /// Whether a note is in release after noteOff was processed.
+    func isNoteReleasingForTesting(_ midiNote: Int) -> Bool {
+        guard let notes = activeNotes[midiNote] else { return false }
+        return notes.allSatisfy { $0.isReleasing }
+    }
+
+    /// Expose metering state for tests (write as audio would, read as UI would).
+    var meteringStateForTesting: AtomicMeteringState { meteringState }
+
+    /// Expose command queue for full-queue / FIFO tests that need the engine instance.
+    var commandQueueForTesting: AudioCommandQueue { commandQueue }
 }
