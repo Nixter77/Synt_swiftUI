@@ -50,18 +50,10 @@ graph TD
 - [x] **Пополифоническое масштабирование**: `1 / sqrt(max(1, activeVoices))` в `generateSample()` после микширования голосов.
 - [x] **Защитный клиппер перед эффектами**: soft-clip ceiling 0.5 (−6 dB) перед chorus/limiter → Delay/Reverb.
 
-### 📍 Этап 2: Безопасный Lock-Free Engine (`VoiceManager` + `AudioCommandQueue`) ✅ РЕАЛИЗОВАНО (2026-08-05)
-
-| Пункт | Статус | Проверка | Примечания |
-|-------|--------|----------|------------|
-| Безопасная очистка старых нот | ✅ | `voiceManagerHardKillsSameNoteOnRetrigger` | `killVoices` в `addVoices` — hard-kill same MIDI, без double-trigger |
-| Плавный Voice Stealing 1 ms | ✅ | `voiceManagerStealsUnderPolyphonyPressure`, `voiceManagerStealReleaseRampsWithOneMsOverride` | soft-steal → 1 ms `isStealRelease`; force-reclaim silent/steal first; cap 64 |
-| Приоритет noteOff/clearAll | ✅ (уже было) | queue unit-тесты | side-channel atomics; producer не трогает tail |
-| Интеграция в AudioEngine | ✅ | `audioEngineUsesVoiceManagerCapAndCommandQueue` | словарь `activeNotes` заменён на `VoiceManager` |
-
-- [x] **Безопасная очистка старых нот**: `killVoices` в `addVoices()` — мгновенный hard-kill предыдущего голоса той же ноты.
-- [x] **Плавный Voice Stealing**: soft-steal + `releaseOverride = 1 ms` в ADSR; force-reclaim при дефиците слотов.
-- [x] **Защита от переполнения очереди**: `noteOff` / `clearAll` / `arpKeyUp` через atomic side-channel.
+### 📍 Этап 2: Безопасный Lock-Free Engine (`VoiceManager` + `AudioCommandQueue`)
+- [ ] **Безопасная очистка старых нот**: В `VoiceManager.addVoices()` мгновенно гасить фазу ADSR предыдущего голоса этой же ноты, предотвращая дублирование.
+- [ ] **Плавный Voice Stealing**: При исчерпании 64 голосов применять фазу быстрой релаксации (1 мс release), предотвращая щелчки.
+- [ ] **Защита от переполнения очереди**: В `AudioCommandQueue` при переполнении отдавать приоритет `noteOff` и `clearAll`.
 
 ### 📍 Этап 3: Полноценный Wavetable-синтез (`WavetableOscillator`)
 - [ ] **Исправление Mip-Mapping**: Переписать `applyFFTBandLimit()`, чтобы она фильтровала существующую волну, а не генерировала абстрактную пилу.
@@ -95,18 +87,10 @@ graph TD
 | | |
 |--|--|
 | **Сделано** | `1/√N` polyphony scale после mix bus; soft-clip −6 dB до chorus/limiter; `mainMixer=0.7`; unit-тесты в `AudioMath` |
-| **Проверено** | `xcodebuild … -only-testing:Synt_swiftUITests` — **TEST SUCCEEDED** |
-| **Не проверено вручную** | A/B: 1 нота / аккорд 4 / unison 7 |
-| **Что пошло не так** | polyScale/headroom пропали после RT-рефакторинга; softClip unit-тест: `Float` tanh→1 |
-
-### Этап 2 — 2026-08-05
-| | |
-|--|--|
-| **Сделано** | `VoiceManager` soft-steal + 1 ms release; hard-kill same-note re-trigger; `AudioEngine` на пуле вместо `[Int:[ActiveNote]]`; ADSR `releaseOverride`; queue priority уже был |
-| **Проверено** | unit: re-trigger, cap 64, steal pressure, 1 ms override ramp, engine+queue integration |
-| **Не проверено вручную** | 64+ нот / unison 7 × 10 нот — нет ли щелчков при steal |
-| **Что пошло не так** | ADSR `release <= 0.001` делал 1 ms steal мгновенным finish — порог снижен до `0.0001` |
-| **Следующий** | Этап 3 (по запросу) — **не трогали** |
+| **Проверено** | `xcodebuild … -only-testing:Synt_swiftUITests` — **TEST SUCCEEDED** (включая `polyphonyScaleIsPowerPreserving`, `softClipGuaranteesMinusSixDbHeadroom`) |
+| **Не проверено вручную** | A/B прослушивание: 1 нота vs аккорд 4 vs unison 7 — нужен запуск приложения |
+| **Что пошло не так** | 1) После RT-рефакторинга (коммит `2c95693`) пропали прежние polyScale/headroom — пришлось вернуть осознанно. 2) Первый unit-тест softClip упал: `abs(hot) < 0.5` ломается, когда `Float` даёт `tanh(20) == 1` → выход ровно `0.5`. Исправлено на `<= ceiling + eps`. |
+| **Следующий** | Этап 2: безопасный VoiceManager + priority queue (частично уже в дереве — сверить с планом перед правками) |
 
 ---
-**Статус**: Этапы 1–2 реализованы и покрыты unit-тестами. Этап 3 не начат.
+**Статус**: Этап 1 реализован и покрыт unit-тестами. Ручной A/B звука — за пользователем. Далее Этап 2.
