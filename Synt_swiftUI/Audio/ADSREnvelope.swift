@@ -11,16 +11,19 @@ struct ADSREnvelope {
     var sustain: Float = 0.7
     var release: Float = 0.3
 
+    /// - Parameter releaseOverride: when set (e.g. 1 ms voice-steal), used instead of `release`.
     func process(
         currentValue: Float,
         phase: inout EnvelopePhase,
         time: inout Double,
         releaseStartValue: Float,
         isReleasing: Bool,
-        sampleRate: Double
+        sampleRate: Double,
+        releaseOverride: Float? = nil
     ) -> Float {
         let deltaTime = 1.0 / sampleRate
         var value = currentValue
+        let releaseTime = max(0.0, releaseOverride ?? release)
 
         if isReleasing && phase != .release && phase != .finished {
             phase = .release
@@ -60,12 +63,13 @@ struct ADSREnvelope {
             value = sustain
 
         case .release:
-            if release <= 0.001 {
+            // Treat only near-zero as instant; 1 ms steal-release must still ramp.
+            if releaseTime <= 0.0001 {
                 value = 0.0
                 phase = .finished
             } else {
-                let releaseProgress = Float((time + deltaTime) / Double(release))
-                let coefficient = Float(exp(-5.0 * deltaTime / Double(release)))
+                let releaseProgress = Float((time + deltaTime) / Double(releaseTime))
+                let coefficient = Float(exp(-5.0 * deltaTime / Double(releaseTime)))
                 value = value * coefficient
                 if releaseProgress >= 1.0 || value < 0.0001 {
                     value = 0.0
