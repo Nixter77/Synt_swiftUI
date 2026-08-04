@@ -539,6 +539,32 @@ struct Synt_swiftUITests {
         #expect(abs(metering.getPeakLevel() - 0.91) < 0.0001)
     }
 
+    // MARK: - Gain staging (Этап 1)
+
+    @Test func polyphonyScaleIsPowerPreserving() async throws {
+        #expect(abs(AudioMath.polyphonyScale(activeVoices: 0) - 1.0) < 0.0001)
+        #expect(abs(AudioMath.polyphonyScale(activeVoices: 1) - 1.0) < 0.0001)
+        #expect(abs(AudioMath.polyphonyScale(activeVoices: 4) - 0.5) < 0.0001)
+        // 1/√7 ≈ 0.37796
+        #expect(abs(AudioMath.polyphonyScale(activeVoices: 7) - Float(1.0 / sqrt(7.0))) < 0.0001)
+        // denser chords must be quieter per-voice scale
+        #expect(AudioMath.polyphonyScale(activeVoices: 16) < AudioMath.polyphonyScale(activeVoices: 4))
+    }
+
+    @Test func softClipGuaranteesMinusSixDbHeadroom() async throws {
+        let ceiling: Float = 0.5 // −6 dB
+        #expect(abs(AudioMath.softClip(0.0, threshold: ceiling)) < 0.0001)
+        // Quiet signals stay nearly linear (tanh(x/t)*t ≈ x for small x)
+        let quiet = AudioMath.softClip(0.1, threshold: ceiling)
+        #expect(abs(quiet - 0.1) < 0.02)
+        // Hard peaks asymptote to ±ceiling (Float may hit exactly 0.5 via tanh≈1)
+        let hot = AudioMath.softClip(10.0, threshold: ceiling)
+        #expect(abs(hot) <= ceiling + 0.0001)
+        #expect(hot > ceiling * 0.99) // fully driven into the knee
+        // Symmetric for negative
+        #expect(abs(AudioMath.softClip(-10.0, threshold: ceiling) + hot) < 0.0001)
+    }
+
     // MARK: - Existing DSP unit tests
 
     @Test func noteCalculatesFrequencyNameAndBlackKey() async throws {

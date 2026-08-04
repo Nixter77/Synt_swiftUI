@@ -172,10 +172,13 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.attach(delay.delay)
         engine.attach(reverb.reverb)
 
-        // Audio chain: Source (with Chorus) → Delay → Reverb → Output
+        // Audio chain: Source (chorus+limiter inside) → Delay → Reverb → Output
         engine.connect(sourceNode, to: delay.delay, format: format)
         engine.connect(delay.delay, to: reverb.reverb, format: format)
         engine.connect(reverb.reverb, to: engine.mainMixerNode, format: format)
+
+        // Extra headroom for Delay/Reverb tails (downstream of internal soft-clip/limiter).
+        engine.mainMixerNode.outputVolume = 0.7
 
         engine.prepare()
     }
@@ -189,6 +192,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         var mixedSampleL: Float = 0.0
         var mixedSampleR: Float = 0.0
         var notesToRemove: [Int] = []
+        // Total unison+note voices mixed this sample — drives polyphony gain staging.
+        var activeVoiceCount: Int = 0
 
         // --- CLOCK & ARP PROCESSING (cached BPM / mode only) ---
         let bpm = cachedBPM
@@ -305,8 +310,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                 if activeNote.phase >= AudioMath.twoPi { activeNote.phase -= AudioMath.twoPi }
                 if activeNote.phase2 >= AudioMath.twoPi { activeNote.phase2 -= AudioMath.twoPi }
 
-                let unisonScale = 1.0 / sqrt(Double(max(1, cachedUnisonVoices)))
-                var amplitude = sample * envelopeValue * Float(unisonScale)
+                // Amplitude only; polyphony scale applied once after the mix bus.
+                var amplitude = sample * envelopeValue
 
                 amplitude *= max(0.0, 1.0 + ampMod)
 
@@ -334,6 +339,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
                 mixedSampleL += amplitude * gainL
                 mixedSampleR += amplitude * gainR
+                activeVoiceCount += 1
             }
 
             if allNotesEnded {
@@ -347,6 +353,13 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             activeNotes.removeValue(forKey: midiNote)
         }
 
+        // --- Этап 1: Gain staging ---
+        // 1/√N over all mixed voices (notes × unison). Replaces old per-voice unisonScale
+        // so chord density and unison both share one power-preserving scale.
+        let polyScale = AudioMath.polyphonyScale(activeVoices: activeVoiceCount)
+        mixedSampleL *= polyScale
+        mixedSampleR *= polyScale
+
         smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1.0 - smoothingCoeff)
         smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1.0 - smoothingCoeff)
 
@@ -359,8 +372,11 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
         let filteredSampleL = filterL.process(mixedSampleL, sampleRate: Float(sampleRate))
         let filteredSampleR = filterR.process(mixedSampleR, sampleRate: Float(sampleRate))
-        let finalSampleL = filteredSampleL * smoothedMasterVolume
-        let finalSampleR = filteredSampleR * smoothedMasterVolume
+
+        // Master volume, then −6 dB soft-clip headroom before chorus / limiter / AVAudio Delay+Reverb.
+        // Ceiling 0.5 ≈ −6 dBFS keeps FX/limiter from hard-driving on dense chords.
+        let finalSampleL = AudioMath.softClip(filteredSampleL * smoothedMasterVolume, threshold: 0.5)
+        let finalSampleR = AudioMath.softClip(filteredSampleR * smoothedMasterVolume, threshold: 0.5)
 
         var (chorusL, chorusR) = dspChorus.process(inputL: finalSampleL, inputR: finalSampleR)
 

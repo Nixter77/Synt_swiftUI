@@ -39,9 +39,16 @@ graph TD
 
 ---
 
-### 📍 Этап 1: Гейн-стейджинг и нормировка полифонии (P0 - Звук)
-- [ ] **Пополифоническое масштабирование**: Реализовать динамо-масштабирование амплитуды `1 / sqrt(max(1, activeVoices))` в `generateSample()`.
-- [ ] **Защитный клиппер перед эффектами**: Гарантировать headroom в -6 dB перед подачей в дилей/реверб/лимитер.
+### 📍 Этап 1: Гейн-стейджинг и нормировка полифонии (P0 - Звук) ✅ РЕАЛИЗОВАНО (2026-08-05)
+
+| Пункт | Статус | Проверка | Примечания |
+|-------|--------|----------|------------|
+| Пополифоническое масштабирование `1/√N` | ✅ Сделано | Unit: `polyphonyScaleIsPowerPreserving` | `AudioMath.polyphonyScale` + счёт `activeVoiceCount` в `generateSample()`. Старый per-voice `unisonScale` убран (двойной scale ломал громкость). |
+| Защитный клиппер −6 dB перед FX | ✅ Сделано | Unit: `softClipGuaranteesMinusSixDbHeadroom` | `AudioMath.softClip(..., threshold: 0.5)` после master volume, **до** chorus/limiter. + `mainMixer.outputVolume = 0.7` для хвостов Delay/Reverb. |
+| Чистый звук на аккордах (ручной A/B) | ⏳ Требует прослушивания | Запуск приложения: 1 нота / аккорд 4 / unison 7 | Автотестами RT-цепочку AVAudio не гоняем. |
+
+- [x] **Пополифоническое масштабирование**: `1 / sqrt(max(1, activeVoices))` в `generateSample()` после микширования голосов.
+- [x] **Защитный клиппер перед эффектами**: soft-clip ceiling 0.5 (−6 dB) перед chorus/limiter → Delay/Reverb.
 
 ### 📍 Этап 2: Безопасный Lock-Free Engine (`VoiceManager` + `AudioCommandQueue`)
 - [ ] **Безопасная очистка старых нот**: В `VoiceManager.addVoices()` мгновенно гасить фазу ADSR предыдущего голоса этой же ноты, предотвращая дублирование.
@@ -73,4 +80,17 @@ graph TD
 5. **Фаза E**: Создание UI в `AdvancedEffectsView.swift` и финальное обновление `PLAN.md`.
 
 ---
-**Статус**: Готов к пошаговой реализации без срывов аудио-потока.
+
+## 📊 Журнал выполнения
+
+### Этап 1 — 2026-08-05
+| | |
+|--|--|
+| **Сделано** | `1/√N` polyphony scale после mix bus; soft-clip −6 dB до chorus/limiter; `mainMixer=0.7`; unit-тесты в `AudioMath` |
+| **Проверено** | `xcodebuild … -only-testing:Synt_swiftUITests` — **TEST SUCCEEDED** (включая `polyphonyScaleIsPowerPreserving`, `softClipGuaranteesMinusSixDbHeadroom`) |
+| **Не проверено вручную** | A/B прослушивание: 1 нота vs аккорд 4 vs unison 7 — нужен запуск приложения |
+| **Что пошло не так** | 1) После RT-рефакторинга (коммит `2c95693`) пропали прежние polyScale/headroom — пришлось вернуть осознанно. 2) Первый unit-тест softClip упал: `abs(hot) < 0.5` ломается, когда `Float` даёт `tanh(20) == 1` → выход ровно `0.5`. Исправлено на `<= ceiling + eps`. |
+| **Следующий** | Этап 2: безопасный VoiceManager + priority queue (частично уже в дереве — сверить с планом перед правками) |
+
+---
+**Статус**: Этап 1 реализован и покрыт unit-тестами. Ручной A/B звука — за пользователем. Далее Этап 2.
