@@ -44,16 +44,21 @@ graph TD
 | Пункт | Статус | Проверка | Примечания |
 |-------|--------|----------|------------|
 | Пополифоническое масштабирование `1/√N` | ✅ Сделано | Unit: `polyphonyScaleIsPowerPreserving` | `AudioMath.polyphonyScale` + счёт `activeVoiceCount` в `generateSample()`. Старый per-voice `unisonScale` убран (двойной scale ломал громкость). |
-| Защитный клиппер −6 dB перед FX | ✅ Сделано | Unit: `softClipGuaranteesMinusSixDbHeadroom` | `AudioMath.softClip(..., threshold: 0.5)` после master volume, **до** chorus/limiter. + `mainMixer.outputVolume = 0.7` для хвостов Delay/Reverb. |
+| Защитный клиппер −6 dB перед FX | ✅ Исправлено | Unit: `softClipSafetyNetNearFullScale` | **Линейный** headroom ×0.5 (−6 dB); softClip только safety @0.95 (tanh@0.5 давал постоянный «хрип»). Poly scale сглажен. |
 | Чистый звук на аккордах (ручной A/B) | ⏳ Требует прослушивания | Запуск приложения: 1 нота / аккорд 4 / unison 7 | Автотестами RT-цепочку AVAudio не гоняем. |
 
-- [x] **Пополифоническое масштабирование**: `1 / sqrt(max(1, activeVoices))` в `generateSample()` после микширования голосов.
-- [x] **Защитный клиппер перед эффектами**: soft-clip ceiling 0.5 (−6 dB) перед chorus/limiter → Delay/Reverb.
+- [x] **Пополифоническое масштабирование**: `1 / sqrt(max(1, activeVoices))` + сглаживание `smoothedPolyScale`.
+- [x] **Защитный headroom −6 dB перед эффектами**: linear ×0.5 + softClip safety @0.95.
 
-### 📍 Этап 2: Безопасный Lock-Free Engine (`VoiceManager` + `AudioCommandQueue`)
+### 📍 Этап 2: Безопасный Lock-Free Engine (`VoiceManager` + `AudioCommandQueue`) ⚠️ ОТКАЧЕНО (2026-08-05)
+
+> **Интеграция `VoiceManager` в render path сломала звук (хрип/щелчки).** Render снова на `[Int:[ActiveNote]]` (как после Этапа 1).  
+> Queue priority (`noteOff`/`clearAll` side-channel) **осталась** — она была до Этапа 2.  
+> Повтор Этапа 2 только после A/B и без hard-kill в аудио-потоке.
+
 - [ ] **Безопасная очистка старых нот**: В `VoiceManager.addVoices()` мгновенно гасить фазу ADSR предыдущего голоса этой же ноты, предотвращая дублирование.
 - [ ] **Плавный Voice Stealing**: При исчерпании 64 голосов применять фазу быстрой релаксации (1 мс release), предотвращая щелчки.
-- [ ] **Защита от переполнения очереди**: В `AudioCommandQueue` при переполнении отдавать приоритет `noteOff` и `clearAll`.
+- [x] **Защита от переполнения очереди**: `noteOff` / `clearAll` side-channel (сделано раньше, сохранено).
 
 ### 📍 Этап 3: Полноценный Wavetable-синтез (`WavetableOscillator`)
 - [ ] **Исправление Mip-Mapping**: Переписать `applyFFTBandLimit()`, чтобы она фильтровала существующую волну, а не генерировала абстрактную пилу.
@@ -86,11 +91,16 @@ graph TD
 ### Этап 1 — 2026-08-05
 | | |
 |--|--|
-| **Сделано** | `1/√N` polyphony scale после mix bus; soft-clip −6 dB до chorus/limiter; `mainMixer=0.7`; unit-тесты в `AudioMath` |
-| **Проверено** | `xcodebuild … -only-testing:Synt_swiftUITests` — **TEST SUCCEEDED** (включая `polyphonyScaleIsPowerPreserving`, `softClipGuaranteesMinusSixDbHeadroom`) |
-| **Не проверено вручную** | A/B прослушивание: 1 нота vs аккорд 4 vs unison 7 — нужен запуск приложения |
-| **Что пошло не так** | 1) После RT-рефакторинга (коммит `2c95693`) пропали прежние polyScale/headroom — пришлось вернуть осознанно. 2) Первый unit-тест softClip упал: `abs(hot) < 0.5` ломается, когда `Float` даёт `tanh(20) == 1` → выход ровно `0.5`. Исправлено на `<= ceiling + eps`. |
-| **Следующий** | Этап 2: безопасный VoiceManager + priority queue (частично уже в дереве — сверить с планом перед правками) |
+| **Сделано** | `1/√N` + сглаживание; linear −6 dB headroom; softClip safety @0.95 |
+| **Что пошло не так** | Первый softClip ceiling 0.5 через tanh **постоянно сатурировал** → «хрип»; исправлено на linear×0.5 |
+
+### Этап 2 — 2026-08-05 ⚠️ ROLLBACK
+| | |
+|--|--|
+| **Сделано (откачено)** | `VoiceManager` в `generateSample` вместо `activeNotes` |
+| **Почему хрипело** | 1) **Hard-kill** при re-trigger / force-reclaim — обрыв фазы mid-cycle → щелчки. 2) Steal + instant free в том же сэмпле — 1 ms release не успевал. 3) Параллельно агрессивный tanh@0.5 (Этап 1) усиливал «хрип». |
+| **Откат** | Файлы render path → состояние `f423018` + правка headroom; queue priority сохранена |
+| **Следующий** | Не повторять Этап 2, пока Этап 1 не чистый на слух. Потом — steal без hard-kill в том же сэмпле. |
 
 ---
-**Статус**: Этап 1 реализован и покрыт unit-тестами. Ручной A/B звука — за пользователем. Далее Этап 2.
+**Статус**: Этап 2 откачен. Этап 1 смягчён (без постоянного soft-sat). Нужен ручной A/B.

@@ -551,17 +551,15 @@ struct Synt_swiftUITests {
         #expect(AudioMath.polyphonyScale(activeVoices: 16) < AudioMath.polyphonyScale(activeVoices: 4))
     }
 
-    @Test func softClipGuaranteesMinusSixDbHeadroom() async throws {
-        let ceiling: Float = 0.5 // −6 dB
+    @Test func softClipSafetyNetNearFullScale() async throws {
+        // Production uses threshold ≈ 0.95 after linear −6 dB headroom (not tanh@0.5).
+        let ceiling: Float = 0.95
         #expect(abs(AudioMath.softClip(0.0, threshold: ceiling)) < 0.0001)
-        // Quiet signals stay nearly linear (tanh(x/t)*t ≈ x for small x)
         let quiet = AudioMath.softClip(0.1, threshold: ceiling)
         #expect(abs(quiet - 0.1) < 0.02)
-        // Hard peaks asymptote to ±ceiling (Float may hit exactly 0.5 via tanh≈1)
         let hot = AudioMath.softClip(10.0, threshold: ceiling)
         #expect(abs(hot) <= ceiling + 0.0001)
-        #expect(hot > ceiling * 0.99) // fully driven into the knee
-        // Symmetric for negative
+        #expect(hot > ceiling * 0.99)
         #expect(abs(AudioMath.softClip(-10.0, threshold: ceiling) + hot) < 0.0001)
     }
 

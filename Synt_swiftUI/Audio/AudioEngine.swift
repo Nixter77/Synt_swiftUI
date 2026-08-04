@@ -80,6 +80,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private var smoothedFilterCutoff: Float = 5000.0
     private var smoothedMasterVolume: Float = 0.5
     private let smoothingCoeff: Float = 0.999
+    /// Smoothed 1/√N — hard steps when a voice ends cause zipper noise / crackle.
+    private var smoothedPolyScale: Float = 1.0
+    private let polyScaleSmoothingCoeff: Float = 0.995
 
     // Oscilloscope Capture (audio thread buffer → AtomicMeteringState)
     private var scopeBuffer: [Float] = Array(repeating: 0.0, count: 512)
@@ -354,11 +357,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
 
         // --- Этап 1: Gain staging ---
-        // 1/√N over all mixed voices (notes × unison). Replaces old per-voice unisonScale
-        // so chord density and unison both share one power-preserving scale.
-        let polyScale = AudioMath.polyphonyScale(activeVoices: activeVoiceCount)
-        mixedSampleL *= polyScale
-        mixedSampleR *= polyScale
+        // 1/√N over all mixed voices, smoothed so note-off doesn't zipper the bus.
+        let targetPolyScale = AudioMath.polyphonyScale(activeVoices: activeVoiceCount)
+        smoothedPolyScale = smoothedPolyScale * polyScaleSmoothingCoeff
+            + targetPolyScale * (1.0 - polyScaleSmoothingCoeff)
+        mixedSampleL *= smoothedPolyScale
+        mixedSampleR *= smoothedPolyScale
 
         smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1.0 - smoothingCoeff)
         smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1.0 - smoothingCoeff)
@@ -373,10 +377,17 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         let filteredSampleL = filterL.process(mixedSampleL, sampleRate: Float(sampleRate))
         let filteredSampleR = filterR.process(mixedSampleR, sampleRate: Float(sampleRate))
 
-        // Master volume, then −6 dB soft-clip headroom before chorus / limiter / AVAudio Delay+Reverb.
-        // Ceiling 0.5 ≈ −6 dBFS keeps FX/limiter from hard-driving on dense chords.
-        let finalSampleL = AudioMath.softClip(filteredSampleL * smoothedMasterVolume, threshold: 0.5)
-        let finalSampleR = AudioMath.softClip(filteredSampleR * smoothedMasterVolume, threshold: 0.5)
+        // Linear −6 dB headroom (no constant tanh saturation — that was "хрип").
+        // Soft-clip only near full-scale as a safety net before chorus/limiter/FX.
+        let headroom: Float = 0.5
+        let finalSampleL = AudioMath.softClip(
+            filteredSampleL * smoothedMasterVolume * headroom,
+            threshold: 0.95
+        )
+        let finalSampleR = AudioMath.softClip(
+            filteredSampleR * smoothedMasterVolume * headroom,
+            threshold: 0.95
+        )
 
         var (chorusL, chorusR) = dspChorus.process(inputL: finalSampleL, inputR: finalSampleR)
 
