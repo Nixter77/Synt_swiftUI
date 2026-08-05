@@ -8,7 +8,7 @@
 import Foundation
 
 /// Factory EQ curves for the Advanced FX panel.
-enum EQPreset: String, CaseIterable, Identifiable {
+enum EQPreset: String, CaseIterable, Identifiable, Codable {
     case flat = "Flat"
     case bassBoost = "Bass Boost"
     case bassCut = "Bass Cut"

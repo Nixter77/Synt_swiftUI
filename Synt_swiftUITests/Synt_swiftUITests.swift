@@ -539,6 +539,176 @@ struct Synt_swiftUITests {
         #expect(abs(metering.getPeakLevel() - 0.91) < 0.0001)
     }
 
+    // MARK: - Factory preset library
+
+    @Test func factoryLibraryCoversAllCategoriesNonEmpty() async throws {
+        let presets = SynthPreset.factoryPresets
+        #expect(!presets.isEmpty)
+        for category in PresetCategory.allCases {
+            let count = presets.filter { $0.category == category }.count
+            #expect(count >= 3, "Category \(category.rawValue) should have multiple presets, got \(count)")
+        }
+    }
+
+    @Test func factoryLibraryHasUniqueNames() async throws {
+        let names = SynthPreset.factoryPresets.map(\.name)
+        #expect(Set(names).count == names.count)
+        #expect(!names.contains("Sub Bass")) // old library marker gone
+    }
+
+    @Test func factoryLibraryUsesNewSoundFeatures() async throws {
+        let presets = SynthPreset.factoryPresets
+        #expect(presets.contains { $0.osc1Waveform == .wavetable || $0.osc2Waveform == .wavetable })
+        #expect(presets.contains { $0.unisonVoices > 1 })
+        #expect(presets.contains { !$0.modMatrix.isEmpty })
+        #expect(presets.contains { $0.lfoEnabled })
+        #expect(presets.contains { $0.arpMode != .off })
+        #expect(presets.contains { $0.reverbMix > 0.05 || $0.chorusMix > 0.05 || $0.delayMix > 0.05 })
+        #expect(presets.contains { $0.distortionEnabled || $0.eqEnabled || $0.phaserEnabled })
+    }
+
+    @Test func factoryLibraryStaysWithinCleanSoundRanges() async throws {
+        for p in SynthPreset.factoryPresets {
+            #expect(p.masterVolume.isFinite && p.masterVolume > 0 && p.masterVolume <= 0.75)
+            #expect(p.unisonVoices >= 1 && p.unisonVoices <= 5)
+            #expect(p.filterResonance.isFinite && p.filterResonance >= 0 && p.filterResonance <= 0.9)
+            #expect(p.filterCutoff.isFinite && p.filterCutoff > 20 && p.filterCutoff < 20000)
+            #expect(p.distortionDrive.isFinite && p.distortionDrive >= 0 && p.distortionDrive <= 0.7)
+            #expect(p.distortionMix.isFinite && p.distortionMix >= 0 && p.distortionMix <= 0.5)
+            #expect(p.phaserFeedback.isFinite && abs(p.phaserFeedback) <= 0.5)
+            #expect(p.phaserMix.isFinite && p.phaserMix <= 0.6)
+            #expect(p.osc1Volume.isFinite && p.osc1Volume <= 1.0)
+            #expect(p.attack.isFinite && p.attack >= 0)
+            #expect(p.release.isFinite && p.release >= 0)
+        }
+        // Init remains safe neutral
+        let initP = SynthPreset.defaultPreset
+        #expect(initP.name == "Init")
+        #expect(initP.masterVolume <= 0.7)
+        #expect(initP.unisonVoices == 1)
+        #expect(!initP.distortionEnabled && !initP.eqEnabled && !initP.phaserEnabled)
+    }
+
+    @Test func applyingFactoryPresetUpdatesEngineAudioPath() async throws {
+        let engine = AudioEngine()
+
+        guard let bass = SynthPreset.factoryPresets.first(where: { $0.name == "Clean Sub" }) else {
+            Issue.record("Missing Clean Sub factory preset")
+            return
+        }
+        engine.loadPreset(bass)
+        engine.applyPresetForTesting()
+        let cached = engine.cachedAudioParamsForTesting()
+        #expect(abs(cached.masterVolume - bass.masterVolume) < 0.001)
+        #expect(abs(cached.filterCutoff - bass.filterCutoff) < 0.1)
+        #expect(engine.appliedAdvancedFXForTesting().eqEnabled == true)
+        #expect(engine.appliedAdvancedFXForTesting().eqLowGain == bass.eqLowGain)
+
+        guard let lead = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
+            Issue.record("Missing Crystal Lead factory preset")
+            return
+        }
+        engine.loadPreset(lead)
+        engine.applyPresetForTesting()
+        let adv = engine.appliedAdvancedFXForTesting()
+        #expect(adv.osc1Waveform == .wavetable)
+        #expect(abs(adv.osc1Morph - lead.osc1WavetableMorph) < 0.001)
+        #expect(adv.eqEnabled == true)
+
+        guard let pad = SynthPreset.factoryPresets.first(where: { $0.name == "Glass Horizon" }) else {
+            Issue.record("Missing Glass Horizon factory preset")
+            return
+        }
+        engine.loadPreset(pad)
+        engine.applyPresetForTesting()
+        let padAdv = engine.appliedAdvancedFXForTesting()
+        #expect(padAdv.phaserEnabled == true)
+        #expect(abs(padAdv.phaserMix - pad.phaserMix) < 0.001)
+        #expect(pad.unisonVoices >= 1)
+
+        guard let glitch = SynthPreset.factoryPresets.first(where: { $0.name == "Glitch Arp" }) else {
+            Issue.record("Missing Glitch Arp factory preset")
+            return
+        }
+        engine.loadPreset(glitch)
+        engine.applyPresetForTesting()
+        #expect(engine.cachedAudioParamsForTesting().arpMode == .random)
+        #expect(engine.appliedAdvancedFXForTesting().distortionEnabled == true)
+        #expect(abs(engine.appliedAdvancedFXForTesting().distortionDrive - glitch.distortionDrive) < 0.001)
+    }
+
+    @Test func updatePresetKeepsAdvancedFXWhenOtherFieldsChange() async throws {
+        let engine = AudioEngine()
+        // Simulate AdvancedEffectsView path: enable distortion via preset update
+        engine.updatePreset { p in
+            p.distortionEnabled = true
+            p.distortionDrive = 0.42
+            p.distortionMix = 0.3
+            p.eqEnabled = true
+            p.eqLowGain = 4
+            p.phaserEnabled = true
+            p.phaserMix = 0.33
+        }
+        #expect(engine.appliedAdvancedFXForTesting().distortionEnabled)
+        #expect(abs(engine.appliedAdvancedFXForTesting().distortionDrive - 0.42) < 0.001)
+        #expect(engine.appliedAdvancedFXForTesting().eqEnabled)
+        #expect(engine.appliedAdvancedFXForTesting().phaserEnabled)
+
+        // Simulate filter/ADSR edit (same as UI writing a core preset field)
+        engine.updatePreset { p in
+            p.filterCutoff = 1500
+            p.attack = 0.05
+            p.masterVolume = 0.5
+        }
+
+        let adv = engine.appliedAdvancedFXForTesting()
+        #expect(adv.distortionEnabled, "Distortion must survive filter/master edits")
+        #expect(abs(adv.distortionDrive - 0.42) < 0.001)
+        #expect(adv.eqEnabled)
+        #expect(abs(adv.eqLowGain - 4) < 0.001)
+        #expect(adv.phaserEnabled)
+        #expect(abs(adv.phaserMix - 0.33) < 0.001)
+        #expect(abs(engine.cachedAudioParamsForTesting().filterCutoff - 1500) < 0.1)
+    }
+
+    @Test func updatePresetKeepsWavetableMorphWhenOtherFieldsChange() async throws {
+        let engine = AudioEngine()
+        engine.updatePreset { p in
+            p.osc1Waveform = .wavetable
+            p.osc1WavetableMorph = 0.67
+            p.osc2Waveform = .wavetable
+            p.osc2WavetableMorph = 0.21
+        }
+        #expect(abs(engine.appliedAdvancedFXForTesting().osc1Morph - 0.67) < 0.001)
+        #expect(abs(engine.appliedAdvancedFXForTesting().osc2Morph - 0.21) < 0.001)
+
+        engine.updatePreset { p in
+            p.osc1Volume = 0.4
+            p.filterResonance = 0.3
+        }
+
+        let adv = engine.appliedAdvancedFXForTesting()
+        #expect(abs(adv.osc1Morph - 0.67) < 0.001, "Morph must survive volume/filter edits")
+        #expect(abs(adv.osc2Morph - 0.21) < 0.001)
+        #expect(adv.osc1Waveform == .wavetable)
+        #expect(abs(engine.preset.osc1WavetableMorph - 0.67) < 0.001)
+    }
+
+    @Test func factoryPresetJSONRoundTripPreservesAdvancedFields() async throws {
+        guard let sample = SynthPreset.factoryPresets.first(where: { $0.distortionEnabled && $0.eqEnabled })
+                ?? SynthPreset.factoryPresets.first(where: { $0.phaserEnabled }) else {
+            Issue.record("No advanced-FX factory preset found")
+            return
+        }
+        let data = try JSONEncoder().encode(sample)
+        let decoded = try JSONDecoder().decode(SynthPreset.self, from: data)
+        #expect(decoded.name == sample.name)
+        #expect(decoded.distortionEnabled == sample.distortionEnabled)
+        #expect(decoded.eqEnabled == sample.eqEnabled)
+        #expect(decoded.phaserEnabled == sample.phaserEnabled)
+        #expect(abs(decoded.osc1WavetableMorph - sample.osc1WavetableMorph) < 0.0001)
+    }
+
     // MARK: - Advanced FX (Этап 4)
 
     @Test func distortionAutoGainKeepsDriveFromExploding() async throws {
@@ -794,6 +964,44 @@ struct Synt_swiftUITests {
         let out2 = abs(osc.generateSample(phase: phase, phaseIncrement: dt))
         if raw2 > 0.01 {
             #expect(abs(out2 / raw2 - 0.5) < 0.08)
+        }
+    }
+
+    // MARK: - Multi-note cleanliness
+
+    @Test func polyphonyScaleDropsForChords() async throws {
+        let one = AudioMath.polyphonyScale(activeVoices: 1)
+        let three = AudioMath.polyphonyScale(activeVoices: 3)
+        #expect(abs(one - 1) < 0.0001)
+        #expect(three < one)
+        #expect(abs(three - Float(1.0 / sqrt(3.0))) < 0.0001)
+        // 3 equal unit peaks after scale stay under ~2 (headroom for filter)
+        let peakAfter = 3.0 * three
+        #expect(peakAfter < 2.0)
+    }
+
+    @Test func softClipBoundsHotBus() async throws {
+        let hot = AudioMath.softClip(3.0, threshold: 1.25)
+        #expect(hot.isFinite)
+        #expect(abs(hot) <= 1.25 + 0.001)
+        #expect(abs(hot) > 1.0) // still passes loud content, but limited
+    }
+
+    @Test func filterStaysFiniteOnHotMultiNoteInput() async throws {
+        let f = CachedBiquadFilter()
+        f.type = .lowPass
+        f.cutoff = 1200
+        f.resonance = 0.75 // previously mapped to extreme Q
+        var y: Float = 0
+        // Simulate three summed saw-ish peaks into filter
+        for i in 0..<2048 {
+            let t = Float(i) / 44100.0
+            let s = sin(2 * Float.pi * 110 * t)
+                + sin(2 * Float.pi * 138.6 * t)
+                + sin(2 * Float.pi * 164.8 * t)
+            y = f.process(s * 0.9, sampleRate: 44100)
+            #expect(y.isFinite)
+            #expect(abs(y) < 4)
         }
     }
 

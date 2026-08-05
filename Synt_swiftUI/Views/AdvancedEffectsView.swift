@@ -3,7 +3,8 @@
 //  Synt_swiftUI
 //
 //  UI for Stage 4 advanced FX (Distortion, Parametric EQ, Phaser).
-//  Modules stay disabled by default — enabling is opt-in from this panel.
+//  All controls write through `AudioEngine.updatePreset` so `preset` stays the
+//  single source of truth and later applyPreset calls cannot clobber live FX.
 //
 
 import SwiftUI
@@ -11,9 +12,6 @@ import SwiftUI
 struct AdvancedEffectsView: View {
     @ObservedObject var audioEngine: AudioEngine
 
-    @State private var showDistortion = false
-    @State private var showEQ = false
-    @State private var showPhaser = false
     @State private var selectedEQPreset: EQPreset = .flat
 
     var body: some View {
@@ -33,9 +31,7 @@ struct AdvancedEffectsView: View {
         .padding()
         .appleCard(accent: AppleTheme.accentModulation)
         .onAppear {
-            showDistortion = audioEngine.distortion.enabled
-            showEQ = audioEngine.parametricEQL.enabled
-            showPhaser = !audioEngine.phaser.bypass
+            selectedEQPreset = audioEngine.preset.eqPreset
         }
     }
 
@@ -54,7 +50,7 @@ struct AdvancedEffectsView: View {
                     .tint(AppleTheme.accentModulation)
             }
 
-            if audioEngine.distortion.enabled {
+            if audioEngine.preset.distortionEnabled {
                 Picker("Type", selection: distortionType) {
                     ForEach(DistortionType.allCases, id: \.self) { t in
                         Text(t.rawValue).tag(t)
@@ -87,7 +83,7 @@ struct AdvancedEffectsView: View {
                     .tint(AppleTheme.accentModulation)
             }
 
-            if audioEngine.parametricEQL.enabled {
+            if audioEngine.preset.eqEnabled {
                 HStack {
                     Text("Preset")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -119,10 +115,11 @@ struct AdvancedEffectsView: View {
         }
     }
 
-    private func applyEQPreset(_ preset: EQPreset) {
-        audioEngine.parametricEQL.applyPreset(preset)
-        audioEngine.parametricEQR.applyPreset(preset)
-        audioEngine.objectWillChange.send()
+    private func applyEQPreset(_ curve: EQPreset) {
+        audioEngine.updatePreset { p in
+            p.eqEnabled = true
+            p.applyEQCurve(curve)
+        }
     }
 
     // MARK: - Phaser
@@ -140,7 +137,7 @@ struct AdvancedEffectsView: View {
                     .tint(AppleTheme.accentModulation)
             }
 
-            if !audioEngine.phaser.bypass {
+            if audioEngine.preset.phaserEnabled {
                 Picker("Mode", selection: phaserMode) {
                     ForEach(PhaserMode.allCases, id: \.self) { m in
                         Text(m.rawValue).tag(m)
@@ -163,174 +160,108 @@ struct AdvancedEffectsView: View {
         }
     }
 
-    // MARK: - Bindings (mutate engine FX; notify SwiftUI)
+    // MARK: - Bindings (preset ↔ engine via updatePreset)
 
-    private var distortionEnabled: Binding<Bool> {
+    private func binding<T>(
+        get: @escaping (SynthPreset) -> T,
+        set: @escaping (inout SynthPreset, T) -> Void
+    ) -> Binding<T> {
         Binding(
-            get: { audioEngine.distortion.enabled },
-            set: {
-                audioEngine.distortion.enabled = $0
-                showDistortion = $0
-                audioEngine.objectWillChange.send()
+            get: { get(audioEngine.preset) },
+            set: { newValue in
+                audioEngine.updatePreset { set(&$0, newValue) }
             }
         )
+    }
+
+    private var distortionEnabled: Binding<Bool> {
+        binding(get: { $0.distortionEnabled }, set: { $0.distortionEnabled = $1 })
     }
 
     private var distortionType: Binding<DistortionType> {
-        Binding(
-            get: { audioEngine.distortion.type },
-            set: {
-                audioEngine.distortion.type = $0
-                audioEngine.objectWillChange.send()
-            }
-        )
+        binding(get: { $0.distortionType }, set: { $0.distortionType = $1 })
     }
 
     private var distortionDrive: Binding<Float> {
-        Binding(
-            get: { audioEngine.distortion.drive },
-            set: { audioEngine.distortion.drive = $0 }
-        )
+        binding(get: { $0.distortionDrive }, set: { $0.distortionDrive = $1 })
     }
 
     private var distortionTone: Binding<Float> {
-        Binding(
-            get: { audioEngine.distortion.tone },
-            set: { audioEngine.distortion.tone = $0 }
-        )
+        binding(get: { $0.distortionTone }, set: { $0.distortionTone = $1 })
     }
 
     private var distortionMix: Binding<Float> {
-        Binding(
-            get: { audioEngine.distortion.mix },
-            set: { audioEngine.distortion.mix = $0 }
-        )
+        binding(get: { $0.distortionMix }, set: { $0.distortionMix = $1 })
     }
 
     private var eqEnabled: Binding<Bool> {
         Binding(
-            get: { audioEngine.parametricEQL.enabled },
-            set: {
-                audioEngine.parametricEQL.enabled = $0
-                audioEngine.parametricEQR.enabled = $0
-                showEQ = $0
-                if $0 {
-                    // Apply current preset when turning EQ on
-                    applyEQPreset(selectedEQPreset)
+            get: { audioEngine.preset.eqEnabled },
+            set: { enabled in
+                audioEngine.updatePreset { p in
+                    p.eqEnabled = enabled
+                    if enabled {
+                        p.applyEQCurve(selectedEQPreset)
+                    }
                 }
-                audioEngine.objectWillChange.send()
             }
         )
-    }
-
-    private func syncEQ(_ body: (ParametricEQ) -> Void) {
-        body(audioEngine.parametricEQL)
-        body(audioEngine.parametricEQR)
     }
 
     private var eqLowGain: Binding<Float> {
-        Binding(
-            get: { audioEngine.parametricEQL.lowGain },
-            set: { v in syncEQ { $0.lowGain = v } }
-        )
+        binding(get: { $0.eqLowGain }, set: { $0.eqLowGain = $1 })
     }
 
     private var eqMidGain: Binding<Float> {
-        Binding(
-            get: { audioEngine.parametricEQL.midGain },
-            set: { v in syncEQ { $0.midGain = v } }
-        )
+        binding(get: { $0.eqMidGain }, set: { $0.eqMidGain = $1 })
     }
 
     private var eqHighGain: Binding<Float> {
-        Binding(
-            get: { audioEngine.parametricEQL.highGain },
-            set: { v in syncEQ { $0.highGain = v } }
-        )
+        binding(get: { $0.eqHighGain }, set: { $0.eqHighGain = $1 })
     }
 
     private var eqLowFreq: Binding<Float> {
-        Binding(
-            get: { audioEngine.parametricEQL.lowFreq },
-            set: { v in syncEQ { $0.lowFreq = v } }
-        )
+        binding(get: { $0.eqLowFreq }, set: { $0.eqLowFreq = $1 })
     }
 
     private var eqMidFreq: Binding<Float> {
-        Binding(
-            get: { audioEngine.parametricEQL.midFreq },
-            set: { v in syncEQ { $0.midFreq = v } }
-        )
+        binding(get: { $0.eqMidFreq }, set: { $0.eqMidFreq = $1 })
     }
 
     private var eqHighFreq: Binding<Float> {
-        Binding(
-            get: { audioEngine.parametricEQL.highFreq },
-            set: { v in syncEQ { $0.highFreq = v } }
-        )
+        binding(get: { $0.eqHighFreq }, set: { $0.eqHighFreq = $1 })
     }
 
     private var phaserEnabled: Binding<Bool> {
-        Binding(
-            get: { !audioEngine.phaser.bypass },
-            set: {
-                audioEngine.phaser.bypass = !$0
-                showPhaser = $0
-                audioEngine.objectWillChange.send()
-            }
-        )
+        binding(get: { $0.phaserEnabled }, set: { $0.phaserEnabled = $1 })
     }
 
     private var phaserMode: Binding<PhaserMode> {
-        Binding(
-            get: { audioEngine.phaser.mode },
-            set: {
-                audioEngine.phaser.mode = $0
-                audioEngine.objectWillChange.send()
-            }
-        )
+        binding(get: { $0.phaserMode }, set: { $0.phaserMode = $1 })
     }
 
     private var phaserRate: Binding<Float> {
-        Binding(
-            get: { audioEngine.phaser.rate },
-            set: { audioEngine.phaser.rate = $0 }
-        )
+        binding(get: { $0.phaserRate }, set: { $0.phaserRate = $1 })
     }
 
     private var phaserDepth: Binding<Float> {
-        Binding(
-            get: { audioEngine.phaser.depth },
-            set: { audioEngine.phaser.depth = $0 }
-        )
+        binding(get: { $0.phaserDepth }, set: { $0.phaserDepth = $1 })
     }
 
     private var phaserMix: Binding<Float> {
-        Binding(
-            get: { audioEngine.phaser.mix },
-            set: { audioEngine.phaser.mix = $0 }
-        )
+        binding(get: { $0.phaserMix }, set: { $0.phaserMix = $1 })
     }
 
     private var phaserFeedback: Binding<Float> {
-        Binding(
-            get: { audioEngine.phaser.feedback },
-            set: { audioEngine.phaser.feedback = $0 }
-        )
+        binding(get: { $0.phaserFeedback }, set: { $0.phaserFeedback = $1 })
     }
 
     private var phaserCenter: Binding<Float> {
-        Binding(
-            get: { audioEngine.phaser.centerFrequency },
-            set: { audioEngine.phaser.centerFrequency = $0 }
-        )
+        binding(get: { $0.phaserCenterFrequency }, set: { $0.phaserCenterFrequency = $1 })
     }
 
     private var phaserSpread: Binding<Float> {
-        Binding(
-            get: { audioEngine.phaser.stereoSpread },
-            set: { audioEngine.phaser.stereoSpread = $0 }
-        )
+        binding(get: { $0.phaserStereoSpread }, set: { $0.phaserStereoSpread = $1 })
     }
 }
 

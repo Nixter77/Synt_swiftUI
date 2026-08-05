@@ -103,20 +103,31 @@ struct OscillatorView: View {
         return preset.osc2Waveform == .wavetable
     }
 
+    /// Morph is stored on `preset` so later `applyPreset` (filter/ADSR edits) cannot reset it.
     private var wavetableMorph: Binding<Float> {
         Binding(
             get: {
-                guard let engine = audioEngine else { return 0 }
-                return oscillatorNumber == 1
-                    ? engine.oscillator1.wavetableMorph
-                    : engine.oscillator2.wavetableMorph
+                oscillatorNumber == 1
+                    ? preset.osc1WavetableMorph
+                    : preset.osc2WavetableMorph
             },
             set: { value in
-                guard let engine = audioEngine else { return }
-                if oscillatorNumber == 1 {
-                    engine.oscillator1.wavetableMorph = value
+                let clamped = max(0, min(1, value))
+                if let engine = audioEngine {
+                    // Write through engine so didSet → applyPreset keeps oscillators in sync.
+                    engine.updatePreset { p in
+                        if oscillatorNumber == 1 {
+                            p.osc1WavetableMorph = clamped
+                        } else {
+                            p.osc2WavetableMorph = clamped
+                        }
+                    }
                 } else {
-                    engine.oscillator2.wavetableMorph = value
+                    if oscillatorNumber == 1 {
+                        preset.osc1WavetableMorph = clamped
+                    } else {
+                        preset.osc2WavetableMorph = clamped
+                    }
                 }
             }
         )

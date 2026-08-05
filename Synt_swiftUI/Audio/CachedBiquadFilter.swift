@@ -76,17 +76,26 @@ final class CachedBiquadFilter {
             isDirty = false
         }
 
-        // Biquad filter processing
-        var output = b0 * input + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+        // Soft-limit input so multi-note peaks cannot drive the biquad into blow-up.
+        let x = max(-3, min(3, input))
 
-        // Denormal protection
+        // Biquad filter processing
+        var output = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+
+        // Denormal + non-finite protection (recoverable silence instead of permanent NaN)
+        if !output.isFinite {
+            reset()
+            return 0
+        }
         if abs(output) < denormalThreshold {
             output = 0.0
         }
+        // Cap runaway resonance peaks
+        output = max(-2.5, min(2.5, output))
 
         // Update state
         x2 = x1
-        x1 = input
+        x1 = x
         y2 = y1
         y1 = output
 
@@ -101,8 +110,11 @@ final class CachedBiquadFilter {
         let sinOmega = sin(omega)
         let cosOmega = cos(omega)
 
-        let q = max(0.1, resonance * 10.0)
-        let alpha = sinOmega / (2.0 * q)
+        // Map UI 0…1 → musical Q. Old `resonance * 10` made Q≈5 at the default
+        // knob mid and rang harshly on multi-note chords ("помехи").
+        let r = max(0, min(1, resonance))
+        let q = 0.55 + r * r * 6.0  // 0.55 … ~6.55, gentle until high end
+        let alpha = sinOmega / (2.0 * max(0.25, q))
 
         var b0_raw: Float = 0, b1_raw: Float = 0, b2_raw: Float = 0
         var a0_raw: Float = 0, a1_raw: Float = 0, a2_raw: Float = 0

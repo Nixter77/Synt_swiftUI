@@ -345,8 +345,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                 if activeNote.phase >= AudioMath.twoPi { activeNote.phase -= AudioMath.twoPi }
                 if activeNote.phase2 >= AudioMath.twoPi { activeNote.phase2 -= AudioMath.twoPi }
 
-                // Amplitude only; polyphony scale applied once after the mix bus.
-                var amplitude = sample * envelopeValue
+                // Amplitude: velocity + envelope. Polyphony scale applied after the mix bus.
+                var amplitude = sample * envelopeValue * max(0.15, min(1.0, velValue))
 
                 amplitude *= max(0.0, 1.0 + ampMod)
 
@@ -388,13 +388,23 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             activeNotes.removeValue(forKey: midiNote)
         }
 
-        // --- Этап 1: Gain staging ---
-        // 1/√N over all mixed voices, smoothed so note-off doesn't zipper the bus.
+        // --- Gain staging ---
+        // 1/√N over mixed voices. Drop gain *immediately* when more notes start
+        // (prevents chord onsets from slamming the filter/limiter = "помехи").
+        // Rise gain slowly when notes end (avoids note-off zipper pops).
         let targetPolyScale = AudioMath.polyphonyScale(activeVoices: activeVoiceCount)
-        smoothedPolyScale = smoothedPolyScale * polyScaleSmoothingCoeff
-            + targetPolyScale * (1.0 - polyScaleSmoothingCoeff)
+        if targetPolyScale < smoothedPolyScale {
+            smoothedPolyScale = targetPolyScale
+        } else {
+            smoothedPolyScale = smoothedPolyScale * polyScaleSmoothingCoeff
+                + targetPolyScale * (1.0 - polyScaleSmoothingCoeff)
+        }
         mixedSampleL *= smoothedPolyScale
         mixedSampleR *= smoothedPolyScale
+
+        // Pre-filter bus guard (3 notes of saw can still crest > 1 before master).
+        mixedSampleL = AudioMath.softClip(mixedSampleL, threshold: 1.25)
+        mixedSampleR = AudioMath.softClip(mixedSampleR, threshold: 1.25)
 
         smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1.0 - smoothingCoeff)
         smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1.0 - smoothingCoeff)
@@ -406,19 +416,20 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         filterL.cutoff = cutoff
         filterR.cutoff = cutoff
 
-        let filteredSampleL = filterL.process(mixedSampleL, sampleRate: Float(sampleRate))
-        let filteredSampleR = filterR.process(mixedSampleR, sampleRate: Float(sampleRate))
+        var filteredSampleL = filterL.process(mixedSampleL, sampleRate: Float(sampleRate))
+        var filteredSampleR = filterR.process(mixedSampleR, sampleRate: Float(sampleRate))
+        if !filteredSampleL.isFinite { filterL.reset(); filteredSampleL = 0 }
+        if !filteredSampleR.isFinite { filterR.reset(); filteredSampleR = 0 }
 
-        // Linear −6 dB headroom (no constant tanh saturation — that was "хрип").
-        // Soft-clip only near full-scale as a safety net before chorus/limiter/FX.
-        let headroom: Float = 0.5
+        // Master + modest headroom; soft-clip only as safety (not a constant saturator).
+        let headroom: Float = 0.65
         var fxL = AudioMath.softClip(
             filteredSampleL * smoothedMasterVolume * headroom,
-            threshold: 0.95
+            threshold: 0.98
         )
         var fxR = AudioMath.softClip(
             filteredSampleR * smoothedMasterVolume * headroom,
-            threshold: 0.95
+            threshold: 0.98
         )
 
         // Stage 4 chain (each module no-ops when disabled/bypassed):
@@ -647,12 +658,14 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         oscillator1.octave = preset.osc1Octave
         oscillator1.detune = preset.osc1Detune
         oscillator1.pulseWidth = preset.osc1PulseWidth
+        oscillator1.wavetableMorph = max(0, min(1, preset.osc1WavetableMorph))
 
         oscillator2.waveform = preset.osc2Waveform
         oscillator2.volume = preset.osc2Volume
         oscillator2.octave = preset.osc2Octave
         oscillator2.detune = preset.osc2Detune
         oscillator2.pulseWidth = preset.osc2PulseWidth
+        oscillator2.wavetableMorph = max(0, min(1, preset.osc2WavetableMorph))
 
         envelope.attack = preset.attack
         envelope.decay = preset.decay
@@ -683,6 +696,39 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         delay.feedback = preset.delayFeedback
         delay.wetDryMix = preset.delayMix * 100
 
+        // Advanced FX (Stage 4) — loadable with factory / user presets
+        distortion.enabled = preset.distortionEnabled
+        distortion.type = preset.distortionType
+        distortion.drive = preset.distortionDrive
+        distortion.tone = preset.distortionTone
+        distortion.mix = preset.distortionMix
+
+        parametricEQL.enabled = preset.eqEnabled
+        parametricEQR.enabled = preset.eqEnabled
+        parametricEQL.lowGain = preset.eqLowGain
+        parametricEQR.lowGain = preset.eqLowGain
+        parametricEQL.lowFreq = preset.eqLowFreq
+        parametricEQR.lowFreq = preset.eqLowFreq
+        parametricEQL.midGain = preset.eqMidGain
+        parametricEQR.midGain = preset.eqMidGain
+        parametricEQL.midFreq = preset.eqMidFreq
+        parametricEQR.midFreq = preset.eqMidFreq
+        parametricEQL.midQ = preset.eqMidQ
+        parametricEQR.midQ = preset.eqMidQ
+        parametricEQL.highGain = preset.eqHighGain
+        parametricEQR.highGain = preset.eqHighGain
+        parametricEQL.highFreq = preset.eqHighFreq
+        parametricEQR.highFreq = preset.eqHighFreq
+
+        phaser.bypass = !preset.phaserEnabled
+        phaser.mode = preset.phaserMode
+        phaser.rate = preset.phaserRate
+        phaser.depth = preset.phaserDepth
+        phaser.feedback = preset.phaserFeedback
+        phaser.centerFrequency = preset.phaserCenterFrequency
+        phaser.stereoSpread = preset.phaserStereoSpread
+        phaser.mix = preset.phaserMix
+
         // Snapshot all parameters the audio path needs
         cachedPortamento = preset.portamento
         cachedUnisonVoices = preset.unisonVoices
@@ -700,6 +746,15 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     func loadPreset(_ preset: SynthPreset) {
         self.preset = preset
+    }
+
+    /// Mutate the published preset as a whole so `didSet` → `applyPreset()` always runs.
+    /// UI must use this (or assign `preset = …`) for advanced FX / morph — never write
+    /// only to live `distortion` / `phaser` / oscillator morph and leave `preset` stale.
+    func updatePreset(_ body: (inout SynthPreset) -> Void) {
+        var next = preset
+        body(&next)
+        preset = next
     }
 
     // MARK: - Test / diagnostic hooks (drive shipped types without AVAudioEngine)
@@ -729,6 +784,31 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             cachedFilterCutoff,
             cachedMasterVolume,
             cachedModMatrix.count
+        )
+    }
+
+    /// Advanced FX + morph state after `applyPreset` (for factory library tests).
+    func appliedAdvancedFXForTesting() -> (
+        distortionEnabled: Bool,
+        distortionDrive: Float,
+        eqEnabled: Bool,
+        eqLowGain: Float,
+        phaserEnabled: Bool,
+        phaserMix: Float,
+        osc1Morph: Float,
+        osc2Morph: Float,
+        osc1Waveform: WaveformType
+    ) {
+        (
+            distortion.enabled,
+            distortion.drive,
+            parametricEQL.enabled,
+            parametricEQL.lowGain,
+            !phaser.bypass,
+            phaser.mix,
+            oscillator1.wavetableMorph,
+            oscillator2.wavetableMorph,
+            oscillator1.waveform
         )
     }
 
