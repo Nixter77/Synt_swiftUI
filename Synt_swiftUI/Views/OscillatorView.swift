@@ -8,6 +8,8 @@ import SwiftUI
 struct OscillatorView: View {
     @Binding var preset: SynthPreset
     let oscillatorNumber: Int
+    /// Optional: needed for wavetable morph (lives on AudioEngine, not preset).
+    var audioEngine: AudioEngine? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -76,11 +78,48 @@ struct OscillatorView: View {
                         }
                         .padding(.top, 4)
                     }
+                    if isWavetableSelected, audioEngine != nil {
+                        HStack {
+                            Text("Morph")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundColor(AppleTheme.textSecondary)
+                                .frame(width: 40, alignment: .trailing)
+                            Slider(value: wavetableMorph, in: 0...1)
+                                .tint(AppleTheme.accentOscillator)
+                        }
+                        .padding(.top, 4)
+                    }
                 }
             }
         }
         .padding()
         .appleCard(accent: AppleTheme.accentOscillator)
+    }
+
+    private var isWavetableSelected: Bool {
+        if oscillatorNumber == 1 {
+            return preset.osc1Waveform == .wavetable
+        }
+        return preset.osc2Waveform == .wavetable
+    }
+
+    private var wavetableMorph: Binding<Float> {
+        Binding(
+            get: {
+                guard let engine = audioEngine else { return 0 }
+                return oscillatorNumber == 1
+                    ? engine.oscillator1.wavetableMorph
+                    : engine.oscillator2.wavetableMorph
+            },
+            set: { value in
+                guard let engine = audioEngine else { return }
+                if oscillatorNumber == 1 {
+                    engine.oscillator1.wavetableMorph = value
+                } else {
+                    engine.oscillator2.wavetableMorph = value
+                }
+            }
+        )
     }
 }
 

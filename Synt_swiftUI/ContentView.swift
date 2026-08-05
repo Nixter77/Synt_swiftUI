@@ -216,8 +216,8 @@ struct ContentView: View {
     private var controlsSection: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(spacing: 12) {
-                OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 1)
-                OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 2)
+                OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 1, audioEngine: audioEngine)
+                OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 2, audioEngine: audioEngine)
             }
             .frame(maxWidth: .infinity)
 
@@ -231,6 +231,7 @@ struct ContentView: View {
             VStack(spacing: 12) {
                 LFOView(preset: $audioEngine.preset)
                 EffectsView(preset: $audioEngine.preset)
+                AdvancedEffectsView(audioEngine: audioEngine)
                 ModMatrixView(preset: $audioEngine.preset)
             }
             .frame(maxWidth: .infinity)

@@ -102,7 +102,7 @@ graph TD
 2. **Фаза B**: Исправление `VoiceState.swift` + `VoiceManager` и тестовое подключение `AudioCommandQueue`.
 3. **Фаза C**: Исправление `WavetableOscillator.swift` и добавление в `Oscillator.swift`.
 4. **Фаза D**: Оптимизация `Distortion.swift`, `ParametricEQ.swift`, `Phaser.swift` и интеграция их в цепочку `AudioEngine.swift`.
-5. **Фаза E**: Создание UI в `AdvancedEffectsView.swift` и финальное обновление `PLAN.md`.
+5. **Фаза E**: ✅ `AdvancedEffectsView.swift` + morph в OscillatorView + `PLAN.md` (2026-08-05).
 
 ---
 
@@ -138,5 +138,11 @@ graph TD
 |--|--|
 | **Статус** | Уже реализовано ранее (atomics + 60Hz poll) — отмечено ✅ |
 
+### Фаза E — UI — 2026-08-05
+| | |
+|--|--|
+| **Сделано** | `AdvancedEffectsView` (Distortion/EQ/Phaser toggles+knobs); wavetable Morph slider в OSC; `PLAN.md` обновлён |
+| **Безопасность** | FX default OFF; factory sound path без изменений |
+
 ---
-**Статус**: Этапы 1, 3, 4, 5. Этап 2 откачен. Default-звук без изменений.
+**Статус**: NEWPLAN этапы 1/3/4/5 + UI (фаза E). Этап 2 откачен.
