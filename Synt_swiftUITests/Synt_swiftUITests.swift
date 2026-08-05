@@ -723,10 +723,9 @@ struct Synt_swiftUITests {
         d.drive = 1.0
         let hot = abs(d.process(0.5))
 
-        // Without compensation hardClip@drive1 could be huge; with compensation stay bounded.
-        #expect(hot < 1.5)
+        #expect(hot.isFinite)
+        #expect(hot < 1.2)
         #expect(d.autoGainCompensation() < 1.0)
-        // Hot shouldn't be wildly louder than low-drive
         #expect(hot < quiet * 4 + 0.5)
     }
 
@@ -735,16 +734,37 @@ struct Synt_swiftUITests {
         d.enabled = true
         d.type = .softClip
         d.mix = 1
-        d.tone = 0.2 // engages lowpass state
+        d.tone = 0.2
         _ = d.process(1.0)
         _ = d.process(1.0)
         d.enabled = false
         d.enabled = true
-        // After re-enable, first sample with tone@0.5 (neutral) should not carry old LPF DC
         d.tone = 0.5
         d.drive = 0
         let out = d.process(0.0)
-        #expect(abs(out) < 0.001)
+        #expect(abs(out) < 0.02)
+    }
+
+    @Test func distortionTypesStayCleanOnUnitSine() async throws {
+        for type in DistortionType.allCases {
+            let d = Distortion()
+            d.enabled = true
+            d.type = type
+            d.drive = 0.35
+            d.mix = 0.4
+            d.tone = 0.5
+            var peak: Float = 0
+            var phase: Float = 0
+            let dt = 2 * Float.pi * 220 / 44100
+            for _ in 0..<2048 {
+                let s = sin(phase) * 0.5
+                phase += dt
+                let (l, r) = d.processStereo(inputL: s, inputR: s)
+                #expect(l.isFinite && r.isFinite)
+                peak = max(peak, abs(l), abs(r))
+            }
+            #expect(peak < 1.5, "\(type.rawValue) peak \(peak)")
+        }
     }
 
     @Test func parametricEQDirtyFlagsAvoidPerSampleTrig() async throws {

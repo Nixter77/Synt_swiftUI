@@ -28,12 +28,12 @@ extension SynthPreset {
         SynthPreset(
             name: "Clean Sub",
             category: .bass,
-            osc1Waveform: .sine, osc1Volume: 0.85, osc1Octave: -2,
+            osc1Waveform: .sine, osc1Volume: 0.75, osc1Octave: -2,
             osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.25, osc2Octave: -1, osc2Detune: 2,
             attack: 0.008, decay: 0.12, sustain: 0.92, release: 0.18,
             filterCutoff: 320, filterResonance: 0.12,
             reverbMix: 0.05, reverbRoomSize: 0.3,
-            masterVolume: 0.58,
+            masterVolume: 0.55,
             eqEnabled: true, eqPreset: .bassBoost,
             eqLowGain: 5, eqLowFreq: 70, eqMidGain: -1, eqMidFreq: 800, eqHighGain: -2, eqHighFreq: 6000
         ),
@@ -43,12 +43,12 @@ extension SynthPreset {
             osc1Waveform: .sawtooth, osc1Volume: 0.72, osc1Octave: -1,
             osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.35, osc2Octave: -1, osc2Detune: 8, osc2PulseWidth: 0.35,
             attack: 0.002, decay: 0.22, sustain: 0.4, release: 0.12,
-            filterCutoff: 720, filterResonance: 0.55, filterEnvelopeAmount: 0.55,
+            filterCutoff: 720, filterResonance: 0.48, filterEnvelopeAmount: 0.55,
             lfoEnabled: true, lfoRate: 0.35, lfoDepth: 0.35, lfoTarget: .filter,
             reverbMix: 0.08,
             masterVolume: 0.52, portamento: 0.04,
             modMatrix: [PresetAuthoring.mod(.env1, .cutoff, 0.45)],
-            distortionEnabled: true, distortionType: .softClip, distortionDrive: 0.28, distortionTone: 0.4, distortionMix: 0.18,
+            distortionEnabled: true, distortionType: .softClip, distortionDrive: 0.20, distortionTone: 0.4, distortionMix: 0.12,
             eqEnabled: true, eqPreset: .midScoop,
             eqLowGain: 3, eqLowFreq: 90, eqMidGain: -3, eqMidFreq: 900, eqHighGain: 0, eqHighFreq: 7000
         ),
@@ -61,7 +61,7 @@ extension SynthPreset {
             filterCutoff: 900, filterResonance: 0.35,
             reverbMix: 0.12, reverbRoomSize: 0.4,
             chorusRate: 0.8, chorusDepth: 0.35, chorusMix: 0.18,
-            masterVolume: 0.5,
+            masterVolume: 0.50,
             unisonVoices: 2, unisonDetune: 10, unisonSpread: 0.45,
             eqEnabled: true, eqPreset: .bassBoost,
             eqLowGain: 4, eqLowFreq: 85, eqMidGain: -2, eqMidFreq: 1200, eqHighGain: -1, eqHighFreq: 8000
@@ -69,15 +69,15 @@ extension SynthPreset {
         SynthPreset(
             name: "Wavetable Growl",
             category: .bass,
-            osc1Waveform: .wavetable, osc1Volume: 0.7, osc1Octave: -1, osc1WavetableMorph: 0.55,
+            osc1Waveform: .wavetable, osc1Volume: 0.70, osc1Octave: -1, osc1WavetableMorph: 0.55,
             osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.3, osc2Octave: -2, osc2PulseWidth: 0.3,
             attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.2,
             filterCutoff: 1100, filterResonance: 0.45, filterEnvelopeAmount: 0.3,
             lfoEnabled: true, lfoRate: 4.5, lfoDepth: 0.25, lfoTarget: .filter,
             reverbMix: 0.1,
-            masterVolume: 0.5,
+            masterVolume: 0.50,
             modMatrix: [PresetAuthoring.mod(.lfo1, .cutoff, 0.3)],
-            distortionEnabled: true, distortionType: .tubeSaturation, distortionDrive: 0.32, distortionTone: 0.45, distortionMix: 0.22
+            distortionEnabled: true, distortionType: .tubeSaturation, distortionDrive: 0.20, distortionTone: 0.45, distortionMix: 0.12
         ),
         SynthPreset(
             name: "Muted Funk",
@@ -85,7 +85,7 @@ extension SynthPreset {
             osc1Waveform: .square, osc1Volume: 0.75, osc1Octave: -1, osc1PulseWidth: 0.28,
             osc2Enabled: false,
             attack: 0.001, decay: 0.16, sustain: 0.45, release: 0.1,
-            filterCutoff: 1400, filterResonance: 0.4,
+            filterCutoff: 1400, filterResonance: 0.40,
             reverbMix: 0.04,
             masterVolume: 0.55,
             modMatrix: [PresetAuthoring.mod(.velocity, .amp, 0.35)],
@@ -95,14 +95,14 @@ extension SynthPreset {
         SynthPreset(
             name: "Soft 808",
             category: .bass,
-            osc1Waveform: .sine, osc1Volume: 0.9, osc1Octave: -2,
+            osc1Waveform: .sine, osc1Volume: 0.75, osc1Octave: -2,
             osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.2, osc2Octave: -1, osc2Detune: 3,
             attack: 0.001, decay: 0.45, sustain: 0.15, release: 0.35,
-            filterCutoff: 280, filterResonance: 0.1,
+            filterCutoff: 280, filterResonance: 0.10,
             reverbMix: 0.06, reverbRoomSize: 0.25,
-            masterVolume: 0.6,
+            masterVolume: 0.55,
             eqEnabled: true, eqPreset: .bassBoost,
-            eqLowGain: 6, eqLowFreq: 55, eqMidGain: -4, eqMidFreq: 500, eqHighGain: -6, eqHighFreq: 4000
+            eqLowGain: 5, eqLowFreq: 55, eqMidGain: -4, eqMidFreq: 500, eqHighGain: -6, eqHighFreq: 4000
         ),
     ]
 
@@ -131,36 +131,36 @@ extension SynthPreset {
             filterCutoff: 4500, filterResonance: 0.25,
             reverbMix: 0.28, reverbRoomSize: 0.55,
             delayTime: 0.28, delayFeedback: 0.28, delayMix: 0.12,
-            masterVolume: 0.5,
+            masterVolume: 0.50,
             eqEnabled: true, eqPreset: .bright,
-            eqLowGain: -2, eqLowFreq: 150, eqMidGain: 2, eqMidFreq: 2200, eqHighGain: 4, eqHighFreq: 7000
+            eqLowGain: -2, eqLowFreq: 150, eqMidGain: 2, eqMidFreq: 2200, eqHighGain: 3, eqHighFreq: 7000
         ),
         SynthPreset(
             name: "Warm Mono",
             category: .lead,
-            osc1Waveform: .sawtooth, osc1Volume: 0.7, osc1Octave: 0,
+            osc1Waveform: .sawtooth, osc1Volume: 0.70, osc1Octave: 0,
             osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.3, osc2Octave: 0, osc2Detune: 5, osc2PulseWidth: 0.4,
             attack: 0.01, decay: 0.2, sustain: 0.75, release: 0.18,
-            filterCutoff: 2200, filterResonance: 0.4, filterEnvelopeAmount: 0.25,
+            filterCutoff: 2200, filterResonance: 0.40, filterEnvelopeAmount: 0.25,
             reverbMix: 0.15,
             masterVolume: 0.52, portamento: 0.08,
             modMatrix: [PresetAuthoring.mod(.velocity, .cutoff, 0.25)],
-            distortionEnabled: true, distortionType: .tapeSaturation, distortionDrive: 0.22, distortionTone: 0.4, distortionMix: 0.15
+            distortionEnabled: true, distortionType: .tapeSaturation, distortionDrive: 0.20, distortionTone: 0.4, distortionMix: 0.12
         ),
         SynthPreset(
             name: "Arp Cascade",
             category: .lead,
-            osc1Waveform: .square, osc1Volume: 0.6, osc1Octave: 0, osc1PulseWidth: 0.35,
+            osc1Waveform: .square, osc1Volume: 0.60, osc1Octave: 0, osc1PulseWidth: 0.35,
             osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.35, osc2Octave: 1, osc2Detune: 3,
             attack: 0.002, decay: 0.12, sustain: 0.35, release: 0.1,
             filterCutoff: 3800, filterResonance: 0.35,
             lfoEnabled: true, lfoRate: 0.2, lfoDepth: 0.2, lfoTarget: .filter,
             reverbMix: 0.2, reverbRoomSize: 0.45,
             delayTime: 0.22, delayFeedback: 0.3, delayMix: 0.14,
-            masterVolume: 0.5,
+            masterVolume: 0.50,
             arpMode: .up, bpm: 128,
             phaserEnabled: true, phaserMode: .phaser4, phaserRate: 0.35, phaserDepth: 0.4,
-            phaserFeedback: 0.2, phaserMix: 0.28
+            phaserFeedback: 0.18, phaserMix: 0.28
         ),
         SynthPreset(
             name: "Supersaw Soft",
@@ -182,7 +182,7 @@ extension SynthPreset {
             osc1Waveform: .square, osc1Volume: 0.68, osc1Octave: 0, osc1PulseWidth: 0.22,
             osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.28, osc2Octave: 0, osc2Detune: 4, osc2PulseWidth: 0.55,
             attack: 0.015, decay: 0.15, sustain: 0.65, release: 0.2,
-            filterCutoff: 2600, filterResonance: 0.3,
+            filterCutoff: 2600, filterResonance: 0.30,
             lfoEnabled: true, lfoRate: 0.4, lfoDepth: 0.35, lfoWaveform: .triangle, lfoTarget: .filter,
             reverbMix: 0.18,
             masterVolume: 0.52,
@@ -210,10 +210,10 @@ extension SynthPreset {
         SynthPreset(
             name: "Glass Horizon",
             category: .pad,
-            osc1Waveform: .wavetable, osc1Volume: 0.5, osc1Octave: 0, osc1WavetableMorph: 0.15,
+            osc1Waveform: .wavetable, osc1Volume: 0.50, osc1Octave: 0, osc1WavetableMorph: 0.15,
             osc2Enabled: true, osc2Waveform: .wavetable, osc2Volume: 0.4, osc2Octave: 1, osc2Detune: 5, osc2WavetableMorph: 0.7,
             attack: 1.2, decay: 0.8, sustain: 0.8, release: 1.8,
-            filterCutoff: 2400, filterResonance: 0.2,
+            filterCutoff: 2400, filterResonance: 0.20,
             lfoEnabled: true, lfoRate: 0.12, lfoDepth: 0.2, lfoTarget: .filter,
             reverbMix: 0.45, reverbRoomSize: 0.8,
             delayTime: 0.4, delayFeedback: 0.25, delayMix: 0.1,
@@ -224,10 +224,10 @@ extension SynthPreset {
         SynthPreset(
             name: "Analog Drift",
             category: .pad,
-            osc1Waveform: .sawtooth, osc1Volume: 0.5, osc1Octave: -1,
+            osc1Waveform: .sawtooth, osc1Volume: 0.50, osc1Octave: -1,
             osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.45, osc2Octave: 0, osc2Detune: 8,
             attack: 0.7, decay: 0.5, sustain: 0.9, release: 1.1,
-            filterCutoff: 1400, filterResonance: 0.3,
+            filterCutoff: 1400, filterResonance: 0.30,
             lfoEnabled: true, lfoRate: 0.08, lfoDepth: 0.15, lfoTarget: .pitch,
             reverbMix: 0.35, reverbRoomSize: 0.65,
             chorusRate: 0.35, chorusDepth: 0.5, chorusMix: 0.3,
@@ -247,12 +247,12 @@ extension SynthPreset {
             eqEnabled: true, eqPreset: .dark,
             eqLowGain: 3, eqLowFreq: 100, eqMidGain: -1, eqMidFreq: 700, eqHighGain: -6, eqHighFreq: 4000,
             phaserEnabled: true, phaserMode: .phaser4, phaserRate: 0.08, phaserDepth: 0.45,
-            phaserFeedback: 0.22, phaserMix: 0.32
+            phaserFeedback: 0.18, phaserMix: 0.32
         ),
         SynthPreset(
             name: "Air Choir",
             category: .pad,
-            osc1Waveform: .sine, osc1Volume: 0.5, osc1Octave: 0,
+            osc1Waveform: .sine, osc1Volume: 0.50, osc1Octave: 0,
             osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.45, osc2Octave: 1, osc2Detune: 3,
             attack: 0.8, decay: 0.4, sustain: 0.85, release: 1.6,
             filterCutoff: 3000, filterResonance: 0.15,
@@ -283,10 +283,10 @@ extension SynthPreset {
         SynthPreset(
             name: "Soft EP",
             category: .keys,
-            osc1Waveform: .sine, osc1Volume: 0.7, osc1Octave: 0,
+            osc1Waveform: .sine, osc1Volume: 0.70, osc1Octave: 0,
             osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.35, osc2Octave: 1, osc2Detune: 2,
             attack: 0.005, decay: 0.55, sustain: 0.35, release: 0.45,
-            filterCutoff: 2800, filterResonance: 0.2,
+            filterCutoff: 2800, filterResonance: 0.20,
             reverbMix: 0.22, reverbRoomSize: 0.45,
             chorusRate: 1.0, chorusDepth: 0.25, chorusMix: 0.12,
             masterVolume: 0.55,
@@ -318,20 +318,20 @@ extension SynthPreset {
             reverbMix: 0.1,
             masterVolume: 0.53,
             modMatrix: [PresetAuthoring.mod(.velocity, .cutoff, 0.35)],
-            distortionEnabled: true, distortionType: .softClip, distortionDrive: 0.2, distortionTone: 0.55, distortionMix: 0.12
+            distortionEnabled: true, distortionType: .softClip, distortionDrive: 0.20, distortionTone: 0.55, distortionMix: 0.12
         ),
         SynthPreset(
             name: "Bell Keys",
             category: .keys,
-            osc1Waveform: .sine, osc1Volume: 0.6, osc1Octave: 1,
+            osc1Waveform: .sine, osc1Volume: 0.60, osc1Octave: 1,
             osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.35, osc2Octave: 2, osc2Detune: 8,
             attack: 0.001, decay: 0.7, sustain: 0.15, release: 0.8,
             filterCutoff: 5000, filterResonance: 0.15,
             reverbMix: 0.35, reverbRoomSize: 0.6,
             delayTime: 0.3, delayFeedback: 0.25, delayMix: 0.1,
-            masterVolume: 0.5,
+            masterVolume: 0.50,
             eqEnabled: true, eqPreset: .bright,
-            eqLowGain: -4, eqLowFreq: 200, eqMidGain: 2, eqMidFreq: 2500, eqHighGain: 4, eqHighFreq: 8000
+            eqLowGain: -4, eqLowFreq: 200, eqMidGain: 2, eqMidFreq: 2500, eqHighGain: 3, eqHighFreq: 8000
         ),
         SynthPreset(
             name: "Rhodes Warm",
@@ -343,7 +343,7 @@ extension SynthPreset {
             reverbMix: 0.25, reverbRoomSize: 0.5,
             chorusRate: 0.8, chorusDepth: 0.35, chorusMix: 0.18,
             masterVolume: 0.54,
-            distortionEnabled: true, distortionType: .tapeSaturation, distortionDrive: 0.18, distortionTone: 0.42, distortionMix: 0.14,
+            distortionEnabled: true, distortionType: .tapeSaturation, distortionDrive: 0.18, distortionTone: 0.42, distortionMix: 0.12,
             eqEnabled: true, eqPreset: .midPresence,
             eqLowGain: 1, eqLowFreq: 110, eqMidGain: 2, eqMidFreq: 1800, eqHighGain: -1, eqHighFreq: 7000
         ),
@@ -355,7 +355,7 @@ extension SynthPreset {
         SynthPreset(
             name: "Nylon Pluck",
             category: .pluck,
-            osc1Waveform: .triangle, osc1Volume: 0.7, osc1Octave: 0,
+            osc1Waveform: .triangle, osc1Volume: 0.70, osc1Octave: 0,
             osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.25, osc2Octave: 1, osc2Detune: 2,
             attack: 0.001, decay: 0.35, sustain: 0.1, release: 0.25,
             filterCutoff: 3500, filterResonance: 0.25, filterEnvelopeAmount: 0.35,
@@ -366,7 +366,7 @@ extension SynthPreset {
         SynthPreset(
             name: "Steel Spark",
             category: .pluck,
-            osc1Waveform: .sawtooth, osc1Volume: 0.6, osc1Octave: 0,
+            osc1Waveform: .sawtooth, osc1Volume: 0.60, osc1Octave: 0,
             osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.3, osc2Octave: 1, osc2PulseWidth: 0.3,
             attack: 0.001, decay: 0.28, sustain: 0.08, release: 0.2,
             filterCutoff: 4200, filterResonance: 0.35, filterEnvelopeAmount: 0.5,
@@ -374,7 +374,7 @@ extension SynthPreset {
             delayTime: 0.2, delayFeedback: 0.22, delayMix: 0.1,
             masterVolume: 0.52,
             eqEnabled: true, eqPreset: .bright,
-            eqLowGain: -2, eqLowFreq: 150, eqMidGain: 1, eqMidFreq: 2500, eqHighGain: 4, eqHighFreq: 9000
+            eqLowGain: -2, eqLowFreq: 150, eqMidGain: 1, eqMidFreq: 2500, eqHighGain: 3, eqHighFreq: 9000
         ),
         SynthPreset(
             name: "Kalimba Soft",
@@ -392,7 +392,7 @@ extension SynthPreset {
             osc1Waveform: .wavetable, osc1Volume: 0.62, osc1Octave: 0, osc1WavetableMorph: 0.35,
             osc2Enabled: false,
             attack: 0.001, decay: 0.32, sustain: 0.12, release: 0.22,
-            filterCutoff: 3800, filterResonance: 0.3, filterEnvelopeAmount: 0.4,
+            filterCutoff: 3800, filterResonance: 0.30, filterEnvelopeAmount: 0.4,
             reverbMix: 0.22,
             masterVolume: 0.53,
             modMatrix: [
@@ -406,10 +406,10 @@ extension SynthPreset {
             osc1Waveform: .sawtooth, osc1Volume: 0.55, osc1Octave: 0,
             osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.4, osc2Octave: 0, osc2Detune: 3,
             attack: 0.002, decay: 0.2, sustain: 0.15, release: 0.15,
-            filterCutoff: 1600, filterResonance: 0.4,
+            filterCutoff: 1600, filterResonance: 0.40,
             reverbMix: 0.12,
             masterVolume: 0.54,
-            distortionEnabled: true, distortionType: .softClip, distortionDrive: 0.15, distortionTone: 0.35, distortionMix: 0.1,
+            distortionEnabled: true, distortionType: .softClip, distortionDrive: 0.15, distortionTone: 0.35, distortionMix: 0.10,
             eqEnabled: true, eqPreset: .midScoop,
             eqLowGain: 1, eqLowFreq: 120, eqMidGain: -3, eqMidFreq: 900, eqHighGain: 1, eqHighFreq: 6000
         ),
@@ -421,19 +421,19 @@ extension SynthPreset {
         SynthPreset(
             name: "Section Soft",
             category: .strings,
-            osc1Waveform: .sawtooth, osc1Volume: 0.5, osc1Octave: 0,
+            osc1Waveform: .sawtooth, osc1Volume: 0.50, osc1Octave: 0,
             osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.45, osc2Octave: 0, osc2Detune: 7,
             attack: 0.35, decay: 0.4, sustain: 0.85, release: 0.7,
-            filterCutoff: 2000, filterResonance: 0.2,
+            filterCutoff: 2000, filterResonance: 0.20,
             reverbMix: 0.32, reverbRoomSize: 0.6,
             chorusRate: 0.45, chorusDepth: 0.4, chorusMix: 0.25,
-            masterVolume: 0.5,
+            masterVolume: 0.50,
             unisonVoices: 2, unisonDetune: 10, unisonSpread: 0.7
         ),
         SynthPreset(
             name: "Cello Warm",
             category: .strings,
-            osc1Waveform: .sawtooth, osc1Volume: 0.6, osc1Octave: -1,
+            osc1Waveform: .sawtooth, osc1Volume: 0.60, osc1Octave: -1,
             osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.35, osc2Octave: -1, osc2Detune: 4,
             attack: 0.2, decay: 0.3, sustain: 0.8, release: 0.5,
             filterCutoff: 1400, filterResonance: 0.28,
@@ -463,7 +463,7 @@ extension SynthPreset {
             filterCutoff: 2400, filterResonance: 0.22,
             lfoEnabled: true, lfoRate: 6.5, lfoDepth: 0.35, lfoWaveform: .triangle, lfoTarget: .amplitude,
             reverbMix: 0.3, reverbRoomSize: 0.55,
-            masterVolume: 0.5,
+            masterVolume: 0.50,
             modMatrix: [PresetAuthoring.mod(.lfo1, .amp, 0.3)]
         ),
         SynthPreset(
@@ -472,7 +472,7 @@ extension SynthPreset {
             osc1Waveform: .wavetable, osc1Volume: 0.52, osc1Octave: 0, osc1WavetableMorph: 0.25,
             osc2Enabled: true, osc2Waveform: .wavetable, osc2Volume: 0.4, osc2Octave: 0, osc2Detune: 6, osc2WavetableMorph: 0.6,
             attack: 0.45, decay: 0.4, sustain: 0.85, release: 0.9,
-            filterCutoff: 2200, filterResonance: 0.2,
+            filterCutoff: 2200, filterResonance: 0.20,
             reverbMix: 0.4, reverbRoomSize: 0.75,
             chorusRate: 0.4, chorusDepth: 0.4, chorusMix: 0.2,
             masterVolume: 0.48,
@@ -488,7 +488,7 @@ extension SynthPreset {
         SynthPreset(
             name: "Shimmer Rise",
             category: .fx,
-            osc1Waveform: .wavetable, osc1Volume: 0.5, osc1Octave: 1, osc1WavetableMorph: 0.8,
+            osc1Waveform: .wavetable, osc1Volume: 0.50, osc1Octave: 1, osc1WavetableMorph: 0.8,
             osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.35, osc2Octave: 2, osc2Detune: 10,
             attack: 0.6, decay: 0.8, sustain: 0.7, release: 1.2,
             filterType: .highPass, filterCutoff: 800, filterResonance: 0.35,
@@ -497,7 +497,7 @@ extension SynthPreset {
             delayTime: 0.35, delayFeedback: 0.35, delayMix: 0.18,
             masterVolume: 0.45,
             phaserEnabled: true, phaserMode: .phaser4, phaserRate: 0.2, phaserDepth: 0.5,
-            phaserFeedback: 0.2, phaserCenterFrequency: 1200, phaserMix: 0.35
+            phaserFeedback: 0.18, phaserCenterFrequency: 1200, phaserMix: 0.35
         ),
         SynthPreset(
             name: "Noise Sweep",
@@ -505,7 +505,7 @@ extension SynthPreset {
             osc1Waveform: .noise, osc1Volume: 0.55, osc1Octave: 0,
             osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.25, osc2Octave: 0,
             attack: 0.05, decay: 0.4, sustain: 0.5, release: 0.6,
-            filterType: .bandPass, filterCutoff: 1500, filterResonance: 0.55,
+            filterType: .bandPass, filterCutoff: 1500, filterResonance: 0.48,
             lfoEnabled: true, lfoRate: 0.25, lfoDepth: 0.6, lfoTarget: .filter,
             reverbMix: 0.35, reverbRoomSize: 0.7,
             masterVolume: 0.48,
@@ -521,9 +521,9 @@ extension SynthPreset {
             filterCutoff: 4500, filterResonance: 0.45,
             reverbMix: 0.15,
             delayTime: 0.12, delayFeedback: 0.4, delayMix: 0.2,
-            masterVolume: 0.5,
+            masterVolume: 0.50,
             arpMode: .random, bpm: 140,
-            distortionEnabled: true, distortionType: .bitcrusher, distortionDrive: 0.35, distortionTone: 0.6, distortionMix: 0.2
+            distortionEnabled: true, distortionType: .softClip, distortionDrive: 0.20, distortionTone: 0.6, distortionMix: 0.12
         ),
         SynthPreset(
             name: "Deep Drone",
@@ -531,13 +531,13 @@ extension SynthPreset {
             osc1Waveform: .sawtooth, osc1Volume: 0.45, osc1Octave: -2,
             osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.45, osc2Octave: -1, osc2Detune: 3,
             attack: 1.2, decay: 1.0, sustain: 0.95, release: 2.0,
-            filterCutoff: 600, filterResonance: 0.4,
+            filterCutoff: 600, filterResonance: 0.40,
             lfoEnabled: true, lfoRate: 0.04, lfoDepth: 0.3, lfoTarget: .filter,
             reverbMix: 0.45, reverbRoomSize: 0.85,
             masterVolume: 0.46,
             unisonVoices: 2, unisonDetune: 6, unisonSpread: 0.5,
             phaserEnabled: true, phaserMode: .phaser4, phaserRate: 0.05, phaserDepth: 0.4,
-            phaserFeedback: 0.25, phaserCenterFrequency: 400, phaserMix: 0.3
+            phaserFeedback: 0.18, phaserCenterFrequency: 400, phaserMix: 0.3
         ),
         SynthPreset(
             name: "Space Pluck FX",
@@ -545,13 +545,13 @@ extension SynthPreset {
             osc1Waveform: .wavetable, osc1Volume: 0.55, osc1Octave: 1, osc1WavetableMorph: 0.5,
             osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.3, osc2Octave: 2, osc2Detune: 12,
             attack: 0.001, decay: 0.4, sustain: 0.1, release: 0.9,
-            filterCutoff: 3600, filterResonance: 0.3,
+            filterCutoff: 3600, filterResonance: 0.30,
             reverbMix: 0.5, reverbRoomSize: 0.85,
             delayTime: 0.45, delayFeedback: 0.4, delayMix: 0.22,
             masterVolume: 0.48,
             arpMode: .upDown, bpm: 100,
             eqEnabled: true, eqPreset: .bright,
-            eqLowGain: -3, eqLowFreq: 200, eqMidGain: 2, eqMidFreq: 2000, eqHighGain: 5, eqHighFreq: 8000
+            eqLowGain: -3, eqLowFreq: 200, eqMidGain: 2, eqMidFreq: 2000, eqHighGain: 3, eqHighFreq: 8000
         ),
     ]
 }

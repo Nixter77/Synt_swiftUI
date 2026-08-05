@@ -414,8 +414,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         fxR = max(-1, min(1, fxR))
 
         if distortion.enabled {
-            fxL = distortion.process(fxL)
-            fxR = distortion.process(fxR)
+            (fxL, fxR) = distortion.processStereo(inputL: fxL, inputR: fxR)
         }
         if parametricEQL.enabled {
             if !parametricEQR.enabled { parametricEQR.enabled = true }
