@@ -62,7 +62,7 @@ extension SynthPreset {
             reverbMix: 0.12, reverbRoomSize: 0.4,
             chorusRate: 0.8, chorusDepth: 0.35, chorusMix: 0.18,
             masterVolume: 0.5,
-            unisonVoices: 3, unisonDetune: 12, unisonSpread: 0.45,
+            unisonVoices: 2, unisonDetune: 10, unisonSpread: 0.45,
             eqEnabled: true, eqPreset: .bassBoost,
             eqLowGain: 4, eqLowFreq: 85, eqMidGain: -2, eqMidFreq: 1200, eqHighGain: -1, eqHighFreq: 8000
         ),
@@ -172,7 +172,7 @@ extension SynthPreset {
             reverbMix: 0.25, reverbRoomSize: 0.55,
             chorusRate: 0.9, chorusDepth: 0.4, chorusMix: 0.22,
             masterVolume: 0.48,
-            unisonVoices: 5, unisonDetune: 14, unisonSpread: 0.65,
+            unisonVoices: 2, unisonDetune: 10, unisonSpread: 0.65,
             eqEnabled: true, eqPreset: .midScoop,
             eqLowGain: 0, eqLowFreq: 120, eqMidGain: -2, eqMidFreq: 800, eqHighGain: 2, eqHighFreq: 9000
         ),
@@ -203,7 +203,7 @@ extension SynthPreset {
             reverbMix: 0.4, reverbRoomSize: 0.75,
             chorusRate: 0.5, chorusDepth: 0.45, chorusMix: 0.28,
             masterVolume: 0.48,
-            unisonVoices: 3, unisonDetune: 10, unisonSpread: 0.7,
+            unisonVoices: 2, unisonDetune: 10, unisonSpread: 0.7,
             eqEnabled: true, eqPreset: .dark,
             eqLowGain: 2, eqLowFreq: 120, eqMidGain: 0, eqMidFreq: 800, eqHighGain: -4, eqHighFreq: 5000
         ),
@@ -218,7 +218,7 @@ extension SynthPreset {
             reverbMix: 0.45, reverbRoomSize: 0.8,
             delayTime: 0.4, delayFeedback: 0.25, delayMix: 0.1,
             masterVolume: 0.46,
-            phaserEnabled: true, phaserMode: .phaser6, phaserRate: 0.12, phaserDepth: 0.35,
+            phaserEnabled: true, phaserMode: .phaser4, phaserRate: 0.12, phaserDepth: 0.35,
             phaserFeedback: 0.15, phaserCenterFrequency: 600, phaserMix: 0.25
         ),
         SynthPreset(
@@ -232,7 +232,7 @@ extension SynthPreset {
             reverbMix: 0.35, reverbRoomSize: 0.65,
             chorusRate: 0.35, chorusDepth: 0.5, chorusMix: 0.3,
             masterVolume: 0.48,
-            unisonVoices: 4, unisonDetune: 11, unisonSpread: 0.6,
+            unisonVoices: 2, unisonDetune: 11, unisonSpread: 0.6,
             modMatrix: [PresetAuthoring.mod(.lfo1, .pan, 0.25)]
         ),
         SynthPreset(
@@ -259,7 +259,7 @@ extension SynthPreset {
             reverbMix: 0.48, reverbRoomSize: 0.85,
             chorusRate: 0.6, chorusDepth: 0.35, chorusMix: 0.2,
             masterVolume: 0.46,
-            unisonVoices: 3, unisonDetune: 7, unisonSpread: 0.8,
+            unisonVoices: 2, unisonDetune: 7, unisonSpread: 0.8,
             eqEnabled: true, eqPreset: .vocal,
             eqLowGain: -2, eqLowFreq: 150, eqMidGain: 3, eqMidFreq: 1600, eqHighGain: 2, eqHighFreq: 7000
         ),
@@ -428,7 +428,7 @@ extension SynthPreset {
             reverbMix: 0.32, reverbRoomSize: 0.6,
             chorusRate: 0.45, chorusDepth: 0.4, chorusMix: 0.25,
             masterVolume: 0.5,
-            unisonVoices: 4, unisonDetune: 12, unisonSpread: 0.7
+            unisonVoices: 2, unisonDetune: 10, unisonSpread: 0.7
         ),
         SynthPreset(
             name: "Cello Warm",
@@ -452,7 +452,7 @@ extension SynthPreset {
             reverbMix: 0.38, reverbRoomSize: 0.7,
             chorusRate: 0.55, chorusDepth: 0.35, chorusMix: 0.22,
             masterVolume: 0.48,
-            unisonVoices: 3, unisonDetune: 9, unisonSpread: 0.75
+            unisonVoices: 2, unisonDetune: 9, unisonSpread: 0.75
         ),
         SynthPreset(
             name: "Tremolo Strings",
@@ -476,7 +476,7 @@ extension SynthPreset {
             reverbMix: 0.4, reverbRoomSize: 0.75,
             chorusRate: 0.4, chorusDepth: 0.4, chorusMix: 0.2,
             masterVolume: 0.48,
-            unisonVoices: 3, unisonDetune: 10, unisonSpread: 0.65,
+            unisonVoices: 2, unisonDetune: 10, unisonSpread: 0.65,
             phaserEnabled: true, phaserMode: .phaser2, phaserRate: 0.15, phaserDepth: 0.3,
             phaserFeedback: 0.12, phaserMix: 0.18
         ),
@@ -496,7 +496,7 @@ extension SynthPreset {
             reverbMix: 0.55, reverbRoomSize: 0.9,
             delayTime: 0.35, delayFeedback: 0.35, delayMix: 0.18,
             masterVolume: 0.45,
-            phaserEnabled: true, phaserMode: .phaser8, phaserRate: 0.2, phaserDepth: 0.5,
+            phaserEnabled: true, phaserMode: .phaser4, phaserRate: 0.2, phaserDepth: 0.5,
             phaserFeedback: 0.2, phaserCenterFrequency: 1200, phaserMix: 0.35
         ),
         SynthPreset(
@@ -536,7 +536,7 @@ extension SynthPreset {
             reverbMix: 0.45, reverbRoomSize: 0.85,
             masterVolume: 0.46,
             unisonVoices: 2, unisonDetune: 6, unisonSpread: 0.5,
-            phaserEnabled: true, phaserMode: .phaser6, phaserRate: 0.05, phaserDepth: 0.4,
+            phaserEnabled: true, phaserMode: .phaser4, phaserRate: 0.05, phaserDepth: 0.4,
             phaserFeedback: 0.25, phaserCenterFrequency: 400, phaserMix: 0.3
         ),
         SynthPreset(

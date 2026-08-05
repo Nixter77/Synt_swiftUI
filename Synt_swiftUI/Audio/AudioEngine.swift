@@ -294,32 +294,39 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             var ampMod: Float = 0
             var panMod: Float = 0
 
-            for entry in modMatrix {
-                let sourceVal: Float
-                switch entry.source {
-                case .lfo1: sourceVal = lfoValue
-                case .env1: sourceVal = envelopeValue
-                case .velocity: sourceVal = velValue
-                }
-                let modVal = sourceVal * entry.amount
-                switch entry.destination {
-                case .pitch1: pitchMod1 += modVal
-                case .pitch2: pitchMod2 += modVal
-                case .amp: ampMod += modVal
-                case .pan: panMod += modVal
-                default: break
+            if !modMatrix.isEmpty {
+                for entry in modMatrix {
+                    let sourceVal: Float
+                    switch entry.source {
+                    case .lfo1: sourceVal = lfoValue
+                    case .env1: sourceVal = envelopeValue
+                    case .velocity: sourceVal = velValue
+                    }
+                    let modVal = sourceVal * entry.amount
+                    switch entry.destination {
+                    case .pitch1: pitchMod1 += modVal
+                    case .pitch2: pitchMod2 += modVal
+                    case .amp: ampMod += modVal
+                    case .pan: panMod += modVal
+                    default: break
+                    }
                 }
             }
 
-            pitchMod1 = max(-2, min(2, pitchMod1))
-            pitchMod2 = max(-2, min(2, pitchMod2))
-            osc1Freq *= pow(2.0, Double(pitchMod1))
-            osc2Freq *= pow(2.0, Double(pitchMod2))
+            if pitchMod1 != 0 {
+                osc1Freq *= pow(2.0, Double(max(-2, min(2, pitchMod1))))
+            }
+            if pitchMod2 != 0 {
+                osc2Freq *= pow(2.0, Double(max(-2, min(2, pitchMod2))))
+            }
 
             if lfoEnabled && lfoTarget == .pitch {
                 let mod = Double(max(-1, min(1, lfoValue)))
-                osc1Freq *= pow(2.0, mod)
-                osc2Freq *= pow(2.0, mod)
+                if mod != 0 {
+                    let mul = pow(2.0, mod)
+                    osc1Freq *= mul
+                    osc2Freq *= mul
+                }
             }
 
             osc1Freq = max(20.0, min(sampleRate * 0.45, osc1Freq))
@@ -524,7 +531,22 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
         lastPlayedFrequency = baseFreq
 
-        let unisonCount = max(1, min(4, cachedUnisonVoices)) // keep chords cheap
+        // Dynamic unison: factory pads often request 3–5 voices. That is fine for 1 note
+        // (Init-like load) but 3 notes × 5 unison = 15 partials + FX → underruns / broken sound.
+        // Scale unison down as more distinct MIDI notes are already held.
+        let otherNotes = uniqueActiveMIDINoteCount()
+        let requested = max(1, min(5, cachedUnisonVoices))
+        let unisonCount: Int
+        if otherNotes >= 3 {
+            unisonCount = 1
+        } else if otherNotes == 2 {
+            unisonCount = min(2, requested)
+        } else if otherNotes == 1 {
+            unisonCount = min(2, requested)
+        } else {
+            unisonCount = min(3, requested) // solo: allow a bit of width
+        }
+
         let detuneAmount = cachedUnisonDetune
         let spreadAmount = cachedUnisonSpread
 
@@ -557,6 +579,31 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             voices[slot].currentFrequency = curFreq
             activeVoiceCountRT += 1
         }
+    }
+
+    /// Count distinct MIDI notes currently active (allocation-free bitsets).
+    private func uniqueActiveMIDINoteCount() -> Int {
+        var lo: UInt64 = 0
+        var hi: UInt64 = 0
+        var count = 0
+        for i in 0..<AudioEngine.maxVoices {
+            guard voices[i].isActive else { continue }
+            let n = voices[i].midiNote
+            if n >= 0 && n < 64 {
+                let bit: UInt64 = 1 << n
+                if lo & bit == 0 {
+                    lo |= bit
+                    count += 1
+                }
+            } else if n >= 64 && n < 128 {
+                let bit: UInt64 = 1 << (n - 64)
+                if hi & bit == 0 {
+                    hi |= bit
+                    count += 1
+                }
+            }
+        }
+        return count
     }
 
     private func findFreeVoiceSlot() -> Int? {

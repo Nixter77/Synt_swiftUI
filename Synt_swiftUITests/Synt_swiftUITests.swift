@@ -1007,6 +1007,39 @@ struct Synt_swiftUITests {
         #expect(engine.activeNoteCountForTesting == 0)
     }
 
+    @Test func chordPolyphonyCollapsesUnisonToStayLight() async throws {
+        let engine = AudioEngine()
+        var p = SynthPreset.defaultPreset
+        p.arpMode = .off
+        p.unisonVoices = 5 // factory-style request
+        engine.preset = p
+        engine.applyPresetForTesting()
+
+        // One note may use limited unison (solo path)
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 1)
+
+        // Stack to 4 held notes — engine must keep unique notes and not explode partial count
+        for n in [64, 67, 71] {
+            engine.noteOn(midiNote: n, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+
+        // With dynamic unison collapse, total partials stay well under pool size
+        // (4 notes × ≤2 unison ≤ 8; never 4×5=20)
+        engine.clearAllNotes()
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 0)
+    }
+
+    @Test func factoryPresetsCapUnisonForChordSafety() async throws {
+        for preset in SynthPreset.factoryPresets {
+            #expect(preset.unisonVoices <= 2, "\(preset.name) unison \(preset.unisonVoices) too high for chords")
+        }
+    }
+
     @Test func softClipBoundsHotBus() async throws {
         let hot = AudioMath.softClip(3.0, threshold: 1.25)
         #expect(hot.isFinite)
