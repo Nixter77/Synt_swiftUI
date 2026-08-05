@@ -980,6 +980,33 @@ struct Synt_swiftUITests {
         #expect(peakAfter < 2.0)
     }
 
+    @Test func multiNoteOnOffDoesNotCorruptVoiceMap() async throws {
+        let engine = AudioEngine()
+        var p = SynthPreset.defaultPreset
+        p.arpMode = .off
+        p.unisonVoices = 1
+        engine.preset = p
+
+        // 4 simultaneous notes — previously mutated Dictionary during for-in
+        for n in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: n, velocity: 0.8)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+
+        // Render many samples without audio device (drains voices through private path via note off)
+        engine.noteOff(midiNote: 60)
+        engine.noteOff(midiNote: 64)
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteReleasingForTesting(60) || !engine.isNoteActiveForTesting(60) || engine.activeNoteCountForTesting >= 2)
+        #expect(engine.isNoteActiveForTesting(67))
+        #expect(engine.isNoteActiveForTesting(71))
+
+        engine.clearAllNotes()
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 0)
+    }
+
     @Test func softClipBoundsHotBus() async throws {
         let hot = AudioMath.softClip(3.0, threshold: 1.25)
         #expect(hot.isFinite)

@@ -60,6 +60,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     /// Active notes: audio-thread only after command drain (no lock).
     private var activeNotes: [Int: [ActiveNote]] = [:]
+    /// Scratch for key snapshot — avoids allocating `[Int]` every sample on the audio thread.
+    private var activeNoteKeyScratch: [Int] = []
 
     private let sampleRate: Double = 44100.0
 
@@ -90,9 +92,11 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private var smoothedFilterCutoff: Float = 5000.0
     private var smoothedMasterVolume: Float = 0.5
     private let smoothingCoeff: Float = 0.999
-    /// Smoothed 1/√N — hard steps when a voice ends cause zipper noise / crackle.
+    /// Smoothed 1/√N. Asymmetric: faster when quieter needed, never instant (instant = zipper).
     private var smoothedPolyScale: Float = 1.0
-    private let polyScaleSmoothingCoeff: Float = 0.995
+    /// ~3 ms attack when more notes (scale down); ~25 ms release when fewer notes (scale up).
+    private let polyScaleAttackCoeff: Float = 0.985
+    private let polyScaleReleaseCoeff: Float = 0.998
 
     // Oscilloscope Capture (audio thread buffer → AtomicMeteringState)
     private var scopeBuffer: [Float] = Array(repeating: 0.0, count: 512)
@@ -259,7 +263,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             wavetableEngine2.advanceMorph()
         }
 
-        for (midiNote, var notes) in activeNotes {
+        // CRITICAL: never mutate Dictionary while using its for-in iterator
+        // (undefined behavior → zipper / full glitch as note count grows).
+        activeNoteKeyScratch.removeAll(keepingCapacity: true)
+        activeNoteKeyScratch.append(contentsOf: activeNotes.keys)
+        for midiNote in activeNoteKeyScratch {
+            guard var notes = activeNotes[midiNote] else { continue }
             var allNotesEnded = true
 
             for i in 0..<notes.count {
@@ -320,14 +329,22 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                     }
                 }
 
+                // Bound pitch mod so extreme matrix amounts cannot explode phaseIncrement
+                pitchMod1 = max(-2, min(2, pitchMod1))
+                pitchMod2 = max(-2, min(2, pitchMod2))
+
                 osc1Freq *= pow(2.0, Double(pitchMod1))
                 osc2Freq *= pow(2.0, Double(pitchMod2))
 
                 if lfoEnabled && lfoTarget == .pitch {
-                    let mod = lfoValue
+                    let mod = max(-1, min(1, lfoValue))
                     osc1Freq *= pow(2.0, Double(mod))
                     osc2Freq *= pow(2.0, Double(mod))
                 }
+
+                // Keep oscillators in a sane frequency range
+                osc1Freq = max(20.0, min(sampleRate * 0.45, osc1Freq))
+                osc2Freq = max(20.0, min(sampleRate * 0.45, osc2Freq))
 
                 let phaseIncrement1 = AudioMath.twoPi * osc1Freq / sampleRate
                 let phaseIncrement2 = AudioMath.twoPi * osc2Freq / sampleRate
@@ -342,8 +359,15 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                 activeNote.phase += phaseIncrement1
                 activeNote.phase2 += phaseIncrement2
 
-                if activeNote.phase >= AudioMath.twoPi { activeNote.phase -= AudioMath.twoPi }
-                if activeNote.phase2 >= AudioMath.twoPi { activeNote.phase2 -= AudioMath.twoPi }
+                // Robust wrap (handles large increments without multi-sub loop cost)
+                if activeNote.phase >= AudioMath.twoPi || activeNote.phase < 0 {
+                    activeNote.phase = activeNote.phase.truncatingRemainder(dividingBy: AudioMath.twoPi)
+                    if activeNote.phase < 0 { activeNote.phase += AudioMath.twoPi }
+                }
+                if activeNote.phase2 >= AudioMath.twoPi || activeNote.phase2 < 0 {
+                    activeNote.phase2 = activeNote.phase2.truncatingRemainder(dividingBy: AudioMath.twoPi)
+                    if activeNote.phase2 < 0 { activeNote.phase2 += AudioMath.twoPi }
+                }
 
                 // Amplitude: velocity + envelope. Polyphony scale applied after the mix bus.
                 var amplitude = sample * envelopeValue * max(0.15, min(1.0, velValue))
@@ -352,6 +376,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
                 if lfoEnabled && lfoTarget == .amplitude {
                     amplitude = lfo.modulateAmplitude(amplitude, lfoValue: lfoValue)
+                }
+
+                if !amplitude.isFinite {
+                    amplitude = 0
                 }
 
                 var pan = activeNote.pan
@@ -389,22 +417,21 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
 
         // --- Gain staging ---
-        // 1/√N over mixed voices. Drop gain *immediately* when more notes start
-        // (prevents chord onsets from slamming the filter/limiter = "помехи").
-        // Rise gain slowly when notes end (avoids note-off zipper pops).
+        // 1/√N over mixed voices. Always one-pole smoothed (never a one-sample jump = zipper).
         let targetPolyScale = AudioMath.polyphonyScale(activeVoices: activeVoiceCount)
-        if targetPolyScale < smoothedPolyScale {
-            smoothedPolyScale = targetPolyScale
-        } else {
-            smoothedPolyScale = smoothedPolyScale * polyScaleSmoothingCoeff
-                + targetPolyScale * (1.0 - polyScaleSmoothingCoeff)
-        }
+        let polyCoeff = targetPolyScale < smoothedPolyScale
+            ? polyScaleAttackCoeff
+            : polyScaleReleaseCoeff
+        smoothedPolyScale = smoothedPolyScale * polyCoeff
+            + targetPolyScale * (1.0 - polyCoeff)
         mixedSampleL *= smoothedPolyScale
         mixedSampleR *= smoothedPolyScale
 
-        // Pre-filter bus guard (3 notes of saw can still crest > 1 before master).
-        mixedSampleL = AudioMath.softClip(mixedSampleL, threshold: 1.25)
-        mixedSampleR = AudioMath.softClip(mixedSampleR, threshold: 1.25)
+        // Pre-filter bus guard
+        if !mixedSampleL.isFinite { mixedSampleL = 0 }
+        if !mixedSampleR.isFinite { mixedSampleR = 0 }
+        mixedSampleL = AudioMath.softClip(mixedSampleL, threshold: 1.2)
+        mixedSampleR = AudioMath.softClip(mixedSampleR, threshold: 1.2)
 
         smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1.0 - smoothingCoeff)
         smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1.0 - smoothingCoeff)
@@ -536,47 +563,52 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     /// Audio-thread voice allocation using cached unison/portamento only.
+    /// Allocation-free: no UUID / Note objects on the render path.
     private func createVoice(midiNote: Int, velocity: Float) {
-        if activeNotes[midiNote] != nil {
-            activeNotes.removeValue(forKey: midiNote)
-        }
+        activeNotes.removeValue(forKey: midiNote)
 
-        let note = Note(midiNote: midiNote)
-
+        let baseFreq = AudioMath.midiToFrequency(midiNote)
         let startFreq: Double
-        if activeNotes.isEmpty {
-            startFreq = note.frequency
+        if activeNotes.isEmpty || cachedPortamento <= 0.001 {
+            startFreq = baseFreq
         } else {
-            startFreq = cachedPortamento > 0 ? (lastPlayedFrequency ?? note.frequency) : note.frequency
+            startFreq = lastPlayedFrequency ?? baseFreq
         }
-        lastPlayedFrequency = note.frequency
+        lastPlayedFrequency = baseFreq
 
-        let voices = cachedUnisonVoices
+        // Cap unison so chords cannot explode the voice count on the RT path.
+        let voices = max(1, min(5, cachedUnisonVoices))
         let detuneAmount = cachedUnisonDetune
         let spreadAmount = cachedUnisonSpread
 
         var newNotes: [ActiveNote] = []
+        newNotes.reserveCapacity(voices)
 
         if voices <= 1 {
-            var activeNote = ActiveNote(note: note, velocity: velocity)
-            activeNote.currentFrequency = startFreq
-            activeNote.targetFrequency = note.frequency
-            activeNote.pan = 0.0
-            newNotes.append(activeNote)
+            newNotes.append(ActiveNote(
+                midiNote: midiNote,
+                velocity: velocity,
+                frequency: startFreq,
+                pan: 0
+            ))
+            newNotes[0].targetFrequency = baseFreq
+            newNotes[0].currentFrequency = startFreq
         } else {
             for i in 0..<voices {
-                var activeNote = ActiveNote(note: note, velocity: velocity)
                 let centerOffset = Float(i) - Float(voices - 1) / 2.0
                 let detuneCents = centerOffset * detuneAmount
-                let targetDetuned = AudioMath.detuneFrequency(note.frequency, cents: detuneCents)
+                let targetDetuned = AudioMath.detuneFrequency(baseFreq, cents: detuneCents)
                 let startDetuned = AudioMath.detuneFrequency(startFreq, cents: detuneCents)
-                activeNote.currentFrequency = startDetuned
-                activeNote.targetFrequency = targetDetuned
-                if voices > 1 {
-                    let panPos = (Float(i) / Float(voices - 1)) * 2.0 - 1.0
-                    activeNote.pan = panPos * spreadAmount
-                }
-                newNotes.append(activeNote)
+                let panPos = (Float(i) / Float(voices - 1)) * 2.0 - 1.0
+                var an = ActiveNote(
+                    midiNote: midiNote,
+                    velocity: velocity,
+                    frequency: startDetuned,
+                    pan: panPos * spreadAmount
+                )
+                an.targetFrequency = targetDetuned
+                an.currentFrequency = startDetuned
+                newNotes.append(an)
             }
         }
         activeNotes[midiNote] = newNotes
