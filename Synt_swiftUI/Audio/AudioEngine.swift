@@ -21,6 +21,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     let delay = DelayEffect()
     let dspChorus = DSPChorus()
 
+    // Stage 4 advanced FX — disabled by default so factory sound is unchanged.
+    let distortion = Distortion()
+    let parametricEQL = ParametricEQ(sampleRate: 44100)
+    let parametricEQR = ParametricEQ(sampleRate: 44100)
+    let phaser = Phaser(sampleRate: 44100)
+
     @Published var isPlaying = false
     @Published var preset: SynthPreset = .defaultPreset {
         didSet { applyPreset() }
@@ -108,6 +114,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         oscillator1.wavetableSampleRate = sampleRate
         oscillator2.wavetableEngine = wavetableEngine2
         oscillator2.wavetableSampleRate = sampleRate
+
+        // Stage 4 defaults: advanced FX off (keep current factory sound).
+        distortion.enabled = false
+        parametricEQL.enabled = false
+        parametricEQR.enabled = false
+        phaser.bypass = true
 
         setupAudioSession()
         setupLimiter()
@@ -400,16 +412,36 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         // Linear −6 dB headroom (no constant tanh saturation — that was "хрип").
         // Soft-clip only near full-scale as a safety net before chorus/limiter/FX.
         let headroom: Float = 0.5
-        let finalSampleL = AudioMath.softClip(
+        var fxL = AudioMath.softClip(
             filteredSampleL * smoothedMasterVolume * headroom,
             threshold: 0.95
         )
-        let finalSampleR = AudioMath.softClip(
+        var fxR = AudioMath.softClip(
             filteredSampleR * smoothedMasterVolume * headroom,
             threshold: 0.95
         )
 
-        var (chorusL, chorusR) = dspChorus.process(inputL: finalSampleL, inputR: finalSampleR)
+        // Stage 4 chain (each module no-ops when disabled/bypassed):
+        // Distortion → Parametric EQ → Phaser → existing Chorus → Limiter
+        if distortion.enabled {
+            fxL = distortion.process(fxL)
+            fxR = distortion.process(fxR)
+        }
+        // Keep L/R EQ enable in sync (stereo pair).
+        if parametricEQL.enabled {
+            if !parametricEQR.enabled { parametricEQR.enabled = true }
+            fxL = parametricEQL.process(fxL)
+            fxR = parametricEQR.process(fxR)
+        } else if parametricEQR.enabled {
+            parametricEQR.enabled = false
+        }
+        if !phaser.bypass {
+            let p = phaser.process(inputL: fxL, inputR: fxR)
+            fxL = p.left
+            fxR = p.right
+        }
+
+        var (chorusL, chorusR) = dspChorus.process(inputL: fxL, inputR: fxR)
 
         if lfoEnabled && lfoTarget == .pan {
             let panVal = max(-1.0, min(1.0, lfoValue))

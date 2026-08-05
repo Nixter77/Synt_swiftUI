@@ -46,7 +46,14 @@ final class ParametricEQ {
         didSet { highDirty = true }
     }
     
-    var enabled: Bool = false
+    /// Anti-pop: clear biquad history when enabling/disabling.
+    var enabled: Bool = false {
+        didSet {
+            if enabled != oldValue {
+                reset()
+            }
+        }
+    }
     
     private let sampleRate: Float
     

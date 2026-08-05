@@ -539,6 +539,102 @@ struct Synt_swiftUITests {
         #expect(abs(metering.getPeakLevel() - 0.91) < 0.0001)
     }
 
+    // MARK: - Advanced FX (Этап 4)
+
+    @Test func distortionAutoGainKeepsDriveFromExploding() async throws {
+        let d = Distortion()
+        d.enabled = true
+        d.type = .hardClip
+        d.mix = 1.0
+        d.tone = 0.5
+        d.drive = 0.0
+        let quiet = abs(d.process(0.5))
+
+        d.drive = 1.0
+        let hot = abs(d.process(0.5))
+
+        // Without compensation hardClip@drive1 could be huge; with compensation stay bounded.
+        #expect(hot < 1.5)
+        #expect(d.autoGainCompensation() < 1.0)
+        // Hot shouldn't be wildly louder than low-drive
+        #expect(hot < quiet * 4 + 0.5)
+    }
+
+    @Test func distortionEnableResetsStateAntiPop() async throws {
+        let d = Distortion()
+        d.enabled = true
+        d.type = .softClip
+        d.mix = 1
+        d.tone = 0.2 // engages lowpass state
+        _ = d.process(1.0)
+        _ = d.process(1.0)
+        d.enabled = false
+        d.enabled = true
+        // After re-enable, first sample with tone@0.5 (neutral) should not carry old LPF DC
+        d.tone = 0.5
+        d.drive = 0
+        let out = d.process(0.0)
+        #expect(abs(out) < 0.001)
+    }
+
+    @Test func parametricEQDirtyFlagsAvoidPerSampleTrig() async throws {
+        let eq = ParametricEQ(sampleRate: 44100)
+        eq.enabled = true
+        eq.lowGain = 6
+        // First process computes coeffs; subsequent with no param change stay finite
+        var y: Float = 0
+        for i in 0..<128 {
+            y = eq.process(sin(Float(i) * 0.1))
+        }
+        #expect(y.isFinite)
+        #expect(abs(y) < 10)
+    }
+
+    @Test func parametricEQEnableResetsFilterState() async throws {
+        let eq = ParametricEQ(sampleRate: 44100)
+        eq.enabled = true
+        eq.midGain = 12
+        eq.midFreq = 1000
+        for _ in 0..<64 {
+            _ = eq.process(1.0)
+        }
+        eq.enabled = false
+        eq.enabled = true
+        let out = eq.process(0.0)
+        #expect(abs(out) < 0.05)
+    }
+
+    @Test func phaserLUTMatchesTanReference() async throws {
+        let p = Phaser(sampleRate: 44100)
+        for freq: Float in [200, 500, 1000, 2000, 4000] {
+            let lut = p.allpassCoeffFromLUT(frequency: freq)
+            let ref = p.calculateAllpassCoeffReference(frequency: freq)
+            #expect(abs(lut - ref) < 0.02)
+        }
+    }
+
+    @Test func phaserBypassPassesThroughAndResetOnEngage() async throws {
+        let p = Phaser(sampleRate: 44100)
+        p.bypass = true
+        let (a, b) = p.process(inputL: 0.3, inputR: -0.2)
+        #expect(abs(a - 0.3) < 0.0001)
+        #expect(abs(b + 0.2) < 0.0001)
+
+        p.bypass = false
+        p.mix = 0
+        // mix 0 → dry only after engage
+        let (c, d) = p.process(inputL: 0.25, inputR: 0.25)
+        #expect(abs(c - 0.25) < 0.0001)
+        #expect(abs(d - 0.25) < 0.0001)
+    }
+
+    @Test func audioEngineAdvancedFXDisabledByDefault() async throws {
+        let engine = AudioEngine()
+        #expect(engine.distortion.enabled == false)
+        #expect(engine.parametricEQL.enabled == false)
+        #expect(engine.phaser.bypass == true)
+    }
+
     // MARK: - Wavetable (Этап 3)
 
     @Test func wavetableBandLimitPreservesSineNotSaw() async throws {

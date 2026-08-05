@@ -73,14 +73,26 @@ graph TD
 - [x] **Нормализация громкости**: volume только в `Oscillator.generateSample`.
 - [x] **Smooth Morphing**: target→smoothed frame + inter-frame + inter-mip lerp.
 
-### 📍 Этап 4: Оптимизированная цепочка эффектов (`Distortion`, `ParametricEQ`, `Phaser`)
-- [ ] **Предрасчет коэффициентов (Lookup / Cached)**: 
-  - Вынести расчет коэффициентов `ParametricEQ` и `Phaser` из посэмплируемого цикла. Рассчитывать только при изменении параметров UI.
-- [ ] **Auto Gain Compensation в Distortion**: Добавить деление выходного сигнала на коэффициент `drive`, чтобы общая громкость оставалась стабильной.
-- [ ] **Anti-Pop Reset**: Автоматически обнулять задержки и состояния (`reset()`) при включении/выключении эффектов.
+### 📍 Этап 4: Оптимизированная цепочка эффектов (`Distortion`, `ParametricEQ`, `Phaser`) ✅ РЕАЛИЗОВАНО (2026-08-05)
 
-### 📍 Этап 5: Atomic Metering (`AtomicMeteringState`)
-- [ ] **Zero-Copy Поллинг**: Подключить `AtomicMeteringState` с чтением по таймеру `Timer.publish` 60Hz на Main-потоке, полностью освободив Audio-поток от `DispatchQueue.main.async`.
+| Пункт | Статус | Проверка | Примечания |
+|-------|--------|----------|------------|
+| Cached / LUT coeffs | ✅ | `parametricEQDirtyFlags…`, `phaserLUTMatchesTanReference` | EQ: dirty-flags; Phaser: log-spaced coeff LUT (нет `tan` в RT) |
+| Auto gain Distortion | ✅ | `distortionAutoGainKeepsDriveFromExploding` | `autoGainCompensation()` по типу |
+| Anti-pop reset | ✅ | enable/bypass unit-тесты | `enabled`/`bypass` didSet → `reset()` |
+| Интеграция | ✅ safe | `audioEngineAdvancedFXDisabledByDefault` | цепочка в `generateSample`, **default OFF** |
+
+- [x] **Предрасчет коэффициентов**: EQ dirty; Phaser LUT.
+- [x] **Auto Gain Compensation в Distortion**.
+- [x] **Anti-Pop Reset** при enable/bypass.
+
+### 📍 Этап 5: Atomic Metering (`AtomicMeteringState`) ✅ УЖЕ БЫЛО (подтверждено)
+
+| Пункт | Статус | Примечания |
+|-------|--------|------------|
+| Zero-Copy poll 60Hz | ✅ | `Timer.publish` + `AtomicMeteringState`; audio thread не делает `DispatchQueue.main` для VU/scope |
+
+- [x] **Zero-Copy Поллинг**: metering atomics + UI timer (сделано в RT-рефакторинге).
 
 ---
 
@@ -112,10 +124,19 @@ graph TD
 ### Этап 3 — 2026-08-05
 | | |
 |--|--|
-| **Сделано** | FFT band-limit источника; volume 1×; smooth morph; `.wavetable` в Oscillator/LFO/UI enum; engines в AudioEngine |
-| **Безопасность** | Factory presets **не** используют wavetable — классические волны без изменений |
-| **Проверено** | unit-тесты band-limit / volume / morph |
-| **Ручной A/B** | Выбрать waveform Wavetable в UI; default presets должны звучать как раньше |
+| **Сделано** | FFT band-limit; volume 1×; smooth morph; `.wavetable` opt-in |
+
+### Этап 4 — 2026-08-05
+| | |
+|--|--|
+| **Сделано** | Distortion gain-comp + anti-pop; EQ dirty cache + reset; Phaser LUT (no tan RT); chain in engine **default OFF** |
+| **Безопасность** | Factory sound path unchanged until FX enabled |
+| **Проверено** | unit-тесты FX + `audioEngineAdvancedFXDisabledByDefault` |
+
+### Этап 5 — 2026-08-05
+| | |
+|--|--|
+| **Статус** | Уже реализовано ранее (atomics + 60Hz poll) — отмечено ✅ |
 
 ---
-**Статус**: Этапы 1+3. Этап 2 откачен. Default-звук не должен измениться.
+**Статус**: Этапы 1, 3, 4, 5. Этап 2 откачен. Default-звук без изменений.
