@@ -2,9 +2,9 @@
 //  Phaser.swift
 //  Synt_swiftUI
 //
-//  Stereo Phaser/Flanger effect with multiple all-pass stages.
-//  Stage 4: all-pass coeffs from precomputed LUT (no tan() per sample/stage).
-//  Anti-pop reset when bypass toggles off→on.
+//  Stereo Phaser/Flanger with multi-stage all-pass.
+//  Fix: proper 1st-order allpass (x[n-1] + y[n-1] state), limited feedback,
+//  finite guards so a bad sample cannot silence the whole engine.
 //
 
 import Foundation
@@ -33,33 +33,34 @@ final class Phaser {
 
     // MARK: - Parameters
 
-    var rate: Float = 0.5 {
-        didSet { rate = max(0.01, min(10.0, rate)) }
+    var rate: Float = 0.4 {
+        didSet { rate = max(0.01, min(8.0, rate)) }
     }
 
-    var depth: Float = 0.7 {
+    var depth: Float = 0.55 {
         didSet { depth = max(0.0, min(1.0, depth)) }
     }
 
-    var feedback: Float = 0.5 {
-        didSet { feedback = max(-0.99, min(0.99, feedback)) }
+    /// Keep default modest — high feedback + bad allpass previously blew up to Inf.
+    var feedback: Float = 0.25 {
+        didSet { feedback = max(-0.85, min(0.85, feedback)) }
     }
 
-    var centerFrequency: Float = 1000 {
-        didSet { centerFrequency = max(100, min(5000, centerFrequency)) }
+    var centerFrequency: Float = 800 {
+        didSet { centerFrequency = max(80, min(4000, centerFrequency)) }
     }
 
     var stereoSpread: Float = 0.5 {
         didSet { stereoSpread = max(0.0, min(1.0, stereoSpread)) }
     }
 
-    var mix: Float = 0.5 {
+    var mix: Float = 0.45 {
         didSet { mix = max(0.0, min(1.0, mix)) }
     }
 
     var mode: PhaserMode = .phaser4
 
-    /// When leaving bypass (effect turns on), reset delay/allpass state to avoid pops.
+    /// Leaving bypass resets state (anti-pop).
     var bypass: Bool = true {
         didSet {
             if oldValue == true && bypass == false {
@@ -72,10 +73,12 @@ final class Phaser {
 
     private var sampleRate: Float = 44100
     private var lfoPhaseL: Float = 0
-    private var lfoPhaseR: Float = 0
 
-    private var allpassStatesL: [Float] = Array(repeating: 0, count: 8)
-    private var allpassStatesR: [Float] = Array(repeating: 0, count: 8)
+    // True 1st-order allpass needs previous input AND previous output per stage.
+    private var apXL: [Float] = Array(repeating: 0, count: 8)
+    private var apYL: [Float] = Array(repeating: 0, count: 8)
+    private var apXR: [Float] = Array(repeating: 0, count: 8)
+    private var apYR: [Float] = Array(repeating: 0, count: 8)
 
     private let maxDelayMs: Float = 20.0
     private var delayBufferL: [Float] = []
@@ -85,13 +88,12 @@ final class Phaser {
     private var feedbackL: Float = 0
     private var feedbackR: Float = 0
 
-    // Precomputed all-pass coefficients: maps frequency → coeff without tan() in RT.
-    private let lutSize = 2048
+    private let lutSize = 1024
     private var coeffLUT: [Float] = []
-    private var lutFMin: Float = 20
-    private var lutFMax: Float = 20_000
+    private var lutFMin: Float = 40
+    private var lutFMax: Float = 8_000
 
-    // MARK: - Initialization
+    // MARK: - Init
 
     init(sampleRate: Float = 44100) {
         self.sampleRate = sampleRate
@@ -101,194 +103,243 @@ final class Phaser {
         rebuildCoeffLUT()
     }
 
-    // MARK: - Processing
+    // MARK: - Process
 
     func process(inputL: Float, inputR: Float) -> (left: Float, right: Float) {
         guard !bypass else { return (inputL, inputR) }
 
-        let lfoIncrement = rate / sampleRate
-        lfoPhaseL += lfoIncrement
-        if lfoPhaseL >= 1.0 { lfoPhaseL -= 1.0 }
+        // Guard poison on input (recover if upstream ever sends NaN)
+        let inL = finiteOrZero(inputL)
+        let inR = finiteOrZero(inputR)
 
-        lfoPhaseR = lfoPhaseL + stereoSpread * 0.5
-        if lfoPhaseR >= 1.0 { lfoPhaseR -= 1.0 }
-        if lfoPhaseR < 0 { lfoPhaseR += 1.0 }
+        let lfoInc = rate / max(1, sampleRate)
+        lfoPhaseL += lfoInc
+        if lfoPhaseL >= 1 { lfoPhaseL -= 1 }
+        if lfoPhaseL < 0 { lfoPhaseL += 1 }
 
-        let lfoL = sin(lfoPhaseL * 2 * .pi)
-        let lfoR = sin(lfoPhaseR * 2 * .pi)
+        var phaseR = lfoPhaseL + stereoSpread * 0.5
+        if phaseR >= 1 { phaseR -= 1 }
+        if phaseR < 0 { phaseR += 1 }
 
-        let outL: Float
-        let outR: Float
+        let lfoL = sin(lfoPhaseL * 2 * Float.pi)
+        let lfoR = sin(phaseR * 2 * Float.pi)
+
+        let wetL: Float
+        let wetR: Float
 
         switch mode {
         case .phaser2, .phaser4, .phaser6, .phaser8:
-            (outL, outR) = processPhaserMode(inputL: inputL, inputR: inputR, lfoL: lfoL, lfoR: lfoR)
+            (wetL, wetR) = processPhaserMode(inputL: inL, inputR: inR, lfoL: lfoL, lfoR: lfoR)
         case .flanger:
-            (outL, outR) = processFlangerMode(inputL: inputL, inputR: inputR, lfoL: lfoL, lfoR: lfoR)
+            (wetL, wetR) = processFlangerMode(inputL: inL, inputR: inR, lfoL: lfoL, lfoR: lfoR)
         case .chorus:
-            (outL, outR) = processChorusMode(inputL: inputL, inputR: inputR, lfoL: lfoL, lfoR: lfoR)
+            (wetL, wetR) = processChorusMode(inputL: inL, inputR: inR, lfoL: lfoL, lfoR: lfoR)
         }
 
-        let dryL = inputL * (1.0 - mix)
-        let dryR = inputR * (1.0 - mix)
-        return (dryL + outL * mix, dryR + outR * mix)
+        let m = mix
+        var outL = inL * (1 - m) + wetL * m
+        var outR = inR * (1 - m) + wetR * m
+
+        // Hard safety: never pass non-finite / extreme peaks into the rest of the synth
+        outL = clampSample(outL)
+        outR = clampSample(outR)
+        if !outL.isFinite || !outR.isFinite {
+            reset()
+            return (inL, inR)
+        }
+        return (outL, outR)
     }
 
-    // MARK: - Phaser
+    // MARK: - Phaser stages
 
     private func processPhaserMode(inputL: Float, inputR: Float, lfoL: Float, lfoR: Float) -> (Float, Float) {
-        let modL = depth * lfoL
-        let modR = depth * lfoR
+        // Limit feedback state before injection
+        let fb = feedback
+        var sampleL = inputL + clampFeedback(feedbackL) * fb
+        var sampleR = inputR + clampFeedback(feedbackR) * fb
+        sampleL = clampSample(sampleL)
+        sampleR = clampSample(sampleR)
 
-        let freqL = centerFrequency * (1.0 + modL * 0.5)
-        let freqR = centerFrequency * (1.0 + modR * 0.5)
+        // Modulate base frequency gently (0.5x … 1.5x of center)
+        let baseL = centerFrequency * (1.0 + 0.5 * depth * lfoL)
+        let baseR = centerFrequency * (1.0 + 0.5 * depth * lfoR)
 
-        var sampleL = inputL + feedbackL * feedback
-        var sampleR = inputR + feedbackR * feedback
+        let stages = mode.stageCount
+        for i in 0..<stages {
+            // Spread stages over ~2 octaves (was *2 → too high → bad coeffs)
+            let t = Float(i) / Float(max(1, stages - 1))
+            let stageFreqL = clampFreq(baseL * pow(2.0, t * 1.5))
+            let stageFreqR = clampFreq(baseR * pow(2.0, t * 1.5))
 
-        let stageCount = mode.stageCount
-        for i in 0..<stageCount {
-            let stageOffset = Float(i) / Float(max(1, stageCount))
-            let stageFreqL = freqL * pow(2.0, stageOffset * 2.0)
-            let stageFreqR = freqR * pow(2.0, stageOffset * 2.0)
+            let aL = allpassCoeffFromLUT(frequency: stageFreqL)
+            let aR = allpassCoeffFromLUT(frequency: stageFreqR)
 
-            let coeffL = allpassCoeffFromLUT(frequency: stageFreqL)
-            let coeffR = allpassCoeffFromLUT(frequency: stageFreqR)
-
-            sampleL = processAllpass(input: sampleL, coeff: coeffL, state: &allpassStatesL[i])
-            sampleR = processAllpass(input: sampleR, coeff: coeffR, state: &allpassStatesR[i])
+            sampleL = processAllpass(sampleL, coeff: aL, x1: &apXL[i], y1: &apYL[i])
+            sampleR = processAllpass(sampleR, coeff: aR, x1: &apXR[i], y1: &apYR[i])
         }
 
-        feedbackL = sampleL
-        feedbackR = sampleR
+        feedbackL = clampFeedback(sampleL)
+        feedbackR = clampFeedback(sampleR)
         return (sampleL, sampleR)
     }
 
     // MARK: - Flanger / Chorus
 
     private func processFlangerMode(inputL: Float, inputR: Float, lfoL: Float, lfoR: Float) -> (Float, Float) {
-        let minDelayMs: Float = 0.1
-        let maxFlangerDelayMs: Float = 5.0
+        guard !delayBufferL.isEmpty else { return (inputL, inputR) }
 
-        let delayMsL = minDelayMs + (maxFlangerDelayMs - minDelayMs) * (0.5 + 0.5 * lfoL * depth)
-        let delayMsR = minDelayMs + (maxFlangerDelayMs - minDelayMs) * (0.5 + 0.5 * lfoR * depth)
+        let minD: Float = 0.2
+        let maxD: Float = 4.0
+        let dL = minD + (maxD - minD) * (0.5 + 0.5 * lfoL * depth)
+        let dR = minD + (maxD - minD) * (0.5 + 0.5 * lfoR * depth)
 
-        delayBufferL[delayWriteIndex] = inputL + feedbackL * feedback
-        delayBufferR[delayWriteIndex] = inputR + feedbackR * feedback
+        let fb = clampFeedback(feedbackL) * feedback * 0.7
+        delayBufferL[delayWriteIndex] = clampSample(inputL + fb)
+        delayBufferR[delayWriteIndex] = clampSample(inputR + clampFeedback(feedbackR) * feedback * 0.7)
 
-        let outL = readDelayInterpolated(buffer: delayBufferL, delayMs: delayMsL)
-        let outR = readDelayInterpolated(buffer: delayBufferR, delayMs: delayMsR)
+        let outL = readDelayInterpolated(buffer: delayBufferL, delayMs: dL)
+        let outR = readDelayInterpolated(buffer: delayBufferR, delayMs: dR)
 
-        feedbackL = outL
-        feedbackR = outR
-
-        delayWriteIndex += 1
-        if delayWriteIndex >= delayBufferL.count {
-            delayWriteIndex = 0
-        }
-
+        feedbackL = clampFeedback(outL)
+        feedbackR = clampFeedback(outR)
+        advanceDelayWrite()
         return (outL, outR)
     }
 
     private func processChorusMode(inputL: Float, inputR: Float, lfoL: Float, lfoR: Float) -> (Float, Float) {
-        let minDelayMs: Float = 5.0
-        let maxChorusDelayMs: Float = 15.0
+        guard !delayBufferL.isEmpty else { return (inputL, inputR) }
 
-        let delayMsL = minDelayMs + (maxChorusDelayMs - minDelayMs) * (0.5 + 0.5 * lfoL * depth)
-        let delayMsR = minDelayMs + (maxChorusDelayMs - minDelayMs) * (0.5 + 0.5 * lfoR * depth)
+        let minD: Float = 5.0
+        let maxD: Float = 14.0
+        let dL = minD + (maxD - minD) * (0.5 + 0.5 * lfoL * depth)
+        let dR = minD + (maxD - minD) * (0.5 + 0.5 * lfoR * depth)
 
         delayBufferL[delayWriteIndex] = inputL
         delayBufferR[delayWriteIndex] = inputR
 
-        let outL = readDelayInterpolated(buffer: delayBufferL, delayMs: delayMsL)
-        let outR = readDelayInterpolated(buffer: delayBufferR, delayMs: delayMsR)
+        let outL = readDelayInterpolated(buffer: delayBufferL, delayMs: dL)
+        let outR = readDelayInterpolated(buffer: delayBufferR, delayMs: dR)
+        advanceDelayWrite()
+        return (outL, outR)
+    }
 
+    private func advanceDelayWrite() {
         delayWriteIndex += 1
         if delayWriteIndex >= delayBufferL.count {
             delayWriteIndex = 0
         }
-
-        return (outL, outR)
     }
 
-    // MARK: - Coeff LUT (no tan in render)
+    // MARK: - Allpass (correct difference equation)
+
+    /// y[n] = a*x[n] + x[n-1] - a*y[n-1]
+    @inline(__always)
+    private func processAllpass(
+        _ x: Float,
+        coeff a: Float,
+        x1: inout Float,
+        y1: inout Float
+    ) -> Float {
+        // Clamp coeff to open unit interval for stability
+        let aC = max(-0.99, min(0.99, a))
+        let y = aC * x + x1 - aC * y1
+        x1 = x
+        y1 = finiteOrZero(y)
+        return y1
+    }
+
+    // MARK: - Coeff LUT
 
     private func rebuildCoeffLUT() {
-        lutFMin = 20
-        lutFMax = max(lutFMin * 2, min(sampleRate * 0.45, 20_000))
+        lutFMin = 40
+        // Stay well below Nyquist so tan(π f/sr) stays finite and well-conditioned
+        lutFMax = max(lutFMin * 2, min(sampleRate * 0.35, 10_000))
         coeffLUT = [Float](repeating: 0, count: lutSize)
 
         for i in 0..<lutSize {
-            let t = Float(i) / Float(lutSize - 1)
-            // Log spacing — denser at low frequencies where phaser lives
+            let t = Float(i) / Float(max(1, lutSize - 1))
             let freq = lutFMin * pow(lutFMax / lutFMin, t)
-            let tanHalf = tan(.pi * Double(freq) / Double(sampleRate))
-            coeffLUT[i] = Float((tanHalf - 1.0) / (tanHalf + 1.0))
+            coeffLUT[i] = calculateAllpassCoeffReference(frequency: freq)
         }
     }
 
-    /// Interpolated all-pass coefficient from precomputed table (RT-safe: no tan).
     @inline(__always)
     func allpassCoeffFromLUT(frequency: Float) -> Float {
-        guard !coeffLUT.isEmpty else {
+        guard coeffLUT.count >= 2 else {
             return calculateAllpassCoeffReference(frequency: frequency)
         }
-        let f = max(lutFMin, min(lutFMax, frequency))
-        let t = log(f / lutFMin) / log(lutFMax / lutFMin)
-        let pos = t * Float(lutSize - 1)
+        let f = clampFreq(frequency)
+        let denom = log(lutFMax / lutFMin)
+        guard denom > 0.0001 else {
+            return calculateAllpassCoeffReference(frequency: f)
+        }
+        let t = log(max(f, lutFMin) / lutFMin) / denom
+        let pos = max(0, min(1, t)) * Float(lutSize - 1)
         let i0 = max(0, min(lutSize - 2, Int(pos)))
         let frac = pos - Float(i0)
-        return coeffLUT[i0] + (coeffLUT[i0 + 1] - coeffLUT[i0]) * frac
+        let c = coeffLUT[i0] + (coeffLUT[i0 + 1] - coeffLUT[i0]) * frac
+        return max(-0.99, min(0.99, c))
     }
 
-    /// Reference tan() formula (tests / LUT rebuild only — not used in process path).
     func calculateAllpassCoeffReference(frequency: Float) -> Float {
-        let f = max(20, min(frequency, sampleRate * 0.45))
-        let tanHalf = tan(.pi * Double(f) / Double(sampleRate))
-        return Float((tanHalf - 1.0) / (tanHalf + 1.0))
+        let f = clampFreq(frequency)
+        let arg = Double.pi * Double(f) / Double(sampleRate)
+        // Keep argument safely below π/2
+        let safeArg = min(arg, Double.pi * 0.49)
+        let th = tan(safeArg)
+        let c = Float((th - 1.0) / (th + 1.0))
+        return max(-0.99, min(0.99, c))
     }
 
-    @inline(__always)
-    private func processAllpass(input: Float, coeff: Float, state: inout Float) -> Float {
-        let output = coeff * input + state - coeff * state
-        state = input
-        return output
-    }
+    // MARK: - Delay read
 
     @inline(__always)
     private func readDelayInterpolated(buffer: [Float], delayMs: Float) -> Float {
-        guard !buffer.isEmpty else { return 0 }
-        let delaySamples = delayMs * sampleRate / 1000.0
-        let readPos = Float(delayWriteIndex) - delaySamples
+        let n = buffer.count
+        guard n > 1 else { return 0 }
 
-        var readIndex = Int(readPos)
-        var frac = readPos - Float(readIndex)
+        let delaySamples = max(1, min(Float(n - 1), delayMs * sampleRate / 1000.0))
+        var readPos = Float(delayWriteIndex) - delaySamples
+        while readPos < 0 { readPos += Float(n) }
 
-        while readIndex < 0 {
-            readIndex += buffer.count
-        }
-        while readIndex >= buffer.count {
-            readIndex -= buffer.count
-        }
+        var i0 = Int(readPos) % n
+        if i0 < 0 { i0 += n }
+        let frac = readPos - floor(readPos)
+        let i1 = (i0 + 1) % n
+        return buffer[i0] * (1 - frac) + buffer[i1] * frac
+    }
 
-        if frac < 0 {
-            frac += 1.0
-            readIndex -= 1
-            if readIndex < 0 { readIndex += buffer.count }
-        }
+    // MARK: - Safety helpers
 
-        let nextIndex = (readIndex + 1) % buffer.count
-        return buffer[readIndex] * (1.0 - frac) + buffer[nextIndex] * frac
+    @inline(__always)
+    private func finiteOrZero(_ x: Float) -> Float {
+        x.isFinite ? x : 0
+    }
+
+    @inline(__always)
+    private func clampSample(_ x: Float) -> Float {
+        guard x.isFinite else { return 0 }
+        return max(-2, min(2, x))
+    }
+
+    @inline(__always)
+    private func clampFeedback(_ x: Float) -> Float {
+        guard x.isFinite else { return 0 }
+        return max(-0.95, min(0.95, x))
+    }
+
+    @inline(__always)
+    private func clampFreq(_ f: Float) -> Float {
+        max(lutFMin, min(lutFMax, f))
     }
 
     // MARK: - Reset
 
     func reset() {
         lfoPhaseL = 0
-        lfoPhaseR = 0
-        for i in 0..<allpassStatesL.count {
-            allpassStatesL[i] = 0
-            allpassStatesR[i] = 0
+        for i in 0..<8 {
+            apXL[i] = 0; apYL[i] = 0
+            apXR[i] = 0; apYR[i] = 0
         }
         for i in 0..<delayBufferL.count {
             delayBufferL[i] = 0
@@ -300,11 +351,12 @@ final class Phaser {
     }
 
     func setSampleRate(_ newSampleRate: Float) {
-        sampleRate = newSampleRate
+        sampleRate = max(8000, newSampleRate)
         let maxDelaySamples = max(1, Int(sampleRate * maxDelayMs / 1000.0))
         delayBufferL = Array(repeating: 0, count: maxDelaySamples)
         delayBufferR = Array(repeating: 0, count: maxDelaySamples)
         delayWriteIndex = 0
         rebuildCoeffLUT()
+        reset()
     }
 }

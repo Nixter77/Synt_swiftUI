@@ -7,6 +7,49 @@
 
 import Foundation
 
+/// Factory EQ curves for the Advanced FX panel.
+enum EQPreset: String, CaseIterable, Identifiable {
+    case flat = "Flat"
+    case bassBoost = "Bass Boost"
+    case bassCut = "Bass Cut"
+    case midScoop = "Mid Scoop"
+    case midPresence = "Presence"
+    case bright = "Bright"
+    case dark = "Dark"
+    case vocal = "Vocal"
+    case telephone = "Telephone"
+
+    var id: String { rawValue }
+
+    /// Gains / freqs applied to both L/R EQ instances.
+    var settings: (
+        lowGain: Float, lowFreq: Float,
+        midGain: Float, midFreq: Float, midQ: Float,
+        highGain: Float, highFreq: Float
+    ) {
+        switch self {
+        case .flat:
+            return (0, 100, 0, 1000, 1.0, 0, 8000)
+        case .bassBoost:
+            return (8, 80, 1, 400, 0.8, -1, 10000)
+        case .bassCut:
+            return (-8, 100, 0, 1000, 1.0, 2, 8000)
+        case .midScoop:
+            return (2, 90, -6, 800, 1.2, 2, 9000)
+        case .midPresence:
+            return (-1, 120, 5, 2500, 1.4, 1, 10000)
+        case .bright:
+            return (-2, 100, 1, 2000, 0.9, 7, 6000)
+        case .dark:
+            return (3, 120, 0, 800, 1.0, -8, 4000)
+        case .vocal:
+            return (-2, 150, 4, 1800, 1.1, 3, 7000)
+        case .telephone:
+            return (-12, 300, 6, 1200, 1.5, -10, 3500)
+        }
+    }
+}
+
 final class ParametricEQ {
     
     // MARK: - Parameters
@@ -202,5 +245,17 @@ final class ParametricEQ {
         lowDirty = true
         midDirty = true
         highDirty = true
+    }
+
+    /// Apply a factory preset (marks coeffs dirty; does not change `enabled`).
+    func applyPreset(_ preset: EQPreset) {
+        let s = preset.settings
+        lowGain = s.lowGain
+        lowFreq = s.lowFreq
+        midGain = s.midGain
+        midFreq = s.midFreq
+        midQ = s.midQ
+        highGain = s.highGain
+        highFreq = s.highFreq
     }
 }

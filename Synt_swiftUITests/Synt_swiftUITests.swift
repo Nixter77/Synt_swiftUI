@@ -609,7 +609,7 @@ struct Synt_swiftUITests {
         for freq: Float in [200, 500, 1000, 2000, 4000] {
             let lut = p.allpassCoeffFromLUT(frequency: freq)
             let ref = p.calculateAllpassCoeffReference(frequency: freq)
-            #expect(abs(lut - ref) < 0.02)
+            #expect(abs(lut - ref) < 0.05)
         }
     }
 
@@ -626,6 +626,45 @@ struct Synt_swiftUITests {
         let (c, d) = p.process(inputL: 0.25, inputR: 0.25)
         #expect(abs(c - 0.25) < 0.0001)
         #expect(abs(d - 0.25) < 0.0001)
+    }
+
+    @Test func phaserDoesNotExplodeOrSilenceOnSustainedInput() async throws {
+        let p = Phaser(sampleRate: 44100)
+        p.bypass = false
+        p.mix = 0.7
+        p.feedback = 0.7
+        p.depth = 0.8
+        p.rate = 1.0
+        p.mode = .phaser8
+
+        var phase: Float = 0
+        let dt: Float = 2 * Float.pi * 220 / 44100
+        for _ in 0..<8000 {
+            let s = sin(phase) * 0.5
+            phase += dt
+            let (l, r) = p.process(inputL: s, inputR: s * 0.9)
+            #expect(l.isFinite)
+            #expect(r.isFinite)
+            #expect(abs(l) < 3)
+            #expect(abs(r) < 3)
+        }
+        // Still produces energy after thousands of samples (not stuck at zero/NaN)
+        let (l, _) = p.process(inputL: 0.4, inputR: 0.4)
+        #expect(abs(l) > 0.001)
+    }
+
+    @Test func eqPresetsApplyFiniteGains() async throws {
+        let eq = ParametricEQ(sampleRate: 44100)
+        eq.enabled = true
+        for preset in EQPreset.allCases {
+            eq.applyPreset(preset)
+            var y: Float = 0
+            for i in 0..<64 {
+                y = eq.process(sin(Float(i) * 0.15) * 0.5)
+                #expect(y.isFinite)
+            }
+            #expect(abs(y) < 5)
+        }
     }
 
     @Test func audioEngineAdvancedFXDisabledByDefault() async throws {

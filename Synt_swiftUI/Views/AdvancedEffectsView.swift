@@ -14,6 +14,7 @@ struct AdvancedEffectsView: View {
     @State private var showDistortion = false
     @State private var showEQ = false
     @State private var showPhaser = false
+    @State private var selectedEQPreset: EQPreset = .flat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -87,6 +88,23 @@ struct AdvancedEffectsView: View {
             }
 
             if audioEngine.parametricEQL.enabled {
+                HStack {
+                    Text("Preset")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(AppleTheme.textSecondary)
+                    Spacer()
+                    Picker("EQ Preset", selection: $selectedEQPreset) {
+                        ForEach(EQPreset.allCases) { preset in
+                            Text(preset.rawValue).tag(preset)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .font(.system(size: 11, design: .rounded))
+                    .onChange(of: selectedEQPreset) { _, newValue in
+                        applyEQPreset(newValue)
+                    }
+                }
+
                 HStack(spacing: 10) {
                     KnobView(value: eqLowGain, range: -12...12, label: "Low", format: "%.0fdB")
                     KnobView(value: eqMidGain, range: -12...12, label: "Mid", format: "%.0fdB")
@@ -99,6 +117,12 @@ struct AdvancedEffectsView: View {
                 }
             }
         }
+    }
+
+    private func applyEQPreset(_ preset: EQPreset) {
+        audioEngine.parametricEQL.applyPreset(preset)
+        audioEngine.parametricEQR.applyPreset(preset)
+        audioEngine.objectWillChange.send()
     }
 
     // MARK: - Phaser
@@ -190,6 +214,10 @@ struct AdvancedEffectsView: View {
                 audioEngine.parametricEQL.enabled = $0
                 audioEngine.parametricEQR.enabled = $0
                 showEQ = $0
+                if $0 {
+                    // Apply current preset when turning EQ on
+                    applyEQPreset(selectedEQPreset)
+                }
                 audioEngine.objectWillChange.send()
             }
         )
