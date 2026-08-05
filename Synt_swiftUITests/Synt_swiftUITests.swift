@@ -539,6 +539,129 @@ struct Synt_swiftUITests {
         #expect(abs(metering.getPeakLevel() - 0.91) < 0.0001)
     }
 
+    // MARK: - Wavetable (Этап 3)
+
+    @Test func wavetableBandLimitPreservesSineNotSaw() async throws {
+        let n = 2048
+        var sine = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            sine[i] = sin(2.0 * Float.pi * Float(i) / Float(n))
+        }
+
+        let osc = WavetableOscillator()
+        let limited = osc.bandLimitForTesting(sine, maxHarmonic: 8)
+
+        // Correlation with pure sine should stay high (not replaced by saw 1/h series).
+        var corrSine: Float = 0
+        var corrSaw: Float = 0
+        var energyLim: Float = 0
+        var energySine: Float = 0
+        var energySaw: Float = 0
+        for i in 0..<n {
+            let s = sine[i]
+            let l = limited[i]
+            let saw = 2.0 * Float(i) / Float(n) - 1.0
+            corrSine += l * s
+            corrSaw += l * saw
+            energyLim += l * l
+            energySine += s * s
+            energySaw += saw * saw
+        }
+        let normSine = corrSine / sqrt(energyLim * energySine)
+        let normSaw = corrSaw / sqrt(energyLim * energySaw)
+        #expect(normSine > 0.95)
+        #expect(normSine > abs(normSaw))
+    }
+
+    @Test func wavetableBandLimitRemovesHighHarmonics() async throws {
+        let n = 2048
+        // Sum harmonics 1 + 40 (high partial)
+        var wave = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let ph = 2.0 * Float.pi * Float(i) / Float(n)
+            wave[i] = sin(ph) + 0.5 * sin(ph * 40.0)
+        }
+
+        let osc = WavetableOscillator()
+        let limited = osc.bandLimitForTesting(wave, maxHarmonic: 8)
+
+        // Full complex projection onto harmonics 1 and 40.
+        var re40: Float = 0, im40: Float = 0
+        var re1: Float = 0, im1: Float = 0
+        for i in 0..<n {
+            let a = 2.0 * Float.pi * Float(i) / Float(n)
+            re40 += limited[i] * cos(a * 40)
+            im40 += limited[i] * sin(a * 40)
+            re1 += limited[i] * cos(a)
+            im1 += limited[i] * sin(a)
+        }
+        let mag40 = sqrt(re40 * re40 + im40 * im40) / Float(n)
+        let mag1 = sqrt(re1 * re1 + im1 * im1) / Float(n)
+        #expect(mag1 > mag40 * 5)
+        #expect(mag40 < 0.05)
+    }
+
+    @Test func wavetableGenerateSampleDoesNotApplyInternalVolume() async throws {
+        let osc = WavetableOscillator()
+        osc.volume = 0.25
+        osc.targetFramePosition = 0
+        for _ in 0..<5000 { osc.advanceMorph() }
+
+        var peak: Float = 0
+        let twoPi = 2.0 * Double.pi
+        let dt = twoPi * 220.0 / 44100.0
+        var phase = 0.0
+        for _ in 0..<2048 {
+            let s = abs(osc.generateSample(phase: phase, phaseIncrement: dt))
+            peak = max(peak, s)
+            phase += dt
+            if phase >= twoPi { phase -= twoPi }
+        }
+        // Peak-normalized tables → peak near 1, not near 0.25
+        #expect(peak > 0.5)
+    }
+
+    @Test func wavetableMorphSmoothingAdvancesTowardTarget() async throws {
+        let osc = WavetableOscillator()
+        osc.morphSmoothingCoeff = 0.5
+        osc.targetFramePosition = 0.0
+        osc.advanceMorph()
+        #expect(abs(osc.framePosition) < 0.001)
+
+        osc.targetFramePosition = 1.0
+        osc.advanceMorph()
+        // One pole: 0 + (1-0)*0.5 = 0.5
+        #expect(abs(osc.framePosition - 0.5) < 0.001)
+
+        osc.advanceMorph()
+        // 0.5 + (1-0.5)*0.5 = 0.75
+        #expect(abs(osc.framePosition - 0.75) < 0.001)
+
+        osc.morphSmoothingCoeff = 1.0
+        osc.advanceMorph()
+        #expect(abs(osc.framePosition - 1.0) < 0.001)
+    }
+
+    @Test func oscillatorWavetableAppliesVolumeOnce() async throws {
+        let engine = WavetableOscillator()
+        engine.targetFramePosition = 0
+        for _ in 0..<3000 { engine.advanceMorph() }
+
+        var osc = Oscillator()
+        osc.waveform = .wavetable
+        osc.wavetableEngine = engine
+        osc.volume = 0.5
+        osc.wavetableMorph = 0
+
+        let phase = 0.3
+        let dt = 0.02
+        let raw2 = abs(engine.generateSample(phase: phase, phaseIncrement: dt))
+        let out2 = abs(osc.generateSample(phase: phase, phaseIncrement: dt))
+        if raw2 > 0.01 {
+            #expect(abs(out2 / raw2 - 0.5) < 0.08)
+        }
+    }
+
     // MARK: - Gain staging (Этап 1)
 
     @Test func polyphonyScaleIsPowerPreserving() async throws {

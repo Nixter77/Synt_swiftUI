@@ -88,6 +88,17 @@ struct WaveformShape: Shape {
                  let randomY = rect.midY + CGFloat.random(in: -rect.height/2...rect.height/2)
                  path.addLine(to: CGPoint(x: x, y: randomY))
              }
+
+        case .wavetable:
+            // Stylized multi-frame morph: sine → richer partials
+            path.move(to: CGPoint(x: 0, y: rect.midY))
+            for x in stride(from: 0, through: rect.width, by: 1) {
+                let t = x / rect.width
+                let y = rect.midY
+                    - sin(t * .pi * 2) * rect.height * 0.35
+                    - sin(t * .pi * 4) * rect.height * 0.15
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
         }
 
         return path

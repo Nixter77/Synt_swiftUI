@@ -51,6 +51,10 @@ class LFO {
         case .noise:
             // Sample & Hold (Random step)
             value = lastRandomValue
+
+        case .wavetable:
+            // LFO does not use multi-frame tables — sine is a safe fallback.
+            value = Float(sin(phase))
         }
 
         return value * depth

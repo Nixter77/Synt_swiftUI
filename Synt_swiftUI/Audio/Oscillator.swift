@@ -12,6 +12,13 @@ struct Oscillator {
     var detune: Float = 0.0
     var pulseWidth: Float = 0.5 // For Square wave (PWM)
 
+    /// Shared wavetable engine (owned by AudioEngine). Only used when `waveform == .wavetable`.
+    /// Class reference — not copied by value; safe for struct Oscillator.
+    var wavetableEngine: WavetableOscillator? = nil
+    /// Morph 0…1 across wavetable frames (smoothed inside the engine).
+    var wavetableMorph: Float = 0.0
+    var wavetableSampleRate: Double = 44100.0
+
     func generateSample(phase: Double, phaseIncrement: Double, noiseValue: Float = 0.0) -> Float {
         let sample: Float
         let twoPi = AudioMath.twoPi
@@ -25,40 +32,51 @@ struct Oscillator {
         case .sawtooth:
             // Naive Sawtooth: 2 * phase - 1
             var value = 2.0 * normalizedPhase - 1.0
-            
+
             // Apply PolyBLEP correction for discontinuity at phase 0/1
             value -= polyBLEP(t: normalizedPhase, dt: normalizedIncrement)
-            
+
             sample = Float(value)
 
         case .square:
             // Variable Pulse Width Square
             // 1 if phase < pw, else -1
             var value = normalizedPhase < Double(pulseWidth) ? 1.0 : -1.0
-            
+
             // PolyBLEP for rising edge at 0
             value += polyBLEP(t: normalizedPhase, dt: normalizedIncrement)
-            
+
             // PolyBLEP for falling edge at pulseWidth
-            // Shift phase so that pulseWidth becomes "0" for the BLEP function
             var phaseShifted = normalizedPhase - Double(pulseWidth)
             if phaseShifted < 0.0 { phaseShifted += 1.0 }
-            
+
             value -= polyBLEP(t: phaseShifted, dt: normalizedIncrement)
-            
+
             sample = Float(value)
 
         case .triangle:
-            // DPW (Differentiated Parabolic Waveform) or Integrated Square is better,
-            // but for now we'll stick to naive or slightly smoothed naive.
             let t = normalizedPhase
             sample = Float(4.0 * abs(t - 0.5) - 1.0)
-            
+
         case .noise:
-            // Use externally generated noise for performance
             sample = noiseValue
+
+        case .wavetable:
+            // Raw table sample (no engine volume) → single volume multiply below.
+            // Morph is advanced once per audio sample in AudioEngine, not per voice.
+            if let engine = wavetableEngine {
+                sample = engine.generateSample(
+                    phase: phase,
+                    phaseIncrement: phaseIncrement,
+                    sampleRate: wavetableSampleRate
+                )
+            } else {
+                // Fallback if engine not attached — keep signal finite
+                sample = Float(sin(phase))
+            }
         }
 
+        // Single gain stage for all waveforms (including wavetable).
         return sample * volume
     }
     

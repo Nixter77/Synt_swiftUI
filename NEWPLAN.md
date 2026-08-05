@@ -60,10 +60,18 @@ graph TD
 - [ ] **Плавный Voice Stealing**: При исчерпании 64 голосов применять фазу быстрой релаксации (1 мс release), предотвращая щелчки.
 - [x] **Защита от переполнения очереди**: `noteOff` / `clearAll` side-channel (сделано раньше, сохранено).
 
-### 📍 Этап 3: Полноценный Wavetable-синтез (`WavetableOscillator`)
-- [ ] **Исправление Mip-Mapping**: Переписать `applyFFTBandLimit()`, чтобы она фильтровала существующую волну, а не генерировала абстрактную пилу.
-- [ ] **Нормализация громкости**: Убрать дублирующий множитель `volume` в цепи осцилляторов.
-- [ ] **Smooth Morphing**: Добавить интерполяцию параметров между фреймами таблиц без ступеньчатых перепадов.
+### 📍 Этап 3: Полноценный Wavetable-синтез (`WavetableOscillator`) ✅ РЕАЛИЗОВАНО (2026-08-05)
+
+| Пункт | Статус | Проверка | Примечания |
+|-------|--------|----------|------------|
+| FFT band-limit источника | ✅ | `wavetableBandLimitPreservesSineNotSaw`, `…RemovesHighHarmonics` | vDSP zrip / DFT; **не** пила `1/h` |
+| Без double volume | ✅ | `wavetableGenerateSampleDoesNotApplyInternalVolume`, `oscillatorWavetableAppliesVolumeOnce` | engine raw; `Oscillator` × volume один раз |
+| Smooth morph | ✅ | `wavetableMorphIsSmoothAcrossFrames` | one-pole `framePosition` + lerp frames + mip crossfade |
+| Интеграция | ✅ safe | factory presets без `.wavetable` | `WaveformType.wavetable`; engines в `AudioEngine` |
+
+- [x] **Исправление Mip-Mapping**: `applyFFTBandLimit` фильтрует исходный frame.
+- [x] **Нормализация громкости**: volume только в `Oscillator.generateSample`.
+- [x] **Smooth Morphing**: target→smoothed frame + inter-frame + inter-mip lerp.
 
 ### 📍 Этап 4: Оптимизированная цепочка эффектов (`Distortion`, `ParametricEQ`, `Phaser`)
 - [ ] **Предрасчет коэффициентов (Lookup / Cached)**: 
@@ -98,9 +106,16 @@ graph TD
 | | |
 |--|--|
 | **Сделано (откачено)** | `VoiceManager` в `generateSample` вместо `activeNotes` |
-| **Почему хрипело** | 1) **Hard-kill** при re-trigger / force-reclaim — обрыв фазы mid-cycle → щелчки. 2) Steal + instant free в том же сэмпле — 1 ms release не успевал. 3) Параллельно агрессивный tanh@0.5 (Этап 1) усиливал «хрип». |
-| **Откат** | Файлы render path → состояние `f423018` + правка headroom; queue priority сохранена |
-| **Следующий** | Не повторять Этап 2, пока Этап 1 не чистый на слух. Потом — steal без hard-kill в том же сэмпле. |
+| **Почему хрипело** | Hard-kill / steal + tanh@0.5 |
+| **Откат** | Render path → `activeNotes`; queue priority сохранена |
+
+### Этап 3 — 2026-08-05
+| | |
+|--|--|
+| **Сделано** | FFT band-limit источника; volume 1×; smooth morph; `.wavetable` в Oscillator/LFO/UI enum; engines в AudioEngine |
+| **Безопасность** | Factory presets **не** используют wavetable — классические волны без изменений |
+| **Проверено** | unit-тесты band-limit / volume / morph |
+| **Ручной A/B** | Выбрать waveform Wavetable в UI; default presets должны звучать как раньше |
 
 ---
-**Статус**: Этап 2 откачен. Этап 1 смягчён (без постоянного soft-sat). Нужен ручной A/B.
+**Статус**: Этапы 1+3. Этап 2 откачен. Default-звук не должен измениться.

@@ -42,6 +42,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var lfo = LFO()
     private let limiter = Compressor(sampleRate: 44100.0)
 
+    /// Owned engines for `.wavetable` waveform only (Stage 3). Classical shapes unchanged.
+    private let wavetableEngine1 = WavetableOscillator()
+    private let wavetableEngine2 = WavetableOscillator()
+
     /// UI → audio command path (SPSC). Only audio thread mutates activeNotes.
     private let commandQueue = AudioCommandQueue(capacity: 1024)
     /// Audio → UI metering path. Audio writes atomics; main polls.
@@ -99,6 +103,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private var noiseSeed: UInt32 = 12345
 
     init() {
+        // Attach wavetable engines before first render (used only if waveform == .wavetable).
+        oscillator1.wavetableEngine = wavetableEngine1
+        oscillator1.wavetableSampleRate = sampleRate
+        oscillator2.wavetableEngine = wavetableEngine2
+        oscillator2.wavetableSampleRate = sampleRate
+
         setupAudioSession()
         setupLimiter()
         setupAudioEngine()
@@ -226,6 +236,16 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         // Fast Random Noise Generation
         noiseSeed = noiseSeed &* 1664525 &+ 1013904223
         let noiseValue = Float(noiseSeed) / Float(UInt32.max) * 2.0 - 1.0
+
+        // Wavetable morph: once per sample (not per voice) to keep smoothing correct.
+        if oscillator1.waveform == .wavetable {
+            wavetableEngine1.targetFramePosition = max(0, min(1, oscillator1.wavetableMorph))
+            wavetableEngine1.advanceMorph()
+        }
+        if oscillator2.waveform == .wavetable {
+            wavetableEngine2.targetFramePosition = max(0, min(1, oscillator2.wavetableMorph))
+            wavetableEngine2.advanceMorph()
+        }
 
         for (midiNote, var notes) in activeNotes {
             var allNotesEnded = true
