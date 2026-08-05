@@ -279,13 +279,15 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             var osc2Freq = oscillator2.frequencyWithModifiers(baseFrequency)
             let velValue = v.velocity
 
+            let releaseOverride: Float? = v.fastRelease ? ADSREnvelope.fastReleaseSeconds : nil
             let envelopeValue = envelope.process(
                 currentValue: v.envelopeValue,
                 phase: &v.envelopePhase,
                 time: &v.envelopeTime,
                 releaseStartValue: v.releaseStartValue,
                 isReleasing: v.isReleasing,
-                sampleRate: sampleRate
+                sampleRate: sampleRate,
+                releaseOverride: releaseOverride
             )
             v.envelopeValue = envelopeValue
 
@@ -513,11 +515,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     /// Fixed-pool allocation (audio thread). No Dictionary / heap ids.
     private func createVoice(midiNote: Int, velocity: Float) {
-        // Hard-stop previous partials of this MIDI note (re-trigger)
+        // Soft re-trigger: fade previous partials of this MIDI note (hard kill = click).
         for i in 0..<AudioEngine.maxVoices {
-            if voices[i].isActive && voices[i].midiNote == midiNote {
-                voices[i].deactivate()
-                activeVoiceCountRT = max(0, activeVoiceCountRT - 1)
+            if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
+                voices[i].beginFastRelease()
             }
         }
 
@@ -530,20 +531,16 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
         lastPlayedFrequency = baseFreq
 
-        // Dynamic unison: factory pads often request 3–5 voices. That is fine for 1 note
-        // (Init-like load) but 3 notes × 5 unison = 15 partials + FX → underruns / broken sound.
-        // Scale unison down as more distinct MIDI notes are already held.
-        let otherNotes = uniqueActiveMIDINoteCount()
+        // Dynamic unison: collapse on chords so presets with width stay clean.
+        let otherNotes = uniqueActiveMIDINoteCountExcluding(midiNote: midiNote)
         let requested = max(1, min(5, cachedUnisonVoices))
         let unisonCount: Int
         if otherNotes >= 3 {
             unisonCount = 1
-        } else if otherNotes == 2 {
-            unisonCount = min(2, requested)
-        } else if otherNotes == 1 {
+        } else if otherNotes >= 1 {
             unisonCount = min(2, requested)
         } else {
-            unisonCount = min(3, requested) // solo: allow a bit of width
+            unisonCount = min(3, requested)
         }
 
         let detuneAmount = cachedUnisonDetune
@@ -580,6 +577,25 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
     }
 
+    private func uniqueActiveMIDINoteCountExcluding(midiNote: Int) -> Int {
+        var lo: UInt64 = 0
+        var hi: UInt64 = 0
+        var count = 0
+        for i in 0..<AudioEngine.maxVoices {
+            guard voices[i].isActive else { continue }
+            let n = voices[i].midiNote
+            if n == midiNote { continue }
+            if n >= 0 && n < 64 {
+                let bit: UInt64 = 1 << n
+                if lo & bit == 0 { lo |= bit; count += 1 }
+            } else if n >= 64 && n < 128 {
+                let bit: UInt64 = 1 << (n - 64)
+                if hi & bit == 0 { hi |= bit; count += 1 }
+            }
+        }
+        return count
+    }
+
     /// Count distinct MIDI notes currently active (allocation-free bitsets).
     private func uniqueActiveMIDINoteCount() -> Int {
         var lo: UInt64 = 0
@@ -609,28 +625,40 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         for i in 0..<AudioEngine.maxVoices {
             if !voices[i].isActive { return i }
         }
-        // Steal quietest releasing, else quietest overall
-        var best: Int?
-        var bestEnv: Float = Float.greatestFiniteMagnitude
-        var preferRelease = false
+        // Prefer reclaiming almost-silent / fast-releasing voices
+        var quietRelease: Int?
+        var quietEnv: Float = 0.05
+        var bestSteal: Int?
+        var bestStealEnv: Float = Float.greatestFiniteMagnitude
         for i in 0..<AudioEngine.maxVoices {
             guard voices[i].isActive else { continue }
             let env = voices[i].envelopeValue
-            if voices[i].isReleasing {
-                if !preferRelease || env < bestEnv {
-                    preferRelease = true
-                    bestEnv = env
-                    best = i
-                }
-            } else if !preferRelease && env < bestEnv {
-                bestEnv = env
-                best = i
+            if voices[i].isReleasing && env < quietEnv {
+                quietEnv = env
+                quietRelease = i
+            }
+            if env < bestStealEnv {
+                bestStealEnv = env
+                bestSteal = i
             }
         }
-        if let best {
-            voices[best].deactivate()
+        if let quietRelease {
+            voices[quietRelease].deactivate()
             activeVoiceCountRT = max(0, activeVoiceCountRT - 1)
-            return best
+            return quietRelease
+        }
+        // Soft-steal: start 6 ms fade; try to find another free after... we need a slot now.
+        // Deactivate only if already very quiet; otherwise force-fade and take quietest.
+        if let bestSteal, bestStealEnv < 0.08 {
+            voices[bestSteal].deactivate()
+            activeVoiceCountRT = max(0, activeVoiceCountRT - 1)
+            return bestSteal
+        }
+        if let bestSteal {
+            // Last resort hard take after starting fade was not enough — take quietest
+            voices[bestSteal].deactivate()
+            activeVoiceCountRT = max(0, activeVoiceCountRT - 1)
+            return bestSteal
         }
         return nil
     }

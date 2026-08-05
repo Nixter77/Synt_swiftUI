@@ -1136,6 +1136,24 @@ struct Synt_swiftUITests {
         #expect(abs(right) <= 1.0)
     }
 
+    @Test func adsrMinimumAttackPreventsInstantClick() async throws {
+        var env = ADSREnvelope()
+        env.attack = 0.001 // would have been instant jump before
+        env.decay = 0.1
+        env.sustain = 0.7
+        env.release = 0.2
+        var phase = EnvelopePhase.attack
+        var time: Double = 0
+        var value: Float = 0
+        // First few samples must stay well below full scale (no hard click)
+        value = env.process(
+            currentValue: value, phase: &phase, time: &time,
+            releaseStartValue: 0, isReleasing: false, sampleRate: 44100
+        )
+        #expect(value < 0.5)
+        #expect(phase == .attack || phase == .decay)
+    }
+
     @Test func adsrDecayUsesExponentialCurve() async throws {
         var envelope = ADSREnvelope()
         envelope.attack = 0.01

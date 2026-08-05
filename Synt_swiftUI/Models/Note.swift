@@ -50,6 +50,8 @@ struct ActiveNote {
     var envelopeTime: Double = 0.0
     var releaseStartValue: Float = 0.0
     var isReleasing: Bool = false
+    /// When set, release uses a short fade (steal / re-trigger) instead of preset release.
+    var fastRelease: Bool = false
     var pan: Float = 0.0
 
     static let inactive = ActiveNote()
@@ -67,7 +69,20 @@ struct ActiveNote {
         self.envelopeTime = 0
         self.releaseStartValue = 0
         self.isReleasing = false
+        self.fastRelease = false
         self.pan = pan
+    }
+
+    /// Soft end: enter short release instead of hard cut (avoids clicks).
+    mutating func beginFastRelease() {
+        guard isActive, !isReleasing else { return }
+        isReleasing = true
+        fastRelease = true
+        releaseStartValue = envelopeValue
+        envelopeTime = 0
+        if envelopePhase != .release && envelopePhase != .finished {
+            envelopePhase = .release
+        }
     }
 
     mutating func deactivate() {
@@ -75,6 +90,7 @@ struct ActiveNote {
         envelopeValue = 0
         envelopePhase = .finished
         isReleasing = false
+        fastRelease = false
     }
 }
 
