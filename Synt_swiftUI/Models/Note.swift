@@ -36,10 +36,11 @@ struct Note: Hashable, Identifiable {
     }
 }
 
-/// Per-voice RT state. No heap ids — created on the audio thread.
+/// Per-voice RT state for a fixed pool (no Dictionary / no heap ids).
 struct ActiveNote {
-    let midiNote: Int
-    var velocity: Float
+    var isActive: Bool = false
+    var midiNote: Int = 0
+    var velocity: Float = 0
     var phase: Double = 0.0
     var phase2: Double = 0.0
     var currentFrequency: Double = 0.0
@@ -51,12 +52,29 @@ struct ActiveNote {
     var isReleasing: Bool = false
     var pan: Float = 0.0
 
-    init(midiNote: Int, velocity: Float, frequency: Double, pan: Float = 0.0) {
+    static let inactive = ActiveNote()
+
+    mutating func activate(midiNote: Int, velocity: Float, frequency: Double, pan: Float = 0.0) {
+        self.isActive = true
         self.midiNote = midiNote
         self.velocity = velocity
+        self.phase = 0
+        self.phase2 = 0
         self.currentFrequency = frequency
         self.targetFrequency = frequency
+        self.envelopePhase = .attack
+        self.envelopeValue = 0
+        self.envelopeTime = 0
+        self.releaseStartValue = 0
+        self.isReleasing = false
         self.pan = pan
+    }
+
+    mutating func deactivate() {
+        isActive = false
+        envelopeValue = 0
+        envelopePhase = .finished
+        isReleasing = false
     }
 }
 
