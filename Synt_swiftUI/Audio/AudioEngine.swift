@@ -67,7 +67,11 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     // MARK: - Cached parameters (written on applyPreset / main; read on audio path)
     private var cachedOsc2Enabled: Bool = true
+    private var cachedOsc1PulseWidth: Float = 0.5
+    private var cachedOsc2PulseWidth: Float = 0.5
     private var cachedFilterCutoff: Float = 5000.0
+    private var cachedFilterResonance: Float = 0.5
+    private var cachedFilterEnvAmt: Float = 0.0
     private var cachedMasterVolume: Float = 0.5
     private var cachedPortamento: Float = 0.0
     private var cachedUnisonVoices: Int = 1
@@ -91,7 +95,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     // Parameter Smoothing
     private var smoothedFilterCutoff: Float = 5000.0
     private var smoothedMasterVolume: Float = 0.5
+    private var smoothedPWM1: Float = 0.5
+    private var smoothedPWM2: Float = 0.5
     private let smoothingCoeff: Float = 0.999
+    private let pwmSmoothingCoeff: Float = 0.995
+    /// Last cutoff written to the stereo filter (tests / diagnostics).
+    private var lastFilterCutoffRT: Float = 5000.0
     /// Smoothed 1/√N. Asymmetric: faster when quieter needed, never instant (instant = zipper).
     private var smoothedPolyScale: Float = 1.0
     /// ~3 ms attack when more notes (scale down); ~25 ms release when fewer notes (scale up).
@@ -224,6 +233,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         var mixedSampleL: Float = 0.0
         var mixedSampleR: Float = 0.0
         var mixedVoiceCount: Int = 0
+        var maxEnvelopeForFilter: Float = 0
+        var maxVelocityForFilter: Float = 0
 
         // --- CLOCK & ARP ---
         let bpm = cachedBPM
@@ -249,6 +260,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
         noiseSeed = noiseSeed &* 1664525 &+ 1013904223
         let noiseValue = Float(noiseSeed) / Float(UInt32.max) * 2.0 - 1.0
+
+        smoothedPWM1 = smoothedPWM1 * pwmSmoothingCoeff + cachedOsc1PulseWidth * (1 - pwmSmoothingCoeff)
+        smoothedPWM2 = smoothedPWM2 * pwmSmoothingCoeff + cachedOsc2PulseWidth * (1 - pwmSmoothingCoeff)
 
         if oscillator1.waveform == .wavetable {
             wavetableEngine1.targetFramePosition = max(0, min(1, oscillator1.wavetableMorph))
@@ -291,10 +305,16 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             )
             v.envelopeValue = envelopeValue
 
+            maxEnvelopeForFilter = max(maxEnvelopeForFilter, envelopeValue)
+            maxVelocityForFilter = max(maxVelocityForFilter, velValue)
+
             var pitchMod1: Float = 0
             var pitchMod2: Float = 0
             var ampMod: Float = 0
             var panMod: Float = 0
+            var pwmMod1: Float = 0
+            var pwmMod2: Float = 0
+            var mixMod: Float = 0
 
             if !modMatrix.isEmpty {
                 for entry in modMatrix {
@@ -310,7 +330,11 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                     case .pitch2: pitchMod2 += modVal
                     case .amp: ampMod += modVal
                     case .pan: panMod += modVal
-                    default: break
+                    case .pwm1: pwmMod1 += modVal
+                    case .pwm2: pwmMod2 += modVal
+                    case .mix: mixMod += modVal
+                    case .cutoff, .resonance, .lfoRate, .lfoDepth:
+                        break // global dests applied once after the voice mix
                     }
                 }
             }
@@ -337,18 +361,24 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             let phaseInc1 = AudioMath.twoPi * osc1Freq / sampleRate
             let phaseInc2 = AudioMath.twoPi * osc2Freq / sampleRate
 
+            let pw1 = max(0.05, min(0.95, smoothedPWM1 + pwmMod1 * 0.45))
+            let pw2 = max(0.05, min(0.95, smoothedPWM2 + pwmMod2 * 0.45))
             var sample = oscillator1.generateSample(
                 phase: v.phase,
                 phaseIncrement: phaseInc1,
-                noiseValue: noiseValue
+                noiseValue: noiseValue,
+                pulseWidthOverride: pw1
             )
             if cachedOsc2Enabled {
                 let s2 = oscillator2.generateSample(
                     phase: v.phase2,
                     phaseIncrement: phaseInc2,
-                    noiseValue: noiseValue
+                    noiseValue: noiseValue,
+                    pulseWidthOverride: pw2
                 )
-                sample = (sample + s2) * 0.5
+                // mixMod 0 → historical 50/50 of already volume-weighted oscs
+                let oscMix = max(0, min(1, 0.5 + mixMod * 0.5))
+                sample = sample * (1 - oscMix) + s2 * oscMix
             }
 
             v.phase += phaseInc1
@@ -368,10 +398,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             var pan = v.pan + panMod
             if lfoEnabled && lfoTarget == .pan { pan += lfoValue }
             pan = max(-1, min(1, pan))
-            let angle = (pan + 1.0) * Float.pi / 4.0
+            let gains = AudioMath.constantPowerGains(pan: pan)
 
-            mixedSampleL += amplitude * cos(angle)
-            mixedSampleR += amplitude * sin(angle)
+            mixedSampleL += amplitude * gains.left
+            mixedSampleR += amplitude * gains.right
             mixedVoiceCount += 1
 
             if v.envelopePhase == .finished {
@@ -397,12 +427,40 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1 - smoothingCoeff)
         smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1 - smoothingCoeff)
 
-        var cutoff = smoothedFilterCutoff
+        var cutoffOctaves: Float = maxEnvelopeForFilter * cachedFilterEnvAmt
+        var resonanceMod: Float = 0
+        if !modMatrix.isEmpty {
+            for entry in modMatrix {
+                let sourceVal: Float
+                switch entry.source {
+                case .lfo1: sourceVal = lfoValue
+                case .env1: sourceVal = maxEnvelopeForFilter
+                case .velocity: sourceVal = maxVelocityForFilter
+                }
+                let modVal = sourceVal * entry.amount
+                switch entry.destination {
+                case .cutoff: cutoffOctaves += modVal
+                case .resonance: resonanceMod += modVal
+                default: break
+                }
+            }
+        }
+
+        var cutoff = AudioMath.exponentialCutoff(
+            base: smoothedFilterCutoff,
+            modulation: cutoffOctaves,
+            sampleRate: sampleRate
+        )
         if lfoEnabled && lfoTarget == .filter {
             cutoff = lfo.modulateFilter(cutoff, lfoValue: lfoValue)
         }
+        cutoff = max(20, min(Float(sampleRate) * 0.45, cutoff))
+        lastFilterCutoffRT = cutoff
         filterL.cutoff = cutoff
         filterR.cutoff = cutoff
+        let resonance = max(0, min(1, cachedFilterResonance + resonanceMod))
+        filterL.resonance = resonance
+        filterR.resonance = resonance
 
         var filteredL = filterL.process(mixedSampleL, sampleRate: Float(sampleRate))
         var filteredR = filterR.process(mixedSampleR, sampleRate: Float(sampleRate))
@@ -430,13 +488,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
 
         var (outL, outR) = dspChorus.process(inputL: fxL, inputR: fxR)
-
-        if lfoEnabled && lfoTarget == .pan {
-            let panVal = max(-1, min(1, lfoValue))
-            let a = (panVal + 1) * Float.pi / 4
-            outL *= cos(a)
-            outR *= sin(a)
-        }
 
         (outL, outR) = limiter.processStereo(inputL: outL, inputR: outR)
 
@@ -739,6 +790,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         oscillator1.detune = preset.osc1Detune
         oscillator1.pulseWidth = preset.osc1PulseWidth
         oscillator1.wavetableMorph = max(0, min(1, preset.osc1WavetableMorph))
+        if abs(preset.osc1PulseWidth - cachedOsc1PulseWidth) > 0.04 {
+            smoothedPWM1 = preset.osc1PulseWidth
+        }
+        cachedOsc1PulseWidth = preset.osc1PulseWidth
 
         oscillator2.waveform = preset.osc2Waveform
         oscillator2.volume = preset.osc2Volume
@@ -746,6 +801,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         oscillator2.detune = preset.osc2Detune
         oscillator2.pulseWidth = preset.osc2PulseWidth
         oscillator2.wavetableMorph = max(0, min(1, preset.osc2WavetableMorph))
+        if abs(preset.osc2PulseWidth - cachedOsc2PulseWidth) > 0.04 {
+            smoothedPWM2 = preset.osc2PulseWidth
+        }
+        cachedOsc2PulseWidth = preset.osc2PulseWidth
 
         envelope.attack = preset.attack
         envelope.decay = preset.decay
@@ -816,8 +875,20 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         cachedUnisonSpread = preset.unisonSpread
         cachedModMatrix = preset.modMatrix
         cachedOsc2Enabled = preset.osc2Enabled
-        cachedFilterCutoff = preset.filterCutoff
-        cachedMasterVolume = preset.masterVolume
+        let newCutoff = preset.filterCutoff
+        // Snap one-poles on patch jumps; keep them for live knob nudges.
+        if abs(newCutoff - cachedFilterCutoff) > 200 {
+            smoothedFilterCutoff = newCutoff
+            lastFilterCutoffRT = newCutoff
+        }
+        cachedFilterCutoff = newCutoff
+        cachedFilterResonance = preset.filterResonance
+        cachedFilterEnvAmt = max(0, min(1, preset.filterEnvelopeAmount))
+        let newMaster = preset.masterVolume
+        if abs(newMaster - cachedMasterVolume) > 0.08 {
+            smoothedMasterVolume = newMaster
+        }
+        cachedMasterVolume = newMaster
         cachedBPM = preset.bpm
         cachedArpMode = preset.arpMode
         // Do NOT touch `arp` here — it is audio-thread state.
@@ -852,6 +923,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         unisonVoices: Int,
         portamento: Float,
         filterCutoff: Float,
+        filterEnvAmt: Float,
         masterVolume: Float,
         modMatrixCount: Int
     ) {
@@ -862,10 +934,20 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             cachedUnisonVoices,
             cachedPortamento,
             cachedFilterCutoff,
+            cachedFilterEnvAmt,
             cachedMasterVolume,
             cachedModMatrix.count
         )
     }
+
+    /// One sample of the live render path (no AVAudio device required).
+    func renderOneSampleForTesting() -> (Float, Float) {
+        renderOneSample()
+    }
+
+    var lastFilterCutoffForTesting: Float { lastFilterCutoffRT }
+
+    var reverbFactoryLoadCountForTesting: Int { reverb.factoryPresetLoadCount }
 
     /// Advanced FX + morph state after `applyPreset` (for factory library tests).
     func appliedAdvancedFXForTesting() -> (

@@ -19,11 +19,17 @@ struct Oscillator {
     var wavetableMorph: Float = 0.0
     var wavetableSampleRate: Double = 44100.0
 
-    func generateSample(phase: Double, phaseIncrement: Double, noiseValue: Float = 0.0) -> Float {
+    func generateSample(
+        phase: Double,
+        phaseIncrement: Double,
+        noiseValue: Float = 0.0,
+        pulseWidthOverride: Float? = nil
+    ) -> Float {
         let sample: Float
         let twoPi = AudioMath.twoPi
         let normalizedPhase = phase / twoPi
         let normalizedIncrement = phaseIncrement / twoPi
+        let pw = Double(max(0.05, min(0.95, pulseWidthOverride ?? pulseWidth)))
 
         switch waveform {
         case .sine:
@@ -41,13 +47,13 @@ struct Oscillator {
         case .square:
             // Variable Pulse Width Square
             // 1 if phase < pw, else -1
-            var value = normalizedPhase < Double(pulseWidth) ? 1.0 : -1.0
+            var value = normalizedPhase < pw ? 1.0 : -1.0
 
             // PolyBLEP for rising edge at 0
             value += polyBLEP(t: normalizedPhase, dt: normalizedIncrement)
 
             // PolyBLEP for falling edge at pulseWidth
-            var phaseShifted = normalizedPhase - Double(pulseWidth)
+            var phaseShifted = normalizedPhase - pw
             if phaseShifted < 0.0 { phaseShifted += 1.0 }
 
             value -= polyBLEP(t: phaseShifted, dt: normalizedIncrement)

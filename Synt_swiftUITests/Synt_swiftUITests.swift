@@ -1217,4 +1217,177 @@ struct Synt_swiftUITests {
         #expect(sample.isFinite)
         #expect(sample >= -1.0 && sample <= 1.0)
     }
+
+    // MARK: - Sound quality Phase A
+
+    @Test func exponentialCutoffIsIdentityAtZeroModulation() async throws {
+        let base: Float = 800
+        let y = AudioMath.exponentialCutoff(base: base, modulation: 0, sampleRate: 44100)
+        #expect(abs(y - base) < 0.01)
+    }
+
+    @Test func exponentialCutoffOpensByConfiguredOctaves() async throws {
+        let base: Float = 500
+        let open = AudioMath.exponentialCutoff(base: base, modulation: 1, sampleRate: 44100)
+        let expected = min(Float(44100) * 0.45, base * pow(2, AudioMath.filterModOctaves))
+        #expect(abs(open - expected) < 1)
+        let closed = AudioMath.exponentialCutoff(base: base, modulation: -1, sampleRate: 44100)
+        #expect(closed < base)
+        #expect(closed >= 20)
+    }
+
+    @Test func reverbDoesNotReloadIRWhenRoomSlotUnchanged() async throws {
+        let engine = AudioEngine()
+        engine.applyPresetForTesting()
+        let afterInit = engine.reverbFactoryLoadCountForTesting
+
+        for _ in 0..<40 {
+            engine.updatePreset { p in
+                p.attack = 0.05
+                p.filterCutoff = 1800
+                p.reverbRoomSize = 0.5 // same slot as Init (medium hall)
+            }
+        }
+        #expect(engine.reverbFactoryLoadCountForTesting == afterInit)
+
+        engine.updatePreset { $0.reverbRoomSize = 0.9 } // cathedral
+        #expect(engine.reverbFactoryLoadCountForTesting == afterInit + 1)
+        engine.updatePreset { $0.reverbRoomSize = 0.85 } // still cathedral
+        #expect(engine.reverbFactoryLoadCountForTesting == afterInit + 1)
+    }
+
+    @Test func filterEnvelopeAmountRaisesCutoffDuringAttack() async throws {
+        let engine = AudioEngine()
+        var p = SynthPreset.defaultPreset
+        p.arpMode = .off
+        p.osc2Enabled = false
+        p.lfoEnabled = false
+        p.chorusMix = 0
+        p.filterCutoff = 400
+        p.filterEnvelopeAmount = 1
+        p.filterResonance = 0.1
+        p.attack = 0.25
+        p.decay = 0.4
+        p.sustain = 1
+        p.modMatrix = []
+        engine.preset = p
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 48, velocity: 1)
+        engine.processCommandsForTesting()
+
+        _ = engine.renderOneSampleForTesting()
+        let startCutoff = engine.lastFilterCutoffForTesting
+
+        for _ in 0..<8000 {
+            _ = engine.renderOneSampleForTesting()
+        }
+        let laterCutoff = engine.lastFilterCutoffForTesting
+
+        #expect(startCutoff < 2500, "first sample should still be near the closed knob")
+        #expect(laterCutoff > startCutoff + 400, "env amt must open the filter during attack")
+        #expect(engine.cachedAudioParamsForTesting().filterEnvAmt == 1)
+    }
+
+    @Test func filterEnvelopeAmountZeroLeavesCutoffAtKnob() async throws {
+        let engine = AudioEngine()
+        var p = SynthPreset.defaultPreset
+        p.arpMode = .off
+        p.lfoEnabled = false
+        p.filterCutoff = 1500
+        p.filterEnvelopeAmount = 0
+        p.modMatrix = []
+        engine.preset = p
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        for _ in 0..<2000 {
+            _ = engine.renderOneSampleForTesting()
+        }
+        #expect(abs(engine.lastFilterCutoffForTesting - 1500) < 40)
+    }
+
+    @Test func matrixEnvToCutoffOpensFilter() async throws {
+        let engine = AudioEngine()
+        var p = SynthPreset.defaultPreset
+        p.arpMode = .off
+        p.lfoEnabled = false
+        p.filterCutoff = 400
+        p.filterEnvelopeAmount = 0
+        p.attack = 0.2
+        p.sustain = 1
+        p.modMatrix = [ModMatrixEntry(source: .env1, destination: .cutoff, amount: 1)]
+        engine.preset = p
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 48, velocity: 1)
+        engine.processCommandsForTesting()
+        _ = engine.renderOneSampleForTesting()
+        let startCutoff = engine.lastFilterCutoffForTesting
+        for _ in 0..<3500 {
+            _ = engine.renderOneSampleForTesting()
+        }
+        #expect(engine.lastFilterCutoffForTesting > startCutoff + 200)
+    }
+
+    @Test func lfoPanDepthZeroDoesNotAttenuateBusBy3dB() async throws {
+        let engine = AudioEngine()
+
+        func holdEnergy(lfoPan: Bool) -> Float {
+            var p = SynthPreset.defaultPreset
+            p.arpMode = .off
+            p.osc2Enabled = false
+            p.unisonVoices = 1
+            p.chorusMix = 0
+            p.filterCutoff = 8000
+            p.filterEnvelopeAmount = 0
+            p.modMatrix = []
+            p.attack = 0.01
+            p.decay = 0.05
+            p.sustain = 1
+            p.release = 0.2
+            p.lfoEnabled = lfoPan
+            p.lfoTarget = .pan
+            p.lfoDepth = 0
+            p.lfoRate = 0.2
+            engine.preset = p
+            engine.applyPresetForTesting()
+            engine.clearAllNotes()
+            engine.processCommandsForTesting()
+            engine.noteOn(midiNote: 60, velocity: 1)
+            engine.processCommandsForTesting()
+            for _ in 0..<2500 { _ = engine.renderOneSampleForTesting() }
+            var energy: Float = 0
+            for _ in 0..<512 {
+                let (l, r) = engine.renderOneSampleForTesting()
+                energy += l * l + r * r
+            }
+            engine.clearAllNotes()
+            engine.processCommandsForTesting()
+            return energy
+        }
+
+        let off = holdEnergy(lfoPan: false)
+        let on = holdEnergy(lfoPan: true)
+        #expect(off > 1e-6)
+        let ratio = on / off
+        #expect(ratio > 0.9 && ratio < 1.1, "LFO pan at depth 0 must not apply center-pan −3 dB (ratio \(ratio))")
+    }
+
+    @Test func oscillatorPulseWidthOverrideChangesSquareDuty() async throws {
+        var osc = Oscillator()
+        osc.waveform = .square
+        osc.volume = 1
+        osc.pulseWidth = 0.5
+        let dt = AudioMath.twoPi / 64
+        var narrow: Float = 0
+        var wide: Float = 0
+        for i in 0..<64 {
+            let phase = Double(i) * dt
+            narrow += osc.generateSample(phase: phase, phaseIncrement: dt, pulseWidthOverride: 0.1)
+            wide += osc.generateSample(phase: phase, phaseIncrement: dt, pulseWidthOverride: 0.9)
+        }
+        #expect(narrow < wide)
+    }
 }

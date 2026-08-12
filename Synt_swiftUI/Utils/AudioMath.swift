@@ -45,4 +45,30 @@ enum AudioMath {
         guard threshold > 0 else { return 0 }
         return threshold * tanh(value / threshold)
     }
+
+    /// Full Env Amt / matrix amount = this many octaves of cutoff travel.
+    static let filterModOctaves: Float = 5.0
+
+    /// Musical cutoff: `base * 2^(modulation * octaves)`, clamped to 20 Hz … 0.45·Fs.
+    /// `modulation` is typically envelope×amount or a summed bipolar matrix (≈ −2…2).
+    static func exponentialCutoff(
+        base: Float,
+        modulation: Float,
+        octaves: Float = filterModOctaves,
+        sampleRate: Double
+    ) -> Float {
+        let minC: Float = 20
+        let maxC = Float(sampleRate) * 0.45
+        let safeBase = max(minC, min(maxC, base))
+        let mod = max(-2, min(2, modulation))
+        let hz = safeBase * pow(2.0, mod * octaves)
+        return max(minC, min(maxC, hz))
+    }
+
+    /// Equal-power stereo gains for pan in −1…1. Center is ~0.707 / 0.707 (not a second bus pan).
+    static func constantPowerGains(pan: Float) -> (left: Float, right: Float) {
+        let p = max(-1, min(1, pan))
+        let angle = (p + 1.0) * Float.pi / 4.0
+        return (cos(angle), sin(angle))
+    }
 }
