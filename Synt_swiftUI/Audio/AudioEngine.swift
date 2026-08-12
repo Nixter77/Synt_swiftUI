@@ -92,10 +92,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private var smoothedFilterCutoff: Float = 5000.0
     private var smoothedMasterVolume: Float = 0.5
     private let smoothingCoeff: Float = 0.999
-    /// Smoothed 1/√N. Asymmetric: faster when quieter needed, never instant (instant = zipper).
+    /// Smoothed 1/N bus scale. Scale-down is instant (lag = chord-onset clip).
     private var smoothedPolyScale: Float = 1.0
-    /// ~3 ms attack when more notes (scale down); ~25 ms release when fewer notes (scale up).
-    private let polyScaleAttackCoeff: Float = 0.985
+    /// ~25 ms when notes drop and the bus is allowed to get louder.
     private let polyScaleReleaseCoeff: Float = 0.998
 
     // Oscilloscope Capture (audio thread buffer → AtomicMeteringState)
@@ -150,14 +149,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     private func setupLimiter() {
-        // Soft safety net — brick-wall at -0.1 dB with instant attack pumped on every
-        // multi-note crest and sounded like zipper/glitch. Milder settings.
-        limiter.enabled = true
-        limiter.limiterMode = true
-        limiter.threshold = -3.0
-        limiter.kneeWidth = 3.0
-        limiter.setAttack(0.005)
-        limiter.setRelease(0.12)
+        // Off on the live path. limiterMode ignores threshold/attack and brick-walls
+        // every extra-note crest (2 notes ok, 3rd rasps). Safety is soft-clip only.
+        limiter.enabled = false
+        limiter.limiterMode = false
     }
 
     private func setupAudioSession() {
@@ -381,18 +376,20 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             voices[i] = v
         }
 
-        // Gain staging: smooth 1/√N (never a 1-sample jump)
-        let targetPolyScale = AudioMath.polyphonyScale(activeVoices: mixedVoiceCount)
-        let polyCoeff = targetPolyScale < smoothedPolyScale ? polyScaleAttackCoeff : polyScaleReleaseCoeff
-        smoothedPolyScale = smoothedPolyScale * polyCoeff + targetPolyScale * (1 - polyCoeff)
+        // 1/N so a 4-note chord stays at the same peak as one note.
+        // Scale down immediately — a one-pole here left the first ms of a chord unscaled and clipped.
+        let targetPolyScale = AudioMath.busScale(activeVoices: mixedVoiceCount)
+        if targetPolyScale < smoothedPolyScale {
+            smoothedPolyScale = targetPolyScale
+        } else {
+            smoothedPolyScale = smoothedPolyScale * polyScaleReleaseCoeff
+                + targetPolyScale * (1 - polyScaleReleaseCoeff)
+        }
         mixedSampleL *= smoothedPolyScale
         mixedSampleR *= smoothedPolyScale
 
         if !mixedSampleL.isFinite { mixedSampleL = 0 }
         if !mixedSampleR.isFinite { mixedSampleR = 0 }
-        // Gentle bus limit (not hard saturator)
-        mixedSampleL = max(-1.5, min(1.5, mixedSampleL))
-        mixedSampleR = max(-1.5, min(1.5, mixedSampleR))
 
         smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1 - smoothingCoeff)
         smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1 - smoothingCoeff)
@@ -409,11 +406,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         if !filteredL.isFinite { filterL.reset(); filteredL = 0 }
         if !filteredR.isFinite { filterR.reset(); filteredR = 0 }
 
-        let headroom: Float = 0.7
+        let headroom: Float = 0.65
         var fxL = filteredL * smoothedMasterVolume * headroom
         var fxR = filteredR * smoothedMasterVolume * headroom
-        fxL = max(-1, min(1, fxL))
-        fxR = max(-1, min(1, fxR))
 
         if distortion.enabled {
             (fxL, fxR) = distortion.processStereo(inputL: fxL, inputR: fxR)
@@ -438,7 +433,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             outR *= sin(a)
         }
 
-        (outL, outR) = limiter.processStereo(inputL: outL, inputR: outR)
+        outL = AudioMath.softClip(outL, threshold: 0.95)
+        outR = AudioMath.softClip(outR, threshold: 0.95)
 
         let absSample = max(abs(outL), abs(outR))
         currentLevel = max(currentLevel * levelDecay, absSample)
@@ -461,8 +457,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             }
         }
 
-        outL = max(-1, min(1, outL))
-        outR = max(-1, min(1, outR))
         if !outL.isFinite { outL = 0 }
         if !outR.isFinite { outR = 0 }
         return (outL, outR)
@@ -531,17 +525,14 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
         lastPlayedFrequency = baseFreq
 
-        // Dynamic unison: collapse on chords so presets with width stay clean.
+        // Unison only for a single held note. Any second key collapses to 1 partial
+        // per note so a 3–4 note chord does not spawn extra oscillators.
         let otherNotes = uniqueActiveMIDINoteCountExcluding(midiNote: midiNote)
-        let requested = max(1, min(5, cachedUnisonVoices))
-        let unisonCount: Int
-        if otherNotes >= 3 {
-            unisonCount = 1
-        } else if otherNotes >= 1 {
-            unisonCount = min(2, requested)
-        } else {
-            unisonCount = min(3, requested)
+        if otherNotes >= 1 {
+            collapseExtraUnisonPartials()
         }
+        let requested = max(1, min(5, cachedUnisonVoices))
+        let unisonCount = otherNotes >= 1 ? 1 : min(3, requested)
 
         let detuneAmount = cachedUnisonDetune
         let spreadAmount = cachedUnisonSpread
@@ -577,6 +568,22 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Fade extra unison partials so each MIDI note keeps one sounding voice.
+    private func collapseExtraUnisonPartials() {
+        for i in 0..<AudioEngine.maxVoices {
+            guard voices[i].isActive, !voices[i].isReleasing else { continue }
+            for j in (i + 1)..<AudioEngine.maxVoices {
+                guard voices[j].isActive, !voices[j].isReleasing else { continue }
+                guard voices[j].midiNote == voices[i].midiNote else { continue }
+                if voices[j].envelopeValue > voices[i].envelopeValue {
+                    voices[i].beginFastRelease()
+                } else {
+                    voices[j].beginFastRelease()
+                }
+            }
+        }
+    }
+
     private func uniqueActiveMIDINoteCountExcluding(midiNote: Int) -> Int {
         var lo: UInt64 = 0
         var hi: UInt64 = 0
@@ -591,31 +598,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             } else if n >= 64 && n < 128 {
                 let bit: UInt64 = 1 << (n - 64)
                 if hi & bit == 0 { hi |= bit; count += 1 }
-            }
-        }
-        return count
-    }
-
-    /// Count distinct MIDI notes currently active (allocation-free bitsets).
-    private func uniqueActiveMIDINoteCount() -> Int {
-        var lo: UInt64 = 0
-        var hi: UInt64 = 0
-        var count = 0
-        for i in 0..<AudioEngine.maxVoices {
-            guard voices[i].isActive else { continue }
-            let n = voices[i].midiNote
-            if n >= 0 && n < 64 {
-                let bit: UInt64 = 1 << n
-                if lo & bit == 0 {
-                    lo |= bit
-                    count += 1
-                }
-            } else if n >= 64 && n < 128 {
-                let bit: UInt64 = 1 << (n - 64)
-                if hi & bit == 0 {
-                    hi |= bit
-                    count += 1
-                }
             }
         }
         return count
@@ -897,6 +879,43 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Process pending commands as the audio thread would (for unit tests).
     func processCommandsForTesting() {
         processCommandQueue()
+    }
+
+    /// Offline render of the current voice pool (no AVAudioEngine device).
+    func renderFramesForTesting(_ frameCount: Int) -> (peak: Float, nanCount: Int, nearClipCount: Int) {
+        var peak: Float = 0
+        var nanCount = 0
+        var nearClipCount = 0
+        let frames = max(0, frameCount)
+        for _ in 0..<frames {
+            let (left, right) = renderOneSample()
+            if !left.isFinite || !right.isFinite {
+                nanCount += 1
+                continue
+            }
+            let absSample = max(abs(left), abs(right))
+            if absSample > peak { peak = absSample }
+            if absSample > 0.98 { nearClipCount += 1 }
+        }
+        return (peak, nanCount, nearClipCount)
+    }
+
+    /// Active oscillator partials (unison voices), including those in release.
+    var activePartialCountForTesting: Int {
+        var count = 0
+        for i in 0..<AudioEngine.maxVoices {
+            if voices[i].isActive { count += 1 }
+        }
+        return count
+    }
+
+    /// Partials that are still held (not in release). Chord path should stay at 1 per note.
+    var heldPartialCountForTesting: Int {
+        var count = 0
+        for i in 0..<AudioEngine.maxVoices {
+            if voices[i].isActive && !voices[i].isReleasing { count += 1 }
+        }
+        return count
     }
 
     /// Active unique MIDI note count after command processing (audio-thread state).

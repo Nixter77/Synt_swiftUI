@@ -33,10 +33,17 @@ enum AudioMath {
         Swift.min(Swift.max(value, min), max)
     }
 
-    /// Power-preserving polyphony scale: `1 / sqrt(max(1, activeVoices))`.
-    /// Keeps chord loudness from growing linearly with voice count.
+    /// Power-preserving scale: `1 / sqrt(max(1, activeVoices))`.
+    /// Too hot for real chords (notes add nearly in phase). Live path uses `busScale`.
     static func polyphonyScale(activeVoices: Int) -> Float {
         Float(1.0 / sqrt(Double(max(1, activeVoices))))
+    }
+
+    /// Fixed peak budget for the mix bus. Musical notes are correlated, so
+    /// they add closer to linearly than `1/√N`. `1/N` keeps a 4-note chord
+    /// at the same peak as one note instead of ~6 dB hotter.
+    static func busScale(activeVoices: Int) -> Float {
+        1.0 / Float(max(1, activeVoices))
     }
 
     /// Soft clip toward ±threshold via tanh. Keeps peaks under the ceiling without hard edges.

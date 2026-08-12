@@ -1000,6 +1000,15 @@ struct Synt_swiftUITests {
         #expect(peakAfter < 2.0)
     }
 
+    @Test func busScaleKeepsLinearChordPeakConstant() async throws {
+        #expect(abs(AudioMath.busScale(activeVoices: 0) - 1) < 0.0001)
+        #expect(abs(AudioMath.busScale(activeVoices: 1) - 1) < 0.0001)
+        #expect(abs(AudioMath.busScale(activeVoices: 4) - 0.25) < 0.0001)
+        // 4 correlated unit voices stay at 1.0 after scale (1/√N would be 2.0)
+        #expect(abs(4.0 * AudioMath.busScale(activeVoices: 4) - 1.0) < 0.0001)
+        #expect(AudioMath.busScale(activeVoices: 4) < AudioMath.polyphonyScale(activeVoices: 4))
+    }
+
     @Test func multiNoteOnOffDoesNotCorruptVoiceMap() async throws {
         let engine = AudioEngine()
         var p = SynthPreset.defaultPreset
@@ -1046,12 +1055,45 @@ struct Synt_swiftUITests {
         }
         engine.processCommandsForTesting()
         #expect(engine.activeNoteCountForTesting == 4)
+        #expect(engine.heldPartialCountForTesting == 4)
 
-        // With dynamic unison collapse, total partials stay well under pool size
-        // (4 notes × ≤2 unison ≤ 8; never 4×5=20)
         engine.clearAllNotes()
         engine.processCommandsForTesting()
         #expect(engine.activeNoteCountForTesting == 0)
+    }
+
+    @Test func fourNoteInitChordStaysBelowClip() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.chorusMix = 0
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        let single = engine.renderFramesForTesting(4096)
+        #expect(single.nanCount == 0)
+        #expect(single.peak > 0.04, "one Init note must still be audible, peak \(single.peak)")
+        #expect(single.peak < 0.95, "one Init note clipped, peak \(single.peak)")
+
+        for note in [64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+        #expect(engine.heldPartialCountForTesting == 4)
+
+        let chord = engine.renderFramesForTesting(8192)
+        #expect(chord.nanCount == 0)
+        #expect(chord.nearClipCount == 0, "4-note Init chord hit the ceiling \(chord.nearClipCount) times, peak \(chord.peak)")
+        #expect(chord.peak < 0.95, "4-note Init chord peak \(chord.peak)")
+        #expect(chord.peak < single.peak * 1.8, "chord \(chord.peak) much louder than one note \(single.peak)")
     }
 
     @Test func factoryPresetsCapUnisonForChordSafety() async throws {
