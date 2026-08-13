@@ -1011,6 +1011,51 @@ struct Synt_swiftUITests {
         #expect(mid > 0.2 && mid < 0.8)
     }
 
+    @Test func wavetableMipsStayUnderNyquistAtOctaveTop() async throws {
+        let osc = WavetableOscillator()
+        let nyquist = 22050.0
+        for oct in 0..<osc.mipOctaveCountForTesting {
+            let fHigh = 20.0 * pow(2.0, Double(oct + 1))
+            let allowed = max(1, Int(floor(nyquist / fHigh)))
+            let kept = osc.mipMaxHarmonicForTesting(oct)
+            #expect(kept <= allowed, "mip \(oct) keeps \(kept) partials, Nyquist allows \(allowed) at \(fHigh) Hz")
+            #expect(kept >= 1)
+        }
+        // The old power-of-two schedule kept 32 partials at octave 5 (1280 Hz).
+        #expect(osc.mipMaxHarmonicForTesting(5) <= 17)
+        #expect(osc.mipMaxHarmonicForTesting(6) <= 8)
+    }
+
+    @Test func crystalLeadThreeVsFourNotesStayUnderClip() async throws {
+        let engine = AudioEngine()
+        guard var lead = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
+            Issue.record("Missing Crystal Lead factory preset")
+            return
+        }
+        lead.arpMode = .off
+        engine.preset = lead
+        engine.processCommandsForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.noteOn(midiNote: 64, velocity: 1)
+        engine.noteOn(midiNote: 67, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.heldPartialCountForTesting == 3)
+        let three = engine.renderFramesForTesting(8192)
+        #expect(three.nanCount == 0)
+        #expect(three.nearClipCount == 0, "3-note Crystal Lead hit ceiling, peak \(three.peak)")
+        #expect(three.peak < 0.95)
+
+        engine.noteOn(midiNote: 71, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.heldPartialCountForTesting == 4)
+        let four = engine.renderFramesForTesting(8192)
+        #expect(four.nanCount == 0)
+        #expect(four.nearClipCount == 0, "4-note Crystal Lead hit ceiling, peak \(four.peak)")
+        #expect(four.peak < 0.95, "4-note Crystal Lead peak \(four.peak)")
+        #expect(four.peak < three.peak * 1.35, "4th note jumped level \(three.peak) → \(four.peak)")
+    }
+
     @Test func oscillatorWavetableAppliesVolumeOnce() async throws {
         let engine = WavetableOscillator()
         engine.targetFramePosition = 0

@@ -52,9 +52,13 @@ final class WavetableOscillator {
 
     private var currentWavetable: Wavetable?
     private var mipMaps: [[[Float]]] = []  // [octave][frame][sample]
+    /// Harmonics kept per mip octave (Nyquist at the top of that octave).
+    private var mipMaxHarmonics: [Int] = []
 
     private let tableSize: Int = 2048
     private let numOctaves: Int = 11  // C0 to C10
+    /// Mips are built for the live engine rate. Must match AudioEngine.
+    private let mipSampleRate: Double = 44100.0
 
     // MARK: - Built-in Wavetables
 
@@ -91,17 +95,22 @@ final class WavetableOscillator {
 
     private func generateMipMaps(from wavetable: Wavetable) {
         mipMaps = []
+        mipMaxHarmonics = []
 
+        let nyquist = mipSampleRate * 0.5
         for octave in 0..<numOctaves {
+            // Octave i is used for f in [20·2^i, 20·2^{i+1}). Limit to the TOP
+            // of that range so a note at the bright end cannot alias.
+            // Old `1 << (10 - i)` allowed ~2× too many partials — 4 stacked
+            // Crystal Lead notes turned that leftover alias into crunch.
+            let fHigh = 20.0 * pow(2.0, Double(octave + 1))
+            let maxHarmonic = max(1, Int(floor(nyquist / fHigh)))
+            mipMaxHarmonics.append(maxHarmonic)
+
             var octaveFrames: [[Float]] = []
-            // Higher playback octaves → fewer partials below Nyquist.
-            let maxHarmonic = max(1, 1 << (numOctaves - 1 - octave))
-
             for frame in wavetable.frames {
-                let bandLimited = applyFFTBandLimit(frame, maxHarmonic: maxHarmonic)
-                octaveFrames.append(bandLimited)
+                octaveFrames.append(applyFFTBandLimit(frame, maxHarmonic: maxHarmonic))
             }
-
             mipMaps.append(octaveFrames)
         }
     }
@@ -238,17 +247,12 @@ final class WavetableOscillator {
         }
 
         let frequency = phaseIncrement * sampleRate / (2.0 * Double.pi)
+        // One mip, the table built for this octave range. Crossfading two
+        // mips doubled Hermite work per voice and still used the hotter
+        // (under-limited) table — 4 notes of that was the crunch.
         let exactOctave = log2(max(20.0, frequency) / 20.0)
-        let oct0 = max(0, min(numOctaves - 1, Int(floor(exactOctave))))
-        let oct1 = min(oct0 + 1, numOctaves - 1)
-        let octFrac = Float(max(0, min(1, exactOctave - Double(oct0))))
-
-        let s0 = sampleMorphed(mipOctave: oct0, phase: phase)
-        if oct0 == oct1 || octFrac < 0.0001 {
-            return s0
-        }
-        let s1 = sampleMorphed(mipOctave: oct1, phase: phase)
-        return s0 + (s1 - s0) * octFrac
+        let oct = max(0, min(numOctaves - 1, Int(exactOctave)))
+        return sampleMorphed(mipOctave: oct, phase: phase)
     }
 
     @inline(__always)
@@ -277,26 +281,39 @@ final class WavetableOscillator {
         let tableSize = table.count
         guard tableSize > 0 else { return 0.0 }
 
-        var normalizedPhase = phase / (2.0 * Double.pi)
+        var normalizedPhase = phase * (1.0 / (2.0 * Double.pi))
         normalizedPhase -= floor(normalizedPhase)
 
         let pos = normalizedPhase * Double(tableSize)
-        let frac = Float(pos - floor(pos))
-        let i0 = Int(pos) % tableSize
+        let i0 = Int(pos)
+        let frac = Float(pos - Double(i0))
 
-        // Short tables: linear. Normal 2048-point frames: 4-point Hermite.
+        // Short tables: linear. Power-of-two frames: Hermite + cheap wrap.
         if tableSize < 4 {
             let i1 = (i0 + 1) % tableSize
             return table[i0] + (table[i1] - table[i0]) * frac
         }
 
-        let y = Self.hermite4(
-            ym1: table[(i0 - 1 + tableSize) % tableSize],
-            y0: table[i0],
-            y1: table[(i0 + 1) % tableSize],
-            y2: table[(i0 + 2) % tableSize],
-            t: frac
-        )
+        let y: Float
+        if tableSize & (tableSize - 1) == 0 {
+            let mask = tableSize - 1
+            let i = i0 & mask
+            y = Self.hermite4(
+                ym1: table[(i &- 1) & mask],
+                y0: table[i],
+                y1: table[(i &+ 1) & mask],
+                y2: table[(i &+ 2) & mask],
+                t: frac
+            )
+        } else {
+            y = Self.hermite4(
+                ym1: table[(i0 - 1 + tableSize) % tableSize],
+                y0: table[i0 % tableSize],
+                y1: table[(i0 + 1) % tableSize],
+                y2: table[(i0 + 2) % tableSize],
+                t: frac
+            )
+        }
         return max(-1.15, min(1.15, y))
     }
 
@@ -327,6 +344,11 @@ final class WavetableOscillator {
 
     var mipOctaveCountForTesting: Int { mipMaps.count }
     var currentFrameCountForTesting: Int { mipMaps.first?.count ?? 0 }
+
+    func mipMaxHarmonicForTesting(_ octave: Int) -> Int {
+        guard octave >= 0, octave < mipMaxHarmonics.count else { return 0 }
+        return mipMaxHarmonics[octave]
+    }
 
     // MARK: - Static Wavetable Generators
 
