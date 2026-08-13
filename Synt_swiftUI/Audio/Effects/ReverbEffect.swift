@@ -47,6 +47,11 @@ class ReverbEffect {
         }
     }
 
+    /// Drop the reverb tail so a wet pad cannot start sounding on its own.
+    func reset() {
+        reverb.reset()
+    }
+
     /// Reloads the IR only when the discrete room slot changes (avoids tail cuts on every knob).
     func setRoomSize(_ size: Float) {
         let slot = Self.roomSlot(for: size)

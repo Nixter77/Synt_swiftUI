@@ -163,13 +163,9 @@ struct Synt_swiftUITests {
         }
 
         #expect(emitted2.contains(.clearAll))
-        // noteOn 52/53 were after clearAll in the ring — must not appear
-        let afterClear = Array(emitted2.drop(while: { $0 != .clearAll }).dropFirst())
-        #expect(afterClear.isEmpty)
-        #expect(emitted2.filter {
-            if case .noteOn(let n, _) = $0 { return n == 52 || n == 53 }
-            return false
-        }.isEmpty)
+        // noteOn 52/53 were pushed after clearAll — keep them (preset change then play)
+        #expect(emitted2.contains(.noteOn(midiNote: 52, velocity: 1.0)))
+        #expect(emitted2.contains(.noteOn(midiNote: 53, velocity: 1.0)))
 
         // Engine integration: full ring noteOns + clearAll must leave no active notes
         let engine = AudioEngine()
@@ -1367,6 +1363,47 @@ struct Synt_swiftUITests {
         #expect(AudioMath.appleFXWetPercent(0.5) > AudioMath.appleFXWetPercent(0.2))
     }
 
+    @Test func switchingPresetSilencesHeldNotesAndStaysQuiet() async throws {
+        let engine = AudioEngine()
+        var initPatch = SynthPreset.defaultPreset
+        initPatch.arpMode = .off
+        engine.preset = initPatch
+        engine.processCommandsForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteActiveForTesting(60))
+        _ = engine.renderFramesForTesting(2048)
+
+        guard let pad = SynthPreset.factoryPresets.first(where: { $0.name == "Slow Motion" }) else {
+            Issue.record("Missing Slow Motion factory preset")
+            return
+        }
+        engine.loadPreset(pad)
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 0)
+        #expect(!engine.isNoteActiveForTesting(60))
+
+        let idle = engine.renderFramesForTesting(8192)
+        #expect(idle.nanCount == 0)
+        #expect(idle.peak < 0.02, "Slow Motion must be silent with no keys, peak \(idle.peak)")
+    }
+
+    @Test func knobEditDoesNotSilenceHeldNote() async throws {
+        let engine = AudioEngine()
+        var initPatch = SynthPreset.defaultPreset
+        initPatch.arpMode = .off
+        engine.preset = initPatch
+        engine.processCommandsForTesting()
+        engine.noteOn(midiNote: 64, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteActiveForTesting(64))
+
+        engine.updatePreset { $0.masterVolume = 0.4 }
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteActiveForTesting(64), "editing a knob must not panic the voice")
+    }
+
     @Test func slowMotionPadStaysBelowClip() async throws {
         guard let pad = SynthPreset.factoryPresets.first(where: { $0.name == "Slow Motion" }) else {
             Issue.record("Missing Slow Motion factory preset")
@@ -1375,10 +1412,12 @@ struct Synt_swiftUITests {
         let engine = AudioEngine()
         engine.preset = pad
         engine.applyPresetForTesting()
+        engine.processCommandsForTesting() // drain preset-change panic before new notes
         for note in [48, 52, 55] {
             engine.noteOn(midiNote: note, velocity: 1)
         }
         engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 3)
         // Long attack: render ~1.2 s so the pad is nearly open.
         let result = engine.renderFramesForTesting(53_000)
         #expect(result.nanCount == 0)

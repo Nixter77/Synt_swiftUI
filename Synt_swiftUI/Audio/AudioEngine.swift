@@ -76,6 +76,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private var cachedBPM: Float = 120.0
     private var cachedArpMode: ArpeggiatorMode = .off
     private var cachedModMatrix: [ModMatrixEntry] = []
+    private var lastAppliedPresetID: UUID?
+    private var lastAppliedPresetName: String = ""
 
     // Portamento state (audio thread)
     private var lastPlayedFrequency: Double? = nil
@@ -805,10 +807,38 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         cachedArpMode = preset.arpMode
         // Do NOT touch `arp` here — it is audio-thread state.
         // generateSample / processCommandQueue apply cachedArpMode on the audio path.
+
+        let switchedPatch = lastAppliedPresetID != nil
+            && (lastAppliedPresetID != preset.id || lastAppliedPresetName != preset.name)
+        lastAppliedPresetID = preset.id
+        lastAppliedPresetName = preset.name
+        if switchedPatch {
+            silenceForPresetChange()
+        }
     }
 
     func loadPreset(_ preset: SynthPreset) {
         self.preset = preset
+    }
+
+    /// New factory/user patch: stop leftover voices and wipe Delay/Reverb tails.
+    /// Knob edits keep the same id/name and must not cut the note.
+    private func silenceForPresetChange() {
+        clearAllNotes()
+        filterL.reset()
+        filterR.reset()
+        dspChorus.reset()
+        distortion.reset()
+        parametricEQL.reset()
+        parametricEQR.reset()
+        phaser.reset()
+        lfo.reset()
+        delay.reset()
+        reverb.reset()
+        smoothedFilterCutoff = cachedFilterCutoff
+        smoothedMasterVolume = cachedMasterVolume
+        smoothedPolyScale = 1.0
+        lastPlayedFrequency = nil
     }
 
     /// Mutate the published preset as a whole so `didSet` → `applyPreset()` always runs.

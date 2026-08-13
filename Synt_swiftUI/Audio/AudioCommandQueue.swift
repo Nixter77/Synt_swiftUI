@@ -193,11 +193,9 @@ final class AudioCommandQueue: @unchecked Sendable {
                 if case .clearAll = command {
                     body(.clearAll)
                     count += 1
-                    didClearAll = true
                     clearCriticalSideChannelBits()
-                    // Drop any commands still queued after panic clear
-                    discardRingContents()
-                    break
+                    // Keep commands pushed *after* this clearAll (new notes after a preset change).
+                    continue
                 }
                 body(command)
                 count += 1

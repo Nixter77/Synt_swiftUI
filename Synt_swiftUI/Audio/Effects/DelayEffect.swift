@@ -32,4 +32,9 @@ class DelayEffect {
         delay.wetDryMix = wetDryMix
         delay.lowPassCutoff = 15000.0
     }
+
+    /// Drop the delay line so a wet preset cannot replay the previous patch.
+    func reset() {
+        delay.reset()
+    }
 }
