@@ -46,6 +46,15 @@ enum AudioMath {
         1.0 / Float(max(1, activeVoices))
     }
 
+    /// Apple Delay/Reverb sit *after* the synth clipper, so a 50% cathedral
+    /// pad (Slow Motion) piles tails into clip while Init (20% hall) stays clean.
+    /// 0…0.25 maps 1:1 (Init unchanged). Above that compresses toward 40% wet.
+    static func appleFXWetPercent(_ mix: Float) -> Float {
+        let m = max(0, min(1, mix))
+        if m <= 0.25 { return m * 100 }
+        return 25 + (m - 0.25) / 0.75 * 15
+    }
+
     /// Soft clip toward ±threshold via tanh. Keeps peaks under the ceiling without hard edges.
     /// Default threshold 0.5 ≈ −6 dB headroom before downstream FX.
     static func softClip(_ value: Float, threshold: Float = 0.5) -> Float {

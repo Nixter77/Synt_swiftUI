@@ -580,6 +580,12 @@ struct Synt_swiftUITests {
             #expect(p.osc1Volume.isFinite && p.osc1Volume <= 1.0)
             #expect(p.attack.isFinite && p.attack >= 0)
             #expect(p.release.isFinite && p.release >= 0)
+            #expect(p.reverbMix <= 0.36, "\(p.name) reverb \(p.reverbMix) too wet for Apple IR")
+            #expect(p.reverbRoomSize <= 0.7, "\(p.name) room \(p.reverbRoomSize) loads a clippy IR")
+            #expect(p.delayMix <= 0.16, "\(p.name) delay mix \(p.delayMix)")
+            if p.delayMix > 0.001 {
+                #expect(p.delayFeedback <= 0.32, "\(p.name) delay feedback \(p.delayFeedback)")
+            }
         }
         // Init remains safe neutral
         let initP = SynthPreset.defaultPreset
@@ -1348,10 +1354,37 @@ struct Synt_swiftUITests {
         }
         #expect(engine.reverbFactoryLoadCountForTesting == afterInit)
 
-        engine.updatePreset { $0.reverbRoomSize = 0.9 } // cathedral
+        engine.updatePreset { $0.reverbRoomSize = 0.9 } // largest slot (large hall, not cathedral)
         #expect(engine.reverbFactoryLoadCountForTesting == afterInit + 1)
-        engine.updatePreset { $0.reverbRoomSize = 0.85 } // still cathedral
+        engine.updatePreset { $0.reverbRoomSize = 0.85 } // same top slot
         #expect(engine.reverbFactoryLoadCountForTesting == afterInit + 1)
+    }
+
+    @Test func appleFXWetPercentKeepsInitMixAndCompressesPads() async throws {
+        #expect(abs(AudioMath.appleFXWetPercent(0.2) - 20) < 0.001)
+        #expect(AudioMath.appleFXWetPercent(0.5) < 36)
+        #expect(AudioMath.appleFXWetPercent(1.0) <= 40)
+        #expect(AudioMath.appleFXWetPercent(0.5) > AudioMath.appleFXWetPercent(0.2))
+    }
+
+    @Test func slowMotionPadStaysBelowClip() async throws {
+        guard let pad = SynthPreset.factoryPresets.first(where: { $0.name == "Slow Motion" }) else {
+            Issue.record("Missing Slow Motion factory preset")
+            return
+        }
+        let engine = AudioEngine()
+        engine.preset = pad
+        engine.applyPresetForTesting()
+        for note in [48, 52, 55] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        // Long attack: render ~1.2 s so the pad is nearly open.
+        let result = engine.renderFramesForTesting(53_000)
+        #expect(result.nanCount == 0)
+        #expect(result.nearClipCount == 0, "Slow Motion hit the ceiling, peak \(result.peak)")
+        #expect(result.peak < 0.95, "Slow Motion peak \(result.peak)")
+        #expect(result.peak > 0.02, "Slow Motion should still be audible, peak \(result.peak)")
     }
 
 }

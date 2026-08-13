@@ -158,7 +158,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private func setupAudioSession() {
         #if os(iOS)
         do {
-            let session = AVAudioSession.sharedInstance()
+             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
         } catch {
@@ -207,7 +207,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.connect(delay.delay, to: reverb.reverb, format: format)
         engine.connect(reverb.reverb, to: engine.mainMixerNode, format: format)
 
-        engine.mainMixerNode.outputVolume = 0.75
+        // Extra headroom after Apple Delay/Reverb (they sit past our clipper).
+        engine.mainMixerNode.outputVolume = 0.62
 
         engine.prepare()
     }
@@ -747,7 +748,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         lfo.waveform = preset.lfoWaveform
         lfo.target = preset.lfoTarget
 
-        reverb.wetDryMix = preset.reverbMix * 100
+        reverb.wetDryMix = AudioMath.appleFXWetPercent(preset.reverbMix)
         reverb.setRoomSize(preset.reverbRoomSize)
 
         dspChorus.rate = preset.chorusRate
@@ -755,8 +756,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         dspChorus.mix = preset.chorusMix
 
         delay.delayTime = preset.delayTime
-        delay.feedback = preset.delayFeedback
-        delay.wetDryMix = preset.delayMix * 100
+        delay.feedback = min(50, max(0, preset.delayFeedback * 100))
+        delay.wetDryMix = AudioMath.appleFXWetPercent(preset.delayMix)
 
         // Advanced FX (Stage 4) — loadable with factory / user presets
         distortion.enabled = preset.distortionEnabled

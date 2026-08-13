@@ -43,7 +43,7 @@ class ReverbEffect {
         case 1: return .mediumRoom
         case 2: return .mediumHall
         case 3: return .largeHall
-        default: return .cathedral
+        default: return .largeHall
         }
     }
 
