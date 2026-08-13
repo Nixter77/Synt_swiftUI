@@ -969,6 +969,48 @@ struct Synt_swiftUITests {
         #expect(abs(osc.framePosition - 1.0) < 0.001)
     }
 
+    @Test func wavetableHermiteAtIntegerPhaseEqualsTable() async throws {
+        let osc = WavetableOscillator()
+        let n = 16
+        var table = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            table[i] = sin(2.0 * Float.pi * Float(i) / Float(n))
+        }
+        for i in 0..<n {
+            let phase = Double(i) / Double(n) * AudioMath.twoPi
+            let y = osc.sampleFromTableForTesting(table, phase: phase)
+            #expect(abs(y - table[i]) < 0.0001, "index \(i): \(y) vs \(table[i])")
+        }
+    }
+
+    @Test func wavetableHermiteStaysBoundedOnSineTable() async throws {
+        let osc = WavetableOscillator()
+        osc.targetFramePosition = 0
+        for _ in 0..<4000 { osc.advanceMorph() }
+
+        var peak: Float = 0
+        let twoPi = AudioMath.twoPi
+        // High note so interpolation is stressed (large phase increment).
+        let dt = twoPi * 1760.0 / 44100.0
+        var phase = 0.0
+        for _ in 0..<4096 {
+            let s = osc.generateSample(phase: phase, phaseIncrement: dt)
+            #expect(s.isFinite)
+            peak = max(peak, abs(s))
+            phase += dt
+            if phase >= twoPi { phase -= twoPi }
+        }
+        #expect(peak > 0.4)
+        #expect(peak < 1.25, "Hermite overshoot too hot: \(peak)")
+    }
+
+    @Test func wavetableHermiteMidpointIsSmoothOnSine() async throws {
+        #expect(abs(WavetableOscillator.hermite4(ym1: 0, y0: 1, y1: 0, y2: -1, t: 0) - 1) < 0.0001)
+        let mid = WavetableOscillator.hermite4(ym1: 0, y0: 1, y1: 0, y2: -1, t: 0.5)
+        #expect(mid.isFinite)
+        #expect(mid > 0.2 && mid < 0.8)
+    }
+
     @Test func oscillatorWavetableAppliesVolumeOnce() async throws {
         let engine = WavetableOscillator()
         engine.targetFramePosition = 0

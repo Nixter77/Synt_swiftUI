@@ -281,11 +281,31 @@ final class WavetableOscillator {
         normalizedPhase -= floor(normalizedPhase)
 
         let pos = normalizedPhase * Double(tableSize)
-        let index0 = Int(pos) % tableSize
-        let index1 = (index0 + 1) % tableSize
         let frac = Float(pos - floor(pos))
+        let i0 = Int(pos) % tableSize
 
-        return table[index0] + (table[index1] - table[index0]) * frac
+        // Short tables: linear. Normal 2048-point frames: 4-point Hermite.
+        if tableSize < 4 {
+            let i1 = (i0 + 1) % tableSize
+            return table[i0] + (table[i1] - table[i0]) * frac
+        }
+
+        return Self.hermite4(
+            ym1: table[(i0 - 1 + tableSize) % tableSize],
+            y0: table[i0],
+            y1: table[(i0 + 1) % tableSize],
+            y2: table[(i0 + 2) % tableSize],
+            t: frac
+        )
+    }
+
+    /// Catmull-Rom / cubic Hermite. `t == 0` returns `y0` exactly.
+    @inline(__always)
+    static func hermite4(ym1: Float, y0: Float, y1: Float, y2: Float, t: Float) -> Float {
+        let c1 = 0.5 * (y1 - ym1)
+        let c2 = ym1 - 2.5 * y0 + 2.0 * y1 - 0.5 * y2
+        let c3 = 0.5 * (y2 - ym1) + 1.5 * (y0 - y1)
+        return ((c3 * t + c2) * t + c1) * t + y0
     }
 
     func reset() {
@@ -298,6 +318,10 @@ final class WavetableOscillator {
     /// Expose band-limit for unit tests without going through full mip chain.
     func bandLimitForTesting(_ source: [Float], maxHarmonic: Int) -> [Float] {
         applyFFTBandLimit(source, maxHarmonic: maxHarmonic)
+    }
+
+    func sampleFromTableForTesting(_ table: [Float], phase: Double) -> Float {
+        sampleFromTable(table, phase: phase)
     }
 
     var mipOctaveCountForTesting: Int { mipMaps.count }
