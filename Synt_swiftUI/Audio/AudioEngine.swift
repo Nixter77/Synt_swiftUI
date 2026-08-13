@@ -760,7 +760,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         dspChorus.mix = preset.chorusMix
 
         delay.delayTime = preset.delayTime
-        delay.feedback = min(50, max(0, preset.delayFeedback * 100))
+        // Preset / knob are 0…1. DelayEffect converts to AU percent.
+        // The old `* 100` wrote 28 into a 0…1 wrapper → AU 2800% → clamp 100%
+        // → Crystal Lead (and any wet delay) never decayed after noteOff.
+        delay.feedback = max(0, min(1, preset.delayFeedback))
         delay.wetDryMix = AudioMath.appleFXWetPercent(preset.delayMix)
 
         // Advanced FX (Stage 4) — loadable with factory / user presets
@@ -883,6 +886,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     var reverbFactoryLoadCountForTesting: Int { reverb.factoryPresetLoadCount }
+
+    /// Wrapper 0…1 (not AU percent). Crystal Lead must stay ~0.28, never 28.
+    var delayFeedbackForTesting: Float { delay.feedback }
+    var delayWetPercentForTesting: Float { delay.wetDryMix }
 
     /// Advanced FX + morph state after `applyPreset` (for factory library tests).
     func appliedAdvancedFXForTesting() -> (

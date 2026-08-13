@@ -1164,6 +1164,61 @@ struct Synt_swiftUITests {
         #expect(engine.activeNoteCountForTesting == 0, "notes must finish after release, still \(engine.activeNoteCountForTesting)")
     }
 
+    @Test func delayEffectClampsFeedbackToUnit() async throws {
+        let fx = DelayEffect()
+        fx.feedback = 28 // old applyPreset wrote percent into the 0…1 wrapper
+        #expect(fx.feedback <= 1.0)
+        #expect(abs(fx.feedback - 1.0) < 0.0001)
+        fx.feedback = 0.28
+        #expect(abs(fx.feedback - 0.28) < 0.0001)
+    }
+
+    @Test func delayFeedbackStaysUnitScaleOnApply() async throws {
+        let engine = AudioEngine()
+        guard let lead = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
+            Issue.record("Missing Crystal Lead factory preset")
+            return
+        }
+        engine.loadPreset(lead)
+        engine.applyPresetForTesting()
+        #expect(abs(engine.delayFeedbackForTesting - lead.delayFeedback) < 0.001)
+        #expect(engine.delayFeedbackForTesting <= 1.0, "feedback \(engine.delayFeedbackForTesting) looks like percent — delay will never decay")
+        #expect(engine.delayWetPercentForTesting > 0)
+        #expect(engine.delayWetPercentForTesting < 40)
+    }
+
+    @Test func crystalLeadFourNoteReleaseEndsVoices() async throws {
+        let engine = AudioEngine()
+        guard var lead = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
+            Issue.record("Missing Crystal Lead factory preset")
+            return
+        }
+        lead.arpMode = .off
+        engine.preset = lead
+        engine.processCommandsForTesting()
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+        #expect(engine.heldPartialCountForTesting == 4)
+
+        let held = engine.renderFramesForTesting(8192)
+        #expect(held.nanCount == 0)
+        #expect(held.peak < 0.95, "Crystal Lead chord clipped, peak \(held.peak)")
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteReleasingForTesting(60))
+
+        // Authored release is 0.3s; envelope floor needs ~0.5s. 1s of samples is enough.
+        _ = engine.renderFramesForTesting(44_100)
+        #expect(engine.activeNoteCountForTesting == 0, "Crystal Lead voices still active after release: \(engine.activeNoteCountForTesting)")
+    }
+
     @Test func computerKeyCodesMapStableOffsets() async throws {
         #expect(KeyboardHandler.keyCodeToNoteOffset[0] == 0)   // A → C
         #expect(KeyboardHandler.keyCodeToNoteOffset[13] == 1)  // W → C#

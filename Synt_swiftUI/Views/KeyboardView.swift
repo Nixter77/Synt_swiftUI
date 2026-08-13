@@ -135,7 +135,8 @@ struct KeyboardView: View {
                     
                     let activeZoneX = CGFloat(baseOctaveOffset) * octaveWidth + dragOffset
                     
-                    // Only show if it's somewhat in view
+                    // Visual only — a full-key hit target here stole piano onEnded
+                    // and left notes hanging after release.
                     if activeZoneX + activeZoneWidth > -50 && activeZoneX < availableWidth + 50 {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(AppleTheme.accentBlue.opacity(0.15))
@@ -153,8 +154,7 @@ struct KeyboardView: View {
                                     .foregroundColor(AppleTheme.accentBlue)
                                     .padding(.top, 6)
                                     Spacer()
-                                    
-                                    // Drag handle
+
                                     RoundedRectangle(cornerRadius: 2)
                                         .fill(AppleTheme.accentBlue.opacity(0.4))
                                         .frame(width: 40, height: 4)
@@ -163,16 +163,24 @@ struct KeyboardView: View {
                             )
                             .frame(width: activeZoneWidth, height: whiteKeyHeight)
                             .offset(x: activeZoneX, y: 0)
+                            .allowsHitTesting(false)
+
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(AppleTheme.accentBlue.opacity(0.45))
+                            .frame(width: 44, height: 12)
+                            .offset(
+                                x: activeZoneX + (activeZoneWidth - 44) / 2,
+                                y: whiteKeyHeight - 18
+                            )
                             .gesture(
                                 DragGesture()
                                     .onChanged { value in
                                         dragOffset = value.translation.width
                                     }
-                                    .onEnded { value in
+                                    .onEnded { _ in
                                         let draggedOctaves = Int(round(dragOffset / octaveWidth))
                                         let newOctave = keyboardHandler.baseOctave + draggedOctaves
-                                        
-                                        // Update octave
+
                                         if newOctave != keyboardHandler.baseOctave {
                                             if newOctave > keyboardHandler.baseOctave {
                                                 for _ in 0..<(newOctave - keyboardHandler.baseOctave) { keyboardHandler.octaveUp() }
@@ -180,8 +188,7 @@ struct KeyboardView: View {
                                                 for _ in 0..<(keyboardHandler.baseOctave - newOctave) { keyboardHandler.octaveDown() }
                                             }
                                         }
-                                        
-                                        // Snap back
+
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                             dragOffset = 0
                                         }

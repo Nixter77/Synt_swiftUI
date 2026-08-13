@@ -14,9 +14,15 @@ class DelayEffect {
         }
     }
 
+    /// Linear 0…1. `AVAudioUnitDelay.feedback` is a percent (0…100).
     var feedback: Float = 0.4 {
         didSet {
-            delay.feedback = feedback * 100.0
+            let clamped = max(0, min(1, feedback))
+            if clamped != feedback {
+                feedback = clamped
+                return
+            }
+            delay.feedback = clamped * 100.0
         }
     }
 
