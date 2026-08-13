@@ -254,6 +254,15 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             wavetableEngine2.advanceMorph()
         }
 
+        smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1 - smoothingCoeff)
+        smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1 - smoothingCoeff)
+        var cutoff = smoothedFilterCutoff
+        if lfoEnabled && lfoTarget == .filter {
+            cutoff = lfo.modulateFilter(cutoff, lfoValue: lfoValue)
+        }
+        filterL.cutoff = cutoff
+        let filterCoeffs = filterL.currentCoefficients(sampleRate: Float(sampleRate))
+
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
         for i in 0..<AudioEngine.maxVoices {
             guard voices[i].isActive else { continue }
@@ -360,6 +369,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                 amplitude = lfo.modulateAmplitude(amplitude, lfoValue: lfoValue)
             }
             if !amplitude.isFinite { amplitude = 0 }
+            amplitude = v.filter.process(amplitude, coeffs: filterCoeffs)
+            if !amplitude.isFinite { amplitude = 0 }
 
             var pan = v.pan + panMod
             if lfoEnabled && lfoTarget == .pan { pan += lfoValue }
@@ -379,24 +390,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         if !mixedSampleL.isFinite { mixedSampleL = 0 }
         if !mixedSampleR.isFinite { mixedSampleR = 0 }
 
-        smoothedFilterCutoff = smoothedFilterCutoff * smoothingCoeff + cachedFilterCutoff * (1 - smoothingCoeff)
-        smoothedMasterVolume = smoothedMasterVolume * smoothingCoeff + cachedMasterVolume * (1 - smoothingCoeff)
-
-        var cutoff = smoothedFilterCutoff
-        if lfoEnabled && lfoTarget == .filter {
-            cutoff = lfo.modulateFilter(cutoff, lfoValue: lfoValue)
-        }
-        filterL.cutoff = cutoff
-        filterR.cutoff = cutoff
-
-        var filteredL = filterL.process(mixedSampleL, sampleRate: Float(sampleRate))
-        var filteredR = filterR.process(mixedSampleR, sampleRate: Float(sampleRate))
-        if !filteredL.isFinite { filterL.reset(); filteredL = 0 }
-        if !filteredR.isFinite { filterR.reset(); filteredR = 0 }
-
         let headroom: Float = 0.65
-        var fxL = filteredL * smoothedMasterVolume * headroom
-        var fxR = filteredR * smoothedMasterVolume * headroom
+        var fxL = mixedSampleL * smoothedMasterVolume * headroom
+        var fxR = mixedSampleR * smoothedMasterVolume * headroom
 
         if distortion.enabled {
             (fxL, fxR) = distortion.processStereo(inputL: fxL, inputR: fxR)
@@ -942,6 +938,15 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         for i in 0..<AudioEngine.maxVoices {
             if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
                 return voices[i].unisonScale
+            }
+        }
+        return 0
+    }
+
+    func voiceFilterEnergyForTesting(_ midiNote: Int) -> Float {
+        for i in 0..<AudioEngine.maxVoices {
+            if voices[i].isActive && voices[i].midiNote == midiNote {
+                return voices[i].filter.energy
             }
         }
         return 0

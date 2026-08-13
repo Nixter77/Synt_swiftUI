@@ -8,6 +8,52 @@
 
 import Foundation
 
+/// Shared RBJ coefficients. One set per sample; each voice keeps its own memory.
+struct BiquadCoeffs {
+    var b0: Float = 1
+    var b1: Float = 0
+    var b2: Float = 0
+    var a1: Float = 0
+    var a2: Float = 0
+}
+
+/// Per-voice z⁻¹ state. Must not be shared across MIDI notes.
+struct BiquadMemory {
+    var x1: Float = 0
+    var x2: Float = 0
+    var y1: Float = 0
+    var y2: Float = 0
+
+    mutating func reset() {
+        x1 = 0
+        x2 = 0
+        y1 = 0
+        y2 = 0
+    }
+
+    @inline(__always)
+    mutating func process(_ input: Float, coeffs: BiquadCoeffs) -> Float {
+        let x = max(-3, min(3, input))
+        var output = coeffs.b0 * x + coeffs.b1 * x1 + coeffs.b2 * x2
+            - coeffs.a1 * y1 - coeffs.a2 * y2
+        if !output.isFinite {
+            reset()
+            return 0
+        }
+        if abs(output) < 1.0e-15 {
+            output = 0
+        }
+        output = max(-2.5, min(2.5, output))
+        x2 = x1
+        x1 = x
+        y2 = y1
+        y1 = output
+        return output
+    }
+
+    var energy: Float { abs(x1) + abs(x2) + abs(y1) + abs(y2) }
+}
+
 final class CachedBiquadFilter {
     var type: FilterType = .lowPass {
         didSet { if oldValue != type { isDirty = true } }
@@ -100,6 +146,23 @@ final class CachedBiquadFilter {
         y1 = output
 
         return output
+    }
+
+    /// Smooth cutoff and return coeffs without touching this instance's z-state.
+    /// Call once per sample, then run `BiquadMemory.process` on each voice.
+    @inline(__always)
+    func currentCoefficients(sampleRate: Float) -> BiquadCoeffs {
+        let cutoffDiff = targetCutoff - smoothedCutoff
+        if abs(cutoffDiff) > 0.1 {
+            smoothedCutoff += cutoffDiff * (1.0 - smoothingCoeff)
+            isDirty = true
+        }
+        if isDirty || abs(cachedSampleRate - sampleRate) > 0.1 {
+            cachedSampleRate = sampleRate
+            recalculateCoefficients(sampleRate: sampleRate)
+            isDirty = false
+        }
+        return BiquadCoeffs(b0: b0, b1: b1, b2: b2, a1: a1, a2: a2)
     }
 
     private func recalculateCoefficients(sampleRate: Float) {

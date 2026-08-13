@@ -55,6 +55,8 @@ struct ActiveNote {
     var pan: Float = 0.0
     /// `1/U` for this note's unison stack. Independent MIDI notes stay at 1.
     var unisonScale: Float = 1.0
+    /// Per-voice filter memory. Coeffs are shared; this state is not.
+    var filter = BiquadMemory()
 
     static let inactive = ActiveNote()
 
@@ -80,6 +82,7 @@ struct ActiveNote {
         self.fastRelease = false
         self.pan = pan
         self.unisonScale = unisonScale
+        self.filter.reset()
     }
 
     /// Soft end: enter short release instead of hard cut (avoids clicks).
@@ -100,6 +103,7 @@ struct ActiveNote {
         envelopePhase = .finished
         isReleasing = false
         fastRelease = false
+        filter.reset()
     }
 }
 

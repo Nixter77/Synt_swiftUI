@@ -1345,6 +1345,42 @@ struct Synt_swiftUITests {
         }
     }
 
+    @Test func biquadMemoryMatchesClassFilterOnSine() async throws {
+        let f = CachedBiquadFilter()
+        f.type = .lowPass
+        f.cutoff = 1200
+        f.resonance = 0.3
+        var mem = BiquadMemory()
+        for i in 0..<256 {
+            let x = sin(2 * Float.pi * 220 * Float(i) / 44100)
+            let classY = f.process(x, sampleRate: 44100)
+            let coeffs = f.currentCoefficients(sampleRate: 44100)
+            let memY = mem.process(x, coeffs: coeffs)
+            #expect(classY.isFinite && memY.isFinite)
+        }
+    }
+
+    @Test func perVoiceFilterDoesNotShareState() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(2048)
+        let held = engine.voiceFilterEnergyForTesting(60)
+        #expect(held > 0.0001, "held note must accumulate filter state")
+
+        engine.noteOn(midiNote: 72, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.voiceFilterEnergyForTesting(72) == 0, "new voice must start with a clean filter")
+        #expect(engine.voiceFilterEnergyForTesting(60) > 0.0001, "old voice filter must not reset when another note starts")
+    }
+
     // MARK: - Gain staging (Этап 1)
 
     @Test func polyphonyScaleIsPowerPreserving() async throws {
