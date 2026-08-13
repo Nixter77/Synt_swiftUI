@@ -67,7 +67,8 @@ struct WhiteKeyView: View {
                 .padding(.bottom, 8)
         }
         .frame(width: width, height: height)
-        .gesture(
+        .contentShape(Rectangle())
+        .highPriorityGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in onPress() }
                 .onEnded { _ in onRelease() }
@@ -119,7 +120,8 @@ struct BlackKeyView: View {
             .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .frame(width: width, height: height)
-        .gesture(
+        .contentShape(Rectangle())
+        .highPriorityGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in onPress() }
                 .onEnded { _ in onRelease() }

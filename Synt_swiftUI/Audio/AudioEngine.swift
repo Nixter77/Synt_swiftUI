@@ -653,6 +653,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
                 voices[i].isReleasing = true
                 voices[i].releaseStartValue = voices[i].envelopeValue
+                voices[i].envelopePhase = .release
+                voices[i].envelopeTime = 0
             }
         }
     }

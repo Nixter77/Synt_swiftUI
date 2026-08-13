@@ -14,30 +14,33 @@ struct ContentView: View {
     @State private var showSequencer: Bool = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                headerSection
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 16) {
+                    headerSection
 
-                controlsSection
-                
-                // Step Sequencer (collapsible)
-                if showSequencer {
-                    StepSequencerView(
-                        sequencer: stepSequencer,
-                        bpm: $audioEngine.preset.bpm,
-                        isPlaying: $stepSequencer.isPlaying
-                    )
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    controlsSection
+
+                    if showSequencer {
+                        StepSequencerView(
+                            sequencer: stepSequencer,
+                            bpm: $audioEngine.preset.bpm,
+                            isPlaying: $stepSequencer.isPlaying
+                        )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
-
-                KeyboardView(
-                    keyboardHandler: keyboardHandler,
-                    pressedKeys: audioEngine.pressedKeys,
-                    startNote: 36, // Fixed start note (C2)
-                    numberOfOctaves: 4
-                )
+                .padding()
             }
-            .padding()
+
+            // Keyboard stays outside ScrollView so a drag cannot cancel noteOff.
+            KeyboardView(
+                keyboardHandler: keyboardHandler,
+                pressedKeys: audioEngine.pressedKeys,
+                startNote: 36,
+                numberOfOctaves: 4
+            )
+            .padding(.bottom, 8)
         }
         .background(AppleTheme.windowBackground)
         // Timer for sequencer (runs at ~1000Hz for accurate timing)

@@ -1140,6 +1140,38 @@ struct Synt_swiftUITests {
         #expect(chord.peak < single.peak * 1.8, "chord \(chord.peak) much louder than one note \(single.peak)")
     }
 
+    @Test func fourNoteReleaseActuallyEndsVoices() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.release = 0.05
+        engine.preset = preset
+        engine.processCommandsForTesting()
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteReleasingForTesting(60))
+
+        _ = engine.renderFramesForTesting(12_000)
+        #expect(engine.activeNoteCountForTesting == 0, "notes must finish after release, still \(engine.activeNoteCountForTesting)")
+    }
+
+    @Test func computerKeyCodesMapStableOffsets() async throws {
+        #expect(KeyboardHandler.keyCodeToNoteOffset[0] == 0)   // A → C
+        #expect(KeyboardHandler.keyCodeToNoteOffset[13] == 1)  // W → C#
+        #expect(KeyboardHandler.keyCodeToNoteOffset[38] == 11) // J → B
+        #expect(KeyboardHandler.keyCodeToNoteOffset[41] == 16) // ; → E+
+        #expect(KeyboardHandler.keyCodeToNoteOffset[6] == nil) // Z is octave, not a note
+    }
+
     @Test func factoryPresetsCapUnisonForChordSafety() async throws {
         for preset in SynthPreset.factoryPresets {
             #expect(preset.unisonVoices <= 2, "\(preset.name) unison \(preset.unisonVoices) too high for chords")

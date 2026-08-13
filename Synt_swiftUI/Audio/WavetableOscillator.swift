@@ -290,13 +290,14 @@ final class WavetableOscillator {
             return table[i0] + (table[i1] - table[i0]) * frac
         }
 
-        return Self.hermite4(
+        let y = Self.hermite4(
             ym1: table[(i0 - 1 + tableSize) % tableSize],
             y0: table[i0],
             y1: table[(i0 + 1) % tableSize],
             y2: table[(i0 + 2) % tableSize],
             t: frac
         )
+        return max(-1.15, min(1.15, y))
     }
 
     /// Catmull-Rom / cubic Hermite. `t == 0` returns `y0` exactly.
