@@ -411,6 +411,10 @@ enum ModDestination: String, CaseIterable, Codable {
 // MARK: - Factory authoring helpers
 
 enum PresetAuthoring {
+    /// Destinations the live render actually applies (pitch1/2, amp, pan).
+    /// Cutoff / PWM / mix entries are stored and silent — do not author them.
+    static let liveDestinations: Set<ModDestination> = [.pitch1, .pitch2, .amp, .pan]
+
     static func mod(_ source: ModSource, _ dest: ModDestination, _ amount: Float) -> ModMatrixEntry {
         ModMatrixEntry(source: source, destination: dest, amount: amount)
     }

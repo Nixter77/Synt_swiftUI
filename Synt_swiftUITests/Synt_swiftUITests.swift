@@ -576,12 +576,14 @@ struct Synt_swiftUITests {
             #expect(p.osc1Volume.isFinite && p.osc1Volume <= 1.0)
             #expect(p.attack.isFinite && p.attack >= 0)
             #expect(p.release.isFinite && p.release >= 0)
-            #expect(p.reverbMix <= 0.36, "\(p.name) reverb \(p.reverbMix) too wet for Apple IR")
-            #expect(p.reverbRoomSize <= 0.7, "\(p.name) room \(p.reverbRoomSize) loads a clippy IR")
-            #expect(p.delayMix <= 0.16, "\(p.name) delay mix \(p.delayMix)")
+            #expect(p.reverbMix <= 0.24, "\(p.name) reverb \(p.reverbMix) too wet after the clipper")
+            #expect(p.reverbRoomSize <= 0.55, "\(p.name) room \(p.reverbRoomSize) too large for Apple IR")
+            #expect(p.delayMix <= 0.10, "\(p.name) delay mix \(p.delayMix)")
             if p.delayMix > 0.001 {
-                #expect(p.delayFeedback <= 0.32, "\(p.name) delay feedback \(p.delayFeedback)")
+                #expect(p.delayFeedback <= 0.22, "\(p.name) delay feedback \(p.delayFeedback)")
             }
+            #expect(p.chorusMix <= 0.14, "\(p.name) chorus \(p.chorusMix)")
+            #expect(p.filterEnvelopeAmount == 0, "\(p.name) Env Amt is not live — bake cutoff instead")
         }
         // Init remains safe neutral
         let initP = SynthPreset.defaultPreset
@@ -1317,6 +1319,46 @@ struct Synt_swiftUITests {
     @Test func factoryPresetsCapUnisonForChordSafety() async throws {
         for preset in SynthPreset.factoryPresets {
             #expect(preset.unisonVoices <= 2, "\(preset.name) unison \(preset.unisonVoices) too high for chords")
+        }
+    }
+
+    @Test func factoryPresetsOnlyUseLiveMatrixDestinations() async throws {
+        for preset in SynthPreset.factoryPresets {
+            for entry in preset.modMatrix {
+                #expect(
+                    PresetAuthoring.liveDestinations.contains(entry.destination),
+                    "\(preset.name) matrix → \(entry.destination.rawValue) is silent in the engine"
+                )
+            }
+        }
+    }
+
+    @Test func factoryPresetsAvoidDensityPilesTheEngineCannotCarry() async throws {
+        for preset in SynthPreset.factoryPresets {
+            let osc1WT = preset.osc1Waveform == .wavetable
+            let osc2WT = preset.osc2Enabled && preset.osc2Waveform == .wavetable
+            #expect(!(osc1WT && osc2WT), "\(preset.name) uses two wavetables — only Basic Shapes exists")
+
+            if preset.unisonVoices > 1 {
+                #expect(
+                    preset.category == .bass || preset.category == .lead || preset.category == .fx,
+                    "\(preset.name) unison on a chord category — second key collapses it"
+                )
+                #expect(!preset.phaserEnabled, "\(preset.name) unison + phaser")
+            }
+
+            if osc1WT || osc2WT {
+                let morphs = [preset.osc1WavetableMorph] + (osc2WT ? [preset.osc2WavetableMorph] : [])
+                for morph in morphs {
+                    #expect(morph <= 0.42, "\(preset.name) WT morph \(morph) is into saw/square sand")
+                }
+            }
+
+            let wetCount = (preset.reverbMix > 0.05 ? 1 : 0)
+                + (preset.chorusMix > 0.05 ? 1 : 0)
+                + (preset.delayMix > 0.05 ? 1 : 0)
+                + (preset.phaserEnabled ? 1 : 0)
+            #expect(wetCount <= 2, "\(preset.name) stacks \(wetCount) wet FX after the clipper")
         }
     }
 
