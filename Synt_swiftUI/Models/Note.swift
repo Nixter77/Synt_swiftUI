@@ -53,10 +53,18 @@ struct ActiveNote {
     /// When set, release uses a short fade (steal / re-trigger) instead of preset release.
     var fastRelease: Bool = false
     var pan: Float = 0.0
+    /// `1/U` for this note's unison stack. Independent MIDI notes stay at 1.
+    var unisonScale: Float = 1.0
 
     static let inactive = ActiveNote()
 
-    mutating func activate(midiNote: Int, velocity: Float, frequency: Double, pan: Float = 0.0) {
+    mutating func activate(
+        midiNote: Int,
+        velocity: Float,
+        frequency: Double,
+        pan: Float = 0.0,
+        unisonScale: Float = 1.0
+    ) {
         self.isActive = true
         self.midiNote = midiNote
         self.velocity = velocity
@@ -71,6 +79,7 @@ struct ActiveNote {
         self.isReleasing = false
         self.fastRelease = false
         self.pan = pan
+        self.unisonScale = unisonScale
     }
 
     /// Soft end: enter short release instead of hard cut (avoids clicks).

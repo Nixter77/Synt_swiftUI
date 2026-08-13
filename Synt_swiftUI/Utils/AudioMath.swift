@@ -34,16 +34,23 @@ enum AudioMath {
     }
 
     /// Power-preserving scale: `1 / sqrt(max(1, activeVoices))`.
-    /// Too hot for real chords (notes add nearly in phase). Live path uses `busScale`.
+    /// Kept for tests / docs. Live path does **not** scale the mix bus.
     static func polyphonyScale(activeVoices: Int) -> Float {
         Float(1.0 / sqrt(Double(max(1, activeVoices))))
     }
 
-    /// Fixed peak budget for the mix bus. Musical notes are correlated, so
-    /// they add closer to linearly than `1/√N`. `1/N` keeps a 4-note chord
-    /// at the same peak as one note instead of ~6 dB hotter.
+    /// Old mix-bus peak budget (`1/N`). Not used on the live path (phase 1.1).
     static func busScale(activeVoices: Int) -> Float {
         1.0 / Float(max(1, activeVoices))
+    }
+
+    /// Static per-voice gain. `1` keeps a single Init note at the old level
+    /// (bus `1/N` was 1 for one voice). Chords sum linearly on top.
+    static let voiceGain: Float = 1.0
+
+    /// Unison only: `1/U` inside one MIDI note, never across the mix bus.
+    static func unisonScale(partials: Int) -> Float {
+        1.0 / Float(max(1, partials))
     }
 
     /// Apple Delay/Reverb sit *after* the synth clipper, so a 50% cathedral

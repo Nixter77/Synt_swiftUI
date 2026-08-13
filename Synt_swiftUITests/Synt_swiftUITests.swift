@@ -1037,23 +1037,63 @@ struct Synt_swiftUITests {
         engine.processCommandsForTesting()
 
         engine.noteOn(midiNote: 60, velocity: 1)
-        engine.noteOn(midiNote: 64, velocity: 1)
-        engine.noteOn(midiNote: 67, velocity: 1)
         engine.processCommandsForTesting()
-        #expect(engine.heldPartialCountForTesting == 3)
-        let three = engine.renderFramesForTesting(8192)
-        #expect(three.nanCount == 0)
-        #expect(three.nearClipCount == 0, "3-note Crystal Lead hit ceiling, peak \(three.peak)")
-        #expect(three.peak < 0.95)
+        let one = engine.renderFramesDetailedForTesting(4096)
+        #expect(one.nanCount == 0)
+        #expect(one.peak > 0.03)
 
-        engine.noteOn(midiNote: 71, velocity: 1)
+        for note in [64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
         engine.processCommandsForTesting()
         #expect(engine.heldPartialCountForTesting == 4)
-        let four = engine.renderFramesForTesting(8192)
+        let four = engine.renderFramesDetailedForTesting(8192)
         #expect(four.nanCount == 0)
         #expect(four.nearClipCount == 0, "4-note Crystal Lead hit ceiling, peak \(four.peak)")
         #expect(four.peak < 0.95, "4-note Crystal Lead peak \(four.peak)")
-        #expect(four.peak < three.peak * 1.35, "4th note jumped level \(three.peak) → \(four.peak)")
+        #expect(four.peak > one.peak * 1.1, "chord \(four.peak) should be louder than one note \(one.peak)")
+        #expect(four.preClipPeak < 1.35, "Crystal Lead 4-note pre-clip \(four.preClipPeak)")
+    }
+
+    @Test func unisonScaleIsOneOverPartials() async throws {
+        #expect(abs(AudioMath.unisonScale(partials: 1) - 1) < 0.0001)
+        #expect(abs(AudioMath.unisonScale(partials: 3) - Float(1.0 / 3.0)) < 0.0001)
+        #expect(abs(AudioMath.voiceGain - 1) < 0.0001)
+    }
+
+    @Test func soloUnisonDoesNotTripleLevel() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        preset.eqEnabled = false
+        preset.chorusMix = 0
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(abs(engine.unisonScaleForTesting(60) - 1) < 0.001)
+        let one = engine.renderFramesDetailedForTesting(4096)
+        engine.clearAllNotes()
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(512)
+
+        var stacked = preset
+        stacked.unisonVoices = 3
+        stacked.unisonDetune = 8
+        engine.preset = stacked
+        engine.applyPresetForTesting()
+        engine.processCommandsForTesting()
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.heldPartialCountForTesting == 3)
+        #expect(abs(engine.unisonScaleForTesting(60) - Float(1.0 / 3.0)) < 0.001)
+        let three = engine.renderFramesDetailedForTesting(4096)
+        #expect(three.nanCount == 0)
+        #expect(three.peak < one.peak * 1.6, "unison 3 is \(three.peak) vs one \(one.peak)")
+        #expect(three.peak > one.peak * 0.45, "unison 3 disappeared: \(three.peak) vs \(one.peak)")
     }
 
     @Test func oscillatorWavetableAppliesVolumeOnce() async throws {
@@ -1166,7 +1206,7 @@ struct Synt_swiftUITests {
 
         engine.noteOn(midiNote: 60, velocity: 1)
         engine.processCommandsForTesting()
-        let single = engine.renderFramesForTesting(4096)
+        let single = engine.renderFramesDetailedForTesting(4096)
         #expect(single.nanCount == 0)
         #expect(single.peak > 0.04, "one Init note must still be audible, peak \(single.peak)")
         #expect(single.peak < 0.95, "one Init note clipped, peak \(single.peak)")
@@ -1178,11 +1218,13 @@ struct Synt_swiftUITests {
         #expect(engine.activeNoteCountForTesting == 4)
         #expect(engine.heldPartialCountForTesting == 4)
 
-        let chord = engine.renderFramesForTesting(8192)
+        let chord = engine.renderFramesDetailedForTesting(8192)
         #expect(chord.nanCount == 0)
         #expect(chord.nearClipCount == 0, "4-note Init chord hit the ceiling \(chord.nearClipCount) times, peak \(chord.peak)")
         #expect(chord.peak < 0.95, "4-note Init chord peak \(chord.peak)")
-        #expect(chord.peak < single.peak * 1.8, "chord \(chord.peak) much louder than one note \(single.peak)")
+        // Linear sum: a chord must be louder than one note, not ducked by 1/N.
+        #expect(chord.peak > single.peak * 1.15, "chord \(chord.peak) should be louder than one note \(single.peak)")
+        #expect(chord.preClipPeak < 1.25, "4-note Init slamming the clipper, pre-clip \(chord.preClipPeak)")
     }
 
     @Test func fourNoteReleaseActuallyEndsVoices() async throws {

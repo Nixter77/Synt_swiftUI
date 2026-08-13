@@ -94,10 +94,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private var smoothedFilterCutoff: Float = 5000.0
     private var smoothedMasterVolume: Float = 0.5
     private let smoothingCoeff: Float = 0.999
-    /// Smoothed 1/N bus scale. Scale-down is instant (lag = chord-onset clip).
-    private var smoothedPolyScale: Float = 1.0
-    /// ~25 ms when notes drop and the bus is allowed to get louder.
-    private let polyScaleReleaseCoeff: Float = 0.998
+    /// Peak before the safety soft-clip (tests / gain staging).
+    private var lastPreClipAbs: Float = 0
 
     // Oscilloscope Capture (audio thread buffer → AtomicMeteringState)
     private var scopeBuffer: [Float] = Array(repeating: 0.0, count: 512)
@@ -221,7 +219,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     private func renderOneSample() -> (Float, Float) {
         var mixedSampleL: Float = 0.0
         var mixedSampleR: Float = 0.0
-        var mixedVoiceCount: Int = 0
 
         // --- CLOCK & ARP ---
         let bpm = cachedBPM
@@ -358,6 +355,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
             var amplitude = sample * envelopeValue * max(0.15, min(1.0, velValue))
             amplitude *= max(0.0, 1.0 + ampMod)
+            amplitude *= AudioMath.voiceGain * v.unisonScale
             if lfoEnabled && lfoTarget == .amplitude {
                 amplitude = lfo.modulateAmplitude(amplitude, lfoValue: lfoValue)
             }
@@ -370,7 +368,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
             mixedSampleL += amplitude * cos(angle)
             mixedSampleR += amplitude * sin(angle)
-            mixedVoiceCount += 1
 
             if v.envelopePhase == .finished {
                 v.deactivate()
@@ -378,18 +375,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             }
             voices[i] = v
         }
-
-        // 1/N so a 4-note chord stays at the same peak as one note.
-        // Scale down immediately — a one-pole here left the first ms of a chord unscaled and clipped.
-        let targetPolyScale = AudioMath.busScale(activeVoices: mixedVoiceCount)
-        if targetPolyScale < smoothedPolyScale {
-            smoothedPolyScale = targetPolyScale
-        } else {
-            smoothedPolyScale = smoothedPolyScale * polyScaleReleaseCoeff
-                + targetPolyScale * (1 - polyScaleReleaseCoeff)
-        }
-        mixedSampleL *= smoothedPolyScale
-        mixedSampleR *= smoothedPolyScale
 
         if !mixedSampleL.isFinite { mixedSampleL = 0 }
         if !mixedSampleR.isFinite { mixedSampleR = 0 }
@@ -436,6 +421,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             outR *= sin(a)
         }
 
+        lastPreClipAbs = max(abs(outL), abs(outR))
         outL = AudioMath.softClip(outL, threshold: 0.95)
         outR = AudioMath.softClip(outR, threshold: 0.95)
 
@@ -539,6 +525,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
         let detuneAmount = cachedUnisonDetune
         let spreadAmount = cachedUnisonSpread
+        let partialScale = AudioMath.unisonScale(partials: unisonCount)
 
         for u in 0..<unisonCount {
             guard let slot = findFreeVoiceSlot() else { break }
@@ -563,7 +550,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                 midiNote: midiNote,
                 velocity: velocity,
                 frequency: curFreq,
-                pan: pan
+                pan: pan,
+                unisonScale: partialScale
             )
             voices[slot].targetFrequency = targetFreq
             voices[slot].currentFrequency = curFreq
@@ -580,8 +568,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
                 guard voices[j].midiNote == voices[i].midiNote else { continue }
                 if voices[j].envelopeValue > voices[i].envelopeValue {
                     voices[i].beginFastRelease()
+                    voices[j].unisonScale = 1
                 } else {
                     voices[j].beginFastRelease()
+                    voices[i].unisonScale = 1
                 }
             }
         }
@@ -842,7 +832,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         reverb.reset()
         smoothedFilterCutoff = cachedFilterCutoff
         smoothedMasterVolume = cachedMasterVolume
-        smoothedPolyScale = 1.0
         lastPlayedFrequency = nil
     }
 
@@ -923,12 +912,21 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     /// Offline render of the current voice pool (no AVAudioEngine device).
     func renderFramesForTesting(_ frameCount: Int) -> (peak: Float, nanCount: Int, nearClipCount: Int) {
+        let d = renderFramesDetailedForTesting(frameCount)
+        return (d.peak, d.nanCount, d.nearClipCount)
+    }
+
+    func renderFramesDetailedForTesting(_ frameCount: Int) -> (
+        peak: Float, nanCount: Int, nearClipCount: Int, preClipPeak: Float
+    ) {
         var peak: Float = 0
+        var preClipPeak: Float = 0
         var nanCount = 0
         var nearClipCount = 0
         let frames = max(0, frameCount)
         for _ in 0..<frames {
             let (left, right) = renderOneSample()
+            if lastPreClipAbs > preClipPeak { preClipPeak = lastPreClipAbs }
             if !left.isFinite || !right.isFinite {
                 nanCount += 1
                 continue
@@ -937,7 +935,16 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             if absSample > peak { peak = absSample }
             if absSample > 0.98 { nearClipCount += 1 }
         }
-        return (peak, nanCount, nearClipCount)
+        return (peak, nanCount, nearClipCount, preClipPeak)
+    }
+
+    func unisonScaleForTesting(_ midiNote: Int) -> Float {
+        for i in 0..<AudioEngine.maxVoices {
+            if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
+                return voices[i].unisonScale
+            }
+        }
+        return 0
     }
 
     /// Active oscillator partials (unison voices), including those in release.
