@@ -1260,6 +1260,62 @@ struct Synt_swiftUITests {
         #expect(sample >= -1.0 && sample <= 1.0)
     }
 
+    @Test func trianglePolyBLAMPLeavesMidSlopeUnchanged() async throws {
+        var oscillator = Oscillator()
+        oscillator.waveform = .triangle
+        oscillator.volume = 1.0
+        let dt = 0.01
+        // t = 0.25 is far from corners at 0 and 0.5
+        let phase = 0.25 * AudioMath.twoPi
+        let sample = oscillator.generateSample(
+            phase: phase,
+            phaseIncrement: dt * AudioMath.twoPi
+        )
+        let naive = Float(4.0 * abs(0.25 - 0.5) - 1.0)
+        #expect(abs(sample - naive) < 0.0001)
+    }
+
+    @Test func trianglePolyBLAMPRoundsPeaks() async throws {
+        var oscillator = Oscillator()
+        oscillator.waveform = .triangle
+        oscillator.volume = 1.0
+        let dt = 0.05
+        let peak = oscillator.generateSample(
+            phase: 0.0,
+            phaseIncrement: dt * AudioMath.twoPi
+        )
+        #expect(peak.isFinite)
+        #expect(peak > 0.7)
+        #expect(peak < 1.0, "peak should be rounded down from naive 1.0, got \(peak)")
+
+        let trough = oscillator.generateSample(
+            phase: 0.5 * AudioMath.twoPi,
+            phaseIncrement: dt * AudioMath.twoPi
+        )
+        #expect(trough.isFinite)
+        #expect(trough < -0.7)
+        #expect(trough > -1.0, "trough should be rounded up from naive -1.0, got \(trough)")
+    }
+
+    @Test func sawAndSquareUnchangedByTriangleBLAMP() async throws {
+        var saw = Oscillator()
+        saw.waveform = .sawtooth
+        saw.volume = 1.0
+        var square = Oscillator()
+        square.waveform = .square
+        square.volume = 1.0
+        square.pulseWidth = 0.5
+
+        let dt = 0.02 * AudioMath.twoPi
+        let mid = 0.3 * AudioMath.twoPi
+        let sawMid = saw.generateSample(phase: mid, phaseIncrement: dt)
+        let naiveSaw = Float(2.0 * 0.3 - 1.0)
+        #expect(abs(sawMid - naiveSaw) < 0.0001)
+
+        let squareMid = square.generateSample(phase: mid, phaseIncrement: dt)
+        #expect(abs(squareMid - 1.0) < 0.0001)
+    }
+
     // MARK: - Sound quality Phase A
 
     @Test func exponentialCutoffIsIdentityAtZeroModulation() async throws {

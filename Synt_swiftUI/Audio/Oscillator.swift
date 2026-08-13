@@ -61,8 +61,15 @@ struct Oscillator {
             sample = Float(value)
 
         case .triangle:
-            let t = normalizedPhase
-            sample = Float(4.0 * abs(t - 0.5) - 1.0)
+            // Naive triangle has slope breaks at 0 and 0.5 — those alias.
+            // PolyBLAMP (integral of the same 2-point PolyBLEP as saw/square)
+            // rounds only those corners. Mid-slope is unchanged.
+            var value = 4.0 * abs(normalizedPhase - 0.5) - 1.0
+            value += 8.0 * polyBLAMP(t: normalizedPhase, dt: normalizedIncrement)
+            var half = normalizedPhase - 0.5
+            if half < 0 { half += 1.0 }
+            value -= 8.0 * polyBLAMP(t: half, dt: normalizedIncrement)
+            sample = Float(value)
 
         case .noise:
             sample = noiseValue
@@ -105,6 +112,20 @@ struct Oscillator {
             return u * u + u + u + 1.0
         }
         
+        return 0.0
+    }
+
+    /// 2-point PolyBLAMP residual for a unit slope change. Matches `polyBLEP`.
+    private func polyBLAMP(t: Double, dt: Double) -> Double {
+        guard dt > 0.0 && dt < 1.0 else { return 0.0 }
+        if t < dt {
+            let u = t / dt
+            return dt * ((u * u * u) / 3.0 - u * u + u - 1.0 / 3.0)
+        }
+        if t > 1.0 - dt {
+            let u = (t - 1.0) / dt
+            return dt * ((u * u * u) / 3.0 + u * u + u + 1.0 / 3.0)
+        }
         return 0.0
     }
 
