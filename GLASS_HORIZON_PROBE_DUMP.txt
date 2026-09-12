@@ -1,0 +1,18 @@
+# Glass Horizon offline probe
+# Apple Delay/Reverb NOT offline; phaser/wavetable/LFO ARE
+# factory: rev=0.18 room=0.5 dly=0.0 unison=1 master=0.42 phaser=false/Phaser 2 mix=0.12
+# appleWet%=18.0 softLimitGate=(wetDryMix>0.25) knee=0.70 → Glass peaks << knee so D≈main offline
+GlassHorizon forced/phaserON n=1 peak=0.058930393 rms=0.034669332 nearClip=0 preClip=0.059006155 nan=0 held=1 renderMs=1916.91 rtMs=278.64 cpuLoad≈6.880
+GlassHorizon forced/phaserON n=2 peak=0.11161398 rms=0.04773743 nearClip=0 preClip=0.112131834 nan=0 held=2 renderMs=916.56 rtMs=278.64 cpuLoad≈3.289
+GlassHorizon forced/phaserON n=3 peak=0.15704237 rms=0.056638487 nearClip=0 preClip=0.15849677 nan=0 held=3 renderMs=780.56 rtMs=278.64 cpuLoad≈2.801
+GlassHorizon forced/phaserON n=4 peak=0.1857409 rms=0.06222224 nearClip=0 preClip=0.18816349 nan=0 held=4 renderMs=852.81 rtMs=278.64 cpuLoad≈3.061
+GlassHorizon forced/phaserON n=7 peak=0.34374198 rms=0.08764838 nearClip=0 preClip=0.36004448 nan=0 held=7 renderMs=1091.19 rtMs=278.64 cpuLoad≈3.916
+GlassHorizon phaserOFF n=1 peak=0.06172017 rms=0.03634107 nearClip=0 preClip=0.06180723 nan=0 held=1 renderMs=460.31 rtMs=278.64 cpuLoad≈1.652
+GlassHorizon phaserOFF n=2 peak=0.119288705 rms=0.050650932 nearClip=0 preClip=0.11992166 nan=0 held=2 renderMs=536.35 rtMs=278.64 cpuLoad≈1.925
+GlassHorizon phaserOFF n=3 peak=0.16942044 rms=0.06077833 nearClip=0 preClip=0.1712516 nan=0 held=3 renderMs=570.03 rtMs=278.64 cpuLoad≈2.046
+GlassHorizon phaserOFF n=4 peak=0.19880366 rms=0.067570105 nearClip=0 preClip=0.20178443 nan=0 held=4 renderMs=627.84 rtMs=278.64 cpuLoad≈2.253
+GlassHorizon phaserOFF n=7 peak=0.35962445 rms=0.09208011 nearClip=0 preClip=0.37845 nan=0 held=7 renderMs=801.87 rtMs=278.64 cpuLoad≈2.878
+GlassHorizon AB/phaserON n=2 peak=0.11186576 rms=0.042494472 nearClip=0 preClip=0.11238714 nan=0 held=2 renderMs=3117.07 rtMs=1114.56 cpuLoad≈2.797
+GlassHorizon AB/phaserOFF n=2 peak=0.120106705 rms=0.04509661 nearClip=0 preClip=0.12075284 nan=0 held=2 renderMs=2243.20 rtMs=1114.56 cpuLoad≈2.013
+GlassHorizon AB/phaserON n=4 peak=0.20697552 rms=0.06397086 nearClip=0 preClip=0.21034689 nan=0 held=4 renderMs=2938.61 rtMs=1114.56 cpuLoad≈2.637
+GlassHorizon AB/phaserOFF n=4 peak=0.22691593 rms=0.0701428 nearClip=0 preClip=0.23138541 nan=0 held=4 renderMs=2446.29 rtMs=1114.56 cpuLoad≈2.195
