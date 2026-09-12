@@ -113,6 +113,8 @@ final class Phaser {
     private var samplesUntilCoeffUpdate: Int = 0
     private var controlSampleIndex: Int = 0
     private var controlFracInc: Float = 1.0 / 32.0
+    /// After reset/bypass, first control block must not lerp from a1=0 (≡ sr/4).
+    private var controlCoeffsPrimed: Bool = false
 
     /// a1 at start/end of current control block (L/R × 8 stages). Lerped per sample.
     private var a1StartL: [Float] = Array(repeating: 0, count: 8)
@@ -195,8 +197,9 @@ final class Phaser {
             controlSampleIndex = 0
         }
 
-        // Linear a1 interp inside block — smooth LFO→d without per-sample tan/pow/log.
-        let t = Float(controlSampleIndex) * controlFracInc
+        // Smoothstep a1 inside block — linear corners zipper (HF grain / hiss with feedback).
+        var t = Float(controlSampleIndex) * controlFracInc
+        t = t * t * (3.0 - 2.0 * t)
         controlSampleIndex += 1
         samplesUntilCoeffUpdate -= 1
 
@@ -220,7 +223,7 @@ final class Phaser {
         return (sampleL, sampleR)
     }
 
-    /// musicdsp: a1 from mapped fMin..fMax; here same tan bilinear as before, but once / block.
+    /// Control-rate a1 from same tan bilinear as historical LUT path (once / block).
     private func updateControlRateCoeffs() {
         // Continuity across blocks: previous targets become new starts (no a1 step).
         for i in 0..<8 {
@@ -248,9 +251,21 @@ final class Phaser {
             // Same stage spread (~2 octaves via stageRatios) — not retuned in this diff.
             let stageFreqL = clampFreq(baseL * stageRatios[i])
             let stageFreqR = clampFreq(baseR * stageRatios[i])
-            // a1 ≡ (tan(π f/sr)-1)/(tan+1) ≡ (1-d)/(1+d) with d=tan(π f/sr)
+            // a1 = (d-1)/(d+1) with d=tan(πf/sr). Same as main LUT path.
+            // Equals −musicdsp (1-d)/(1+d); do NOT flip — would break A/B vs main.
             a1TargetL[i] = calculateAllpassCoeffReference(frequency: stageFreqL)
             a1TargetR[i] = calculateAllpassCoeffReference(frequency: stageFreqR)
+        }
+
+        // Cold-start: a1 arrays are 0 after reset. a1=0 ⇒ allpass at ~sr/4, not "neutral".
+        // Lerping 0→target for N samples poisons AP/feedback state (hiss/rasp, hotter peaks).
+        // Seed start=target on first update so engage matches old per-sample LUT path.
+        if !controlCoeffsPrimed {
+            for i in 0..<stages {
+                a1StartL[i] = a1TargetL[i]
+                a1StartR[i] = a1TargetR[i]
+            }
+            controlCoeffsPrimed = true
         }
     }
 
@@ -363,7 +378,7 @@ final class Phaser {
         return max(-0.99, min(0.99, c))
     }
 
-    /// Bilinear allpass coeff: a1 = (tan(πf/sr)-1)/(tan+1) ≡ (1-d)/(1+d), d=tan(πf/sr).
+    /// Bilinear allpass coeff: a1 = (tan(πf/sr)-1)/(tan+1) = (d-1)/(d+1) = −(1-d)/(1+d).
     func calculateAllpassCoeffReference(frequency: Float) -> Float {
         let f = clampFreq(frequency)
         let arg = Double.pi * Double(f) / Double(sampleRate)
@@ -435,6 +450,7 @@ final class Phaser {
         feedbackR = 0
         samplesUntilCoeffUpdate = 0
         controlSampleIndex = 0
+        controlCoeffsPrimed = false
     }
 
     func setSampleRate(_ newSampleRate: Float) {

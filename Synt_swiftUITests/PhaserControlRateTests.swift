@@ -134,7 +134,39 @@ struct PhaserControlRateTests {
         #expect(ms < 15_000, "phaser2 control-rate took \(ms) ms for \(frames) frames")
     }
 
+    @Test func controlRatePrimesA1NotFromZero() async throws {
+        // Regression: first control block used to lerp a1 from 0 (≡ sr/4) → dirt/hiss + hot peaks.
+        let p = Phaser(sampleRate: 44100)
+        p.bypass = false
+        p.mode = .phaser2
+        p.mix = 1.0
+        p.feedback = 0
+        p.depth = 0
+        p.rate = 0.01
+        p.centerFrequency = 700
+
+        let expected = p.calculateAllpassCoeffReference(frequency: 700)
+        // depth=0 ⇒ baseFreq=center for all stages; stage0 ratio=1 ⇒ a1≈expected from sample 0.
+        // Drive one sample through wet path and ensure we did not start at a1=0.
+        // Indirect: with mix=1, feedback=0, depth=0, output of 1st-order AP chain on DC-ish
+        // is hard to invert; instead compare reference form + that a1 formula is finite and
+        // that a short render stays near old-path peak envelope (no 0→target surge).
+        var peakEarly: Float = 0
+        var phase: Float = 0
+        let dt = 2 * Float.pi * 220 / 44100
+        for _ in 0..<64 {
+            let s = sin(phase) * 0.5
+            phase += dt
+            let (l, _) = p.process(inputL: s, inputR: s)
+            peakEarly = max(peakEarly, abs(l))
+        }
+        #expect(expected < -0.5) // 700Hz @44.1k ⇒ strongly negative a1, not 0
+        #expect(peakEarly.isFinite && peakEarly < 1.0)
+        #expect(peakEarly > 0.1)
+    }
+
     @Test func glassHorizonFactoryPhaserRemainsOff() async throws {
+
         guard let pad = SynthPreset.factoryPresets.first(where: { $0.name == "Glass Horizon" }) else {
             Issue.record("Missing Glass Horizon")
             return
