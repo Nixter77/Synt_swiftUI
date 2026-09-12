@@ -1004,4 +1004,78 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     /// Expose command queue for full-queue / FIFO tests that need the engine instance.
     var commandQueueForTesting: AudioCommandQueue { commandQueue }
+
+    /// Offline render metrics for golden harness (peak + RMS; no device I/O).
+    /// Does not alter DSP — only aggregates samples from `renderOneSample()`.
+    func renderFramesMetricsForTesting(_ frameCount: Int) -> (
+        peak: Float, rms: Float, nanCount: Int, nearClipCount: Int, preClipPeak: Float
+    ) {
+        var peak: Float = 0
+        var preClipPeak: Float = 0
+        var nanCount = 0
+        var nearClipCount = 0
+        var sumSq: Double = 0
+        var finiteFrames = 0
+        let frames = max(0, frameCount)
+        for _ in 0..<frames {
+            let (left, right) = renderOneSample()
+            if lastPreClipAbs > preClipPeak { preClipPeak = lastPreClipAbs }
+            if !left.isFinite || !right.isFinite {
+                nanCount += 1
+                continue
+            }
+            let absSample = max(abs(left), abs(right))
+            if absSample > peak { peak = absSample }
+            if absSample > 0.98 { nearClipCount += 1 }
+            // Mono-equivalent energy for RMS (avg of L/R).
+            let mono = Double(left + right) * 0.5
+            sumSq += mono * mono
+            finiteFrames += 1
+        }
+        let rms: Float
+        if finiteFrames > 0 {
+            rms = Float(sqrt(sumSq / Double(finiteFrames)))
+        } else {
+            rms = 0
+        }
+        return (peak, rms, nanCount, nearClipCount, preClipPeak)
+    }
+
+    /// Snapshot active voice oscillators / filter z-energy for continuity goldens.
+    func voiceProbesForTesting(midiNote: Int? = nil) -> [(
+        midiNote: Int,
+        phase: Double,
+        phase2: Double,
+        targetFrequency: Double,
+        currentFrequency: Double,
+        filterEnergy: Float,
+        isReleasing: Bool,
+        unisonScale: Float
+    )] {
+        var out: [(
+            midiNote: Int,
+            phase: Double,
+            phase2: Double,
+            targetFrequency: Double,
+            currentFrequency: Double,
+            filterEnergy: Float,
+            isReleasing: Bool,
+            unisonScale: Float
+        )] = []
+        for i in 0..<AudioEngine.maxVoices {
+            guard voices[i].isActive else { continue }
+            if let midiNote, voices[i].midiNote != midiNote { continue }
+            out.append((
+                voices[i].midiNote,
+                voices[i].phase,
+                voices[i].phase2,
+                voices[i].targetFrequency,
+                voices[i].currentFrequency,
+                voices[i].filter.energy,
+                voices[i].isReleasing,
+                voices[i].unisonScale
+            ))
+        }
+        return out
+    }
 }
