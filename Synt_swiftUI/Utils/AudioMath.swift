@@ -69,6 +69,33 @@ enum AudioMath {
         return threshold * tanh(value / threshold)
     }
 
+    // MARK: - Soft-limit before Apple Delay/Reverb send (option D)
+
+    /// Live AVAudio pre-send mixer gain into Apple Delay/Reverb (<1 = quieter sends bias).
+    /// Not applied in offline `renderOneSample` (dry goldens ignore this node).
+    static let preSendDriveGain: Float = 0.88
+
+    /// Knee (linear) below which `softLimitBeforeSend` is a no-op — keeps modest peaks unchanged.
+    static let preSendSoftLimitKnee: Float = 0.70
+
+    /// Ceiling after the knee (linear). Prefer quieter send over harder clip.
+    static let preSendSoftLimitCeiling: Float = 0.85
+
+    /// Mild gated soft-limit on the synth bus entering Apple Delay/Reverb (option D).
+    /// Applied in `renderOneSample` only when Apple wet sends are up (>0.25% mapped).
+    static func softLimitBeforeSend(
+        _ value: Float,
+        knee: Float = preSendSoftLimitKnee,
+        ceiling: Float = preSendSoftLimitCeiling
+    ) -> Float {
+        let a = abs(value)
+        if a <= knee { return value }
+        let sign: Float = value >= 0 ? 1 : -1
+        let t = (a - knee) / max(1e-6, 1 - knee)
+        let compressed = knee + (ceiling - knee) * tanh(t)
+        return sign * min(compressed, ceiling)
+    }
+
     /// Full Env Amt / matrix amount = this many octaves of cutoff travel.
     static let filterModOctaves: Float = 5.0
 

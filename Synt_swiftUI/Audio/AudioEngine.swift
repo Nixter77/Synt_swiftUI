@@ -19,6 +19,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     let reverb = ReverbEffect()
     let delay = DelayEffect()
+    /// Constant quieter-send bias on the bus entering Apple Delay/Reverb (option D).
+    /// Sample soft-limit curve is applied at end of `renderOneSample` (see Render).
+    let preSendDrive = AVAudioMixerNode()
     let dspChorus = DSPChorus()
 
     // Stage 4 advanced FX — disabled by default so factory sound is unchanged.
@@ -183,11 +186,16 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         guard let sourceNode = sourceNode else { return }
 
         engine.attach(sourceNode)
+        engine.attach(preSendDrive)
         engine.attach(delay.delay)
         engine.attach(reverb.reverb)
 
-        // Audio chain: Source → Delay → Reverb → Output
-        engine.connect(sourceNode, to: delay.delay, format: format)
+        // Quieter-send bias into Apple FX (constant). Sample soft-limit is in renderOneSample.
+        preSendDrive.outputVolume = AudioMath.preSendDriveGain
+
+        // Audio chain: Source → pre-send drive → Delay → Reverb → Output
+        engine.connect(sourceNode, to: preSendDrive, format: format)
+        engine.connect(preSendDrive, to: delay.delay, format: format)
         engine.connect(delay.delay, to: reverb.reverb, format: format)
         engine.connect(reverb.reverb, to: engine.mainMixerNode, format: format)
 
@@ -294,6 +302,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Wrapper 0…1 (not AU percent). Crystal Lead must stay ~0.28, never 28.
     var delayFeedbackForTesting: Float { delay.feedback }
     var delayWetPercentForTesting: Float { delay.wetDryMix }
+
+    /// Option D pre-send drive (AVAudio graph). Sample soft-limit is in renderOneSample.
+    var preSendDriveGainForTesting: Float { preSendDrive.outputVolume }
 
     /// Advanced FX + morph state after `applyPreset` (for factory library tests).
     func appliedAdvancedFXForTesting() -> (

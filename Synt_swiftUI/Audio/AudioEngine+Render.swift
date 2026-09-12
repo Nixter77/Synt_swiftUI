@@ -218,6 +218,13 @@ extension AudioEngine {
         outL = AudioMath.softClip(outL, threshold: 0.95)
         outR = AudioMath.softClip(outR, threshold: 0.95)
 
+        // Option D: soft-limit only when Apple Delay/Reverb sends are up, so dry-zero
+        // presets stay bit-identical offline. Below knee = identity; prefer quieter crest.
+        if max(delay.wetDryMix, reverb.wetDryMix) > 0.25 {
+            outL = AudioMath.softLimitBeforeSend(outL)
+            outR = AudioMath.softLimitBeforeSend(outR)
+        }
+
         let absSample = max(abs(outL), abs(outR))
         currentLevel = max(currentLevel * levelDecay, absSample)
         if absSample > currentPeak { currentPeak = absSample }
