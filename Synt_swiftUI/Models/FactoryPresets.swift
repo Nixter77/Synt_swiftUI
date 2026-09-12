@@ -222,7 +222,9 @@ extension SynthPreset {
             lfoEnabled: true, lfoRate: 0.10, lfoDepth: 0.14, lfoTarget: .filter,
             reverbMix: 0.18, reverbRoomSize: 0.50,
             masterVolume: 0.42,
-            phaserEnabled: true, phaserMode: .phaser2, phaserRate: 0.10, phaserDepth: 0.22,
+            // Hang@4 live: phaser ON + wavetable + Apple hall was CPU-hot (see GLASS_HORIZON_HANG_NOTES).
+            // Temporarily OFF — smallest factory hang mitigation; timbre becomes drier glass pad.
+            phaserEnabled: false, phaserMode: .phaser2, phaserRate: 0.10, phaserDepth: 0.22,
             phaserFeedback: 0.08, phaserCenterFrequency: 700, phaserMix: 0.12
         ),
         SynthPreset(

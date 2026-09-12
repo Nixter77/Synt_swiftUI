@@ -626,7 +626,9 @@ struct Synt_swiftUITests {
         engine.loadPreset(pad)
         engine.applyPresetForTesting()
         let padAdv = engine.appliedAdvancedFXForTesting()
-        #expect(padAdv.phaserEnabled == true)
+        // feat/glass-horizon-safe: phaser OFF to cut hang@4 CPU; params kept for re-enable.
+        #expect(padAdv.phaserEnabled == false)
+        #expect(pad.phaserMode == .phaser2)
         #expect(abs(padAdv.phaserMix - pad.phaserMix) < 0.001)
         #expect(pad.unisonVoices >= 1)
 
