@@ -154,8 +154,10 @@ private enum HissMatrixHarness {
         let url = reportPath()
         try? text.write(to: url, atomically: true, encoding: .utf8)
         // Also try repo-relative if cwd is DerivedData.
+        // Soft candidates: home-relative repo dump + /tmp (cwd may be DerivedData).
+        let home = FileManager.default.homeDirectoryForCurrentUser
         let homeCandidates = [
-            "/Users/nikolay/gemini_projekts/Synt_swiftUI/CHORD_HISS_MATRIX_DUMP.txt",
+            home.appendingPathComponent("gemini_projekts/Synt_swiftUI/CHORD_HISS_MATRIX_DUMP.txt").path,
             "/tmp/CHORD_HISS_MATRIX_DUMP.txt"
         ]
         for path in homeCandidates {
@@ -165,11 +167,13 @@ private enum HissMatrixHarness {
     }
 }
 
+@Suite(.serialized)
 struct ChordHissMatrixTests {
 
     // MARK: - Dry vs wet × 1 / 3 / 7 on a complex wet factory preset
 
-    @Test func matrix_crystalLead_dryStockWet_1_3_7() async throws {
+    @Test(.timeLimit(.minutes(3)))
+    func matrix_crystalLead_dryStockWet_1_3_7() async throws {
         guard let base = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
             Issue.record("Missing Crystal Lead")
             return
@@ -213,7 +217,8 @@ struct ChordHissMatrixTests {
 
     // MARK: - Full factory preset matrix at 1 / 3 / 7 (stock sends)
 
-    @Test func matrix_factoryPresets_stock_1_3_7_documentBlowUps() async throws {
+    @Test(.timeLimit(.minutes(3)))
+    func matrix_factoryPresets_stock_1_3_7_documentBlowUps() async throws {
         let presets = SynthPreset.factoryPresets
         #expect(!presets.isEmpty)
 
@@ -261,7 +266,8 @@ struct ChordHissMatrixTests {
 
     // MARK: - Wet-boost factory subset (pads / keys / leads with complex timbre)
 
-    @Test func matrix_wetComplex_3note_documentNearClip() async throws {
+    @Test(.timeLimit(.minutes(3)))
+    func matrix_wetComplex_3note_documentNearClip() async throws {
         let names = [
             "Crystal Lead", "Silk Lead", "Cloud Bed", "Slow Motion",
             "Bell Keys", "Soft EP", "Section Soft", "Shimmer Rise"
@@ -302,7 +308,8 @@ struct ChordHissMatrixTests {
 
     // MARK: - Synthetic dry/wet control (Init-like) — 1 / 3 / 7
 
-    @Test func matrix_syntheticInit_dryVsWetSends_1_3_7() async throws {
+    @Test(.timeLimit(.minutes(3)))
+    func matrix_syntheticInit_dryVsWetSends_1_3_7() async throws {
         var dry = SynthPreset.defaultPreset
         dry.arpMode = .off
         dry.lfoEnabled = false
