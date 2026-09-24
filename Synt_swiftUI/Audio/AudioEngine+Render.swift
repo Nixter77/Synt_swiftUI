@@ -9,6 +9,112 @@ import AVFoundation
 import Combine
 import SwiftUI
 
+/// Lookahead peak rider. Multiplies the whole waveform by a slow gain so a chord
+/// that would have entered the tanh clipper stays linear. Gain does not track
+/// individual waveform cycles (that would be another waveshaper).
+final class CleanBus {
+    static let capacity = 512
+    static let lookahead = 256
+    static let threshold = AudioMath.cleanBusThreshold
+
+    private var bufL = [Float](repeating: 0, count: CleanBus.capacity)
+    private var bufR = [Float](repeating: 0, count: CleanBus.capacity)
+    private var write = 0
+    private var env: Float = 0
+    private var gain: Float = 1
+    private var hold = 0
+    private var envCoeff: Float = 1
+    private var attCoeff: Float = 1
+    private var relCoeff: Float = 0
+    private var holdMax = 1
+    private var coeffRate: Float = 0
+    private var dcPole: Float = 0.9983
+    private var dcXL: Float = 0
+    private var dcXR: Float = 0
+    private var dcYL: Float = 0
+    private var dcYR: Float = 0
+
+    init() {
+        updateCoefficients(sampleRate: 44100)
+    }
+
+    func reset() {
+        for i in 0..<bufL.count {
+            bufL[i] = 0
+            bufR[i] = 0
+        }
+        write = 0
+        env = 0
+        gain = 1
+        hold = 0
+        dcXL = 0
+        dcXR = 0
+        dcYL = 0
+        dcYR = 0
+    }
+
+    func process(left: Float, right: Float, sampleRate: Float) -> (Float, Float) {
+        let sr = sampleRate > 1000 ? sampleRate : 44100
+        if sr != coeffRate { updateCoefficients(sampleRate: sr) }
+
+        let xL = dcBlock(left.isFinite ? left : 0, x1: &dcXL, y1: &dcYL)
+        let xR = dcBlock(right.isFinite ? right : 0, x1: &dcXR, y1: &dcYR)
+
+        bufL[write] = xL
+        bufR[write] = xR
+
+        let peak = max(abs(xL), abs(xR))
+        if peak >= env {
+            env = peak
+            hold = holdMax
+        } else if hold > 0 {
+            hold -= 1
+        } else {
+            env = max(peak, env * envCoeff)
+        }
+
+        let desired: Float = env > Self.threshold ? Self.threshold / env : 1
+        let coeff: Float
+        if desired < gain * 0.985 {
+            coeff = attCoeff
+        } else if desired > gain {
+            coeff = relCoeff
+        } else {
+            coeff = 0
+        }
+        if coeff > 0 {
+            gain += (desired - gain) * coeff
+        }
+        if !gain.isFinite || gain < 0 { gain = 1 }
+        if gain > 1 { gain = 1 }
+
+        let read = (write + Self.capacity - Self.lookahead) & (Self.capacity - 1)
+        write = (write + 1) & (Self.capacity - 1)
+        return (bufL[read] * gain, bufR[read] * gain)
+    }
+
+    private func updateCoefficients(sampleRate: Float) {
+        coeffRate = sampleRate
+        let sr = Double(sampleRate)
+        envCoeff = Float(exp(-1.0 / (sr * 0.200)))
+        attCoeff = Float(1.0 - exp(-1.0 / (sr * 0.0015)))
+        relCoeff = Float(1.0 - exp(-1.0 / (sr * 0.150)))
+        holdMax = max(1, Int(sampleRate * 0.040))
+        dcPole = Float(exp(-2.0 * Double.pi * 12.0 / sr))
+    }
+
+    private func dcBlock(_ x: Float, x1: inout Float, y1: inout Float) -> Float {
+        let y = x - x1 + dcPole * y1
+        x1 = x
+        if !y.isFinite || abs(y) > 16 {
+            y1 = 0
+            return 0
+        }
+        y1 = y
+        return y
+    }
+}
+
 extension AudioEngine {
     // MARK: - Audio thread render path
 
@@ -39,8 +145,10 @@ extension AudioEngine {
         let lfoTarget = lfo.target
         let modMatrix = cachedModMatrix
 
+        // One noise draw per sample. Each voice hashes it so noise chords
+        // do not stack as N identical copies (that sum is just a loud clip).
         noiseSeed = noiseSeed &* 1664525 &+ 1013904223
-        let noiseValue = Float(noiseSeed) / Float(UInt32.max) * 2.0 - 1.0
+        let noiseBase = noiseSeed
 
         if oscillator1.waveform == .wavetable {
             wavetableEngine1.targetFramePosition = max(0, min(1, oscillator1.wavetableMorph))
@@ -74,6 +182,9 @@ extension AudioEngine {
             } else {
                 v.currentFrequency = v.targetFrequency
             }
+
+            let voiceSeed = (noiseBase &+ UInt32(i) &* 747_796_405 &+ 2_891_336_453) &* 1_664_525 &+ 1_013_904_223
+            let noiseValue = Float(voiceSeed) / Float(UInt32.max) * 2.0 - 1.0
 
             let baseFrequency = v.currentFrequency
             var osc1Freq = oscillator1.frequencyWithModifiers(baseFrequency)
@@ -188,8 +299,17 @@ extension AudioEngine {
         if !mixedSampleR.isFinite { mixedSampleR = 0 }
 
         let headroom: Float = 0.65
-        var fxL = mixedSampleL * smoothedMasterVolume * headroom
-        var fxR = mixedSampleR * smoothedMasterVolume * headroom
+        var summedL = mixedSampleL * smoothedMasterVolume * headroom
+        var summedR = mixedSampleR * smoothedMasterVolume * headroom
+        // Ride the chord down with one gain. Doing this before distortion keeps
+        // a 5-note stack from slamming the shaper; a tanh here was the rasp.
+        (summedL, summedR) = cleanBus.process(
+            left: summedL,
+            right: summedR,
+            sampleRate: Float(sampleRate)
+        )
+        var fxL = summedL
+        var fxR = summedR
 
         if distortion.enabled {
             (fxL, fxR) = distortion.processStereo(inputL: fxL, inputR: fxR)
@@ -215,8 +335,8 @@ extension AudioEngine {
         }
 
         lastPreClipAbs = max(abs(outL), abs(outR))
-        outL = AudioMath.softClip(outL, threshold: 0.95)
-        outR = AudioMath.softClip(outR, threshold: 0.95)
+        outL = AudioMath.cleanCeiling(outL)
+        outR = AudioMath.cleanCeiling(outR)
 
         let absSample = max(abs(outL), abs(outR))
         currentLevel = max(currentLevel * levelDecay, absSample)

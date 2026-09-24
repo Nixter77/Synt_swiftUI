@@ -271,8 +271,9 @@ struct AudioGoldenHarnessTests {
         // Releasing voice keeps prior phase (activate resets only the NEW slot).
         #expect(abs(phaseDelta(releasing[0].phase, oldPhase)) < 0.25,
                 "releasing phase jumped \(releasing[0].phase) vs \(oldPhase)")
-        // New voice starts at 0 by design.
-        #expect(abs(live[0].phase) < GoldenTol.phaseRad)
+        // New voice starts at the deterministic per-note phase (not a shared 0).
+        let start = AudioMath.voiceStartPhases(midiNote: 60, partial: 0, partialCount: 1).0
+        #expect(abs(phaseDelta(live[0].phase, start)) < GoldenTol.phaseRad)
 
         _ = engine.renderFramesMetricsForTesting(GoldenTol.blockSize)
         let releasingAfter = engine.voiceProbesForTesting(midiNote: 60).filter { $0.isReleasing }
@@ -305,8 +306,10 @@ struct AudioGoldenHarnessTests {
         if engine.isNoteActiveForTesting(60),
            let still = engine.voiceProbesForTesting(midiNote: 60).first(where: { !$0.isReleasing }),
            let heldPhase {
-            let resetToZero = abs(still.phase) < GoldenTol.phaseRad && abs(heldPhase) > 0.1
-            #expect(!resetToZero, "held note phase hard-reset under steal pressure")
+            let start = AudioMath.voiceStartPhases(midiNote: 60, partial: 0, partialCount: 1).0
+            let resetToStart = abs(phaseDelta(still.phase, start)) < GoldenTol.phaseRad
+                && abs(phaseDelta(heldPhase, start)) > 0.1
+            #expect(!resetToStart, "held note phase hard-reset under steal pressure")
             // Continuity: phase should have advanced from the pre-flood snapshot.
             let moved = abs(phaseDelta(still.phase, heldPhase))
             #expect(moved > 1.0e-6, "held note phase frozen unexpectedly")

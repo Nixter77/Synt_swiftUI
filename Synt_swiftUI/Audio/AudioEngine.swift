@@ -47,6 +47,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var filterR = CachedBiquadFilter()
     var lfo = LFO()
     private let limiter = Compressor(sampleRate: 44100.0)
+    /// Linear gain rider in front of the waveshapers. Not the brick-wall limiter.
+    let cleanBus = CleanBus()
 
     /// Owned engines for `.wavetable` waveform only (Stage 3). Classical shapes unchanged.
     let wavetableEngine1 = WavetableOscillator()

@@ -19,6 +19,10 @@ struct BiquadCoeffs {
 
 /// Per-voice z⁻¹ state. Must not be shared across MIDI notes.
 struct BiquadMemory {
+    /// Numerical rail only. A musical clamp near ±2.5 hard-clipped resonant
+    /// voices and rasped as soon as several notes rang together.
+    static let outputRail: Float = 12
+
     var x1: Float = 0
     var x2: Float = 0
     var y1: Float = 0
@@ -43,7 +47,8 @@ struct BiquadMemory {
         if abs(output) < 1.0e-15 {
             output = 0
         }
-        output = max(-2.5, min(2.5, output))
+        let rail = BiquadMemory.outputRail
+        output = max(-rail, min(rail, output))
         x2 = x1
         x1 = x
         y2 = y1
@@ -136,8 +141,8 @@ final class CachedBiquadFilter {
         if abs(output) < denormalThreshold {
             output = 0.0
         }
-        // Cap runaway resonance peaks
-        output = max(-2.5, min(2.5, output))
+        let rail = BiquadMemory.outputRail
+        output = max(-rail, min(rail, output))
 
         // Update state
         x2 = x1

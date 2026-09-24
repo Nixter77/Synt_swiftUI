@@ -9,7 +9,8 @@
 //  - Matrix that sounds: pitch1 / pitch2 / amp / pan. PWM / cutoff / mix do nothing.
 //  - Wavetable is one table (Basic Shapes): 0 sine → 0.33 tri → 0.67 saw → 1 square.
 //  - Unison only while one key is held; a second key collapses to 1 partial. Useless on pads.
-//  - Apple Delay/Reverb sit after our clipper. Wet chords rasp. Keep sends modest.
+//  - Mix bus is a linear peak rider, then a ceiling that stays linear up to 0.90.
+//    Apple Delay/Reverb still sit after that. Keep sends modest.
 //  - Osc2 is mixed 50/50 with osc1 (volumes still relative). Two bright sources + octave = sand.
 //  - Linear sum: 4 notes are louder than 1. Pads/strings stay quieter at the master.
 //  - Phaser / deep chorus / distortion have no oversample. One extra FX, mild, or none.

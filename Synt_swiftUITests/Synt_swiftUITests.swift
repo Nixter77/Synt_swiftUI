@@ -1438,7 +1438,7 @@ struct Synt_swiftUITests {
     }
 
     @Test func softClipSafetyNetNearFullScale() async throws {
-        // Production uses threshold ≈ 0.95 after linear −6 dB headroom (not tanh@0.5).
+        // tanh curve itself. The live bus does not use it (CleanBus + cleanCeiling).
         let ceiling: Float = 0.95
         #expect(abs(AudioMath.softClip(0.0, threshold: ceiling)) < 0.0001)
         let quiet = AudioMath.softClip(0.1, threshold: ceiling)
@@ -1447,6 +1447,160 @@ struct Synt_swiftUITests {
         #expect(abs(hot) <= ceiling + 0.0001)
         #expect(hot > ceiling * 0.99)
         #expect(abs(AudioMath.softClip(-10.0, threshold: ceiling) + hot) < 0.0001)
+    }
+
+    @Test func cleanCeilingIsIdentityBelowTheKnee() async throws {
+        #expect(AudioMath.cleanCeiling(0) == 0)
+        #expect(AudioMath.cleanCeiling(0.25) == 0.25)
+        #expect(AudioMath.cleanCeiling(-0.9) == -0.9)
+        #expect(abs(AudioMath.cleanCeiling(AudioMath.cleanCeilingKnee) - AudioMath.cleanCeilingKnee) < 0.00001)
+        let hot = AudioMath.cleanCeiling(6)
+        #expect(hot.isFinite)
+        #expect(hot > AudioMath.cleanCeilingKnee)
+        #expect(hot < AudioMath.cleanCeilingLimit + 0.0001)
+        #expect(abs(AudioMath.cleanCeiling(-6) + hot) < 0.0001)
+    }
+
+    @Test func voiceStartPhasesSpreadChordTonesButStayDeterministic() async throws {
+        let a = AudioMath.voiceStartPhases(midiNote: 60, partial: 0, partialCount: 1)
+        let b = AudioMath.voiceStartPhases(midiNote: 60, partial: 0, partialCount: 1)
+        let other = AudioMath.voiceStartPhases(midiNote: 64, partial: 0, partialCount: 1)
+        let partial = AudioMath.voiceStartPhases(midiNote: 60, partial: 1, partialCount: 3)
+        #expect(abs(a.0 - b.0) < 1.0e-12)
+        #expect(abs(a.1 - b.1) < 1.0e-12)
+        #expect(abs(a.0 - other.0) > 0.05, "chord tones still share a start phase")
+        #expect(abs(a.0 - partial.0) > 0.05, "unison partials still start together")
+        #expect(a.0 >= 0 && a.0 < AudioMath.twoPi)
+        #expect(a.1 >= 0 && a.1 < AudioMath.twoPi)
+    }
+
+    @Test func cleanBusTurnsDownAHotSineWithoutFlatteningIt() async throws {
+        let bus = CleanBus()
+        let sr: Float = 44100
+        let n = 44100
+        let warm = 12000
+        var peak: Float = 0
+        var sumSq = 0.0
+        var counted = 0
+        for i in 0..<n {
+            let x = sin(2 * Float.pi * 110 * Float(i) / sr) * 1.4
+            let (y, _) = bus.process(left: x, right: x, sampleRate: sr)
+            if i >= warm {
+                peak = max(peak, abs(y))
+                sumSq += Double(y) * Double(y)
+                counted += 1
+            }
+        }
+        let rms = Float(sqrt(sumSq / Double(counted)))
+        let crest = peak / max(rms, 1.0e-6)
+        #expect(peak < AudioMath.cleanBusThreshold + 0.08, "hot sine peak \(peak)")
+        #expect(peak > 0.35, "rider silenced the sine, peak \(peak)")
+        // A gain change keeps a sine's crest at √2. A waveshaper pulls it toward 1.
+        #expect(crest > 1.32 && crest < 1.52, "crest \(crest) peak \(peak) rms \(rms)")
+    }
+
+    @Test func cleanBusLeavesAQuietSineAlone() async throws {
+        let bus = CleanBus()
+        let sr: Float = 44100
+        var peak: Float = 0
+        for i in 0..<20000 {
+            let x = sin(2 * Float.pi * 220 * Float(i) / sr) * 0.20
+            let (y, _) = bus.process(left: x, right: x, sampleRate: sr)
+            if i >= 8000 { peak = max(peak, abs(y)) }
+        }
+        #expect(abs(peak - 0.20) < 0.02, "quiet sine peak \(peak)")
+    }
+
+    @Test func eightNoteDryChordStaysLinearAndLouderThanOneNote() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.chorusMix = 0
+        preset.reverbMix = 0
+        preset.delayMix = 0
+        preset.attack = 0.01
+        preset.decay = 0.05
+        preset.sustain = 0.85
+        preset.release = 0.2
+        preset.filterCutoff = 8000
+        preset.filterResonance = 0.2
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesDetailedForTesting(4000)
+        let single = engine.renderFramesDetailedForTesting(8192)
+        #expect(single.nanCount == 0)
+        #expect(single.peak > 0.04, "one note disappeared, peak \(single.peak)")
+        #expect(single.preClipPeak < AudioMath.cleanBusThreshold + 0.12,
+                "one note is already riding the bus, pre \(single.preClipPeak)")
+
+        for note in [63, 67, 70, 74, 48, 55, 79] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.heldPartialCountForTesting == 8)
+        _ = engine.renderFramesDetailedForTesting(8000)
+        let chord = engine.renderFramesDetailedForTesting(16384)
+        #expect(chord.nanCount == 0)
+        #expect(chord.nearClipCount == 0, "8-note near-clip \(chord.nearClipCount) peak \(chord.peak)")
+        #expect(chord.peak > single.peak * 1.15, "chord \(chord.peak) vs one \(single.peak)")
+        #expect(chord.preClipPeak < AudioMath.cleanCeilingKnee,
+                "8-note entered the ceiling, pre \(chord.preClipPeak) peak \(chord.peak)")
+    }
+
+    @Test func sixSineChordKeepsASineLikeCrest() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.osc1Waveform = .sine
+        preset.osc1Volume = 0.9
+        preset.osc2Enabled = false
+        preset.attack = 0.005
+        preset.decay = 0.02
+        preset.sustain = 1
+        preset.filterType = .lowPass
+        preset.filterCutoff = 12000
+        preset.filterResonance = 0
+        preset.masterVolume = 0.7
+        preset.lfoEnabled = false
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.chorusMix = 0
+        preset.reverbMix = 0
+        preset.delayMix = 0
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 69, velocity: 1)
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(20000)
+        let one = engine.renderFramesMetricsForTesting(8192)
+        let oneCrest = one.peak / max(one.rms, 1.0e-6)
+        #expect(one.nanCount == 0)
+        #expect(oneCrest > 1.30 && oneCrest < 1.55, "one sine crest \(oneCrest) peak \(one.peak) rms \(one.rms)")
+
+        for note in [60, 64, 67, 72, 76] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(20000)
+        let chord = engine.renderFramesMetricsForTesting(16384)
+        let chordCrest = chord.peak / max(chord.rms, 1.0e-6)
+        #expect(chord.nanCount == 0)
+        #expect(chord.nearClipCount == 0)
+        #expect(chord.preClipPeak < AudioMath.cleanCeilingKnee, "sine chord pre \(chord.preClipPeak)")
+        #expect(chord.peak > one.peak * 1.1, "chord \(chord.peak) vs one \(one.peak)")
+        // Flattened tops pull crest toward 1. Linear gain keeps the stack peaky.
+        #expect(chordCrest > 1.30, "sine chord crest \(chordCrest) peak \(chord.peak) rms \(chord.rms)")
     }
 
     // MARK: - Existing DSP unit tests

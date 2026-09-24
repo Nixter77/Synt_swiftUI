@@ -18,6 +18,7 @@ extension AudioEngine {
         }
         activeVoiceCountRT = 0
         lastPlayedFrequency = nil
+        cleanBus.reset()
     }
 
     /// Fixed-pool allocation (audio thread). No Dictionary / heap ids.
@@ -75,7 +76,9 @@ extension AudioEngine {
                 velocity: velocity,
                 frequency: curFreq,
                 pan: pan,
-                unisonScale: partialScale
+                unisonScale: partialScale,
+                partial: u,
+                partialCount: unisonCount
             )
             voices[slot].targetFrequency = targetFreq
             voices[slot].currentFrequency = curFreq

@@ -65,13 +65,20 @@ struct ActiveNote {
         velocity: Float,
         frequency: Double,
         pan: Float = 0.0,
-        unisonScale: Float = 1.0
+        unisonScale: Float = 1.0,
+        partial: Int = 0,
+        partialCount: Int = 1
     ) {
         self.isActive = true
         self.midiNote = midiNote
         self.velocity = velocity
-        self.phase = 0
-        self.phase2 = 0
+        let start = AudioMath.voiceStartPhases(
+            midiNote: midiNote,
+            partial: partial,
+            partialCount: partialCount
+        )
+        self.phase = start.0
+        self.phase2 = start.1
         self.currentFrequency = frequency
         self.targetFrequency = frequency
         self.envelopePhase = .attack
