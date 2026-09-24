@@ -299,25 +299,25 @@ extension AudioEngine {
         if !mixedSampleR.isFinite { mixedSampleR = 0 }
 
         let headroom: Float = 0.65
-        var summedL = mixedSampleL * smoothedMasterVolume * headroom
-        var summedR = mixedSampleR * smoothedMasterVolume * headroom
-        // Ride the chord down with one gain. Doing this before distortion keeps
-        // a 5-note stack from slamming the shaper; a tanh here was the rasp.
-        (summedL, summedR) = cleanBus.process(
-            left: summedL,
-            right: summedR,
-            sampleRate: Float(sampleRate)
-        )
-        var fxL = summedL
-        var fxR = summedR
+        var fxL = mixedSampleL * smoothedMasterVolume * headroom
+        var fxR = mixedSampleR * smoothedMasterVolume * headroom
 
-        if distortion.enabled {
-            (fxL, fxR) = distortion.processStereo(inputL: fxL, inputR: fxR)
-        }
+        // EQ before the rider. A boost after it walked straight into the ceiling
+        // and rasped; the rider now holds that extra level with one linear gain.
         if parametricEQL.enabled {
             if !parametricEQR.enabled { parametricEQR.enabled = true }
             fxL = parametricEQL.process(fxL)
             fxR = parametricEQR.process(fxR)
+        }
+
+        (fxL, fxR) = cleanBus.process(
+            left: fxL,
+            right: fxR,
+            sampleRate: Float(sampleRate)
+        )
+
+        if distortion.enabled {
+            (fxL, fxR) = distortion.processStereo(inputL: fxL, inputR: fxR)
         }
         if !phaser.bypass {
             let p = phaser.process(inputL: fxL, inputR: fxR)
@@ -388,6 +388,9 @@ extension AudioEngine {
                 arp.setHeldKeys(heldKeysForArp)
             }
         }
+        // After the whole batch, so releasing a chord (held ends at 0) still rings.
+        // A new chord in the same batch is already held, and only its oldest tails go.
+        trimAbandonedTails()
     }
 
     func handleArpTick() {
@@ -396,8 +399,10 @@ extension AudioEngine {
         }
 
         guard let newNote = arp.advanceTick(randomSource: &noiseSeed) else {
+            trimAbandonedTails()
             return
         }
         createVoice(midiNote: newNote, velocity: 0.8)
+        trimAbandonedTails()
     }
 }

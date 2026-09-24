@@ -50,8 +50,10 @@ struct ActiveNote {
     var envelopeTime: Double = 0.0
     var releaseStartValue: Float = 0.0
     var isReleasing: Bool = false
-    /// When set, release uses a short fade (steal / re-trigger) instead of preset release.
+    /// When set, release uses a short fade (steal / re-trigger / abandoned tail) instead of preset release.
     var fastRelease: Bool = false
+    /// Musical note-off order. Higher is newer. Fast fades do not become "fresh tails".
+    var releaseSerial: Int = 0
     var pan: Float = 0.0
     /// `1/U` for this note's unison stack. Independent MIDI notes stay at 1.
     var unisonScale: Float = 1.0
@@ -87,6 +89,7 @@ struct ActiveNote {
         self.releaseStartValue = 0
         self.isReleasing = false
         self.fastRelease = false
+        self.releaseSerial = 0
         self.pan = pan
         self.unisonScale = unisonScale
         self.filter.reset()
@@ -102,6 +105,22 @@ struct ActiveNote {
         if envelopePhase != .release && envelopePhase != .finished {
             envelopePhase = .release
         }
+    }
+
+    /// Shorten a tail that is already in release. Time must restart: the envelope
+    /// finishes when time exceeds the release length, so an old tail would
+    /// otherwise drop to zero on the next sample.
+    mutating func accelerateRelease() {
+        guard isActive, envelopePhase != .finished else { return }
+        if !isReleasing {
+            beginFastRelease()
+            return
+        }
+        guard !fastRelease else { return }
+        fastRelease = true
+        releaseStartValue = envelopeValue
+        envelopeTime = 0
+        envelopePhase = .release
     }
 
     mutating func deactivate() {

@@ -62,8 +62,14 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     /// Fixed voice pool — no Dictionary on the audio thread (was a multi-note glitch source).
     static let maxVoices = 32
+    /// Released tails kept while other notes are still held. Older tails fast-fade.
+    static let keptReleaseTails = 2
+    /// At or below this, release is the pluck. Tail trimming would eat the sound.
+    static let tailTrimSkipsReleaseAtOrBelow: Float = 0.20
     var voices: [ActiveNote] = Array(repeating: .inactive, count: AudioEngine.maxVoices)
     var activeVoiceCountRT: Int = 0
+    /// Audio-thread note-off counter. Newer releases have a higher serial.
+    var releaseSerialRT: Int = 1
 
     let sampleRate: Double = 44100.0
 
@@ -362,6 +368,27 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             }
         }
         return 0
+    }
+
+    func voiceReleaseFlagsForTesting() -> [(
+        midiNote: Int,
+        isReleasing: Bool,
+        fastRelease: Bool,
+        releaseSerial: Int,
+        envelopeValue: Float
+    )] {
+        var out: [(midiNote: Int, isReleasing: Bool, fastRelease: Bool, releaseSerial: Int, envelopeValue: Float)] = []
+        for i in 0..<AudioEngine.maxVoices {
+            guard voices[i].isActive else { continue }
+            out.append((
+                voices[i].midiNote,
+                voices[i].isReleasing,
+                voices[i].fastRelease,
+                voices[i].releaseSerial,
+                voices[i].envelopeValue
+            ))
+        }
+        return out
     }
 
     func voiceFilterEnergyForTesting(_ midiNote: Int) -> Float {

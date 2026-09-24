@@ -18,6 +18,7 @@ extension AudioEngine {
         }
         activeVoiceCountRT = 0
         lastPlayedFrequency = nil
+        releaseSerialRT = 1
         cleanBus.reset()
     }
 
@@ -166,12 +167,56 @@ extension AudioEngine {
     }
 
     func internalNoteOff(midiNote: Int) {
+        let serial = releaseSerialRT
+        var released = false
         for i in 0..<AudioEngine.maxVoices {
             if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
                 voices[i].isReleasing = true
+                voices[i].releaseSerial = serial
                 voices[i].releaseStartValue = voices[i].envelopeValue
                 voices[i].envelopePhase = .release
                 voices[i].envelopeTime = 0
+                released = true
+            }
+        }
+        if released {
+            releaseSerialRT &+= 1
+        }
+    }
+
+    /// While some notes stay held, only the newest released tails keep the
+    /// authored release. Older leftovers fade in 6 ms so a new chord is not
+    /// summed with the previous one. Nothing held: the last gesture rings out.
+    /// A short preset release is the pluck and is not shortened further.
+    func trimAbandonedTails() {
+        if envelope.release <= AudioEngine.tailTrimSkipsReleaseAtOrBelow { return }
+
+        var held = 0
+        var musicalCount = 0
+        var newest = Int.min
+        var second = Int.min
+        for i in 0..<AudioEngine.maxVoices {
+            guard voices[i].isActive else { continue }
+            if !voices[i].isReleasing {
+                held += 1
+                continue
+            }
+            if voices[i].fastRelease { continue }
+            musicalCount += 1
+            let serial = voices[i].releaseSerial
+            if serial >= newest {
+                second = newest
+                newest = serial
+            } else if serial > second {
+                second = serial
+            }
+        }
+        guard held > 0, musicalCount > AudioEngine.keptReleaseTails else { return }
+
+        for i in 0..<AudioEngine.maxVoices {
+            guard voices[i].isActive, voices[i].isReleasing, !voices[i].fastRelease else { continue }
+            if voices[i].releaseSerial < second {
+                voices[i].accelerateRelease()
             }
         }
     }

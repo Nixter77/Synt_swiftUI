@@ -863,6 +863,56 @@ struct Synt_swiftUITests {
         }
     }
 
+    @Test func eqZeroGainPassesASine() async throws {
+        let eq = ParametricEQ(sampleRate: 44100)
+        eq.enabled = true
+        eq.lowGain = 0
+        eq.midGain = 0
+        eq.highGain = 0
+        var phase: Float = 0
+        let dt = 2 * Float.pi * 440 / 44100
+        var worst: Float = 0
+        for i in 0..<4000 {
+            let x = sin(phase) * 0.4
+            phase += dt
+            let y = eq.process(x)
+            if i > 500 { worst = max(worst, abs(y - x)) }
+        }
+        #expect(worst < 0.002, "flat EQ altered the sine by \(worst)")
+    }
+
+    @Test func eqBoostShapesToneWithoutRaisingThePeak() async throws {
+        func steadyPeak(hz: Float, configure: (ParametricEQ) -> Void) -> Float {
+            let eq = ParametricEQ(sampleRate: 44100)
+            eq.enabled = true
+            configure(eq)
+            var phase: Float = 0
+            let dt = 2 * Float.pi * hz / 44100
+            var peak: Float = 0
+            for i in 0..<8000 {
+                let y = eq.process(sin(phase) * 0.5)
+                phase += dt
+                if i > 4000 { peak = max(peak, abs(y)) }
+            }
+            return peak
+        }
+
+        let low = steadyPeak(hz: 50) { eq in
+            eq.lowGain = 12
+            eq.lowFreq = 150
+            eq.midGain = 0
+            eq.highGain = 0
+        }
+        let high = steadyPeak(hz: 4000) { eq in
+            eq.lowGain = 12
+            eq.lowFreq = 150
+            eq.midGain = 0
+            eq.highGain = 0
+        }
+        #expect(low < 0.58, "low shelf raised the peak to \(low)")
+        #expect(low > high * 2, "shelf lost its curve, low \(low) high \(high)")
+    }
+
     @Test func audioEngineAdvancedFXDisabledByDefault() async throws {
         let engine = AudioEngine()
         #expect(engine.distortion.enabled == false)
@@ -1253,6 +1303,114 @@ struct Synt_swiftUITests {
 
         _ = engine.renderFramesForTesting(12_000)
         #expect(engine.activeNoteCountForTesting == 0, "notes must finish after release, still \(engine.activeNoteCountForTesting)")
+    }
+
+    private func engineWithRelease(_ release: Float) -> AudioEngine {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.chorusMix = 0
+        preset.release = release
+        preset.attack = 0.005
+        preset.decay = 0.02
+        preset.sustain = 0.8
+        engine.preset = preset
+        engine.applyPresetForTesting()
+        return engine
+    }
+
+    @Test func abandonedTailsFadeWhenANewChordIsHeld() async throws {
+        let engine = engineWithRelease(0.90)
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(4_000)
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.noteOn(midiNote: 72, velocity: 1)
+        engine.noteOn(midiNote: 76, velocity: 1)
+        engine.processCommandsForTesting()
+
+        let flags = engine.voiceReleaseFlagsForTesting()
+        let held = flags.filter { !$0.isReleasing }
+        let musical = flags.filter { $0.isReleasing && !$0.fastRelease }
+        let faded = flags.filter { $0.fastRelease }
+        #expect(held.map(\.midiNote).sorted() == [72, 76])
+        #expect(musical.count == 2, "kept tails \(musical.map(\.midiNote))")
+        #expect(musical.map(\.midiNote).sorted() == [67, 71])
+        #expect(faded.map(\.midiNote).sorted() == [60, 64])
+
+        // 6 ms fade starts from the current level, it does not zero the sample.
+        _ = engine.renderFramesForTesting(1)
+        let justFaded = engine.voiceReleaseFlagsForTesting().filter { $0.fastRelease }
+        #expect(justFaded.allSatisfy { $0.envelopeValue > 0.2 }, "fade clicked to silence \(justFaded)")
+
+        _ = engine.renderFramesForTesting(4_000)
+        let later = engine.voiceReleaseFlagsForTesting()
+        #expect(later.filter { $0.fastRelease }.isEmpty, "fast tails still up \(later)")
+        #expect(later.filter { !$0.isReleasing }.map(\.midiNote).sorted() == [72, 76])
+        #expect(later.filter { $0.isReleasing && !$0.fastRelease }.count == 2)
+    }
+
+    @Test func releasingTheWholeChordKeepsEveryTail() async throws {
+        let engine = engineWithRelease(0.90)
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(2_000)
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.processCommandsForTesting()
+
+        let flags = engine.voiceReleaseFlagsForTesting()
+        #expect(flags.count == 4)
+        #expect(flags.allSatisfy { $0.isReleasing && !$0.fastRelease }, "full release was chopped \(flags)")
+    }
+
+    @Test func shortPluckReleaseIsNotTrimmed() async throws {
+        let engine = engineWithRelease(0.08)
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(2_000)
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.noteOn(midiNote: 72, velocity: 1)
+        engine.processCommandsForTesting()
+
+        let tails = engine.voiceReleaseFlagsForTesting().filter { $0.isReleasing }
+        #expect(tails.count == 4)
+        #expect(tails.allSatisfy { !$0.fastRelease }, "pluck tails were shortened \(tails)")
+    }
+
+    @Test func twoAbandonedTailsStayAtTheAuthoredRelease() async throws {
+        let engine = engineWithRelease(0.90)
+        for note in [60, 64] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(2_000)
+        for note in [60, 64] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.noteOn(midiNote: 72, velocity: 1)
+        engine.processCommandsForTesting()
+
+        let tails = engine.voiceReleaseFlagsForTesting().filter { $0.isReleasing }
+        #expect(tails.count == 2)
+        #expect(tails.allSatisfy { !$0.fastRelease })
     }
 
     @Test func delayEffectClampsFeedbackToUnit() async throws {

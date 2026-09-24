@@ -122,6 +122,8 @@ final class ParametricEQ {
     private var highX1: Float = 0, highX2: Float = 0
     private var highY1: Float = 0, highY2: Float = 0
     private var highDirty: Bool = true
+    /// Cancels the loudest boost so a shelf changes tone without raising the peak.
+    private var outputTrim: Float = 1
     
     // MARK: - Init
     
@@ -135,10 +137,14 @@ final class ParametricEQ {
     func process(_ input: Float) -> Float {
         guard enabled else { return input }
         
-        // Recalculate coefficients if needed
-        if lowDirty { calculateLowShelf(); lowDirty = false }
-        if midDirty { calculateMidPeak(); midDirty = false }
-        if highDirty { calculateHighShelf(); highDirty = false }
+        if lowDirty || midDirty || highDirty {
+            if lowDirty { calculateLowShelf(); lowDirty = false }
+            if midDirty { calculateMidPeak(); midDirty = false }
+            if highDirty { calculateHighShelf(); highDirty = false }
+            // +8 dB of bass used to leave the clean bus and bend in the ceiling.
+            let boost = max(0, lowGain, midGain, highGain)
+            outputTrim = boost > 0.05 ? pow(10.0, -boost / 20.0) : 1
+        }
         
         // Apply low shelf
         var sample = processBiquad(
@@ -160,8 +166,8 @@ final class ParametricEQ {
             b0: highB0, b1: highB1, b2: highB2, a1: highA1, a2: highA2,
             x1: &highX1, x2: &highX2, y1: &highY1, y2: &highY2
         )
-        
-        return sample
+
+        return sample * outputTrim
     }
     
     @inline(__always)
@@ -170,9 +176,14 @@ final class ParametricEQ {
         b0: Float, b1: Float, b2: Float, a1: Float, a2: Float,
         x1: inout Float, x2: inout Float, y1: inout Float, y2: inout Float
     ) -> Float {
-        let output = b0 * input + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
-        
-        // Update state
+        var output = b0 * input + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+        if !output.isFinite {
+            x1 = 0; x2 = 0; y1 = 0; y2 = 0
+            return 0
+        }
+        // Denormals in a shelf sound like crackle once the note is quiet (Intel).
+        if abs(output) < 1.0e-15 { output = 0 }
+
         x2 = x1
         x1 = input
         y2 = y1
@@ -180,15 +191,26 @@ final class ParametricEQ {
         
         return output
     }
+
+    /// RBJ shelf slope S = 1. The previous `sqrt((A+1/A)*2)` rang at the corner.
+    private func shelfAlpha(sinOmega: Float, a: Float) -> Float {
+        let slope: Float = 1
+        let under = (a + 1.0 / a) * (1.0 / slope - 1.0) + 2.0
+        return sinOmega / 2.0 * sqrt(max(under, 0))
+    }
+
+    private func clampedFrequency(_ hz: Float) -> Float {
+        min(max(hz, 20), sampleRate * 0.45)
+    }
     
     // MARK: - Coefficient Calculation
     
     private func calculateLowShelf() {
-        let A = pow(10.0, lowGain / 40.0)
-        let omega = 2.0 * Float.pi * lowFreq / sampleRate
+        let A = pow(10.0, max(-24, min(24, lowGain)) / 40.0)
+        let omega = 2.0 * Float.pi * clampedFrequency(lowFreq) / sampleRate
         let sinOmega = sin(omega)
         let cosOmega = cos(omega)
-        let alpha = sinOmega / 2.0 * sqrt((A + 1.0/A) * 2.0)
+        let alpha = shelfAlpha(sinOmega: sinOmega, a: A)
         
         let twoSqrtAAlpha = 2.0 * sqrt(A) * alpha
         
@@ -203,11 +225,12 @@ final class ParametricEQ {
     }
     
     private func calculateMidPeak() {
-        let A = pow(10.0, midGain / 40.0)
-        let omega = 2.0 * Float.pi * midFreq / sampleRate
+        let A = pow(10.0, max(-24, min(24, midGain)) / 40.0)
+        let omega = 2.0 * Float.pi * clampedFrequency(midFreq) / sampleRate
         let sinOmega = sin(omega)
         let cosOmega = cos(omega)
-        let alpha = sinOmega / (2.0 * midQ)
+        let q = max(0.2, min(8, midQ))
+        let alpha = sinOmega / (2.0 * q)
         
         let a0 = 1.0 + alpha / A
         let a0Inv = 1.0 / a0
@@ -220,11 +243,11 @@ final class ParametricEQ {
     }
     
     private func calculateHighShelf() {
-        let A = pow(10.0, highGain / 40.0)
-        let omega = 2.0 * Float.pi * highFreq / sampleRate
+        let A = pow(10.0, max(-24, min(24, highGain)) / 40.0)
+        let omega = 2.0 * Float.pi * clampedFrequency(highFreq) / sampleRate
         let sinOmega = sin(omega)
         let cosOmega = cos(omega)
-        let alpha = sinOmega / 2.0 * sqrt((A + 1.0/A) * 2.0)
+        let alpha = shelfAlpha(sinOmega: sinOmega, a: A)
         
         let twoSqrtAAlpha = 2.0 * sqrt(A) * alpha
         
@@ -245,6 +268,7 @@ final class ParametricEQ {
         lowDirty = true
         midDirty = true
         highDirty = true
+        outputTrim = 1
     }
 
     /// Apply a factory preset (marks coeffs dirty; does not change `enabled`).
