@@ -83,6 +83,11 @@ class MIDIHandler: ObservableObject {
              MIDIPortDisconnectSource(inputPort, src)
         }
         
+        // The old device can't send its bend-center / pedal-up any more.
+        // Main thread → UI ring (the MIDI ring has one producer: CoreMIDI).
+        audioEngine?.pitchBend(0)
+        audioEngine?.sustainPedal(down: false)
+
         if let src = sources[name] {
             let status = MIDIPortConnectSource(inputPort, src, nil)
             if status == noErr {

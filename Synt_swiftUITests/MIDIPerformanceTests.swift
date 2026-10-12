@@ -131,6 +131,19 @@ struct MIDIPerformanceTests {
         #expect(held.count <= 1, "pedal piled up arp gates: \(held.count) held voices")
     }
 
+    @Test func presetChangeResetsBendAndPedal() {
+        let engine = AudioEngine()
+        engine.pitchBend(1)
+        engine.sustainPedal(down: true)
+        engine.processCommandsForTesting()
+        #expect(engine.sustainPedalDown)
+        engine.clearAllNotes()
+        engine.processCommandsForTesting()
+        #expect(engine.pitchBendTarget == 0)
+        #expect(engine.pitchBendSmoothed == 0)
+        #expect(!engine.sustainPedalDown)
+    }
+
     @Test func initWithoutMIDIIsSampleIdenticalAcrossEngines() {
         #expect(initBuffer() == initBuffer())
     }

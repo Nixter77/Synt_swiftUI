@@ -436,6 +436,12 @@ extension AudioEngine {
                 setSustainPedal(down: down)
             case .clearAll:
                 clearAllVoices()
+                // A new patch / panic must not inherit a bent pitch or a stuck pedal.
+                pitchBendTarget = 0
+                pitchBendSmoothed = 0
+                sustainPedalDown = false
+                sustainedLo = 0
+                sustainedHi = 0
                 heldKeysForArp.removeAll()
                 arp.reset()
                 seqMirror.heldNote = -1
