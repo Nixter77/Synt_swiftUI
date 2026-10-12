@@ -43,32 +43,53 @@ struct ContentView: View {
             .padding(.bottom, 8)
         }
         .background(AppleTheme.windowBackground)
-        // Timer for sequencer (runs at ~1000Hz for accurate timing)
-        .onReceive(Timer.publish(every: 0.001, on: .main, in: .common).autoconnect()) { _ in
-            if stepSequencer.isPlaying {
-                // Call tick with ~44 samples per millisecond (44100 / 1000)
-                stepSequencer.tick(bpm: audioEngine.preset.bpm, sampleCount: 44)
+        // Playhead only. The clock itself runs on the audio thread.
+        .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { _ in
+            let step = audioEngine.sequencerDisplayStep
+            if stepSequencer.currentStep != step {
+                stepSequencer.currentStep = step
             }
+        }
+        .onChange(of: stepSequencer.isPlaying) { _, _ in
+            publishSequencerSnapshot()
+        }
+        .onChange(of: stepSequencer.swing) { _, _ in
+            publishSequencerSnapshot()
+        }
+        .onChange(of: stepSequencer.rootNote) { _, _ in
+            publishSequencerSnapshot()
+        }
+        .onChange(of: stepSequencer.pattern) { _, _ in
+            publishSequencerSnapshot()
+        }
+        .onChange(of: audioEngine.preset.bpm) { _, _ in
+            publishSequencerSnapshot()
         }
         .onAppear {
             keyboardHandler.audioEngine = audioEngine
             midiHandler.audioEngine = audioEngine
             keyboardHandler.startListening()
             audioEngine.start()
-            
-            // Connect step sequencer to audio engine
-            stepSequencer.onStep = { [weak audioEngine] note, velocity, _ in
-                audioEngine?.noteOn(midiNote: note, velocity: velocity)
-            }
-            stepSequencer.onNoteOff = { [weak audioEngine] note in
-                audioEngine?.noteOff(midiNote: note)
-            }
+            publishSequencerSnapshot()
         }
         .onDisappear {
             keyboardHandler.stopListening()
             audioEngine.stop()
             stepSequencer.stop()
+            publishSequencerSnapshot()
         }
+    }
+
+    private func publishSequencerSnapshot() {
+        audioEngine.updateSequencerSnapshot(
+            playing: stepSequencer.isPlaying,
+            swing: stepSequencer.swing,
+            bpm: audioEngine.preset.bpm,
+            rootNote: stepSequencer.rootNote,
+            length: stepSequencer.pattern.length,
+            generation: stepSequencer.transportGeneration,
+            steps: stepSequencer.pattern.steps
+        )
     }
 
     private var headerSection: some View {

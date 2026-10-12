@@ -116,6 +116,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var arp = ArpeggiatorEngine()
     var heldKeysForArp: Set<Int> = []
 
+    /// UI publishes a pattern snapshot; the audio thread owns the clock.
+    let sequencerTransport = SequencerTransport()
+    var seqMirror = SequencerTransport.Mirror()
+
     // Random noise seed (also used by arp random mode)
     var noiseSeed: UInt32 = 12345
 
@@ -254,6 +258,32 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         _ = commandQueue.push(.clearAll)
         updatePressedKeys { $0.removeAll() }
     }
+
+    /// UI thread. Copies swing, BPM, root and the 16 steps into the lock-free snapshot.
+    func updateSequencerSnapshot(
+        playing: Bool,
+        swing: Float,
+        bpm: Float,
+        rootNote: Int,
+        length: Int,
+        generation: UInt32,
+        steps: [SequencerStep],
+        gate: Float = SequencerTransport.defaultGate
+    ) {
+        sequencerTransport.publish(
+            playing: playing,
+            swing: swing,
+            bpm: bpm,
+            rootNote: rootNote,
+            length: length,
+            generation: generation,
+            gate: gate,
+            patternSteps: steps
+        )
+    }
+
+    /// Audio → UI playhead. The view polls this at 30 Hz.
+    var sequencerDisplayStep: Int { sequencerTransport.currentDisplayStep }
 
     private func updatePressedKeys(_ body: @escaping (inout Set<Int>) -> Void) {
         if Thread.isMainThread {
@@ -425,6 +455,17 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             if voices[i].isActive { seen.insert(voices[i].midiNote) }
         }
         return seen.count
+    }
+
+    /// MIDI notes that are still held (not in release). Test helper, not the render path.
+    func heldMIDINotesForTesting() -> Set<Int> {
+        var notes = Set<Int>()
+        for i in 0..<AudioEngine.maxVoices {
+            if voices[i].isActive && !voices[i].isReleasing {
+                notes.insert(voices[i].midiNote)
+            }
+        }
+        return notes
     }
 
     /// Whether a note has any active voice in the fixed pool.

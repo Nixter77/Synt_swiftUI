@@ -140,6 +140,8 @@ extension AudioEngine {
             arp.currentNote = nil
         }
 
+        advanceSequencerOneSample()
+
         let lfoValue = lfo.getValue(sampleRate: sampleRate)
         let lfoEnabled = lfo.enabled
         let lfoTarget = lfo.target
@@ -375,6 +377,8 @@ extension AudioEngine {
                 clearAllVoices()
                 heldKeysForArp.removeAll()
                 arp.reset()
+                seqMirror.heldNote = -1
+                seqMirror.gateSamplesLeft = 0
                 filterL.reset()
                 filterR.reset()
                 lfo.reset()
@@ -391,6 +395,80 @@ extension AudioEngine {
         // After the whole batch, so releasing a chord (held ends at 0) still rings.
         // A new chord in the same batch is already held, and only its oldest tails go.
         trimAbandonedTails()
+    }
+
+    /// Sample-accurate 16th-note clock. Swing delays user-facing even steps
+    /// (2, 4, 6… — odd indices) by `swing * step * 0.5` and shortens them so
+    /// the bar length stays constant. No allocation.
+    func advanceSequencerOneSample() {
+        let generationChanged = sequencerTransport.pullIfChanged(into: &seqMirror)
+        if generationChanged {
+            releaseSequencerNote()
+            seqMirror.stepIndex = 0
+            seqMirror.phase = 0
+            seqMirror.armed = seqMirror.playing
+            sequencerTransport.setDisplayStep(0)
+        }
+
+        guard seqMirror.playing else { return }
+
+        if seqMirror.length < 1 { seqMirror.length = 1 }
+        if seqMirror.stepIndex >= seqMirror.length { seqMirror.stepIndex = 0 }
+
+        if seqMirror.armed {
+            seqMirror.armed = false
+            triggerSequencerStep()
+        } else if seqMirror.gateSamplesLeft > 0 {
+            seqMirror.gateSamplesLeft -= 1
+            if seqMirror.gateSamplesLeft == 0 {
+                releaseSequencerNote()
+            }
+        }
+
+        let length = sequencerStepDuration(stepIndex: seqMirror.stepIndex)
+        seqMirror.phase += 1
+        if seqMirror.phase >= length {
+            seqMirror.phase -= length
+            seqMirror.stepIndex = (seqMirror.stepIndex + 1) % seqMirror.length
+            sequencerTransport.setDisplayStep(seqMirror.stepIndex)
+            triggerSequencerStep()
+        }
+    }
+
+    func sequencerStepDuration(stepIndex: Int) -> Double {
+        let bpm = Double(max(20, seqMirror.bpm))
+        let samplesPerStep = sampleRate * 60.0 / bpm / 4.0
+        let swing = Double(min(1, max(0, seqMirror.swing)))
+        let offset = swing * samplesPerStep * 0.5
+        if stepIndex % 2 == 0 {
+            return samplesPerStep + offset
+        }
+        return max(1, samplesPerStep - offset)
+    }
+
+    func triggerSequencerStep() {
+        let index = seqMirror.stepIndex
+        guard index >= 0 && index < SequencerTransport.stepCount else { return }
+        releaseSequencerNote()
+
+        let step = seqMirror.steps[index]
+        guard step.isActive else { return }
+
+        let raw = seqMirror.rootNote + Int(step.noteOffset) + Int(step.octave) * 12
+        let midi = max(0, min(127, raw))
+        createVoice(midiNote: midi, velocity: step.velocity)
+        seqMirror.heldNote = midi
+
+        let bpm = Double(max(20, seqMirror.bpm))
+        let samplesPerStep = sampleRate * 60.0 / bpm / 4.0
+        seqMirror.gateSamplesLeft = max(1, Int((samplesPerStep * Double(seqMirror.gate)).rounded(.down)))
+    }
+
+    func releaseSequencerNote() {
+        guard seqMirror.heldNote >= 0 else { return }
+        internalNoteOff(midiNote: seqMirror.heldNote)
+        seqMirror.heldNote = -1
+        seqMirror.gateSamplesLeft = 0
     }
 
     func handleArpTick() {
