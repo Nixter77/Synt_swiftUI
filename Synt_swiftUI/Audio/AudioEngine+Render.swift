@@ -140,7 +140,8 @@ extension AudioEngine {
                 handleArpTick()
             }
         } else if let n = arp.currentNote {
-            internalNoteOff(midiNote: n)
+            // Machine gates ignore the pedal; the pedal holds only played keys.
+            releaseHeldNote(n)
             arp.currentNote = nil
         }
 
@@ -521,14 +522,14 @@ extension AudioEngine {
 
     func releaseSequencerNote() {
         guard seqMirror.heldNote >= 0 else { return }
-        internalNoteOff(midiNote: seqMirror.heldNote)
+        releaseHeldNote(seqMirror.heldNote)
         seqMirror.heldNote = -1
         seqMirror.gateSamplesLeft = 0
     }
 
     func handleArpTick() {
         if let oldNote = arp.currentNote {
-            internalNoteOff(midiNote: oldNote)
+            releaseHeldNote(oldNote)
         }
 
         guard let newNote = arp.advanceTick(randomSource: &noiseSeed) else {

@@ -113,6 +113,23 @@ struct MIDIPerformanceTests {
         #expect(!engine.heldKeysForArp.contains(64))
     }
 
+    @Test func sustainDoesNotHoldArpGates() {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .up
+        preset.bpm = 240
+        engine.preset = preset
+        engine.applyPresetForTesting()
+        engine.sustainPedal(down: true)
+        engine.noteOn(midiNote: 60)
+        engine.noteOn(midiNote: 64)
+        engine.processCommandsForTesting()
+        // 240 BPM 16ths = 2756 samples per tick; run a few ticks.
+        _ = engine.renderFramesForTesting(2756 * 4 + 10)
+        let held = engine.voiceReleaseFlagsForTesting().filter { !$0.isReleasing }
+        #expect(held.count <= 1, "pedal piled up arp gates: \(held.count) held voices")
+    }
+
     @Test func initWithoutMIDIIsSampleIdenticalAcrossEngines() {
         #expect(initBuffer() == initBuffer())
     }
