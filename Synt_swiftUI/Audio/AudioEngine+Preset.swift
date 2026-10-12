@@ -41,9 +41,11 @@ extension AudioEngine {
 
         lfo.enabled = preset.lfoEnabled
         lfo.rate = preset.lfoRate
-        lfo.depth = preset.lfoDepth
+        cachedLfoDepth = preset.lfoDepth
+        lfo.depth = cachedLfoDepth * modWheel
         lfo.waveform = preset.lfoWaveform
         lfo.target = preset.lfoTarget
+        cachedPitchBendRange = max(0, preset.pitchBendRange)
 
         reverb.wetDryMix = AudioMath.appleFXWetPercent(preset.reverbMix)
         reverb.setRoomSize(preset.reverbRoomSize)

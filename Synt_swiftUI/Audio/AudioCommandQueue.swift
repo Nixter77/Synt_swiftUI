@@ -19,12 +19,17 @@ enum AudioCommand: Equatable {
     case clearAll
     case arpKeyDown(midiNote: Int)
     case arpKeyUp(midiNote: Int)
+    /// -1…1, center 0. Full throw is `pitchBendRange` semitones.
+    case setPitchBend(Float)
+    /// 0…1. Scales the preset LFO depth. 1 leaves the preset alone.
+    case setModWheel(Float)
+    case setSustain(Bool)
 
     var isCritical: Bool {
         switch self {
-        case .noteOff, .clearAll, .arpKeyUp:
+        case .noteOff, .clearAll, .arpKeyUp, .setSustain:
             return true
-        case .noteOn, .arpKeyDown:
+        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel:
             return false
         }
     }
@@ -45,6 +50,8 @@ final class AudioCommandQueue: @unchecked Sendable {
     private let pendingArpKeyUpLo = Atomic<UInt64>(0)
     private let pendingArpKeyUpHi = Atomic<UInt64>(0)
     private let pendingClearAll = Atomic<Bool>(false)
+    /// 0 = none, 1 = pedal up, 2 = pedal down. Latest wins when the ring is full.
+    private let pendingSustain = Atomic<Int8>(0)
 
     init(capacity: Int = 256) {
         self.capacity = max(2, capacity)
@@ -75,7 +82,10 @@ final class AudioCommandQueue: @unchecked Sendable {
         case .clearAll:
             pendingClearAll.store(true, ordering: .releasing)
             return true
-        case .noteOn, .arpKeyDown:
+        case .setSustain(let down):
+            pendingSustain.store(down ? 2 : 1, ordering: .releasing)
+            return true
+        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel:
             return false
         }
     }
@@ -216,6 +226,14 @@ final class AudioCommandQueue: @unchecked Sendable {
                 restoreLo: { [self] rem in self.orNoteOffBitRangeLo(rem) },
                 restoreHi: { [self] rem in self.orNoteOffBitRangeHi(rem) }
             )
+        }
+
+        if !didClearAll && count < limit {
+            let sustainCode = pendingSustain.exchange(0, ordering: .acquiringAndReleasing)
+            if sustainCode != 0 {
+                body(.setSustain(sustainCode == 2))
+                count += 1
+            }
         }
 
         if !didClearAll && count < limit {

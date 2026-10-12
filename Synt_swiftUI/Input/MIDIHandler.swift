@@ -131,6 +131,10 @@ class MIDIHandler: ObservableObject {
         }
     }
     
+    func parseMIDIBytesForTesting(_ bytes: [UInt8]) {
+        parseMIDIBytes(bytes)
+    }
+
     private func parseMIDIBytes(_ bytes: [UInt8]) {
         guard !bytes.isEmpty else { return }
         
@@ -159,6 +163,31 @@ class MIDIHandler: ObservableObject {
                     // let velocity = bytes[i+2]
                     
                     audioEngine?.noteOff(midiNote: Int(note))
+                    i += 3
+                } else { break }
+            } else if command == 0xE0 { // Pitch bend
+                if i + 2 < bytes.count {
+                    let lsb = Int(bytes[i + 1] & 0x7F)
+                    let msb = Int(bytes[i + 2] & 0x7F)
+                    let value = (msb << 7) | lsb
+                    let normalized: Float
+                    if value >= 8192 {
+                        normalized = Float(value - 8192) / 8191
+                    } else {
+                        normalized = Float(value - 8192) / 8192
+                    }
+                    audioEngine?.pitchBend(normalized)
+                    i += 3
+                } else { break }
+            } else if command == 0xB0 { // Control change
+                if i + 2 < bytes.count {
+                    let cc = bytes[i + 1]
+                    let value = bytes[i + 2]
+                    if cc == 1 {
+                        audioEngine?.modWheel(Float(value) / 127)
+                    } else if cc == 64 {
+                        audioEngine?.sustainPedal(down: value >= 64)
+                    }
                     i += 3
                 } else { break }
             } else {

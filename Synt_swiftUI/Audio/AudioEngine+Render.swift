@@ -146,6 +146,7 @@ extension AudioEngine {
 
         advanceSequencerOneSample()
 
+        let pitchBendMultiplier = advancePitchBend()
         let lfoValue = lfo.getValue(sampleRate: sampleRate)
         let lfoEnabled = lfo.enabled
         let lfoTarget = lfo.target
@@ -247,6 +248,11 @@ extension AudioEngine {
                     osc1Freq *= mul
                     osc2Freq *= mul
                 }
+            }
+
+            if pitchBendMultiplier != 1 {
+                osc1Freq *= pitchBendMultiplier
+                osc2Freq *= pitchBendMultiplier
             }
 
             osc1Freq = max(20.0, min(sampleRate * 0.45, osc1Freq))
@@ -370,6 +376,23 @@ extension AudioEngine {
         return (outL, outR)
     }
 
+    /// ~5 ms one-pole toward the bend target. Idle bend stays exactly 1 and does no work.
+    func advancePitchBend() -> Double {
+        let target = pitchBendTarget
+        if target == 0 && pitchBendSmoothed == 0 {
+            return 1
+        }
+        let coeff = 1 - exp(-1.0 / (0.005 * sampleRate))
+        pitchBendSmoothed += (target - pitchBendSmoothed) * Float(coeff)
+        if abs(target - pitchBendSmoothed) < 0.00002 {
+            pitchBendSmoothed = target
+        }
+        if pitchBendSmoothed == 0 {
+            return 1
+        }
+        return exp2(Double(pitchBendSmoothed) * Double(cachedPitchBendRange) / 12)
+    }
+
     func processCommandQueue() {
         commandQueue.drain(limit: 128) { [self] command in
             switch command {
@@ -377,6 +400,13 @@ extension AudioEngine {
                 createVoice(midiNote: midiNote, velocity: velocity)
             case .noteOff(let midiNote):
                 internalNoteOff(midiNote: midiNote)
+            case .setPitchBend(let amount):
+                pitchBendTarget = amount
+            case .setModWheel(let amount):
+                modWheel = amount
+                lfo.depth = cachedLfoDepth * modWheel
+            case .setSustain(let down):
+                setSustainPedal(down: down)
             case .clearAll:
                 clearAllVoices()
                 heldKeysForArp.removeAll()

@@ -19,11 +19,14 @@ extension AudioEngine {
         activeVoiceCountRT = 0
         lastPlayedFrequency = nil
         releaseSerialRT = 1
+        sustainedLo = 0
+        sustainedHi = 0
         cleanBus.reset()
     }
 
     /// Fixed-pool allocation (audio thread). No Dictionary / heap ids.
     func createVoice(midiNote: Int, velocity: Float) {
+        clearSustainBit(midiNote)
         // Soft re-trigger: fade previous partials of this MIDI note (hard kill = click).
         for i in 0..<AudioEngine.maxVoices {
             if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
@@ -167,6 +170,54 @@ extension AudioEngine {
     }
 
     func internalNoteOff(midiNote: Int) {
+        if sustainPedalDown {
+            setSustainBit(midiNote)
+            return
+        }
+        releaseHeldNote(midiNote)
+    }
+
+    func setSustainPedal(down: Bool) {
+        if sustainPedalDown && !down {
+            sustainPedalDown = false
+            releaseAllSustained()
+            return
+        }
+        sustainPedalDown = down
+    }
+
+    func setSustainBit(_ note: Int) {
+        guard note >= 0, note < 128 else { return }
+        if note < 64 {
+            sustainedLo |= UInt64(1) << note
+        } else {
+            sustainedHi |= UInt64(1) << (note - 64)
+        }
+    }
+
+    func clearSustainBit(_ note: Int) {
+        guard note >= 0, note < 128 else { return }
+        if note < 64 {
+            sustainedLo &= ~(UInt64(1) << note)
+        } else {
+            sustainedHi &= ~(UInt64(1) << (note - 64))
+        }
+    }
+
+    func releaseAllSustained() {
+        let lo = sustainedLo
+        let hi = sustainedHi
+        sustainedLo = 0
+        sustainedHi = 0
+        if lo == 0 && hi == 0 { return }
+        for i in 0..<64 {
+            let bit = UInt64(1) << i
+            if lo & bit != 0 { releaseHeldNote(i) }
+            if hi & bit != 0 { releaseHeldNote(i + 64) }
+        }
+    }
+
+    func releaseHeldNote(_ midiNote: Int) {
         let serial = releaseSerialRT
         var released = false
         for i in 0..<AudioEngine.maxVoices {

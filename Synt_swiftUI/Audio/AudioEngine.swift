@@ -95,6 +95,17 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     // Portamento state (audio thread)
     var lastPlayedFrequency: Double? = nil
 
+    /// Audio-thread performance controls. UI only pushes commands.
+    var pitchBendTarget: Float = 0
+    var pitchBendSmoothed: Float = 0
+    var cachedPitchBendRange: Float = 2
+    /// 1 keeps the preset LFO depth. CC1 writes 0…1.
+    var modWheel: Float = 1
+    var cachedLfoDepth: Float = 0.5
+    var sustainPedalDown = false
+    var sustainedLo: UInt64 = 0
+    var sustainedHi: UInt64 = 0
+
     // Level metering (audio-thread accumulators → AtomicMeteringState)
     var currentLevel: Float = 0.0
     var currentPeak: Float = 0.0
@@ -353,6 +364,20 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         currentPeak = 0.0
         meteringState.setOutputLevel(0)
         meteringState.setPeakLevel(0)
+    }
+
+    func pitchBend(_ normalized: Float) {
+        let bend = min(1, max(-1, normalized))
+        _ = commandQueue.push(.setPitchBend(bend))
+    }
+
+    func modWheel(_ amount: Float) {
+        let wheel = min(1, max(0, amount))
+        _ = commandQueue.push(.setModWheel(wheel))
+    }
+
+    func sustainPedal(down: Bool) {
+        _ = commandQueue.push(.setSustain(down))
     }
 
     func noteOn(midiNote: Int, velocity: Float = 1.0) {

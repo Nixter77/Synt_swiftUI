@@ -113,6 +113,8 @@ struct SynthPreset: Codable, Identifiable, Hashable {
     var phaserCenterFrequency: Float = 800
     var phaserStereoSpread: Float = 0.5
     var phaserMix: Float = 0.4
+    /// Semitones at full pitch-bend throw. Older JSON leaves this at 2.
+    var pitchBendRange: Float = 2
 
     /// Safe neutral starting point (clean headroom).
     static let defaultPreset = SynthPreset(name: "Init", category: .lead)
@@ -136,6 +138,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         case eqEnabled, eqPreset, eqLowGain, eqLowFreq, eqMidGain, eqMidFreq, eqMidQ, eqHighGain, eqHighFreq
         case phaserEnabled, phaserMode, phaserRate, phaserDepth, phaserFeedback
         case phaserCenterFrequency, phaserStereoSpread, phaserMix
+        case pitchBendRange
     }
 
     init(
@@ -207,7 +210,8 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         phaserFeedback: Float = 0.25,
         phaserCenterFrequency: Float = 800,
         phaserStereoSpread: Float = 0.5,
-        phaserMix: Float = 0.4
+        phaserMix: Float = 0.4,
+        pitchBendRange: Float = 2
     ) {
         self.id = id
         self.name = name
@@ -278,6 +282,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         self.phaserCenterFrequency = phaserCenterFrequency
         self.phaserStereoSpread = phaserStereoSpread
         self.phaserMix = phaserMix
+        self.pitchBendRange = pitchBendRange
     }
 
     init(from decoder: Decoder) throws {
@@ -352,6 +357,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         phaserCenterFrequency = try c.decodeIfPresent(Float.self, forKey: .phaserCenterFrequency) ?? 800
         phaserStereoSpread = try c.decodeIfPresent(Float.self, forKey: .phaserStereoSpread) ?? 0.5
         phaserMix = try c.decodeIfPresent(Float.self, forKey: .phaserMix) ?? 0.4
+        pitchBendRange = try c.decodeIfPresent(Float.self, forKey: .pitchBendRange) ?? 2
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
