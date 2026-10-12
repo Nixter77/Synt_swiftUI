@@ -63,11 +63,6 @@ class LFO {
         return value * depth
     }
 
-    func modulateFrequency(_ frequency: Double, lfoValue: Float) -> Double {
-        let semitones = Double(lfoValue) * 2.0
-        return frequency * pow(2.0, semitones / 12.0)
-    }
-
     func modulateFilter(_ cutoff: Float, lfoValue: Float) -> Float {
         let modulation = lfoValue * 2000.0
         return max(20.0, cutoff + modulation)

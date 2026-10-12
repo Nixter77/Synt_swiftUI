@@ -59,7 +59,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var filterL = CachedBiquadFilter()
     var filterR = CachedBiquadFilter()
     var lfo = LFO()
-    private let limiter = Compressor(sampleRate: 44100.0)
     /// Linear gain rider in front of the waveshapers. Not the brick-wall limiter.
     let cleanBus = CleanBus()
 
@@ -168,19 +167,11 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         phaser.bypass = true
 
         setupAudioSession()
-        setupLimiter()
         setupAudioEngine()
         applyPreset()
         startMeteringPoll()
     }
 
-
-    private func setupLimiter() {
-        // Off on the live path. limiterMode ignores threshold/attack and brick-walls
-        // every extra-note crest (2 notes ok, 3rd rasps). Safety is soft-clip only.
-        limiter.enabled = false
-        limiter.limiterMode = false
-    }
 
     private func setupAudioSession() {
         #if os(iOS)
@@ -290,7 +281,6 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         parametricEQL.setSampleRate(rateF)
         parametricEQR.setSampleRate(rateF)
         phaser.setSampleRate(rateF)
-        limiter.setSampleRate(rateF)
         dspChorus.setSampleRate(rate)
         wavetableEngine1.setSampleRate(rate)
         wavetableEngine2.setSampleRate(rate)
