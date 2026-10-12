@@ -5,28 +5,47 @@
 
 import SwiftUI
 
-/// Rest is the left stop. Level 1 is 0 dB. Anything louder enters the red zone.
+/// VU scale in dB: −20…+3 VU across the arc. 0 VU is meter level 0.5
+/// (the engine sends min(rms*2, 1), so 1.0 is +6 VU and pins the right stop).
 let needleLeftStop = -50.0
-let needleZeroDB = 32.0
 let needleRightStop = 50.0
+let needleMinVU = -20.0
+let needleMaxVU = 3.0
+/// Meter level that reads 0 VU.
+let needleReferenceLevel: Float = 0.5
+let needleZeroDB = angleForVU(0)
+/// Scale marks, printed like a real VU face.
+let needleTickVU: [Double] = [-20, -10, -7, -5, -3, -2, -1, 0, 1, 2, 3]
 
-func needleAngle(level: Float) -> Double {
-    guard level.isFinite else { return needleLeftStop }
-    let clamped = Double(max(0, level))
-    if clamped <= 1 {
-        return needleLeftStop + clamped * (needleZeroDB - needleLeftStop)
-    }
-    let over = min(clamped - 1, 0.5) / 0.5
-    return needleZeroDB + over * (needleRightStop - needleZeroDB)
+func angleForVU(_ vu: Double) -> Double {
+    let t = (min(needleMaxVU, max(needleMinVU, vu)) - needleMinVU) / (needleMaxVU - needleMinVU)
+    return needleLeftStop + t * (needleRightStop - needleLeftStop)
 }
 
+func needleVU(level: Float) -> Double {
+    guard level.isFinite, level > 0 else { return -.infinity }
+    return 20 * log10(Double(level) / Double(needleReferenceLevel))
+}
+
+func needleAngle(level: Float) -> Double {
+    let vu = needleVU(level: level)
+    guard vu.isFinite else { return needleLeftStop }
+    return angleForVU(vu)
+}
+
+/// Above 0 VU. Reachable: level 0.5…1.0 is 0…+6 VU.
 func needleIsInRedZone(level: Float) -> Bool {
-    guard level.isFinite, level > 1 else { return false }
-    return needleAngle(level: level) > needleZeroDB
+    needleVU(level: level) > 0
+}
+
+/// Peak lamp: the sample peak is at the ceiling.
+func needlePeakLampLit(peak: Float) -> Bool {
+    peak.isFinite && peak >= 0.98
 }
 
 struct NeedleVUMeterView: View {
     var level: Float
+    var peak: Float = 0
     var label: String
 
     private let face = Color(hex: "#F4E3B0")
@@ -41,11 +60,13 @@ struct NeedleVUMeterView: View {
                             .stroke(Color.black.opacity(0.35), lineWidth: 1)
                     )
 
-                ForEach(0..<11, id: \.self) { tick in
-                    let angle = needleLeftStop + Double(tick) * (needleRightStop - needleLeftStop) / 10
+                ForEach(needleTickVU.indices, id: \.self) { i in
+                    let vu = needleTickVU[i]
+                    let angle = angleForVU(vu)
+                    let major = vu == -20 || vu == -10 || vu == 0 || vu == 3
                     Rectangle()
-                        .fill(angle > needleZeroDB ? Color(hex: "#C0392B") : Color.black)
-                        .frame(width: 1, height: tick % 2 == 0 ? 7 : 4)
+                        .fill(vu > 0 ? Color(hex: "#C0392B") : Color.black)
+                        .frame(width: 1, height: major ? 7 : 4)
                         .offset(y: -12)
                         .rotationEffect(.degrees(angle))
                 }
@@ -60,6 +81,11 @@ struct NeedleVUMeterView: View {
                 Circle()
                     .fill(Color.black)
                     .frame(width: 4, height: 4)
+
+                Circle()
+                    .fill(needlePeakLampLit(peak: peak) ? Color(hex: "#C0392B") : Color.black.opacity(0.15))
+                    .frame(width: 4, height: 4)
+                    .offset(x: 14, y: 10)
             }
             .frame(width: 40, height: 32)
             .clipped()

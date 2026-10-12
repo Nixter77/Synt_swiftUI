@@ -78,8 +78,8 @@ struct StereoVUMeterView: View {
                 .foregroundColor(theme.positive)
             if theme.meterStyle == .needle {
                 HStack(spacing: 4) {
-                    NeedleVUMeterView(level: leftLevel, label: "L")
-                    NeedleVUMeterView(level: rightLevel, label: "R")
+                    NeedleVUMeterView(level: leftLevel, peak: leftPeak, label: "L")
+                    NeedleVUMeterView(level: rightLevel, peak: rightPeak, label: "R")
                 }
             } else {
                 HStack(spacing: 4) {
