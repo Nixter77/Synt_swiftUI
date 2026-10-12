@@ -178,13 +178,16 @@ extension AudioEngine {
         filterL.cutoff = cutoff
         let filterCoeffs = filterL.currentCoefficients(sampleRate: Float(sampleRate))
 
+        // Same for every voice: one exp() per sample, not one per voice.
+        let glides = cachedPortamento > 0.001
+        let glideRate = glides ? 1.0 - exp(-5.0 / (Double(cachedPortamento) * sampleRate)) : 0
+
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
         for i in 0..<AudioEngine.maxVoices {
             guard voices[i].isActive else { continue }
             var v = voices[i]
 
-            if cachedPortamento > 0.001 {
-                let glideRate = 1.0 - exp(-5.0 / (Double(cachedPortamento) * sampleRate))
+            if glides {
                 v.currentFrequency += (v.targetFrequency - v.currentFrequency) * glideRate
                 if abs(v.currentFrequency - v.targetFrequency) < 0.1 {
                     v.currentFrequency = v.targetFrequency
