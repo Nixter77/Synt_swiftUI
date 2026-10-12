@@ -9,7 +9,7 @@ class DSPChorus {
     private var bufferL: [Float]
     private var bufferR: [Float]
     private var writeIndex: Int = 0
-    private let bufferSize: Int
+    private var bufferSize: Int
     
     var rate: Float = 1.5
     var depth: Float = 0.5 // 0..1 corresponds to 0..maxDelay modulation
@@ -20,7 +20,7 @@ class DSPChorus {
     private var phaseR: Double = Double.pi / 2.0 // 90 degree offset for stereo
     
     private let maxDelaySeconds: Double = 0.050 // 50ms max delay
-    private let sampleRate: Double
+    private var sampleRate: Double
     
     init(sampleRate: Double = 44100.0) {
         self.sampleRate = sampleRate
@@ -90,6 +90,16 @@ class DSPChorus {
         return s0 + (s1 - s0) * frac
     }
     
+    func setSampleRate(_ newRate: Double) {
+        let newRate = max(8_000, newRate)
+        guard abs(newRate - sampleRate) > 0.5 else { return }
+        sampleRate = newRate
+        bufferSize = Int(sampleRate * maxDelaySeconds) + 100
+        bufferL = Array(repeating: 0, count: bufferSize)
+        bufferR = Array(repeating: 0, count: bufferSize)
+        writeIndex = 0
+    }
+
     func reset() {
         bufferL = Array(repeating: 0.0, count: bufferSize)
         bufferR = Array(repeating: 0.0, count: bufferSize)

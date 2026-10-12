@@ -454,7 +454,9 @@ final class Phaser {
     }
 
     func setSampleRate(_ newSampleRate: Float) {
-        sampleRate = max(8000, newSampleRate)
+        let newSampleRate = max(8000, newSampleRate)
+        guard abs(newSampleRate - sampleRate) > 0.5 else { return }
+        sampleRate = newSampleRate
         let maxDelaySamples = max(1, Int(sampleRate * maxDelayMs / 1000.0))
         delayBufferL = Array(repeating: 0, count: maxDelaySamples)
         delayBufferR = Array(repeating: 0, count: maxDelaySamples)

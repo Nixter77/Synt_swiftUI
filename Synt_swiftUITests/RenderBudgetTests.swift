@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import Darwin
 import Testing
 @testable import Synt_swiftUI
 
@@ -100,11 +101,13 @@ struct RenderBudgetTests {
 
         _ = engine.renderFramesMetricsForTesting(framesPerBuffer * 4)
 
+        // Thread CPU time, not wall clock. Swift Testing runs suites in parallel,
+        // and a preempted buffer would otherwise look like a DSP regression.
         var elapsedNs: UInt64 = 0
         for _ in 0..<bufferCount {
-            let t0 = DispatchTime.now().uptimeNanoseconds
+            let t0 = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
             _ = engine.renderFramesMetricsForTesting(framesPerBuffer)
-            let t1 = DispatchTime.now().uptimeNanoseconds
+            let t1 = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
             elapsedNs += t1 &- t0
         }
 

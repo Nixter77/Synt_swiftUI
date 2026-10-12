@@ -58,7 +58,7 @@ final class WavetableOscillator {
     private let tableSize: Int = 2048
     private let numOctaves: Int = 11  // C0 to C10
     /// Mips are built for the live engine rate. Must match AudioEngine.
-    private let mipSampleRate: Double = 44100.0
+    private var mipSampleRate: Double = 44100.0
 
     // MARK: - Built-in Wavetables
 
@@ -84,6 +84,17 @@ final class WavetableOscillator {
         currentWavetable = wavetable
         generateMipMaps(from: wavetable)
         framePosition = targetFramePosition
+    }
+
+    /// Rebuild mip tables for a new Nyquist. Not safe on the render thread.
+    func setSampleRate(_ rate: Double) {
+        let rate = max(8_000, rate)
+        let changed = abs(rate - mipSampleRate) > 0.5
+        mipSampleRate = rate
+        // Keep the ~11 ms morph time that 0.002 has at 44.1 kHz.
+        morphSmoothingCoeff = Float(88.2 / rate)
+        guard changed, let currentWavetable else { return }
+        generateMipMaps(from: currentWavetable)
     }
 
     func loadBuiltin(index: Int) {

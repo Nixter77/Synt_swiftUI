@@ -38,7 +38,7 @@ final class Compressor {
     
     private var envelope: Float = 0.0
     private var gainReduction: Float = 0.0
-    private let sampleRate: Float
+    private var sampleRate: Float
     
     // Coefficient cache
     private var attackCoeff: Float = 0.0
@@ -182,6 +182,14 @@ final class Compressor {
         paramsDirty = true
     }
     
+    func setSampleRate(_ newRate: Float) {
+        let newRate = max(8_000, newRate)
+        guard abs(newRate - sampleRate) > 0.5 else { return }
+        sampleRate = newRate
+        paramsDirty = true
+        updateCoefficients()
+    }
+
     func setAttack(_ value: Float) {
         attack = max(0.001, min(0.5, value))
         paramsDirty = true

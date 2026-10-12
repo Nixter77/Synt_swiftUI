@@ -34,8 +34,12 @@ final class CleanBus {
     private var dcYL: Float = 0
     private var dcYR: Float = 0
 
-    init() {
-        updateCoefficients(sampleRate: 44100)
+    init(sampleRate: Float = 44100) {
+        updateCoefficients(sampleRate: sampleRate)
+    }
+
+    func setSampleRate(_ sampleRate: Float) {
+        updateCoefficients(sampleRate: max(8_000, sampleRate))
     }
 
     func reset() {
@@ -54,7 +58,7 @@ final class CleanBus {
     }
 
     func process(left: Float, right: Float, sampleRate: Float) -> (Float, Float) {
-        let sr = sampleRate > 1000 ? sampleRate : 44100
+        let sr = sampleRate > 1000 ? sampleRate : coeffRate
         if sr != coeffRate { updateCoefficients(sampleRate: sr) }
 
         let xL = dcBlock(left.isFinite ? left : 0, x1: &dcXL, y1: &dcYL)

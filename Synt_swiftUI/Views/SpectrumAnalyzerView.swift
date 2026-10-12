@@ -76,6 +76,8 @@ struct SpectrumAnalyzerView: View {
     var barCount: Int = 32
     var showPeaks: Bool = true
     var colorScheme: SpectrumColorScheme = .gradient
+    /// Display mapping. The live engine rate replaces this default.
+    var sampleRate: Float = 44100
     
     enum SpectrumColorScheme { case gradient, rainbow, mono }
     
@@ -136,7 +138,7 @@ struct SpectrumAnalyzerView: View {
     private func binRange(forBar barIndex: Int) -> (Int, Int) {
         let binCount = data.magnitudes.count
         guard binCount > 0 else { return (0, 1) }
-        let minFreq: Float = 20; let maxFreq: Float = 20000; let sampleRate: Float = 44100
+        let minFreq: Float = 20; let maxFreq: Float = 20000
         let t0 = Float(barIndex) / Float(barCount); let t1 = Float(barIndex + 1) / Float(barCount)
         let freq0 = minFreq * pow(maxFreq / minFreq, t0); let freq1 = minFreq * pow(maxFreq / minFreq, t1)
         let bin0 = Int(freq0 * Float(binCount) * 2 / sampleRate); let bin1 = Int(freq1 * Float(binCount) * 2 / sampleRate)

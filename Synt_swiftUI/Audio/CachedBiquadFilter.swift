@@ -103,6 +103,12 @@ final class CachedBiquadFilter {
     // Denormal threshold
     private let denormalThreshold: Float = 1.0e-15
 
+    func setSampleRate(_ sampleRate: Float) {
+        cachedSampleRate = max(8_000, sampleRate)
+        recalculateCoefficients(sampleRate: cachedSampleRate)
+        isDirty = false
+    }
+
     func reset() {
         x1 = 0.0
         x2 = 0.0

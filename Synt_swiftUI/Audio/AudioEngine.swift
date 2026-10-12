@@ -74,7 +74,11 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Audio-thread note-off counter. Newer releases have a higher serial.
     var releaseSerialRT: Int = 1
 
-    let sampleRate: Double = 44100.0
+    /// Offline and pre-start default. `start()` replaces this with the device rate.
+    private(set) var sampleRate: Double = 44100.0
+    private var graphSampleRate: Double = 44100.0
+    private var isApplyingSampleRate = false
+    private var configObserver: NSObjectProtocol?
 
     // MARK: - Cached parameters (written on applyPreset / main; read on audio path)
     var cachedOsc2Enabled: Bool = true
@@ -214,6 +218,13 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.mainMixerNode.outputVolume = 0.62
 
         engine.prepare()
+        graphSampleRate = sampleRate
+    }
+
+    deinit {
+        if let configObserver {
+            NotificationCenter.default.removeObserver(configObserver)
+        }
     }
 
     private static func makePeakLimiter() -> AVAudioUnitEffect {
@@ -225,6 +236,87 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             componentFlagsMask: 0
         )
         return AVAudioUnitEffect(audioComponentDescription: description)
+    }
+
+    /// Main thread only, and only while the render callback is stopped.
+    private func applySampleRate(_ rate: Double, rebuildGraph: Bool) {
+        guard !isApplyingSampleRate else { return }
+        let rate = min(192_000, max(8_000, rate))
+        isApplyingSampleRate = true
+        defer { isApplyingSampleRate = false }
+
+        if abs(rate - sampleRate) > 0.5 {
+            sampleRate = rate
+            pushSampleRateToDSP(rate)
+        }
+        guard rebuildGraph, abs(rate - graphSampleRate) > 0.5 else { return }
+
+        let wasRunning = engine.isRunning
+        if wasRunning { engine.stop() }
+        reconnectGraph(sampleRate: rate)
+        if wasRunning {
+            try? engine.start()
+        }
+    }
+
+    /// Coefficients and mip maps. Must not run from the render callback.
+    private func pushSampleRateToDSP(_ rate: Double) {
+        let rateF = Float(rate)
+        parametricEQL.setSampleRate(rateF)
+        parametricEQR.setSampleRate(rateF)
+        phaser.setSampleRate(rateF)
+        limiter.setSampleRate(rateF)
+        dspChorus.setSampleRate(rate)
+        wavetableEngine1.setSampleRate(rate)
+        wavetableEngine2.setSampleRate(rate)
+        oscillator1.wavetableSampleRate = rate
+        oscillator2.wavetableSampleRate = rate
+        cleanBus.setSampleRate(rateF)
+        filterL.setSampleRate(rateF)
+        filterR.setSampleRate(rateF)
+    }
+
+    private func reconnectGraph(sampleRate: Double) {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2),
+              let sourceNode else { return }
+        engine.disconnectNodeOutput(sourceNode)
+        engine.disconnectNodeOutput(delay.delay)
+        engine.disconnectNodeOutput(reverb.reverb)
+        engine.disconnectNodeOutput(peakLimiter)
+        engine.connect(sourceNode, to: delay.delay, format: format)
+        engine.connect(delay.delay, to: reverb.reverb, format: format)
+        engine.connect(reverb.reverb, to: peakLimiter, format: format)
+        engine.connect(peakLimiter, to: engine.mainMixerNode, format: format)
+        configurePeakLimiter()
+        graphSampleRate = sampleRate
+        engine.prepare()
+    }
+
+    private func installConfigurationObserver() {
+        guard configObserver == nil else { return }
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+    }
+
+    private func handleEngineConfigurationChange() {
+        guard !isApplyingSampleRate else { return }
+        let rate = engine.outputNode.outputFormat(forBus: 0).sampleRate
+        guard rate >= 8_000 else { return }
+        let shouldRun = isPlaying
+        applySampleRate(rate, rebuildGraph: true)
+        guard shouldRun, !engine.isRunning else { return }
+        do {
+            try engine.start()
+            isPlaying = true
+        } catch {
+            print("Failed to restart audio engine after a device change: \(error)")
+            isPlaying = false
+        }
     }
 
     /// Attack 1 ms, release 50 ms, pre-gain 0 dB. Ceiling is the AU's 0 dBFS.
@@ -240,6 +332,11 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     func start() {
         guard !engine.isRunning else { return }
+        installConfigurationObserver()
+        let deviceRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
+        if deviceRate >= 8_000 {
+            applySampleRate(deviceRate, rebuildGraph: true)
+        }
 
         do {
             try engine.start()
@@ -324,6 +421,22 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
 
     // MARK: - Test / diagnostic hooks (drive shipped types without AVAudioEngine)
+
+    /// Offline tests pin the render rate without touching the device graph.
+    func setSampleRateForTesting(_ rate: Double) {
+        applySampleRate(rate, rebuildGraph: false)
+    }
+
+    /// Rebuilds the AU graph at `rate`. Not used by the offline golden path.
+    func applySampleRateForTesting(_ rate: Double, rebuildGraph: Bool) {
+        applySampleRate(rate, rebuildGraph: rebuildGraph)
+    }
+
+    var graphSampleRateForTesting: Double { graphSampleRate }
+
+    var sourceNodeSampleRateForTesting: Double {
+        sourceNode?.outputFormat(forBus: 0).sampleRate ?? 0
+    }
 
     /// Live graph: reverb's output is the peak limiter, which feeds the mixer.
     func postFXChainForTesting() -> (

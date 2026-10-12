@@ -98,7 +98,7 @@ final class ParametricEQ {
         }
     }
     
-    private let sampleRate: Float
+    private var sampleRate: Float
     
     // MARK: - Filter State
     
@@ -129,6 +129,21 @@ final class ParametricEQ {
     
     init(sampleRate: Float = 44100.0) {
         self.sampleRate = sampleRate
+    }
+
+    /// Recalculate shelves off the render thread. Same rate is a no-op.
+    func setSampleRate(_ newRate: Float) {
+        let newRate = max(8_000, newRate)
+        guard abs(newRate - sampleRate) > 0.5 else { return }
+        sampleRate = newRate
+        calculateLowShelf()
+        calculateMidPeak()
+        calculateHighShelf()
+        lowDirty = false
+        midDirty = false
+        highDirty = false
+        let boost = max(0, lowGain, midGain, highGain)
+        outputTrim = boost > 0.05 ? pow(10.0, -boost / 20.0) : 1
     }
     
     // MARK: - Processing
