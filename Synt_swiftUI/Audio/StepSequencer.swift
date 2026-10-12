@@ -129,7 +129,9 @@ final class SequencerTransport: @unchecked Sendable {
             mirror.scratch[i] = steps[i]
         }
 
-        let s2 = sequence.load(ordering: .acquiring)
+        // Keep the plain reads above from sinking below the re-check (ARM).
+        atomicMemoryFence(ordering: .acquiring)
+        let s2 = sequence.load(ordering: .relaxed)
         if s2 != s1 { return false }
 
         for i in 0..<Self.stepCount {
