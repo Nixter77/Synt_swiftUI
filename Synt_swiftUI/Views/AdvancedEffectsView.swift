@@ -2,9 +2,8 @@
 //  AdvancedEffectsView.swift
 //  Synt_swiftUI
 //
-//  UI for Stage 4 advanced FX (Distortion, Parametric EQ, Phaser).
-//  All controls write through `AudioEngine.updatePreset` so `preset` stays the
-//  single source of truth and later applyPreset calls cannot clobber live FX.
+//  Distortion, parametric EQ, and phaser. Every control writes through
+//  `AudioEngine.updatePreset` so `preset` stays the source of truth.
 //
 
 import SwiftUI
@@ -16,39 +15,26 @@ struct AdvancedEffectsView: View {
     @State private var selectedEQPreset: EQPreset = .flat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            AppleSectionHeader(
-                title: "ADVANCED FX",
-                accent: theme.aMod,
-                icon: "slider.horizontal.3"
-            )
-
-            distortionSection
-            Divider()
-            eqSection
-            Divider()
-            phaserSection
+        VStack(spacing: 10) {
+            distortionCard
+            eqCard
+            phaserCard
         }
-        .padding()
-        .appleCard(accent: theme.aMod)
         .onAppear {
             selectedEQPreset = audioEngine.preset.eqPreset
         }
     }
 
-    // MARK: - Distortion
-
-    private var distortionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Distortion")
-                    .themeCaption(theme, size: 12)
-                    .foregroundColor(theme.text)
-                Spacer()
-                ThemeToggle(isOn: distortionEnabled)
-            }
-
-            if audioEngine.preset.distortionEnabled {
+    private var distortionCard: some View {
+        FXSlotCard(
+            title: "Distortion",
+            enabled: distortionEnabled,
+            accent: theme.aFx,
+            storageName: "distortion",
+            startsExpanded: audioEngine.preset.distortionEnabled,
+            menu: { EmptyView() }
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
                 Picker("Type", selection: distortionType) {
                     ForEach(DistortionType.allCases, id: \.self) { t in
                         Text(t.rawValue).tag(t)
@@ -57,7 +43,7 @@ struct AdvancedEffectsView: View {
                 .pickerStyle(.menu)
                 .font(.system(size: 11, design: .rounded))
 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     KnobView(value: distortionDrive, range: 0...1, label: "Drive")
                     KnobView(value: distortionTone, range: 0...1, label: "Tone")
                     KnobView(value: distortionMix, range: 0...1, label: "Mix")
@@ -66,19 +52,16 @@ struct AdvancedEffectsView: View {
         }
     }
 
-    // MARK: - Parametric EQ
-
-    private var eqSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Parametric EQ")
-                    .themeCaption(theme, size: 12)
-                    .foregroundColor(theme.text)
-                Spacer()
-                ThemeToggle(isOn: eqEnabled)
-            }
-
-            if audioEngine.preset.eqEnabled {
+    private var eqCard: some View {
+        FXSlotCard(
+            title: "EQ",
+            enabled: eqEnabled,
+            accent: theme.aFx,
+            storageName: "eq",
+            startsExpanded: audioEngine.preset.eqEnabled,
+            menu: { EmptyView() }
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Preset")
                         .themeCaption(theme, size: 11)
@@ -96,15 +79,47 @@ struct AdvancedEffectsView: View {
                     }
                 }
 
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     KnobView(value: eqLowGain, range: -12...12, label: "Low", format: "%.0fdB")
                     KnobView(value: eqMidGain, range: -12...12, label: "Mid", format: "%.0fdB")
                     KnobView(value: eqHighGain, range: -12...12, label: "High", format: "%.0fdB")
                 }
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     KnobView(value: eqLowFreq, range: 40...400, label: "Lo F", format: "%.0fHz")
                     KnobView(value: eqMidFreq, range: 200...5000, label: "Mid F", format: "%.0fHz")
                     KnobView(value: eqHighFreq, range: 2000...16000, label: "Hi F", format: "%.0fHz")
+                }
+            }
+        }
+    }
+
+    private var phaserCard: some View {
+        FXSlotCard(
+            title: "Phaser",
+            enabled: phaserEnabled,
+            accent: theme.aFx,
+            storageName: "phaser",
+            startsExpanded: audioEngine.preset.phaserEnabled,
+            menu: { EmptyView() }
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Mode", selection: phaserMode) {
+                    ForEach(PhaserMode.allCases, id: \.self) { m in
+                        Text(m.rawValue).tag(m)
+                    }
+                }
+                .pickerStyle(.menu)
+                .font(.system(size: 11, design: .rounded))
+
+                HStack(spacing: 8) {
+                    KnobView(value: phaserRate, range: 0.05...5, label: "Rate", format: "%.2fHz")
+                    KnobView(value: phaserDepth, range: 0...1, label: "Depth")
+                    KnobView(value: phaserMix, range: 0...1, label: "Mix")
+                }
+                HStack(spacing: 8) {
+                    KnobView(value: phaserFeedback, range: -0.9...0.9, label: "Fdbk")
+                    KnobView(value: phaserCenter, range: 200...4000, label: "Center", format: "%.0fHz")
+                    KnobView(value: phaserSpread, range: 0...1, label: "Spread")
                 }
             }
         }
@@ -116,43 +131,6 @@ struct AdvancedEffectsView: View {
             p.applyEQCurve(curve)
         }
     }
-
-    // MARK: - Phaser
-
-    private var phaserSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Phaser")
-                    .themeCaption(theme, size: 12)
-                    .foregroundColor(theme.text)
-                Spacer()
-                ThemeToggle(isOn: phaserEnabled)
-            }
-
-            if audioEngine.preset.phaserEnabled {
-                Picker("Mode", selection: phaserMode) {
-                    ForEach(PhaserMode.allCases, id: \.self) { m in
-                        Text(m.rawValue).tag(m)
-                    }
-                }
-                .pickerStyle(.menu)
-                .font(.system(size: 11, design: .rounded))
-
-                HStack(spacing: 10) {
-                    KnobView(value: phaserRate, range: 0.05...5, label: "Rate", format: "%.2fHz")
-                    KnobView(value: phaserDepth, range: 0...1, label: "Depth")
-                    KnobView(value: phaserMix, range: 0...1, label: "Mix")
-                }
-                HStack(spacing: 10) {
-                    KnobView(value: phaserFeedback, range: -0.9...0.9, label: "Fdbk")
-                    KnobView(value: phaserCenter, range: 200...4000, label: "Center", format: "%.0fHz")
-                    KnobView(value: phaserSpread, range: 0...1, label: "Spread")
-                }
-            }
-        }
-    }
-
-    // MARK: - Bindings (preset ↔ engine via updatePreset)
 
     private func binding<T>(
         get: @escaping (SynthPreset) -> T,
@@ -259,7 +237,7 @@ struct AdvancedEffectsView: View {
 
 #Preview {
     AdvancedEffectsView(audioEngine: AudioEngine())
-        .frame(width: 280)
+        .frame(width: 240)
         .padding()
         .background(Theme.baseline.bg)
 }

@@ -11,7 +11,7 @@ struct WaveformPicker: View {
     var accent: Color? = nil
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(WaveformType.allCases, id: \.self) { waveform in
                 Button {
                     selected = waveform

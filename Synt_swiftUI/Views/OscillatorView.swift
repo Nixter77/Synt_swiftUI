@@ -13,7 +13,7 @@ struct OscillatorView: View {
     var audioEngine: AudioEngine? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 AppleSectionHeader(title: "OSC \(oscillatorNumber)", accent: theme.aOsc, icon: "waveform")
                 Spacer()
@@ -23,11 +23,12 @@ struct OscillatorView: View {
             }
 
             if oscillatorNumber == 1 || preset.osc2Enabled {
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     HStack {
                         Text("Wave")
                             .themeCaption(theme, size: 11)
                             .foregroundColor(theme.textDim)
+                            .lineLimit(1)
                         Spacer()
                     }
                     WaveformPicker(
@@ -44,6 +45,7 @@ struct OscillatorView: View {
                             Text("Octave")
                                 .themeCaption(theme, size: 10)
                                 .foregroundColor(theme.textDim)
+                                .lineLimit(1)
                             HStack(spacing: 8) {
                                 Button("-") {
                                     if oscillatorNumber == 1 { preset.osc1Octave = max(-2, preset.osc1Octave - 1) }
@@ -94,7 +96,7 @@ struct OscillatorView: View {
                 }
             }
         }
-        .padding()
+        .padding(8)
         .appleCard(accent: theme.aOsc)
     }
 

@@ -10,7 +10,7 @@ struct LFOView: View {
     @Binding var preset: SynthPreset
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 AppleSectionHeader(title: "LFO", accent: theme.aLFO, icon: "waveform.path")
                 Spacer()
@@ -18,7 +18,7 @@ struct LFOView: View {
             }
 
             if preset.lfoEnabled {
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     HStack {
                         Text("Wave")
                             .themeCaption(theme, size: 11)
@@ -37,14 +37,14 @@ struct LFOView: View {
                         selection: $preset.lfoTarget,
                         accent: theme.aLFO
                     )
-                    HStack(spacing: 16) {
+                    HStack(spacing: 8) {
                         KnobView(value: $preset.lfoRate, range: 0.1...20, label: "Rate", format: "%.1f Hz")
                         KnobView(value: $preset.lfoDepth, range: 0...1, label: "Depth")
                     }
                 }
             }
         }
-        .padding()
+        .padding(8)
         .appleCard(accent: theme.aLFO)
     }
 }

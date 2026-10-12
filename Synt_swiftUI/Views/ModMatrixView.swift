@@ -12,7 +12,7 @@ struct ModMatrixView: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack {
-                AppleSectionHeader(title: "MODULATION MATRIX", accent: theme.aMod, icon: "arrow.triangle.branch")
+                AppleSectionHeader(title: "MOD MATRIX", accent: theme.aMod, icon: "arrow.triangle.branch")
                 Spacer()
                 Button(action: addEntry) {
                     Image(systemName: "plus.circle.fill")
@@ -22,55 +22,65 @@ struct ModMatrixView: View {
             }
             .padding(.horizontal, 4)
 
-            ScrollView {
-                VStack(spacing: 4) {
-                    ForEach($preset.modMatrix) { $entry in
-                        HStack(spacing: 8) {
-                            Picker("", selection: $entry.source) {
-                                ForEach(ModSource.allCases, id: \.self) { source in
-                                    Text(source.rawValue).tag(source)
-                                }
-                            }
-                            .pickerStyle(.menu).frame(maxWidth: .infinity).labelsHidden()
-
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 10))
-                                .foregroundColor(theme.textFaint)
-
-                            Picker("", selection: $entry.destination) {
-                                ForEach(ModDestination.allCases, id: \.self) { dest in
-                                    Text(dest.rawValue).tag(dest)
-                                }
-                            }
-                            .pickerStyle(.menu).frame(maxWidth: .infinity).labelsHidden()
-
-                            KnobView(value: $entry.amount, range: -1...1, label: "Amt", format: "%.1f")
-                                .scaleEffect(0.8).frame(width: 40, height: 50)
-
-                            Button(action: { removeEntry(entry.id) }) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(theme.destructive)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(6)
-                        .background(theme.panel)
-                        .cornerRadius(6)
-                    }
-                    
-                    if preset.modMatrix.isEmpty {
-                        Text("No patches")
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundColor(theme.textFaint)
-                            .padding()
-                    }
-                }
-            }
-            .frame(height: 120)
+            entryList
         }
         .padding(8)
         .appleCard(accent: theme.aMod)
+    }
+
+    /// Six rows stay on screen. Further rows scroll inside the card.
+    private var entryList: some View {
+        let list = VStack(spacing: 4) {
+            ForEach($preset.modMatrix) { $entry in
+                HStack(spacing: 8) {
+                    Picker("", selection: $entry.source) {
+                        ForEach(ModSource.allCases, id: \.self) { source in
+                            Text(source.rawValue).tag(source)
+                        }
+                    }
+                    .pickerStyle(.menu).frame(maxWidth: .infinity).labelsHidden()
+
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 10))
+                        .foregroundColor(theme.textFaint)
+
+                    Picker("", selection: $entry.destination) {
+                        ForEach(ModDestination.allCases, id: \.self) { dest in
+                            Text(dest.rawValue).tag(dest)
+                        }
+                    }
+                    .pickerStyle(.menu).frame(maxWidth: .infinity).labelsHidden()
+
+                    KnobView(value: $entry.amount, range: -1...1, label: "Amt", format: "%.1f")
+
+                    Button(action: { removeEntry(entry.id) }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10))
+                            .foregroundColor(theme.destructive)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(6)
+                .background(theme.panel)
+                .cornerRadius(6)
+            }
+
+            if preset.modMatrix.isEmpty {
+                Text("No patches")
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(theme.textFaint)
+                    .padding(.vertical, 4)
+            }
+        }
+
+        return Group {
+            if preset.modMatrix.count > 6 {
+                ScrollView { list }
+                    .frame(height: 6 * 96)
+            } else {
+                list
+            }
+        }
     }
 
     private func addEntry() {

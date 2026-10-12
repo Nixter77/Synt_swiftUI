@@ -10,22 +10,22 @@ struct ADSRView: View {
     @Binding var preset: SynthPreset
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
             AppleSectionHeader(title: "ENVELOPE", accent: theme.aEnv, icon: "chart.xyaxis.line")
 
             ADSRGraph(attack: preset.attack, decay: preset.decay, sustain: preset.sustain, release: preset.release)
                 .frame(height: 60)
-                .padding(6)
+                .padding(2)
                 .appleInset()
 
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 KnobView(value: $preset.attack, range: 0.001...2.0, label: "Attack", format: "%.2fs")
                 KnobView(value: $preset.decay, range: 0.001...2.0, label: "Decay", format: "%.2fs")
                 KnobView(value: $preset.sustain, range: 0...1, label: "Sustain", format: "%.0f%%")
                 KnobView(value: $preset.release, range: 0.001...3.0, label: "Release", format: "%.2fs")
             }
         }
-        .padding()
+        .padding(6)
         .appleCard(accent: theme.aEnv)
     }
 }

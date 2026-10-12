@@ -10,7 +10,7 @@ struct UnisonView: View {
     @Binding var preset: SynthPreset
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             HStack {
                 AppleSectionHeader(title: "UNISON / MASTER", accent: theme.aFilter, icon: "person.3.fill")
                 Spacer()
@@ -22,6 +22,7 @@ struct UnisonView: View {
                     Text("Voices")
                         .themeCaption(theme, size: 10)
                         .foregroundColor(theme.textDim)
+                        .lineLimit(1)
                     
                     Picker("Voices", selection: $preset.unisonVoices) {
                         ForEach(1...7, id: \.self) { num in
@@ -38,10 +39,10 @@ struct UnisonView: View {
                 KnobView(value: $preset.unisonSpread, range: 0...1, label: "Spread")
                 KnobView(value: $preset.portamento, range: 0...1.0, label: "Glide", format: "%.2fs")
             }
-            .padding(12)
+            .padding(4)
             .appleInset(cornerRadius: 10)
         }
-        .padding(8)
+        .padding(6)
         .appleCard(cornerRadius: theme.rCard, accent: theme.aFilter)
     }
 }

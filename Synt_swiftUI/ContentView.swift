@@ -31,23 +31,28 @@ struct ContentView: View {
 
     private var mainColumn: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 16) {
-                    headerSection
+            // The scroll view proposes an unbounded width. Pin the column to the
+            // window so tracked titles cannot shove the cards off the left edge.
+            GeometryReader { geo in
+                ScrollView {
+                    VStack(spacing: 16) {
+                        headerSection
 
-                    controlsSection
+                        controlsSection
 
-                    if showSequencer {
-                        StepSequencerView(
-                            sequencer: stepSequencer,
-                            playhead: stepSequencer.playhead,
-                            bpm: $audioEngine.preset.bpm,
-                            isPlaying: $stepSequencer.isPlaying
-                        )
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        if showSequencer {
+                            StepSequencerView(
+                                sequencer: stepSequencer,
+                                playhead: stepSequencer.playhead,
+                                bpm: $audioEngine.preset.bpm,
+                                isPlaying: $stepSequencer.isPlaying
+                            )
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
+                    .padding()
+                    .frame(width: geo.size.width)
                 }
-                .padding()
             }
 
             // Keyboard stays outside ScrollView so a drag cannot cancel noteOff.
@@ -266,28 +271,43 @@ struct ContentView: View {
     }
 
     private var controlsSection: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 12) {
+        SynthControlGrid(audioEngine: audioEngine)
+    }
+}
+
+/// Four columns at every window width from 900 up. Columns shrink via minWidth
+/// and never wrap. Shape is wider so four 50 pt envelope knobs still fit.
+struct SynthControlGrid: View {
+    @ObservedObject var audioEngine: AudioEngine
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 10) {
                 OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 1, audioEngine: audioEngine)
                 OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 2, audioEngine: audioEngine)
             }
-            .frame(maxWidth: .infinity)
+            .frame(minWidth: 240, maxWidth: .infinity, alignment: .top)
 
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 ADSRView(preset: $audioEngine.preset)
                 FilterView(preset: $audioEngine.preset)
                 UnisonView(preset: $audioEngine.preset)
             }
-            .frame(maxWidth: .infinity)
+            .frame(minWidth: 280, maxWidth: .infinity, alignment: .top)
 
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 LFOView(preset: $audioEngine.preset)
-                EffectsView(preset: $audioEngine.preset)
-                AdvancedEffectsView(audioEngine: audioEngine)
                 ModMatrixView(preset: $audioEngine.preset)
             }
-            .frame(maxWidth: .infinity)
+            .frame(minWidth: 140, maxWidth: .infinity, alignment: .top)
+
+            VStack(spacing: 10) {
+                AdvancedEffectsView(audioEngine: audioEngine)
+                EffectsView(preset: $audioEngine.preset)
+            }
+            .frame(minWidth: 160, maxWidth: .infinity, alignment: .top)
         }
+        .accessibilityIdentifier("controlsSection")
     }
 }
 

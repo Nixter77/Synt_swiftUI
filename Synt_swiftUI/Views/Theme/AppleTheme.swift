@@ -129,6 +129,8 @@ struct AppleSectionHeader: View {
                 .tracking(theme.labelTracking)
                 .textCase(theme.uppercaseLabels ? .uppercase : nil)
                 .foregroundColor(theme.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
             RoundedRectangle(cornerRadius: 1)
                 .fill(bar.opacity(0.2))

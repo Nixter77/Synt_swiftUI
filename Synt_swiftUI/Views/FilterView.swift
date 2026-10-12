@@ -10,7 +10,7 @@ struct FilterView: View {
     @Binding var preset: SynthPreset
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
             AppleSectionHeader(title: "FILTER", accent: theme.aFilter, icon: "line.3.horizontal.decrease")
 
             ThemeSegmented(
@@ -19,13 +19,13 @@ struct FilterView: View {
                 accent: theme.aFilter
             )
 
-            HStack(spacing: 20) {
+            HStack(spacing: 8) {
                 LargeKnobView(value: $preset.filterCutoff, range: 20...20000, label: "Cutoff", format: "%.0f Hz")
                 KnobView(value: $preset.filterResonance, range: 0...1, label: "Resonance")
                 KnobView(value: $preset.filterEnvelopeAmount, range: 0...1, label: "Env Amt")
             }
         }
-        .padding()
+        .padding(6)
         .appleCard(accent: theme.aFilter)
     }
 }
