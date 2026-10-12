@@ -7,11 +7,16 @@ import SwiftUI
 
 @main
 struct Synt_swiftUIApp: App {
+    /// Window-level skin. AudioEngine stays a StateObject inside ContentView.
+    @StateObject private var themeStore = ThemeStore()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .frame(minWidth: 900, minHeight: 650)
-                .environment(\.theme, Theme.baseline)
+                .environment(\.theme, Theme.all[themeStore.id])
+                .environmentObject(themeStore)
+                .preferredColorScheme(themeStore.id == .studio ? .dark : .light)
         }
         #if os(macOS)
         .windowStyle(.hiddenTitleBar)

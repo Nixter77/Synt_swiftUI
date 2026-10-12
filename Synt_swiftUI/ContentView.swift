@@ -158,6 +158,7 @@ struct ContentView: View {
             Spacer()
 
             PresetView(currentPreset: $audioEngine.preset)
+            ThemePickerMenu()
 
             Spacer()
 
@@ -294,4 +295,6 @@ struct EngineMetersView: View {
 #Preview {
     ContentView()
         .frame(width: 1000, height: 700)
+        .environment(\.theme, Theme.baseline)
+        .environmentObject(ThemeStore())
 }
