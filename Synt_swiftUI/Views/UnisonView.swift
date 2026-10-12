@@ -17,22 +17,14 @@ struct UnisonView: View {
             }
             .padding(.horizontal, 4)
 
-            HStack(spacing: 20) {
+            HStack(spacing: 12) {
                 VStack(spacing: 4) {
                     Text("Voices")
                         .themeCaption(theme, size: 10)
                         .foregroundColor(theme.textDim)
                         .lineLimit(1)
-                    
-                    Picker("Voices", selection: $preset.unisonVoices) {
-                        ForEach(1...7, id: \.self) { num in
-                            Text("\(num)").tag(num)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(width: 50)
-                    .background(theme.panel)
-                    .cornerRadius(6)
+
+                    StepperField(value: $preset.unisonVoices, range: 1...7)
                 }
 
                 KnobView(value: $preset.unisonDetune, range: 0...50, label: "Detune", format: "%.1f")
