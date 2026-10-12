@@ -133,7 +133,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var clockPhase: Double = 0.0
     var samplesPerTick: Double = 0.0
     var arp = ArpeggiatorEngine()
-    var heldKeysForArp: Set<Int> = []
+    var heldKeysForArp = MIDIKeySet()
 
     /// UI publishes a pattern snapshot; the audio thread owns the clock.
     let sequencerTransport = SequencerTransport()
