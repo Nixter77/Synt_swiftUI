@@ -136,11 +136,13 @@ struct ContentView: View {
                             endPoint: .trailing
                         )
                     )
+                    .lineLimit(1)
 
                 Text("SwiftUI Synthesizer")
                     .themeCaption(theme, size: 12, weight: .regular)
                     .foregroundColor(theme.textDim)
-                
+                    .lineLimit(1)
+
                 if !midiHandler.availableDevices.isEmpty {
                     Menu {
                         ForEach(midiHandler.availableDevices, id: \.self) { device in
@@ -167,6 +169,7 @@ struct ContentView: View {
                     .menuStyle(.borderlessButton)
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             Spacer()
 
@@ -185,10 +188,13 @@ struct ContentView: View {
                         Text("BPM")
                             .themeCaption(theme, size: 10)
                             .foregroundColor(theme.textDim)
+                            .lineLimit(1)
                         Text("\(Int(audioEngine.preset.bpm))")
                             .font(theme.monoFont(size: 14, weight: .bold))
                             .foregroundColor(theme.accent2)
+                            .lineLimit(1)
                     }
+                    .fixedSize(horizontal: true, vertical: false)
                     ThemeSlider(value: $audioEngine.preset.bpm, range: 40...240, step: 1)
                         .frame(width: 80)
                 }

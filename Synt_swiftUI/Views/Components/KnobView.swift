@@ -58,6 +58,8 @@ private struct KnobBody: View, Equatable {
             Text(label)
                 .themeCaption(theme, size: 10)
                 .foregroundColor(theme.textDim)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
 
             Text(String(format: format, value))
                 .font(theme.monoFont(size: 9))
@@ -134,6 +136,8 @@ private struct LargeKnobBody: View, Equatable {
             Text(label)
                 .themeCaption(theme, size: 12, weight: .semibold)
                 .foregroundColor(theme.text)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
 
             Text(String(format: format, value))
                 .font(theme.monoFont(size: 10))

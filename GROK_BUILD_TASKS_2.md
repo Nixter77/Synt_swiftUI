@@ -113,4 +113,5 @@ xcodebuild test -project Synt_swiftUI.xcodeproj -scheme Synt_swiftUI \
 ---
 
 ## Журнал
-(сюда — причины откатов и отклонений)
+- Задача 7: `ImageRenderer` рисует только клавиатуру, панели в `ScrollView` остаются пустыми. PNG сняты с живого окна через `screencapture -l`. Тест проверяет, что файлы не пустые, и сам их не перезаписывает.
+- Задача 7: у Studio и Retro строки SYNTH, BPM и Master сжимались шапкой и переносились посередине слова. У них `lineLimit(1)` и `fixedSize`. «Octave N» и «Drag Blue Zone» оставлены системным шрифтом.
