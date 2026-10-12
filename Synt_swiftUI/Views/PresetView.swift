@@ -88,7 +88,12 @@ struct PresetView: View {
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = safeFileName(currentPreset.name) + ".synthpreset"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? PresetManager.exportPreset(currentPreset, to: url)
+        do {
+            try PresetManager.exportPreset(currentPreset, to: url)
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
+        }
     }
 
     private func importPresetFile() {
@@ -97,8 +102,14 @@ struct PresetView: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        if let preset = PresetManager.importPreset(from: url) {
-            currentPreset = preset
+        do {
+            currentPreset = try PresetManager.importPreset(from: url)
+        } catch {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Couldn't import preset"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
         }
     }
 
