@@ -153,7 +153,7 @@ extension AudioEngine {
         let lfoValue = lfo.getValue(sampleRate: sampleRate)
         let lfoEnabled = lfo.enabled
         let lfoTarget = lfo.target
-        let modMatrix = cachedModMatrix
+        let (modSlots, modCount) = rtModMatrix.snapshot()
 
         // One noise draw per sample. Each voice hashes it so noise chords
         // do not stack as N identical copies (that sum is just a loud clip).
@@ -218,8 +218,9 @@ extension AudioEngine {
             var ampMod: Float = 0
             var panMod: Float = 0
 
-            if !modMatrix.isEmpty {
-                for entry in modMatrix {
+            if modCount > 0 {
+                for m in 0..<modCount {
+                    let entry = modSlots[m]
                     let sourceVal: Float
                     switch entry.source {
                     case .lfo1: sourceVal = lfoValue

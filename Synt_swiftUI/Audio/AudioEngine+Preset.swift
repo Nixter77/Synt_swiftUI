@@ -99,7 +99,7 @@ extension AudioEngine {
         cachedUnisonVoices = preset.unisonVoices
         cachedUnisonDetune = preset.unisonDetune
         cachedUnisonSpread = preset.unisonSpread
-        cachedModMatrix = preset.modMatrix
+        rtModMatrix.publish(preset.modMatrix)
         cachedOsc2Enabled = preset.osc2Enabled
         cachedFilterCutoff = preset.filterCutoff
         cachedMasterVolume = preset.masterVolume

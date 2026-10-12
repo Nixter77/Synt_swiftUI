@@ -90,7 +90,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var cachedUnisonSpread: Float = 0.0
     var cachedBPM: Float = 120.0
     var cachedArpMode: ArpeggiatorMode = .off
-    var cachedModMatrix: [ModMatrixEntry] = []
+    /// Read per sample on the render thread; never an array there.
+    let rtModMatrix = RTModMatrix()
     var lastAppliedPresetID: UUID?
     var lastAppliedPresetName: String = ""
 
@@ -537,7 +538,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             cachedPortamento,
             cachedFilterCutoff,
             cachedMasterVolume,
-            cachedModMatrix.count
+            rtModMatrix.publishedCount
         )
     }
 
