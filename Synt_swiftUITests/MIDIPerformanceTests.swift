@@ -144,8 +144,9 @@ struct MIDIPerformanceTests {
         #expect(!engine.sustainPedalDown)
     }
 
-    @Test func initWithoutMIDIIsSampleIdenticalAcrossEngines() {
-        #expect(initBuffer() == initBuffer())
+    /// Real golden: Init must match the pre-MIDI capture, not just itself.
+    @Test func initWithoutMIDIMatchesTheGolden() {
+        #expect(InitGoldenTests.renderHash(.defaultPreset) == InitGoldenTests.golden["Init"])
     }
 
     @Test func oldJSONKeepsPitchBendRangeAtTwoSemitones() throws {
@@ -153,22 +154,6 @@ struct MIDIPerformanceTests {
         let preset = try JSONDecoder().decode(SynthPreset.self, from: json)
         #expect(preset.pitchBendRange == 2)
         #expect(SynthPreset.defaultPreset.pitchBendRange == 2)
-    }
-
-    private func initBuffer() -> [Float] {
-        let engine = AudioEngine()
-        engine.preset = .defaultPreset
-        engine.applyPresetForTesting()
-        engine.noteOn(midiNote: 60, velocity: 0.8)
-        engine.processCommandsForTesting()
-        var samples: [Float] = []
-        samples.reserveCapacity(1024)
-        for _ in 0..<512 {
-            let (left, right) = engine.renderOneSample()
-            samples.append(left)
-            samples.append(right)
-        }
-        return samples
     }
 
     private func fundamentalHz(bend: Float?) -> Double {
