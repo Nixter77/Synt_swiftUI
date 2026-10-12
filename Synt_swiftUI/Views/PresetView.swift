@@ -8,6 +8,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct PresetView: View {
+    @Environment(\.theme) private var theme
     @Binding var currentPreset: SynthPreset
     @StateObject private var presetManager = PresetManager.shared
     @State private var showingPresetList = false
@@ -21,21 +22,20 @@ struct PresetView: View {
             } label: {
                 HStack {
                     Image(systemName: "folder.fill")
-                        .foregroundColor(AppleTheme.accentModulation)
+                        .foregroundColor(theme.aMod)
                     Text(currentPreset.name)
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(AppleTheme.textPrimary)
+                        .foregroundColor(theme.text)
                         .lineLimit(1)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10))
-                        .foregroundColor(AppleTheme.textTertiary)
+                        .foregroundColor(theme.textFaint)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(AppleTheme.surfaceSecondary)
-                        .shadow(color: AppleTheme.shadowDark, radius: 4, x: 2, y: 2)
-                        .shadow(color: AppleTheme.shadowLight, radius: 3, x: -1, y: -1)
+                        .fill(theme.panel)
+                        .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                 )
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.6), lineWidth: 0.5))
             }
@@ -49,7 +49,7 @@ struct PresetView: View {
                 showingSaveDialog = true
             } label: {
                 Image(systemName: "square.and.arrow.down")
-                    .foregroundColor(AppleTheme.accentPositive)
+                    .foregroundColor(theme.positive)
             }
             .buttonStyle(.plain).help("Save as new preset")
             
@@ -57,7 +57,7 @@ struct PresetView: View {
                 currentPreset = .defaultPreset
             } label: {
                 Image(systemName: "arrow.counterclockwise")
-                    .foregroundColor(AppleTheme.textTertiary)
+                    .foregroundColor(theme.textFaint)
             }
             .buttonStyle(.plain).help("Reset to default")
 
@@ -65,7 +65,7 @@ struct PresetView: View {
                 exportPresetFile()
             } label: {
                 Image(systemName: "square.and.arrow.up")
-                    .foregroundColor(AppleTheme.accentBlue)
+                    .foregroundColor(theme.accent)
             }
             .buttonStyle(.plain).help("Export preset")
 
@@ -73,7 +73,7 @@ struct PresetView: View {
                 importPresetFile()
             } label: {
                 Image(systemName: "tray.and.arrow.down")
-                    .foregroundColor(AppleTheme.accentBlue)
+                    .foregroundColor(theme.accent)
             }
             .buttonStyle(.plain).help("Import preset")
         }
@@ -127,6 +127,7 @@ struct PresetView: View {
 // MARK: - Save Preset Sheet
 
 struct SavePresetSheet: View {
+    @Environment(\.theme) private var theme
     @Binding var presetName: String
     let currentPreset: SynthPreset
     let presetManager: PresetManager
@@ -137,13 +138,13 @@ struct SavePresetSheet: View {
         VStack(spacing: 20) {
             Text("Save Preset")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(AppleTheme.textPrimary)
+                .foregroundColor(theme.text)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Preset Name").font(.caption).foregroundColor(AppleTheme.textSecondary)
+                Text("Preset Name").font(.caption).foregroundColor(theme.textDim)
                 TextField("Enter preset name", text: $presetName)
                     .textFieldStyle(.roundedBorder).frame(width: 250)
                 if showError {
-                    Text("Preset name already exists").font(.caption).foregroundColor(AppleTheme.accentDestructive)
+                    Text("Preset name already exists").font(.caption).foregroundColor(theme.destructive)
                 }
             }
             HStack(spacing: 16) {
@@ -153,7 +154,7 @@ struct SavePresetSheet: View {
             }
         }
         .padding(24)
-        .background(AppleTheme.windowBackground)
+        .background(theme.bg)
         .frame(minWidth: 300, minHeight: 150)
     }
     
@@ -170,6 +171,7 @@ struct SavePresetSheet: View {
 // MARK: - Preset List View
 
 struct PresetListView: View {
+    @Environment(\.theme) private var theme
     @Binding var currentPreset: SynthPreset
     @Binding var isPresented: Bool
     @ObservedObject var presetManager: PresetManager
@@ -202,7 +204,7 @@ struct PresetListView: View {
             .padding(.vertical, 8)
         }
         .frame(minWidth: 250, maxWidth: 250, maxHeight: 400)
-        .background(AppleTheme.cardSurface)
+        .background(theme.card)
         .confirmationDialog("Delete Preset", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { if let preset = presetToDelete { presetManager.deletePreset(preset) } }
             Button("Cancel", role: .cancel) {}
@@ -213,11 +215,12 @@ struct PresetListView: View {
 // MARK: - Section Header
 
 struct SectionHeader: View {
+    @Environment(\.theme) private var theme
     let title: String
     var body: some View {
         Text(title)
             .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundColor(AppleTheme.textSecondary)
+            .foregroundColor(theme.textDim)
             .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 6)
     }
 }
@@ -225,6 +228,7 @@ struct SectionHeader: View {
 // MARK: - Preset Row
 
 struct PresetRow: View {
+    @Environment(\.theme) private var theme
     let preset: SynthPreset
     let isSelected: Bool
     let isUserPreset: Bool
@@ -238,12 +242,12 @@ struct PresetRow: View {
                 HStack {
                     Text(preset.name)
                         .font(.system(size: 13, design: .rounded))
-                        .foregroundColor(AppleTheme.textPrimary)
+                        .foregroundColor(theme.text)
                     Spacer()
                     if isSelected {
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(AppleTheme.accentBlue)
+                            .foregroundColor(theme.accent)
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 7)
@@ -251,12 +255,12 @@ struct PresetRow: View {
             .buttonStyle(.plain)
             if isUserPreset && isHovering, let onDelete = onDelete {
                 Button(action: onDelete) {
-                    Image(systemName: "trash").font(.system(size: 11)).foregroundColor(AppleTheme.accentDestructive.opacity(0.8))
+                    Image(systemName: "trash").font(.system(size: 11)).foregroundColor(theme.destructive.opacity(0.8))
                 }
                 .buttonStyle(.plain).padding(.trailing, 12)
             }
         }
-        .background(isSelected ? AppleTheme.accentBlue.opacity(0.1) : isHovering ? AppleTheme.surfaceSecondary : Color.clear)
+        .background(isSelected ? theme.accent.opacity(0.1) : isHovering ? theme.panel : Color.clear)
         .onHover { hovering in isHovering = hovering }
     }
 }
@@ -264,5 +268,5 @@ struct PresetRow: View {
 #Preview {
     PresetView(currentPreset: .constant(.defaultPreset))
         .padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }

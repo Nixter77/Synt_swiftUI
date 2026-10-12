@@ -6,12 +6,13 @@
 import SwiftUI
 
 struct UnisonView: View {
+    @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
 
     var body: some View {
         VStack(spacing: 8) {
             HStack {
-                AppleSectionHeader(title: "UNISON / MASTER", accent: AppleTheme.accentFilter, icon: "person.3.fill")
+                AppleSectionHeader(title: "UNISON / MASTER", accent: theme.aFilter, icon: "person.3.fill")
                 Spacer()
             }
             .padding(.horizontal, 4)
@@ -20,7 +21,7 @@ struct UnisonView: View {
                 VStack(spacing: 4) {
                     Text("Voices")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(AppleTheme.textSecondary)
+                        .foregroundColor(theme.textDim)
                     
                     Picker("Voices", selection: $preset.unisonVoices) {
                         ForEach(1...7, id: \.self) { num in
@@ -29,7 +30,7 @@ struct UnisonView: View {
                     }
                     .pickerStyle(.menu)
                     .frame(width: 50)
-                    .background(AppleTheme.surfaceSecondary)
+                    .background(theme.panel)
                     .cornerRadius(6)
                 }
 
@@ -41,6 +42,6 @@ struct UnisonView: View {
             .appleInset(cornerRadius: 10)
         }
         .padding(8)
-        .appleCard(cornerRadius: AppleTheme.radiusMedium, accent: AppleTheme.accentFilter)
+        .appleCard(cornerRadius: theme.rCard, accent: theme.aFilter)
     }
 }

@@ -6,17 +6,17 @@
 import SwiftUI
 
 struct OscilloscopeView: View {
+    @Environment(\.theme) private var theme
     var metering: AtomicMeteringState
-    var lineColor: Color = AppleTheme.accentBlue
+    var lineColor: Color? = nil
     var lineWidth: CGFloat = 2.0
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppleTheme.surfaceInset)
+                .fill(theme.inset)
                 .compositingGroup()
-                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 1, y: 1)
-                .shadow(color: Color.white.opacity(0.8), radius: 1, x: -1, y: -1)
+                .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                 .drawingGroup()
 
             TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { _ in
@@ -33,15 +33,16 @@ struct OscilloscopeView: View {
                         let sample = min(1.0, max(-1.0, CGFloat(data[i])))
                         path.addLine(to: CGPoint(x: CGFloat(i) * stepX, y: midY - sample * midY))
                     }
+                    let strokeColor = lineColor ?? theme.accent
                     // Glow without a per-frame blur filter: a wide faint pass, then the line.
                     context.stroke(
                         path,
-                        with: .color(lineColor.opacity(0.22)),
+                        with: .color(strokeColor.opacity(0.22)),
                         style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round, lineJoin: .round)
                     )
                     context.stroke(
                         path,
-                        with: .color(lineColor),
+                        with: .color(strokeColor),
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                     )
                 }
@@ -58,7 +59,7 @@ struct OscilloscopeView: View {
     OscilloscopePreview()
         .frame(height: 100)
         .padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }
 
 private struct OscilloscopePreview: View {

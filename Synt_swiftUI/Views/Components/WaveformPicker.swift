@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct WaveformPicker: View {
+    @Environment(\.theme) private var theme
     @Binding var selected: WaveformType
 
     var body: some View {
@@ -14,7 +15,7 @@ struct WaveformPicker: View {
                 Button {
                     selected = waveform
                 } label: {
-                    WaveformIcon(type: waveform, isSelected: selected == waveform)
+                    WaveformIcon(type: waveform, isSelected: selected == waveform, themeID: theme.id)
                         .equatable()
                 }
                 .buttonStyle(.plain)
@@ -24,27 +25,32 @@ struct WaveformPicker: View {
 }
 
 struct WaveformIcon: View, Equatable {
+    @Environment(\.theme) private var theme
     let type: WaveformType
     let isSelected: Bool
+    let themeID: ThemeID
+
+    static func == (lhs: WaveformIcon, rhs: WaveformIcon) -> Bool {
+        lhs.type == rhs.type && lhs.isSelected == rhs.isSelected && lhs.themeID == rhs.themeID
+    }
 
     var body: some View {
         ZStack {
             // 3D raised pill. Rasterize the two shadows once per selection change.
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? AppleTheme.accentOscillator.opacity(0.12) : AppleTheme.surfaceSecondary)
+                .fill(isSelected ? theme.aOsc.opacity(0.12) : theme.panel)
                 .frame(width: 38, height: 30)
                 .compositingGroup()
-                .shadow(color: isSelected ? AppleTheme.accentOscillator.opacity(0.2) : AppleTheme.shadowDark, radius: isSelected ? 2 : 4, x: 1, y: 2)
-                .shadow(color: AppleTheme.shadowLight, radius: isSelected ? 1 : 3, x: -1, y: -1)
+                .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                 .drawingGroup()
             
             // Border
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? AppleTheme.accentOscillator.opacity(0.5) : Color.white.opacity(0.6), lineWidth: 1)
+                .stroke(isSelected ? theme.aOsc.opacity(0.5) : Color.white.opacity(0.6), lineWidth: 1)
                 .frame(width: 38, height: 30)
 
             WaveformShape(type: type)
-                .stroke(isSelected ? AppleTheme.accentOscillator : AppleTheme.textTertiary, lineWidth: 2)
+                .stroke(isSelected ? theme.aOsc : theme.textFaint, lineWidth: 2)
                 .frame(width: 24, height: 16)
         }
     }
@@ -111,5 +117,5 @@ struct WaveformShape: Shape {
 #Preview {
     WaveformPicker(selected: .constant(.sawtooth))
         .padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }

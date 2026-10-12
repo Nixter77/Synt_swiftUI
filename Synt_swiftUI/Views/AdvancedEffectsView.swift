@@ -10,6 +10,7 @@
 import SwiftUI
 
 struct AdvancedEffectsView: View {
+    @Environment(\.theme) private var theme
     @ObservedObject var audioEngine: AudioEngine
 
     @State private var selectedEQPreset: EQPreset = .flat
@@ -18,7 +19,7 @@ struct AdvancedEffectsView: View {
         VStack(alignment: .leading, spacing: 14) {
             AppleSectionHeader(
                 title: "ADVANCED FX",
-                accent: AppleTheme.accentModulation,
+                accent: theme.aMod,
                 icon: "slider.horizontal.3"
             )
 
@@ -29,7 +30,7 @@ struct AdvancedEffectsView: View {
             phaserSection
         }
         .padding()
-        .appleCard(accent: AppleTheme.accentModulation)
+        .appleCard(accent: theme.aMod)
         .onAppear {
             selectedEQPreset = audioEngine.preset.eqPreset
         }
@@ -42,12 +43,12 @@ struct AdvancedEffectsView: View {
             HStack {
                 Text("Distortion")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(AppleTheme.textPrimary)
+                    .foregroundColor(theme.text)
                 Spacer()
                 Toggle("", isOn: distortionEnabled)
                     .toggleStyle(.switch)
                     .scaleEffect(0.7)
-                    .tint(AppleTheme.accentModulation)
+                    .tint(theme.aMod)
             }
 
             if audioEngine.preset.distortionEnabled {
@@ -75,19 +76,19 @@ struct AdvancedEffectsView: View {
             HStack {
                 Text("Parametric EQ")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(AppleTheme.textPrimary)
+                    .foregroundColor(theme.text)
                 Spacer()
                 Toggle("", isOn: eqEnabled)
                     .toggleStyle(.switch)
                     .scaleEffect(0.7)
-                    .tint(AppleTheme.accentModulation)
+                    .tint(theme.aMod)
             }
 
             if audioEngine.preset.eqEnabled {
                 HStack {
                     Text("Preset")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(AppleTheme.textSecondary)
+                        .foregroundColor(theme.textDim)
                     Spacer()
                     Picker("EQ Preset", selection: $selectedEQPreset) {
                         ForEach(EQPreset.allCases) { preset in
@@ -129,12 +130,12 @@ struct AdvancedEffectsView: View {
             HStack {
                 Text("Phaser")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(AppleTheme.textPrimary)
+                    .foregroundColor(theme.text)
                 Spacer()
                 Toggle("", isOn: phaserEnabled)
                     .toggleStyle(.switch)
                     .scaleEffect(0.7)
-                    .tint(AppleTheme.accentModulation)
+                    .tint(theme.aMod)
             }
 
             if audioEngine.preset.phaserEnabled {
@@ -269,5 +270,5 @@ struct AdvancedEffectsView: View {
     AdvancedEffectsView(audioEngine: AudioEngine())
         .frame(width: 280)
         .padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }

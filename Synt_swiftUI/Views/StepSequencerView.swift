@@ -8,31 +8,34 @@
 import SwiftUI
 
 struct StepSequencerView: View {
+    @Environment(\.theme) private var theme
     @ObservedObject var sequencer: StepSequencer
     @ObservedObject var playhead: PlayheadModel
     @Binding var bpm: Float
     @Binding var isPlaying: Bool
     
-    private let stepAccents: [Color] = [
-        AppleTheme.accentDestructive, AppleTheme.accentOscillator, AppleTheme.accentModulation, AppleTheme.accentEnvelope,
-        AppleTheme.accentLFO, AppleTheme.accentBlue, AppleTheme.accentFilter, AppleTheme.accentEffects,
-        AppleTheme.accentDestructive, AppleTheme.accentOscillator, AppleTheme.accentModulation, AppleTheme.accentEnvelope,
-        AppleTheme.accentLFO, AppleTheme.accentBlue, AppleTheme.accentFilter, AppleTheme.accentEffects
-    ]
+    private var stepAccents: [Color] {
+        [
+            theme.destructive, theme.aOsc, theme.aMod, theme.aEnv,
+            theme.aLFO, theme.accent, theme.aFilter, theme.aFx,
+            theme.destructive, theme.aOsc, theme.aMod, theme.aEnv,
+            theme.aLFO, theme.accent, theme.aFilter, theme.aFx
+        ]
+    }
     
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                AppleSectionHeader(title: "STEP SEQUENCER", accent: AppleTheme.accentSequencer, icon: "squares.leading.rectangle")
+                AppleSectionHeader(title: "STEP SEQUENCER", accent: theme.aSeq, icon: "squares.leading.rectangle")
                 Spacer()
                 Text("Root: \(noteNameForMIDI(sequencer.rootNote))")
-                    .font(.system(size: 12, design: .rounded)).foregroundColor(AppleTheme.textSecondary)
+                    .font(.system(size: 12, design: .rounded)).foregroundColor(theme.textDim)
                 Spacer()
                 Button(action: { sequencer.clearPattern() }) {
-                    Image(systemName: "trash").foregroundColor(AppleTheme.textTertiary)
+                    Image(systemName: "trash").foregroundColor(theme.textFaint)
                 }.buttonStyle(.plain).help("Clear Pattern")
                 Button(action: { sequencer.randomizePattern() }) {
-                    Image(systemName: "dice").foregroundColor(AppleTheme.textTertiary)
+                    Image(systemName: "dice").foregroundColor(theme.textFaint)
                 }.buttonStyle(.plain).help("Randomize Pattern")
             }
             
@@ -59,35 +62,35 @@ struct StepSequencerView: View {
             
             HStack(spacing: 20) {
                 VStack(spacing: 2) {
-                    Text("SWING").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(AppleTheme.textSecondary)
+                    Text("SWING").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(theme.textDim)
                     SeqKnob(value: $sequencer.swing, range: 0...1).frame(width: 40, height: 40)
-                    Text("\(Int(sequencer.swing * 100))%").font(.system(size: 10, design: .rounded)).foregroundColor(AppleTheme.textPrimary)
+                    Text("\(Int(sequencer.swing * 100))%").font(.system(size: 10, design: .rounded)).foregroundColor(theme.text)
                 }
                 VStack(spacing: 2) {
-                    Text("ROOT").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(AppleTheme.textSecondary)
+                    Text("ROOT").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(theme.textDim)
                     HStack(spacing: 8) {
                         Button("-") { sequencer.rootNote = max(24, sequencer.rootNote - 1) }
-                            .buttonStyle(.plain).foregroundColor(AppleTheme.textPrimary)
-                        Text(noteNameForMIDI(sequencer.rootNote)).frame(width: 35).foregroundColor(AppleTheme.textPrimary).font(.system(size: 12, design: .rounded))
+                            .buttonStyle(.plain).foregroundColor(theme.text)
+                        Text(noteNameForMIDI(sequencer.rootNote)).frame(width: 35).foregroundColor(theme.text).font(.system(size: 12, design: .rounded))
                         Button("+") { sequencer.rootNote = min(96, sequencer.rootNote + 1) }
-                            .buttonStyle(.plain).foregroundColor(AppleTheme.textPrimary)
+                            .buttonStyle(.plain).foregroundColor(theme.text)
                     }
                 }
                 VStack(spacing: 2) {
-                    Text("LENGTH").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(AppleTheme.textSecondary)
+                    Text("LENGTH").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(theme.textDim)
                     HStack(spacing: 8) {
                         Button("-") { sequencer.pattern.length = max(1, sequencer.pattern.length - 1) }
-                            .buttonStyle(.plain).foregroundColor(AppleTheme.textPrimary)
-                        Text("\(sequencer.pattern.length)").frame(width: 30).foregroundColor(AppleTheme.textPrimary)
+                            .buttonStyle(.plain).foregroundColor(theme.text)
+                        Text("\(sequencer.pattern.length)").frame(width: 30).foregroundColor(theme.text)
                         Button("+") { sequencer.pattern.length = min(16, sequencer.pattern.length + 1) }
-                            .buttonStyle(.plain).foregroundColor(AppleTheme.textPrimary)
+                            .buttonStyle(.plain).foregroundColor(theme.text)
                     }
                 }
                 Spacer()
             }
         }
         .padding()
-        .appleCard(accent: AppleTheme.accentSequencer)
+        .appleCard(accent: theme.aSeq)
     }
     
     private func noteNameForMIDI(_ midi: Int) -> String {
@@ -100,6 +103,7 @@ struct StepSequencerView: View {
 // MARK: - Sequencer Step Button
 
 struct SeqStepButton: View {
+    @Environment(\.theme) private var theme
     @Binding var step: SequencerStep
     let index: Int
     let isCurrentStep: Bool
@@ -108,17 +112,16 @@ struct SeqStepButton: View {
     var body: some View {
         Button(action: { step.isActive.toggle() }) {
             RoundedRectangle(cornerRadius: 6)
-                .fill(step.isActive ? color.opacity(0.7) : AppleTheme.surfaceSecondary)
-                .shadow(color: step.isActive ? color.opacity(0.25) : AppleTheme.shadowDark, radius: step.isActive ? 2 : 4, x: 1, y: 2)
-                .shadow(color: AppleTheme.shadowLight, radius: 2, x: -1, y: -1)
+                .fill(step.isActive ? color.opacity(0.7) : theme.panel)
+                .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(isCurrentStep ? AppleTheme.textPrimary : Color.white.opacity(0.4), lineWidth: isCurrentStep ? 2 : 0.5)
+                        .stroke(isCurrentStep ? theme.text : Color.white.opacity(0.4), lineWidth: isCurrentStep ? 2 : 0.5)
                 )
                 .overlay(
                     Group {
                         if index % 4 == 0 {
-                            Circle().fill(AppleTheme.textTertiary.opacity(0.5)).frame(width: 4, height: 4).offset(y: -15)
+                            Circle().fill(theme.textFaint.opacity(0.5)).frame(width: 4, height: 4).offset(y: -15)
                         }
                     }
                 )
@@ -132,6 +135,7 @@ struct SeqStepButton: View {
 // MARK: - Sequencer Note Cell
 
 struct SeqNoteCell: View {
+    @Environment(\.theme) private var theme
     @Binding var step: SequencerStep
     let rootNote: Int
     let isEnabled: Bool
@@ -141,15 +145,15 @@ struct SeqNoteCell: View {
             let finalNote = rootNote + step.noteOffset + (step.octave * 12)
             Text(noteNameForMIDI(finalNote))
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundColor(isEnabled ? AppleTheme.textPrimary : AppleTheme.textTertiary.opacity(0.5))
+                .foregroundColor(isEnabled ? theme.text : theme.textFaint.opacity(0.5))
             HStack(spacing: 2) {
                 Button(action: { step.noteOffset = min(24, step.noteOffset + 1) }) {
                     Image(systemName: "chevron.up").font(.system(size: 8))
-                        .foregroundColor(isEnabled ? AppleTheme.textSecondary : AppleTheme.textTertiary.opacity(0.3))
+                        .foregroundColor(isEnabled ? theme.textDim : theme.textFaint.opacity(0.3))
                 }.buttonStyle(.plain)
                 Button(action: { step.noteOffset = max(-24, step.noteOffset - 1) }) {
                     Image(systemName: "chevron.down").font(.system(size: 8))
-                        .foregroundColor(isEnabled ? AppleTheme.textSecondary : AppleTheme.textTertiary.opacity(0.3))
+                        .foregroundColor(isEnabled ? theme.textDim : theme.textFaint.opacity(0.3))
                 }.buttonStyle(.plain)
             }
         }
@@ -166,15 +170,16 @@ struct SeqNoteCell: View {
 // MARK: - Sequencer Velocity Bar
 
 struct SeqVelocityBar: View {
+    @Environment(\.theme) private var theme
     @Binding var velocity: Float
     let isEnabled: Bool
     
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
-                Rectangle().fill(AppleTheme.surfaceInset)
+                Rectangle().fill(theme.inset)
                 Rectangle()
-                    .fill(isEnabled ? AppleTheme.accentEnvelope.opacity(0.6) : AppleTheme.textTertiary.opacity(0.2))
+                    .fill(isEnabled ? theme.aEnv.opacity(0.6) : theme.textFaint.opacity(0.2))
                     .frame(height: geometry.size.height * CGFloat(velocity))
             }
             .gesture(
@@ -191,6 +196,7 @@ struct SeqVelocityBar: View {
 // MARK: - Sequencer Knob for Swing
 
 struct SeqKnob: View {
+    @Environment(\.theme) private var theme
     @Binding var value: Float
     let range: ClosedRange<Float>
     @State private var lastY: CGFloat = 0
@@ -202,15 +208,14 @@ struct SeqKnob: View {
             let rotation = -135 + Double(normalizedValue) * 270
             ZStack {
                 Circle()
-                    .fill(AppleTheme.surfaceSecondary)
-                    .shadow(color: AppleTheme.shadowDark, radius: 3, x: 1, y: 2)
-                    .shadow(color: AppleTheme.shadowLight, radius: 2, x: -1, y: -1)
+                    .fill(theme.panel)
+                    .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                 Circle()
                     .trim(from: 0.25, to: 0.25 + CGFloat(normalizedValue) * 0.75)
-                    .stroke(AppleTheme.accentBlue, lineWidth: 3)
+                    .stroke(theme.accent, lineWidth: 3)
                     .rotationEffect(.degrees(-135))
                 Rectangle()
-                    .fill(AppleTheme.knobIndicator)
+                    .fill(theme.knobIndicator)
                     .frame(width: 2, height: size * 0.35)
                     .offset(y: -size * 0.15)
                     .rotationEffect(.degrees(rotation))
@@ -231,5 +236,5 @@ struct SeqKnob: View {
 #Preview {
     let seq = StepSequencer()
     return StepSequencerView(sequencer: seq, playhead: seq.playhead, bpm: .constant(120), isPlaying: .constant(false))
-        .frame(width: 700, height: 200).background(AppleTheme.windowBackground)
+        .frame(width: 700, height: 200).background(Theme.baseline.bg)
 }

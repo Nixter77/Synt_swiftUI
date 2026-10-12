@@ -6,16 +6,17 @@
 import SwiftUI
 
 struct ModMatrixView: View {
+    @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
 
     var body: some View {
         VStack(spacing: 8) {
             HStack {
-                AppleSectionHeader(title: "MODULATION MATRIX", accent: AppleTheme.accentModulation, icon: "arrow.triangle.branch")
+                AppleSectionHeader(title: "MODULATION MATRIX", accent: theme.aMod, icon: "arrow.triangle.branch")
                 Spacer()
                 Button(action: addEntry) {
                     Image(systemName: "plus.circle.fill")
-                        .foregroundColor(AppleTheme.accentPositive)
+                        .foregroundColor(theme.positive)
                 }
                 .buttonStyle(.plain)
             }
@@ -34,7 +35,7 @@ struct ModMatrixView: View {
 
                             Image(systemName: "arrow.right")
                                 .font(.system(size: 10))
-                                .foregroundColor(AppleTheme.textTertiary)
+                                .foregroundColor(theme.textFaint)
 
                             Picker("", selection: $entry.destination) {
                                 ForEach(ModDestination.allCases, id: \.self) { dest in
@@ -49,19 +50,19 @@ struct ModMatrixView: View {
                             Button(action: { removeEntry(entry.id) }) {
                                 Image(systemName: "trash")
                                     .font(.system(size: 10))
-                                    .foregroundColor(AppleTheme.accentDestructive)
+                                    .foregroundColor(theme.destructive)
                             }
                             .buttonStyle(.plain)
                         }
                         .padding(6)
-                        .background(AppleTheme.surfaceSecondary)
+                        .background(theme.panel)
                         .cornerRadius(6)
                     }
                     
                     if preset.modMatrix.isEmpty {
                         Text("No patches")
                             .font(.system(size: 10, design: .rounded))
-                            .foregroundColor(AppleTheme.textTertiary)
+                            .foregroundColor(theme.textFaint)
                             .padding()
                     }
                 }
@@ -69,7 +70,7 @@ struct ModMatrixView: View {
             .frame(height: 120)
         }
         .padding(8)
-        .appleCard(accent: AppleTheme.accentModulation)
+        .appleCard(accent: theme.aMod)
     }
 
     private func addEntry() {

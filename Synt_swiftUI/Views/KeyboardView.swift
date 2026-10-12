@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct KeyboardView: View {
+    @Environment(\.theme) private var theme
     @ObservedObject var keyboardHandler: KeyboardHandler
     @ObservedObject var keyDisplay: PressedKeysModel
     private var pressedKeys: Set<Int> { keyDisplay.keys }
@@ -33,13 +34,13 @@ struct KeyboardView: View {
                 } label: {
                     Image(systemName: "chevron.left.circle.fill")
                         .font(.title2)
-                        .foregroundColor(AppleTheme.textSecondary)
+                        .foregroundColor(theme.textDim)
                 }
                 .buttonStyle(.plain)
 
                 Text("Octave \(keyboardHandler.baseOctave)")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(AppleTheme.textPrimary)
+                    .foregroundColor(theme.text)
                     .frame(minWidth: 70)
 
                 Button {
@@ -47,7 +48,7 @@ struct KeyboardView: View {
                 } label: {
                     Image(systemName: "chevron.right.circle.fill")
                         .font(.title2)
-                        .foregroundColor(AppleTheme.textSecondary)
+                        .foregroundColor(theme.textDim)
                 }
                 .buttonStyle(.plain)
 
@@ -55,18 +56,18 @@ struct KeyboardView: View {
 
                 HStack(spacing: 6) {
                     Image(systemName: "hand.draw")
-                        .foregroundColor(AppleTheme.textTertiary)
+                        .foregroundColor(theme.textFaint)
                     Text("Drag Blue Zone")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(AppleTheme.accentBlue)
+                        .foregroundColor(theme.accent)
                     
                     Text(" | Z/X: Octave | A-L: Play")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(AppleTheme.textTertiary)
+                        .foregroundColor(theme.textFaint)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(AppleTheme.surfaceSecondary)
+                .background(theme.panel)
                 .cornerRadius(6)
             }
             .padding(.horizontal)
@@ -91,7 +92,8 @@ struct KeyboardView: View {
                                 width: whiteKeyWidth,
                                 height: whiteKeyHeight,
                                 onPress: { keyboardHandler.noteOn(midiNote: note.midiNote) },
-                                onRelease: { keyboardHandler.noteOff(midiNote: note.midiNote) }
+                                onRelease: { keyboardHandler.noteOff(midiNote: note.midiNote) },
+                                themeID: theme.id
                             )
                             .equatable()
                         }
@@ -123,7 +125,8 @@ struct KeyboardView: View {
                                 width: blackKeyWidth,
                                 height: blackKeyHeight,
                                 onPress: { keyboardHandler.noteOn(midiNote: midiNote) },
-                                onRelease: { keyboardHandler.noteOff(midiNote: midiNote) }
+                                onRelease: { keyboardHandler.noteOff(midiNote: midiNote) },
+                                themeID: theme.id
                             )
                             .equatable()
                             .offset(x: leadingX, y: 0)
@@ -142,10 +145,10 @@ struct KeyboardView: View {
                     // and left notes hanging after release.
                     if activeZoneX + activeZoneWidth > -50 && activeZoneX < availableWidth + 50 {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(AppleTheme.accentBlue.opacity(0.15))
+                            .fill(theme.accent.opacity(0.15))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(AppleTheme.accentBlue.opacity(0.6), lineWidth: 2)
+                                    .stroke(theme.accent.opacity(0.6), lineWidth: 2)
                             )
                             .overlay(
                                 VStack {
@@ -154,12 +157,12 @@ struct KeyboardView: View {
                                         Text("Mac Keyboard")
                                     }
                                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                                    .foregroundColor(AppleTheme.accentBlue)
+                                    .foregroundColor(theme.accent)
                                     .padding(.top, 6)
                                     Spacer()
 
                                     RoundedRectangle(cornerRadius: 2)
-                                        .fill(AppleTheme.accentBlue.opacity(0.4))
+                                        .fill(theme.accent.opacity(0.4))
                                         .frame(width: 40, height: 4)
                                         .padding(.bottom, 6)
                                 }
@@ -169,7 +172,7 @@ struct KeyboardView: View {
                             .allowsHitTesting(false)
 
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(AppleTheme.accentBlue.opacity(0.45))
+                            .fill(theme.accent.opacity(0.45))
                             .frame(width: 44, height: 12)
                             .offset(
                                 x: activeZoneX + (activeZoneWidth - 44) / 2,
@@ -204,23 +207,22 @@ struct KeyboardView: View {
             }
             .frame(height: 140 + 16) // Explicit height since GeometryReader collapses in ScrollView
             .background(
-                RoundedRectangle(cornerRadius: AppleTheme.radiusLarge)
-                    .fill(AppleTheme.surfaceSecondary)
+                RoundedRectangle(cornerRadius: theme.rHeader)
+                    .fill(theme.panel)
                     .compositingGroup()
-                    .shadow(color: AppleTheme.shadowDark, radius: 2, x: 0, y: 1)
-                    .shadow(color: .white.opacity(0.5), radius: 2, x: 0, y: -1)
+                    .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                     .drawingGroup()
             )
             .padding(.horizontal)
         }
         .padding(.vertical)
-        .appleCard(cornerRadius: AppleTheme.radiusLarge)
+        .appleCard(cornerRadius: theme.rHeader)
     }
 }
 
 #Preview {
     KeyboardView(keyboardHandler: KeyboardHandler(), keyDisplay: PressedKeysModel(), startNote: 36, numberOfOctaves: 4)
         .frame(height: 250)
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
         .padding()
 }

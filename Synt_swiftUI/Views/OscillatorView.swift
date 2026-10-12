@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct OscillatorView: View {
+    @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
     let oscillatorNumber: Int
     /// Optional: needed for wavetable morph (lives on AudioEngine, not preset).
@@ -14,13 +15,13 @@ struct OscillatorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                AppleSectionHeader(title: "OSC \(oscillatorNumber)", accent: AppleTheme.accentOscillator, icon: "waveform")
+                AppleSectionHeader(title: "OSC \(oscillatorNumber)", accent: theme.aOsc, icon: "waveform")
                 Spacer()
                 if oscillatorNumber == 2 {
                     Toggle("", isOn: $preset.osc2Enabled)
                         .toggleStyle(.switch)
                         .scaleEffect(0.7)
-                        .tint(AppleTheme.accentOscillator)
+                        .tint(theme.aOsc)
                 }
             }
 
@@ -29,7 +30,7 @@ struct OscillatorView: View {
                     HStack {
                         Text("Wave")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(AppleTheme.textSecondary)
+                            .foregroundColor(theme.textDim)
                         Spacer()
                     }
                     WaveformPicker(selected: oscillatorNumber == 1 ? $preset.osc1Waveform : $preset.osc2Waveform)
@@ -42,21 +43,21 @@ struct OscillatorView: View {
                         VStack(spacing: 4) {
                             Text("Octave")
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
-                                .foregroundColor(AppleTheme.textSecondary)
+                                .foregroundColor(theme.textDim)
                             HStack(spacing: 8) {
                                 Button("-") {
                                     if oscillatorNumber == 1 { preset.osc1Octave = max(-2, preset.osc1Octave - 1) }
                                     else { preset.osc2Octave = max(-2, preset.osc2Octave - 1) }
                                 }
-                                .buttonStyle(.plain).foregroundColor(AppleTheme.textPrimary)
+                                .buttonStyle(.plain).foregroundColor(theme.text)
                                 Text("\(oscillatorNumber == 1 ? preset.osc1Octave : preset.osc2Octave)")
                                     .font(.system(size: 12, design: .monospaced))
-                                    .foregroundColor(AppleTheme.textPrimary).frame(width: 30)
+                                    .foregroundColor(theme.text).frame(width: 30)
                                 Button("+") {
                                     if oscillatorNumber == 1 { preset.osc1Octave = min(2, preset.osc1Octave + 1) }
                                     else { preset.osc2Octave = min(2, preset.osc2Octave + 1) }
                                 }
-                                .buttonStyle(.plain).foregroundColor(AppleTheme.textPrimary)
+                                .buttonStyle(.plain).foregroundColor(theme.text)
                             }
                         }
                         KnobView(
@@ -71,10 +72,10 @@ struct OscillatorView: View {
                         HStack {
                             Text("PWM")
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
-                                .foregroundColor(AppleTheme.textSecondary)
+                                .foregroundColor(theme.textDim)
                                 .frame(width: 40, alignment: .trailing)
                             Slider(value: oscillatorNumber == 1 ? $preset.osc1PulseWidth : $preset.osc2PulseWidth, in: 0.05...0.95)
-                                .tint(AppleTheme.accentOscillator)
+                                .tint(theme.aOsc)
                         }
                         .padding(.top, 4)
                     }
@@ -82,10 +83,10 @@ struct OscillatorView: View {
                         HStack {
                             Text("Morph")
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
-                                .foregroundColor(AppleTheme.textSecondary)
+                                .foregroundColor(theme.textDim)
                                 .frame(width: 40, alignment: .trailing)
                             Slider(value: wavetableMorph, in: 0...1)
-                                .tint(AppleTheme.accentOscillator)
+                                .tint(theme.aOsc)
                         }
                         .padding(.top, 4)
                     }
@@ -93,7 +94,7 @@ struct OscillatorView: View {
             }
         }
         .padding()
-        .appleCard(accent: AppleTheme.accentOscillator)
+        .appleCard(accent: theme.aOsc)
     }
 
     private var isWavetableSelected: Bool {
@@ -140,5 +141,5 @@ struct OscillatorView: View {
         OscillatorView(preset: .constant(.defaultPreset), oscillatorNumber: 2)
     }
     .padding()
-    .background(AppleTheme.windowBackground)
+    .background(Theme.baseline.bg)
 }

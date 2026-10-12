@@ -11,6 +11,7 @@ struct Synt_swiftUIApp: App {
         WindowGroup {
             ContentView()
                 .frame(minWidth: 900, minHeight: 650)
+                .environment(\.theme, Theme.baseline)
         }
         #if os(macOS)
         .windowStyle(.hiddenTitleBar)

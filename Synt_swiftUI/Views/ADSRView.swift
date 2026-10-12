@@ -6,11 +6,12 @@
 import SwiftUI
 
 struct ADSRView: View {
+    @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            AppleSectionHeader(title: "ENVELOPE", accent: AppleTheme.accentEnvelope, icon: "chart.xyaxis.line")
+            AppleSectionHeader(title: "ENVELOPE", accent: theme.aEnv, icon: "chart.xyaxis.line")
 
             ADSRGraph(attack: preset.attack, decay: preset.decay, sustain: preset.sustain, release: preset.release)
                 .frame(height: 60)
@@ -25,11 +26,12 @@ struct ADSRView: View {
             }
         }
         .padding()
-        .appleCard(accent: AppleTheme.accentEnvelope)
+        .appleCard(accent: theme.aEnv)
     }
 }
 
 struct ADSRGraph: View {
+    @Environment(\.theme) private var theme
     let attack: Float
     let decay: Float
     let sustain: Float
@@ -53,7 +55,7 @@ struct ADSRGraph: View {
             }
             .stroke(
                 LinearGradient(
-                    colors: [AppleTheme.accentEnvelope, AppleTheme.accentLFO],
+                    colors: [theme.aEnv, theme.aLFO],
                     startPoint: .leading, endPoint: .trailing
                 ),
                 lineWidth: 2.5
@@ -69,7 +71,7 @@ struct ADSRGraph: View {
             }
             .fill(
                 LinearGradient(
-                    colors: [AppleTheme.accentEnvelope.opacity(0.2), AppleTheme.accentLFO.opacity(0.05)],
+                    colors: [theme.aEnv.opacity(0.2), theme.aLFO.opacity(0.05)],
                     startPoint: .top, endPoint: .bottom
                 )
             )
@@ -80,5 +82,5 @@ struct ADSRGraph: View {
 #Preview {
     ADSRView(preset: .constant(.defaultPreset))
         .frame(width: 300).padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }

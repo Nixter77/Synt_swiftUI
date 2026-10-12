@@ -6,11 +6,12 @@
 import SwiftUI
 
 struct FilterView: View {
+    @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            AppleSectionHeader(title: "FILTER", accent: AppleTheme.accentFilter, icon: "line.3.horizontal.decrease")
+            AppleSectionHeader(title: "FILTER", accent: theme.aFilter, icon: "line.3.horizontal.decrease")
 
             Picker("Type", selection: $preset.filterType) {
                 ForEach(FilterType.allCases, id: \.self) { type in
@@ -26,12 +27,12 @@ struct FilterView: View {
             }
         }
         .padding()
-        .appleCard(accent: AppleTheme.accentFilter)
+        .appleCard(accent: theme.aFilter)
     }
 }
 
 #Preview {
     FilterView(preset: .constant(.defaultPreset))
         .frame(width: 300).padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }

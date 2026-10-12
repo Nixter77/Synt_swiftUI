@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct PianoKeyView: View {
+    @Environment(\.theme) private var theme
     let note: Note
     let isPressed: Bool
     let onPress: () -> Void
@@ -13,25 +14,28 @@ struct PianoKeyView: View {
 
     var body: some View {
         if note.isBlack {
-            BlackKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease)
+            BlackKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease, themeID: theme.id)
                 .equatable()
         } else {
-            WhiteKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease)
+            WhiteKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease, themeID: theme.id)
                 .equatable()
         }
     }
 }
 
 struct WhiteKeyView: View, Equatable {
+    @Environment(\.theme) private var theme
     let note: Note
     let isPressed: Bool
     var width: CGFloat = 36
     var height: CGFloat = 140
     let onPress: () -> Void
     let onRelease: () -> Void
+    let themeID: ThemeID
 
     static func == (lhs: WhiteKeyView, rhs: WhiteKeyView) -> Bool {
         lhs.note == rhs.note && lhs.isPressed == rhs.isPressed && lhs.width == rhs.width && lhs.height == rhs.height
+            && lhs.themeID == rhs.themeID
     }
 
     var body: some View {
@@ -41,7 +45,7 @@ struct WhiteKeyView: View, Equatable {
                 .fill(
                     LinearGradient(
                         colors: isPressed
-                            ? [AppleTheme.accentBlue.opacity(0.15), AppleTheme.accentBlue.opacity(0.08)]
+                            ? [theme.accent.opacity(0.15), theme.accent.opacity(0.08)]
                             : [Color.white, Color(white: 0.95)],
                         startPoint: .top,
                         endPoint: .bottom
@@ -49,7 +53,7 @@ struct WhiteKeyView: View, Equatable {
                 )
                 .compositingGroup()
                 .shadow(
-                    color: isPressed ? AppleTheme.accentBlue.opacity(0.2) : AppleTheme.shadowDark,
+                    color: isPressed ? theme.accent.opacity(0.2) : theme.cardShadow.color,
                     radius: isPressed ? 1 : 4,
                     x: 0,
                     y: isPressed ? 1 : 3
@@ -71,7 +75,7 @@ struct WhiteKeyView: View, Equatable {
 
             Text(note.name.prefix(note.name.count - 1))
                 .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundColor(isPressed ? AppleTheme.accentBlue : AppleTheme.textTertiary)
+                .foregroundColor(isPressed ? theme.accent : theme.textFaint)
                 .padding(.bottom, 8)
         }
         .frame(width: width, height: height)
@@ -85,15 +89,18 @@ struct WhiteKeyView: View, Equatable {
 }
 
 struct BlackKeyView: View, Equatable {
+    @Environment(\.theme) private var theme
     let note: Note
     let isPressed: Bool
     var width: CGFloat = 24
     var height: CGFloat = 90
     let onPress: () -> Void
     let onRelease: () -> Void
+    let themeID: ThemeID
 
     static func == (lhs: BlackKeyView, rhs: BlackKeyView) -> Bool {
         lhs.note == rhs.note && lhs.isPressed == rhs.isPressed && lhs.width == rhs.width && lhs.height == rhs.height
+            && lhs.themeID == rhs.themeID
     }
 
     var body: some View {
@@ -103,7 +110,7 @@ struct BlackKeyView: View, Equatable {
                 .fill(
                     LinearGradient(
                         colors: isPressed
-                            ? [AppleTheme.accentBlue.opacity(0.8), AppleTheme.accentBlue.opacity(0.5)]
+                            ? [theme.accent.opacity(0.8), theme.accent.opacity(0.5)]
                             : [Color(white: 0.22), Color(white: 0.12)],
                         startPoint: .top,
                         endPoint: .bottom
@@ -111,7 +118,7 @@ struct BlackKeyView: View, Equatable {
                 )
                 .compositingGroup()
                 .shadow(
-                    color: isPressed ? AppleTheme.accentBlue.opacity(0.3) : Color.black.opacity(0.4),
+                    color: isPressed ? theme.accent.opacity(0.3) : Color.black.opacity(0.4),
                     radius: isPressed ? 1 : 4,
                     x: 0,
                     y: isPressed ? 1 : 3
@@ -159,5 +166,5 @@ struct BlackKeyView: View, Equatable {
         )
     }
     .padding()
-    .background(AppleTheme.windowBackground)
+    .background(Theme.baseline.bg)
 }

@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.theme) private var theme
     @StateObject private var audioEngine = AudioEngine()
     @StateObject private var keyboardHandler = KeyboardHandler()
     @StateObject private var midiHandler = MIDIHandler()
@@ -44,7 +45,7 @@ struct ContentView: View {
             )
             .padding(.bottom, 8)
         }
-        .background(AppleTheme.windowBackground)
+        .background(theme.bg)
         // Playhead only. The clock itself runs on the audio thread.
         .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { _ in
             guard showSequencer, stepSequencer.isPlaying else { return }
@@ -117,7 +118,7 @@ struct ContentView: View {
                     .font(.system(size: 28, weight: .black, design: .rounded))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [AppleTheme.accentOscillator, AppleTheme.accentEffects],
+                            colors: [theme.logoA, theme.logoB],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -125,7 +126,7 @@ struct ContentView: View {
 
                 Text("SwiftUI Synthesizer")
                     .font(.system(size: 12, design: .rounded))
-                    .foregroundColor(AppleTheme.textSecondary)
+                    .foregroundColor(theme.textDim)
                 
                 if !midiHandler.availableDevices.isEmpty {
                     Menu {
@@ -137,17 +138,17 @@ struct ContentView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(AppleTheme.accentPositive)
+                                .fill(theme.positive)
                                 .frame(width: 6, height: 6)
                             Text("MIDI: \(midiHandler.selectedDevice)")
                                 .font(.system(size: 10, design: .rounded))
-                                .foregroundColor(AppleTheme.accentPositive)
+                                .foregroundColor(theme.positive)
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 8))
-                                .foregroundColor(AppleTheme.accentPositive)
+                                .foregroundColor(theme.positive)
                         }
                         .padding(4)
-                        .background(AppleTheme.accentPositive.opacity(0.1))
+                        .background(theme.positive.opacity(0.1))
                         .cornerRadius(6)
                     }
                     .menuStyle(.borderlessButton)
@@ -169,14 +170,14 @@ struct ContentView: View {
                     HStack(spacing: 4) {
                         Text("BPM")
                             .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundColor(AppleTheme.textSecondary)
+                            .foregroundColor(theme.textDim)
                         Text("\(Int(audioEngine.preset.bpm))")
                             .font(.system(size: 14, weight: .bold, design: .monospaced))
-                            .foregroundColor(AppleTheme.accentOscillator)
+                            .foregroundColor(theme.accent2)
                     }
                     Slider(value: $audioEngine.preset.bpm, in: 40...240, step: 1)
                         .frame(width: 80)
-                        .tint(AppleTheme.accentOscillator)
+                        .tint(theme.accent2)
                 }
                 
                 // Sequencer Toggle & Play
@@ -188,7 +189,7 @@ struct ContentView: View {
                     } label: {
                         Image(systemName: showSequencer ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
                             .font(.caption)
-                            .foregroundColor(showSequencer ? AppleTheme.accentLFO : AppleTheme.textTertiary)
+                            .foregroundColor(showSequencer ? theme.aLFO : theme.textFaint)
                     }
                     .buttonStyle(.plain)
                     .help("Show/Hide Sequencer")
@@ -202,7 +203,7 @@ struct ContentView: View {
                     } label: {
                         Image(systemName: stepSequencer.isPlaying ? "stop.circle.fill" : "play.circle.fill")
                             .font(.title3)
-                            .foregroundColor(stepSequencer.isPlaying ? AppleTheme.accentDestructive : AppleTheme.accentBlue)
+                            .foregroundColor(stepSequencer.isPlaying ? theme.destructive : theme.accent)
                     }
                     .buttonStyle(.plain)
                     .help("Play/Stop Sequencer")
@@ -223,18 +224,17 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: audioEngine.isPlaying ? "stop.fill" : "play.fill")
                         .font(.title2)
-                        .foregroundColor(audioEngine.isPlaying ? AppleTheme.accentDestructive : AppleTheme.accentPositive)
+                        .foregroundColor(audioEngine.isPlaying ? theme.destructive : theme.positive)
                         .frame(width: 50, height: 50)
                         .background(
                             Circle()
-                                .fill(AppleTheme.surfaceSecondary)
-                                .shadow(color: AppleTheme.shadowDark, radius: 6, x: 3, y: 4)
-                                .shadow(color: AppleTheme.shadowLight, radius: 4, x: -2, y: -2)
+                                .fill(theme.panel)
+                                .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                         )
                         .overlay(
                             Circle()
                                 .stroke(
-                                    audioEngine.isPlaying ? AppleTheme.accentDestructive.opacity(0.3) : AppleTheme.accentPositive.opacity(0.3),
+                                    audioEngine.isPlaying ? theme.destructive.opacity(0.3) : theme.positive.opacity(0.3),
                                     lineWidth: 2
                                 )
                         )
@@ -243,7 +243,7 @@ struct ContentView: View {
             }
         }
         .padding()
-        .appleCard(cornerRadius: AppleTheme.radiusLarge)
+        .appleCard(cornerRadius: theme.rHeader)
     }
 
     private var controlsSection: some View {

@@ -6,22 +6,25 @@
 import SwiftUI
 
 struct KnobView: View {
+    @Environment(\.theme) private var theme
     @Binding var value: Float
     let range: ClosedRange<Float>
     let label: String
     var format: String = "%.2f"
 
     var body: some View {
-        KnobBody(value: $value, range: range, label: label, format: format)
+        KnobBody(value: $value, range: range, label: label, format: format, themeID: theme.id)
             .equatable()
     }
 }
 
 private struct KnobBody: View, Equatable {
+    @Environment(\.theme) private var theme
     @Binding var value: Float
     let range: ClosedRange<Float>
     let label: String
     let format: String
+    let themeID: ThemeID
 
     @State private var isDragging = false
 
@@ -32,22 +35,19 @@ private struct KnobBody: View, Equatable {
             && lhs.range == rhs.range
             && lhs.label == rhs.label
             && lhs.format == rhs.format
+            && lhs.themeID == rhs.themeID
     }
 
     var body: some View {
         VStack(spacing: 4) {
             ZStack {
-                KnobDiscShadow(
-                    diameter: knobSize + 4,
-                    darkRadius: 4, darkX: 2, darkY: 3,
-                    lightRadius: 3, lightX: -2, lightY: -2
-                )
+                KnobDiscShadow(diameter: knobSize + 4, themeID: theme.id)
                 .equatable()
 
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [AppleTheme.knobTop, AppleTheme.knobBottom],
+                            colors: [theme.knobTop, theme.knobBottom],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -70,11 +70,11 @@ private struct KnobBody: View, Equatable {
                     .frame(width: knobSize - 6, height: knobSize - 6)
 
                 Rectangle()
-                    .fill(isDragging ? AppleTheme.knobIndicatorActive : AppleTheme.knobIndicator)
+                    .fill(isDragging ? theme.knobFill : theme.knobIndicator)
                     .frame(width: 3, height: knobSize / 3)
                     .offset(y: -knobSize / 6)
                     .rotationEffect(Angle(degrees: rotationAngle))
-                    .shadow(color: isDragging ? AppleTheme.knobIndicatorActive.opacity(0.4) : .clear, radius: 3)
+                    .shadow(color: isDragging ? theme.knobFill.opacity(0.4) : .clear, radius: 3)
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -92,11 +92,11 @@ private struct KnobBody: View, Equatable {
 
             Text(label)
                 .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundColor(AppleTheme.textSecondary)
+                .foregroundColor(theme.textDim)
 
             Text(String(format: format, value))
                 .font(.system(size: 9, weight: .regular, design: .monospaced))
-                .foregroundColor(AppleTheme.textTertiary)
+                .foregroundColor(theme.textFaint)
         }
     }
 
@@ -107,22 +107,25 @@ private struct KnobBody: View, Equatable {
 }
 
 struct LargeKnobView: View {
+    @Environment(\.theme) private var theme
     @Binding var value: Float
     let range: ClosedRange<Float>
     let label: String
     var format: String = "%.2f"
 
     var body: some View {
-        LargeKnobBody(value: $value, range: range, label: label, format: format)
+        LargeKnobBody(value: $value, range: range, label: label, format: format, themeID: theme.id)
             .equatable()
     }
 }
 
 private struct LargeKnobBody: View, Equatable {
+    @Environment(\.theme) private var theme
     @Binding var value: Float
     let range: ClosedRange<Float>
     let label: String
     let format: String
+    let themeID: ThemeID
 
     @State private var isDragging = false
 
@@ -133,22 +136,19 @@ private struct LargeKnobBody: View, Equatable {
             && lhs.range == rhs.range
             && lhs.label == rhs.label
             && lhs.format == rhs.format
+            && lhs.themeID == rhs.themeID
     }
 
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
-                KnobDiscShadow(
-                    diameter: knobSize + 6,
-                    darkRadius: 6, darkX: 3, darkY: 4,
-                    lightRadius: 4, lightX: -3, lightY: -3
-                )
+                KnobDiscShadow(diameter: knobSize + 6, themeID: theme.id)
                 .equatable()
 
                 ForEach(0..<11) { i in
                     let angle = -135 + Double(i) * 27
                     Rectangle()
-                        .fill(AppleTheme.textTertiary.opacity(0.5))
+                        .fill(theme.textFaint.opacity(0.5))
                         .frame(width: 1, height: 6)
                         .offset(y: -knobSize / 2 - 5)
                         .rotationEffect(Angle(degrees: angle))
@@ -157,7 +157,7 @@ private struct LargeKnobBody: View, Equatable {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [AppleTheme.knobTop, AppleTheme.knobBottom],
+                            colors: [theme.knobTop, theme.knobBottom],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -180,11 +180,11 @@ private struct LargeKnobBody: View, Equatable {
                     .frame(width: knobSize - 8, height: knobSize - 8)
 
                 Rectangle()
-                    .fill(isDragging ? AppleTheme.knobIndicatorActive : AppleTheme.accentBlue)
+                    .fill(isDragging ? theme.knobFill : theme.accent)
                     .frame(width: 4, height: knobSize / 2.5)
                     .offset(y: -knobSize / 5)
                     .rotationEffect(Angle(degrees: rotationAngle))
-                    .shadow(color: isDragging ? AppleTheme.knobIndicatorActive.opacity(0.5) : AppleTheme.accentBlue.opacity(0.3), radius: 4)
+                    .shadow(color: isDragging ? theme.knobFill.opacity(0.5) : theme.accent.opacity(0.3), radius: 4)
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -202,11 +202,11 @@ private struct LargeKnobBody: View, Equatable {
 
             Text(label)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundColor(AppleTheme.textPrimary)
+                .foregroundColor(theme.text)
 
             Text(String(format: format, value))
                 .font(.system(size: 10, weight: .regular, design: .monospaced))
-                .foregroundColor(AppleTheme.accentBlue)
+                .foregroundColor(theme.accent)
         }
     }
 
@@ -218,21 +218,20 @@ private struct LargeKnobBody: View, Equatable {
 
 /// Static knob well. Parent redraws skip this when the diameter is unchanged.
 private struct KnobDiscShadow: View, Equatable {
+    @Environment(\.theme) private var theme
     let diameter: CGFloat
-    let darkRadius: CGFloat
-    let darkX: CGFloat
-    let darkY: CGFloat
-    let lightRadius: CGFloat
-    let lightX: CGFloat
-    let lightY: CGFloat
+    let themeID: ThemeID
+
+    static func == (lhs: KnobDiscShadow, rhs: KnobDiscShadow) -> Bool {
+        lhs.diameter == rhs.diameter && lhs.themeID == rhs.themeID
+    }
 
     var body: some View {
         Circle()
-            .fill(AppleTheme.surfaceInset)
+            .fill(theme.inset)
             .frame(width: diameter, height: diameter)
             .compositingGroup()
-            .shadow(color: AppleTheme.shadowDark, radius: darkRadius, x: darkX, y: darkY)
-            .shadow(color: AppleTheme.shadowLight, radius: lightRadius, x: lightX, y: lightY)
+            .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
             .drawingGroup()
     }
 }
@@ -243,5 +242,5 @@ private struct KnobDiscShadow: View, Equatable {
         LargeKnobView(value: .constant(0.7), range: 0...1, label: "Cutoff")
     }
     .padding()
-    .background(AppleTheme.windowBackground)
+    .background(Theme.baseline.bg)
 }

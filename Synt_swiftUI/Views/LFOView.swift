@@ -6,17 +6,18 @@
 import SwiftUI
 
 struct LFOView: View {
+    @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                AppleSectionHeader(title: "LFO", accent: AppleTheme.accentLFO, icon: "waveform.path")
+                AppleSectionHeader(title: "LFO", accent: theme.aLFO, icon: "waveform.path")
                 Spacer()
                 Toggle("", isOn: $preset.lfoEnabled)
                     .toggleStyle(.switch)
                     .scaleEffect(0.7)
-                    .tint(AppleTheme.accentLFO)
+                    .tint(theme.aLFO)
             }
 
             if preset.lfoEnabled {
@@ -24,14 +25,14 @@ struct LFOView: View {
                     HStack {
                         Text("Wave")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(AppleTheme.textSecondary)
+                            .foregroundColor(theme.textDim)
                         Spacer()
                     }
                     WaveformPicker(selected: $preset.lfoWaveform)
                     HStack {
                         Text("Target")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(AppleTheme.textSecondary)
+                            .foregroundColor(theme.textDim)
                         Spacer()
                     }
                     Picker("Target", selection: $preset.lfoTarget) {
@@ -48,12 +49,12 @@ struct LFOView: View {
             }
         }
         .padding()
-        .appleCard(accent: AppleTheme.accentLFO)
+        .appleCard(accent: theme.aLFO)
     }
 }
 
 #Preview {
     LFOView(preset: .constant(.defaultPreset))
         .frame(width: 250).padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }
