@@ -57,6 +57,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     /// UI → audio command path (SPSC). Only audio thread mutates the voice pool.
     let commandQueue = AudioCommandQueue(capacity: 1024)
+    /// CoreMIDI thread → audio (SPSC). Separate ring: two producers on one SPSC ring race.
+    let midiQueue = AudioCommandQueue(capacity: 1024)
     /// Audio → UI metering path. Audio writes atomics; main polls.
     let meteringState = AtomicMeteringState()
     var cancellables = Set<AnyCancellable>()
@@ -397,6 +399,31 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             _ = commandQueue.push(.noteOff(midiNote: midiNote))
         }
         updatePressedKeys { $0.remove(midiNote) }
+    }
+
+    // MARK: - MIDI input (CoreMIDI thread only; producer of `midiQueue`)
+
+    /// Does not read `preset`: the audio thread picks arp vs voice.
+    func midiNoteOn(midiNote: Int, velocity: Float) {
+        _ = midiQueue.push(.keyDown(midiNote: midiNote, velocity: velocity))
+        updatePressedKeys { $0.insert(midiNote) }
+    }
+
+    func midiNoteOff(midiNote: Int) {
+        _ = midiQueue.push(.keyUp(midiNote: midiNote))
+        updatePressedKeys { $0.remove(midiNote) }
+    }
+
+    func midiPitchBend(_ normalized: Float) {
+        _ = midiQueue.push(.setPitchBend(min(1, max(-1, normalized))))
+    }
+
+    func midiModWheel(_ amount: Float) {
+        _ = midiQueue.push(.setModWheel(min(1, max(0, amount))))
+    }
+
+    func midiSustainPedal(down: Bool) {
+        _ = midiQueue.push(.setSustain(down))
     }
 
     func clearAllNotes() {

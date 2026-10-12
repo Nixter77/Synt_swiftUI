@@ -395,7 +395,31 @@ extension AudioEngine {
 
     func processCommandQueue() {
         commandQueue.drain(limit: 128) { [self] command in
+            handleCommand(command)
+        }
+        midiQueue.drain(limit: 128) { [self] command in
+            handleCommand(command)
+        }
+        // After the whole batch, so releasing a chord (held ends at 0) still rings.
+        // A new chord in the same batch is already held, and only its oldest tails go.
+        trimAbandonedTails()
+    }
+
+    func handleCommand(_ command: AudioCommand) {
             switch command {
+            case .keyDown(let midiNote, let velocity):
+                if cachedArpMode != .off {
+                    handleCommand(.arpKeyDown(midiNote: midiNote))
+                } else {
+                    createVoice(midiNote: midiNote, velocity: velocity)
+                }
+            case .keyUp(let midiNote):
+                // Follow where the key went, so an arp toggle mid-hold cannot strand it.
+                if heldKeysForArp.contains(midiNote) {
+                    handleCommand(.arpKeyUp(midiNote: midiNote))
+                } else {
+                    internalNoteOff(midiNote: midiNote)
+                }
             case .noteOn(let midiNote, let velocity):
                 createVoice(midiNote: midiNote, velocity: velocity)
             case .noteOff(let midiNote):
@@ -425,10 +449,6 @@ extension AudioEngine {
                 arp.mode = cachedArpMode
                 arp.setHeldKeys(heldKeysForArp)
             }
-        }
-        // After the whole batch, so releasing a chord (held ends at 0) still rings.
-        // A new chord in the same batch is already held, and only its oldest tails go.
-        trimAbandonedTails()
     }
 
     /// Sample-accurate 16th-note clock. Swing delays user-facing even steps

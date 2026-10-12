@@ -74,6 +74,42 @@ struct MIDIPerformanceTests {
         #expect(engine.sustainPedalDown)
     }
 
+    @Test func midiUsesItsOwnRingNotTheUIRing() {
+        let engine = AudioEngine()
+        let midi = MIDIHandler()
+        midi.audioEngine = engine
+        midi.parseMIDIBytesForTesting([0x90, 60, 100])
+        #expect(engine.commandQueueForTesting.isEmpty)
+        #expect(!engine.midiQueue.isEmpty)
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteActiveForTesting(60))
+        midi.parseMIDIBytesForTesting([0x80, 60, 0])
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteReleasingForTesting(60))
+    }
+
+    @Test func midiKeyFollowsArpModeOnTheAudioThread() {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .up
+        engine.preset = preset
+        engine.applyPresetForTesting()
+        let midi = MIDIHandler()
+        midi.audioEngine = engine
+        midi.parseMIDIBytesForTesting([0x90, 64, 100])
+        engine.processCommandsForTesting()
+        #expect(engine.heldKeysForArp.contains(64))
+        #expect(!engine.isNoteActiveForTesting(64))
+
+        // Arp switched off while the key is down: the key-up still clears the arp.
+        preset.arpMode = .off
+        engine.preset = preset
+        engine.applyPresetForTesting()
+        midi.parseMIDIBytesForTesting([0x80, 64, 0])
+        engine.processCommandsForTesting()
+        #expect(!engine.heldKeysForArp.contains(64))
+    }
+
     @Test func initWithoutMIDIIsSampleIdenticalAcrossEngines() {
         #expect(initBuffer() == initBuffer())
     }

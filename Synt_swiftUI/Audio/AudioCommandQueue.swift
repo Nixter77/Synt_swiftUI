@@ -24,12 +24,16 @@ enum AudioCommand: Equatable {
     /// 0…1. Scales the preset LFO depth. 1 leaves the preset alone.
     case setModWheel(Float)
     case setSustain(Bool)
+    /// MIDI key. The audio thread routes it to the arp or a voice (it owns arp mode).
+    case keyDown(midiNote: Int, velocity: Float)
+    /// MIDI key up. Goes to the arp if the arp holds the key, otherwise note off.
+    case keyUp(midiNote: Int)
 
     var isCritical: Bool {
         switch self {
-        case .noteOff, .clearAll, .arpKeyUp, .setSustain:
+        case .noteOff, .clearAll, .arpKeyUp, .setSustain, .keyUp:
             return true
-        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel:
+        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown:
             return false
         }
     }
@@ -85,7 +89,12 @@ final class AudioCommandQueue: @unchecked Sendable {
         case .setSustain(let down):
             pendingSustain.store(down ? 2 : 1, ordering: .releasing)
             return true
-        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel:
+        case .keyUp(let midiNote):
+            // Route is unknown here. Park both; each is a no-op if that side is idle.
+            orNoteOffBit(clampedMIDI(midiNote))
+            orArpKeyUpBit(clampedMIDI(midiNote))
+            return true
+        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown:
             return false
         }
     }

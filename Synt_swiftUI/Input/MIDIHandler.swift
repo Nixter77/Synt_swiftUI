@@ -151,9 +151,9 @@ class MIDIHandler: ObservableObject {
                     let velocity = bytes[i+2]
                     
                     if velocity > 0 {
-                        audioEngine?.noteOn(midiNote: Int(note), velocity: Float(velocity) / 127.0)
+                        audioEngine?.midiNoteOn(midiNote: Int(note), velocity: Float(velocity) / 127.0)
                     } else {
-                        audioEngine?.noteOff(midiNote: Int(note))
+                        audioEngine?.midiNoteOff(midiNote: Int(note))
                     }
                     i += 3
                 } else { break }
@@ -162,7 +162,7 @@ class MIDIHandler: ObservableObject {
                     let note = bytes[i+1]
                     // let velocity = bytes[i+2]
                     
-                    audioEngine?.noteOff(midiNote: Int(note))
+                    audioEngine?.midiNoteOff(midiNote: Int(note))
                     i += 3
                 } else { break }
             } else if command == 0xE0 { // Pitch bend
@@ -176,7 +176,7 @@ class MIDIHandler: ObservableObject {
                     } else {
                         normalized = Float(value - 8192) / 8192
                     }
-                    audioEngine?.pitchBend(normalized)
+                    audioEngine?.midiPitchBend(normalized)
                     i += 3
                 } else { break }
             } else if command == 0xB0 { // Control change
@@ -184,9 +184,9 @@ class MIDIHandler: ObservableObject {
                     let cc = bytes[i + 1]
                     let value = bytes[i + 2]
                     if cc == 1 {
-                        audioEngine?.modWheel(Float(value) / 127)
+                        audioEngine?.midiModWheel(Float(value) / 127)
                     } else if cc == 64 {
-                        audioEngine?.sustainPedal(down: value >= 64)
+                        audioEngine?.midiSustainPedal(down: value >= 64)
                     }
                     i += 3
                 } else { break }
