@@ -9,6 +9,7 @@ import SwiftUI
 
 struct StepSequencerView: View {
     @ObservedObject var sequencer: StepSequencer
+    @ObservedObject var playhead: PlayheadModel
     @Binding var bpm: Float
     @Binding var isPlaying: Bool
     
@@ -38,7 +39,7 @@ struct StepSequencerView: View {
             HStack(spacing: 4) {
                 ForEach(0..<16, id: \.self) { index in
                     SeqStepButton(step: $sequencer.pattern.steps[index], index: index,
-                        isCurrentStep: sequencer.currentStep == index && sequencer.isPlaying, color: stepAccents[index])
+                        isCurrentStep: playhead.step == index && sequencer.isPlaying, color: stepAccents[index])
                 }
             }
             
@@ -228,6 +229,7 @@ struct SeqKnob: View {
 }
 
 #Preview {
-    StepSequencerView(sequencer: StepSequencer(), bpm: .constant(120), isPlaying: .constant(false))
+    let seq = StepSequencer()
+    return StepSequencerView(sequencer: seq, playhead: seq.playhead, bpm: .constant(120), isPlaying: .constant(false))
         .frame(width: 700, height: 200).background(AppleTheme.windowBackground)
 }

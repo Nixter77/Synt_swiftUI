@@ -25,6 +25,7 @@ struct ContentView: View {
                     if showSequencer {
                         StepSequencerView(
                             sequencer: stepSequencer,
+                            playhead: stepSequencer.playhead,
                             bpm: $audioEngine.preset.bpm,
                             isPlaying: $stepSequencer.isPlaying
                         )
@@ -37,7 +38,7 @@ struct ContentView: View {
             // Keyboard stays outside ScrollView so a drag cannot cancel noteOff.
             KeyboardView(
                 keyboardHandler: keyboardHandler,
-                pressedKeys: audioEngine.pressedKeys,
+                keyDisplay: audioEngine.keyDisplay,
                 startNote: 36,
                 numberOfOctaves: 4
             )
@@ -46,10 +47,8 @@ struct ContentView: View {
         .background(AppleTheme.windowBackground)
         // Playhead only. The clock itself runs on the audio thread.
         .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { _ in
-            let step = audioEngine.sequencerDisplayStep
-            if stepSequencer.currentStep != step {
-                stepSequencer.currentStep = step
-            }
+            guard showSequencer, stepSequencer.isPlaying else { return }
+            stepSequencer.currentStep = audioEngine.sequencerDisplayStep
         }
         .onChange(of: stepSequencer.isPlaying) { _, _ in
             publishSequencerSnapshot()

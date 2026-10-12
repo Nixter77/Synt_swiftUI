@@ -15,6 +15,10 @@ import Combine
 import os
 import SwiftUI
 
+final class PressedKeysModel: ObservableObject {
+    @Published var keys: Set<Int> = []
+}
+
 final class AudioEngine: ObservableObject, @unchecked Sendable {
     private static let log = Logger(subsystem: "Home.Synt-swiftUI", category: "AudioEngine")
     private let engine = AVAudioEngine()
@@ -41,7 +45,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     // UI Visualization. Levels live on `meters`, which ContentView does not observe.
-    @Published var pressedKeys: Set<Int> = []
+    /// Lit keys live on their own model so a note does not redraw ContentView.
+    let keyDisplay = PressedKeysModel()
+    var pressedKeys: Set<Int> {
+        get { keyDisplay.keys }
+        set { keyDisplay.keys = newValue }
+    }
     let meters = AudioMeterModel()
 
     var oscillator1 = Oscillator()

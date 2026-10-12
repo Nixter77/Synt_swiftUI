@@ -2,7 +2,8 @@ import SwiftUI
 
 struct KeyboardView: View {
     @ObservedObject var keyboardHandler: KeyboardHandler
-    var pressedKeys: Set<Int>
+    @ObservedObject var keyDisplay: PressedKeysModel
+    private var pressedKeys: Set<Int> { keyDisplay.keys }
     let startNote: Int
     let numberOfOctaves: Int
 
@@ -10,9 +11,9 @@ struct KeyboardView: View {
 
     private let whiteKeySpacing: CGFloat = 2
 
-    init(keyboardHandler: KeyboardHandler, pressedKeys: Set<Int>, startNote: Int = 48, numberOfOctaves: Int = 2) {
+    init(keyboardHandler: KeyboardHandler, keyDisplay: PressedKeysModel, startNote: Int = 48, numberOfOctaves: Int = 2) {
         self.keyboardHandler = keyboardHandler
-        self.pressedKeys = pressedKeys
+        self.keyDisplay = keyDisplay
         self.startNote = startNote
         self.numberOfOctaves = numberOfOctaves
     }
@@ -218,7 +219,7 @@ struct KeyboardView: View {
 }
 
 #Preview {
-    KeyboardView(keyboardHandler: KeyboardHandler(), pressedKeys: [60, 64, 67], startNote: 36, numberOfOctaves: 4)
+    KeyboardView(keyboardHandler: KeyboardHandler(), keyDisplay: PressedKeysModel(), startNote: 36, numberOfOctaves: 4)
         .frame(height: 250)
         .background(AppleTheme.windowBackground)
         .padding()

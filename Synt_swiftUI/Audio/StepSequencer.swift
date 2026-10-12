@@ -162,13 +162,24 @@ struct StepSequencerPattern: Codable, Identifiable, Equatable {
     }
 }
 
+/// Playhead only. Observed by StepSequencerView alone, so a step tick
+/// does not invalidate ContentView and every knob.
+final class PlayheadModel: ObservableObject {
+    @Published var step: Int = 0
+}
+
 /// Step Sequencer engine
 final class StepSequencer: ObservableObject {
     
     // MARK: - Published Properties
     
     @Published var isPlaying: Bool = false
-    @Published var currentStep: Int = 0
+    let playhead = PlayheadModel()
+    /// Not @Published on purpose (see PlayheadModel).
+    var currentStep: Int {
+        get { playhead.step }
+        set { if playhead.step != newValue { playhead.step = newValue } }
+    }
     @Published var pattern: StepSequencerPattern = StepSequencerPattern()
     
     /// Swing amount 0.0 (straight) to 1.0 (max swing)

@@ -7,7 +7,8 @@ import SwiftUI
 import Combine
 
 class KeyboardHandler: ObservableObject {
-    @Published var pressedKeys: Set<Int> = []
+    /// Not @Published: AudioEngine.keyDisplay drives the lit keys.
+    var pressedKeys: Set<Int> = []
     @Published var baseOctave: Int = 4
 
     weak var audioEngine: AudioEngine?
