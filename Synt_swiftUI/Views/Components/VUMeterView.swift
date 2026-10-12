@@ -5,6 +5,22 @@
 
 import SwiftUI
 
+/// LED ladder in dB: 3 dB per segment, top segment = 0 dBFS (meter 1.0).
+let ledDBPerSegment: Float = 3
+
+/// Segments lit by `level` (fill) and the single peak-hold segment, if any.
+func ledSegments(level: Float, peak: Float, count: Int) -> (filled: Int, peakIndex: Int?) {
+    func index(_ v: Float) -> Int {
+        guard v.isFinite, v > 0 else { return 0 }
+        let db = 20 * log10(v)
+        let fromBottom = Float(count) + db / ledDBPerSegment   // 0 dB → count
+        return max(0, min(count, Int(fromBottom.rounded(.down))))
+    }
+    let filled = index(level)
+    let p = index(peak)
+    return (filled, p > filled ? p - 1 : nil)
+}
+
 struct VUMeterView: View {
     @Environment(\.theme) private var theme
     let level: Float
@@ -20,13 +36,20 @@ struct VUMeterView: View {
         if orientation == .vertical { verticalMeter } else { horizontalMeter }
     }
 
-    private var shownLevel: Float { max(level, peakLevel) }
+    private var segments: (filled: Int, peakIndex: Int?) {
+        ledSegments(level: level, peak: peakLevel, count: segmentCount)
+    }
+
+    private func isLit(_ index: Int, _ seg: (filled: Int, peakIndex: Int?)) -> Bool {
+        index < seg.filled || index == seg.peakIndex
+    }
 
     private var verticalMeter: some View {
-        VStack(spacing: 1) {
+        let seg = segments
+        return VStack(spacing: 1) {
             ForEach((0..<segmentCount).reversed(), id: \.self) { index in
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(ledColor(index: index, lit: shownLevel >= Float(index + 1) / Float(segmentCount)))
+                    .fill(ledColor(index: index, lit: isLit(index, seg)))
                     .frame(width: 12, height: 5)
             }
             Text(label)
@@ -36,7 +59,8 @@ struct VUMeterView: View {
     }
 
     private var horizontalMeter: some View {
-        HStack(spacing: 2) {
+        let seg = segments
+        return HStack(spacing: 2) {
             Text(label)
                 .font(theme.monoFont(size: 9, weight: .medium))
                 .foregroundColor(theme.textFaint)
@@ -44,7 +68,7 @@ struct VUMeterView: View {
             HStack(spacing: 1) {
                 ForEach(0..<segmentCount, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(ledColor(index: index, lit: shownLevel >= Float(index + 1) / Float(segmentCount)))
+                        .fill(ledColor(index: index, lit: isLit(index, seg)))
                         .frame(width: 5, height: 12)
                 }
             }
@@ -87,7 +111,8 @@ struct StereoVUMeterView: View {
                     VUMeterView(level: rightLevel, peakLevel: rightPeak, label: "R")
                 }
                 HStack {
-                    Text("-∞"); Spacer(); Text("-12"); Spacer(); Text("-6"); Spacer(); Text("0")
+                    // 12 × 3 dB: the ladder spans −36…0 dB.
+                    Text("-36"); Spacer(); Text("0")
                 }
                 .font(theme.monoFont(size: 7))
                 .foregroundColor(theme.textFaint)
@@ -105,9 +130,10 @@ struct CompactVUMeterView: View {
     let peakLevel: Float
     private let segmentCount = 12
     var body: some View {
-        HStack(spacing: 1) {
+        let seg = ledSegments(level: level, peak: peakLevel, count: segmentCount)
+        return HStack(spacing: 1) {
             ForEach(0..<segmentCount, id: \.self) { index in
-                let lit = max(level, peakLevel) >= Float(index + 1) / Float(segmentCount)
+                let lit = index < seg.filled || index == seg.peakIndex
                 let color: Color = index >= segmentCount - 2
                     ? theme.meterHigh
                     : index >= segmentCount - 5 ? theme.meterMid : theme.meterLow
