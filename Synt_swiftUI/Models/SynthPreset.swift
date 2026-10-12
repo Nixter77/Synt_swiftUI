@@ -385,6 +385,8 @@ enum LFOTarget: String, CaseIterable, Codable {
     case filter = "Filter"
     case amplitude = "Amplitude"
     case pan = "Pan"
+    /// The oscillator still runs for matrix rows. It does not move a direct target.
+    case none = "Matrix only"
 }
 
 struct ModMatrixEntry: Codable, Hashable, Identifiable {
@@ -412,14 +414,49 @@ enum ModDestination: String, CaseIterable, Codable {
     case lfoRate = "LFO Rate"
     case lfoDepth = "LFO Depth"
     case mix = "Osc Mix"
+
+    var menuTitle: String {
+        switch self {
+        case .pitch1: return "Pitch 1"
+        case .pitch2: return "Pitch 2"
+        case .pwm1: return "PWM 1"
+        case .pwm2: return "PWM 2"
+        case .mix: return "Mix"
+        case .cutoff: return "Cutoff"
+        case .resonance: return "Resonance"
+        case .amp: return "Amp"
+        case .pan: return "Pan"
+        case .lfoRate: return "Rate"
+        case .lfoDepth: return "Depth"
+        }
+    }
+
+    /// Signed amount in the destination's own units.
+    func formatAmount(_ amount: Float) -> String {
+        switch self {
+        case .pitch1, .pitch2:
+            return String(format: "%+.2f oct", amount)
+        case .cutoff:
+            return String(format: "%+.1f oct", amount * 4)
+        case .amp, .pwm1, .pwm2, .resonance, .lfoDepth, .mix:
+            return String(format: "%+.0f %%", amount * 100)
+        case .pan:
+            let pct = abs(amount) * 100
+            if amount < -0.0001 { return String(format: "L %.0f %%", pct) }
+            if amount > 0.0001 { return String(format: "R %.0f %%", pct) }
+            return "C 0 %"
+        case .lfoRate:
+            let factor = pow(2, 2 * amount)
+            return String(format: "×%.1f rate", factor)
+        }
+    }
 }
 
 // MARK: - Factory authoring helpers
 
 enum PresetAuthoring {
-    /// Destinations the live render actually applies (pitch1/2, amp, pan).
-    /// Cutoff / PWM / mix entries are stored and silent — do not author them.
-    static let liveDestinations: Set<ModDestination> = [.pitch1, .pitch2, .amp, .pan]
+    /// Every destination is applied by the render.
+    static let liveDestinations: Set<ModDestination> = Set(ModDestination.allCases)
 
     static func mod(_ source: ModSource, _ dest: ModDestination, _ amount: Float) -> ModMatrixEntry {
         ModMatrixEntry(source: source, destination: dest, amount: amount)

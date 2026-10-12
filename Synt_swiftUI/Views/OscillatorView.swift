@@ -39,7 +39,8 @@ struct OscillatorView: View {
                         KnobView(
                             value: oscillatorNumber == 1 ? $preset.osc1Volume : $preset.osc2Volume,
                             range: 0...1,
-                            label: "Volume"
+                            label: "Volume",
+                            modulated: modSources(.mix, in: preset.modMatrix)
                         )
                         VStack(spacing: 4) {
                             Text("Octave")
@@ -76,6 +77,12 @@ struct OscillatorView: View {
                                 .themeCaption(theme, size: 10)
                                 .foregroundColor(theme.textDim)
                                 .frame(width: 40, alignment: .trailing)
+                            if !modSources(oscillatorNumber == 1 ? .pwm1 : .pwm2, in: preset.modMatrix).isEmpty {
+                                Circle()
+                                    .fill(theme.aMod)
+                                    .frame(width: 5, height: 5)
+                                    .help("Acts only on Pulse")
+                            }
                             ThemeSlider(
                                 value: oscillatorNumber == 1 ? $preset.osc1PulseWidth : $preset.osc2PulseWidth,
                                 range: 0.05...0.95

@@ -120,6 +120,15 @@ final class CleanBus {
 }
 
 extension AudioEngine {
+    @inline(__always)
+    func matrixSource(_ source: ModSource, lfo: Float, env: Float, velocity: Float) -> Float {
+        switch source {
+        case .lfo1: return lfo
+        case .env1: return env
+        case .velocity: return velocity
+        }
+    }
+
     // MARK: - Audio thread render path
 
     /// One sample of synthesis. Commands must already be drained for this buffer.
@@ -150,10 +159,57 @@ extension AudioEngine {
         // Single writer: preset (main) and CC1 (MIDI) only feed the inputs.
         lfo.depth = cachedLfoDepth + (1 - cachedLfoDepth) * modWheel
         let pitchBendMultiplier = advancePitchBend()
-        let lfoValue = lfo.getValue(sampleRate: sampleRate)
         let lfoEnabled = lfo.enabled
         let lfoTarget = lfo.target
         let (modSlots, modCount) = rtModMatrix.snapshot()
+
+        // Global destinations (cutoff, resonance, LFO rate/depth) share one source
+        // per sample. Env and velocity come from the loudest active voice.
+        // LFO self-modulation uses the previous sample so this one can still advance.
+        var matrixWantsLFO = false
+        var globalEnv: Float = 0
+        var globalVel: Float = 0
+        var rateMod: Float = 0
+        var depthMod: Float = 0
+        if modCount > 0 {
+            var loudest: Float = -1
+            for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
+                let env = voices[i].envelopeValue
+                if env >= loudest {
+                    loudest = env
+                    globalEnv = env
+                    globalVel = voices[i].velocity
+                }
+            }
+            for m in 0..<modCount {
+                let entry = modSlots[m]
+                if entry.source == .lfo1 { matrixWantsLFO = true }
+                let src = matrixSource(entry.source, lfo: lastMatrixLFO, env: globalEnv, velocity: globalVel)
+                let modVal = src * entry.amount
+                switch entry.destination {
+                case .lfoRate: rateMod += modVal
+                case .lfoDepth: depthMod += modVal
+                case .pitch1, .pitch2, .cutoff, .resonance, .amp, .pan, .pwm1, .pwm2, .mix:
+                    break
+                }
+            }
+        }
+        if depthMod != 0 {
+            lfo.depth = max(0, min(1, lfo.depth + depthMod))
+        }
+        let lfoValue: Float
+        if lfoEnabled || matrixWantsLFO {
+            if rateMod != 0 {
+                let scaled = lfo.rate * pow(2, 2 * rateMod)
+                let clamped = max(0.01, min(40, scaled))
+                lfoValue = lfo.nextValue(sampleRate: sampleRate, rateOverride: clamped)
+            } else {
+                lfoValue = lfo.nextValue(sampleRate: sampleRate)
+            }
+        } else {
+            lfoValue = 0
+        }
+        lastMatrixLFO = lfoValue
 
         // One noise draw per sample. Each voice hashes it so noise chords
         // do not stack as N identical copies (that sum is just a loud clip).
@@ -175,8 +231,37 @@ extension AudioEngine {
         if lfoEnabled && lfoTarget == .filter {
             cutoff = lfo.modulateFilter(cutoff, lfoValue: lfoValue)
         }
+        var cutoffMod: Float = 0
+        var resonanceMod: Float = 0
+        if modCount > 0 {
+            for m in 0..<modCount {
+                let entry = modSlots[m]
+                let src = matrixSource(entry.source, lfo: lfoValue, env: globalEnv, velocity: globalVel)
+                let modVal = src * entry.amount
+                switch entry.destination {
+                case .cutoff: cutoffMod += modVal
+                case .resonance: resonanceMod += modVal
+                case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix:
+                    break
+                }
+            }
+        }
+        // Amount 1 moves cutoff by 4 octaves. The filter is global, so this is too.
+        if cutoffMod != 0 {
+            let scaled = cutoff * pow(2, cutoffMod * 4)
+            if scaled.isFinite {
+                cutoff = max(20, min(Float(sampleRate) * 0.45, scaled))
+            }
+        }
         filterL.cutoff = cutoff
+        let baseResonance = filterL.resonance
+        if resonanceMod != 0 {
+            filterL.resonance = max(0, min(1, baseResonance + resonanceMod))
+        }
         let filterCoeffs = filterL.currentCoefficients(sampleRate: Float(sampleRate))
+        if resonanceMod != 0 {
+            filterL.resonance = baseResonance
+        }
 
         // Same for every voice: one exp() per sample, not one per voice.
         let glides = cachedPortamento > 0.001
@@ -220,23 +305,25 @@ extension AudioEngine {
             var pitchMod2: Float = 0
             var ampMod: Float = 0
             var panMod: Float = 0
+            var pwmMod1: Float = 0
+            var pwmMod2: Float = 0
+            var mixMod: Float = 0
 
             if modCount > 0 {
                 for m in 0..<modCount {
                     let entry = modSlots[m]
-                    let sourceVal: Float
-                    switch entry.source {
-                    case .lfo1: sourceVal = lfoValue
-                    case .env1: sourceVal = envelopeValue
-                    case .velocity: sourceVal = velValue
-                    }
+                    let sourceVal = matrixSource(entry.source, lfo: lfoValue, env: envelopeValue, velocity: velValue)
                     let modVal = sourceVal * entry.amount
                     switch entry.destination {
                     case .pitch1: pitchMod1 += modVal
                     case .pitch2: pitchMod2 += modVal
                     case .amp: ampMod += modVal
                     case .pan: panMod += modVal
-                    default: break
+                    case .pwm1: pwmMod1 += modVal
+                    case .pwm2: pwmMod2 += modVal
+                    case .mix: mixMod += modVal
+                    case .cutoff, .resonance, .lfoRate, .lfoDepth:
+                        break
                     }
                 }
             }
@@ -271,15 +358,22 @@ extension AudioEngine {
             var sample = oscillator1.generateSample(
                 phase: v.phase,
                 phaseIncrement: phaseInc1,
-                noiseValue: noiseValue
+                noiseValue: noiseValue,
+                pulseWidthOverride: pwmMod1 == 0 ? nil : max(0.05, min(0.95, oscillator1.pulseWidth + 0.45 * pwmMod1))
             )
             if cachedOsc2Enabled {
                 let s2 = oscillator2.generateSample(
                     phase: v.phase2,
                     phaseIncrement: phaseInc2,
-                    noiseValue: noiseValue
+                    noiseValue: noiseValue,
+                    pulseWidthOverride: pwmMod2 == 0 ? nil : max(0.05, min(0.95, oscillator2.pulseWidth + 0.45 * pwmMod2))
                 )
-                sample = (sample + s2) * 0.5
+                if mixMod != 0 {
+                    let bias = max(-1, min(1, mixMod))
+                    sample = (sample * (1 - bias) + s2 * (1 + bias)) * 0.5
+                } else {
+                    sample = (sample + s2) * 0.5
+                }
             }
 
             v.phase += phaseInc1

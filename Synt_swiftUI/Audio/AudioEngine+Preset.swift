@@ -142,6 +142,7 @@ extension AudioEngine {
         parametricEQR.reset()
         phaser.reset()
         lfo.reset()
+        lastMatrixLFO = 0
         smoothedFilterCutoff = cachedFilterCutoff
         smoothedMasterVolume = cachedMasterVolume
         lastPlayedFrequency = nil

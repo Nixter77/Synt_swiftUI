@@ -18,10 +18,22 @@ struct KnobView: View {
     let range: ClosedRange<Float>
     let label: String
     var format: String = "%.2f"
+    /// Replaces the formatted number when a destination has its own units.
+    var valueText: String? = nil
+    /// Matrix sources aimed at this parameter. A dot is drawn when the list is not empty.
+    var modulated: [ModSource] = []
 
     var body: some View {
-        KnobBody(value: $value, range: range, label: label, format: format, themeID: theme.id)
-            .equatable()
+        KnobBody(
+            value: $value,
+            range: range,
+            label: label,
+            format: format,
+            valueText: valueText,
+            modulated: modulated,
+            themeID: theme.id
+        )
+        .equatable()
     }
 }
 
@@ -31,6 +43,8 @@ private struct KnobBody: View, Equatable {
     let range: ClosedRange<Float>
     let label: String
     let format: String
+    var valueText: String? = nil
+    var modulated: [ModSource] = []
     let themeID: ThemeID
 
     private let knobSize: CGFloat = 50
@@ -42,6 +56,8 @@ private struct KnobBody: View, Equatable {
             && lhs.range == rhs.range
             && lhs.label == rhs.label
             && lhs.format == rhs.format
+            && lhs.valueText == rhs.valueText
+            && lhs.modulated == rhs.modulated
             && lhs.themeID == rhs.themeID
     }
 
@@ -51,7 +67,19 @@ private struct KnobBody: View, Equatable {
                 KnobDiscShadow(diameter: knobSize + 4, themeID: theme.id)
                 .equatable()
 
-                KnobChrome(fraction: fraction, angle: rotationAngle, diameter: knobSize)
+                KnobChrome(
+                    fraction: fraction,
+                    angle: rotationAngle,
+                    diameter: knobSize,
+                    centeredFill: range.lowerBound < 0 && range.upperBound > 0
+                )
+                if !modulated.isEmpty {
+                    Circle()
+                        .fill(theme.aMod)
+                        .frame(width: 5, height: 5)
+                        .offset(y: knobSize * 0.38)
+                        .help(modulated.map(\.rawValue).joined(separator: ", "))
+                }
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -69,7 +97,7 @@ private struct KnobBody: View, Equatable {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
-            Text(String(format: format, value))
+            Text(valueText ?? String(format: format, value))
                 .font(theme.monoFont(size: 9))
                 .foregroundColor(theme.textFaint)
         }
@@ -88,10 +116,18 @@ struct LargeKnobView: View {
     let range: ClosedRange<Float>
     let label: String
     var format: String = "%.2f"
+    var modulated: [ModSource] = []
 
     var body: some View {
-        LargeKnobBody(value: $value, range: range, label: label, format: format, themeID: theme.id)
-            .equatable()
+        LargeKnobBody(
+            value: $value,
+            range: range,
+            label: label,
+            format: format,
+            modulated: modulated,
+            themeID: theme.id
+        )
+        .equatable()
     }
 }
 
@@ -101,6 +137,7 @@ private struct LargeKnobBody: View, Equatable {
     let range: ClosedRange<Float>
     let label: String
     let format: String
+    var modulated: [ModSource] = []
     let themeID: ThemeID
 
     private let knobSize: CGFloat = 70
@@ -112,6 +149,7 @@ private struct LargeKnobBody: View, Equatable {
             && lhs.range == rhs.range
             && lhs.label == rhs.label
             && lhs.format == rhs.format
+            && lhs.modulated == rhs.modulated
             && lhs.themeID == rhs.themeID
     }
 
@@ -130,7 +168,20 @@ private struct LargeKnobBody: View, Equatable {
                         .rotationEffect(Angle(degrees: angle))
                 }
 
-                KnobChrome(fraction: fraction, angle: rotationAngle, diameter: knobSize, indicatorWidth: 4)
+                KnobChrome(
+                    fraction: fraction,
+                    angle: rotationAngle,
+                    diameter: knobSize,
+                    indicatorWidth: 4,
+                    centeredFill: range.lowerBound < 0 && range.upperBound > 0
+                )
+                if !modulated.isEmpty {
+                    Circle()
+                        .fill(theme.aMod)
+                        .frame(width: 5, height: 5)
+                        .offset(y: knobSize * 0.38)
+                        .help(modulated.map(\.rawValue).joined(separator: ", "))
+                }
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -166,7 +217,21 @@ struct KnobChrome: View {
     var angle: Double
     var diameter: CGFloat
     var indicatorWidth: CGFloat = 3
+    /// Bipolar ranges draw the value arc out from the center of the sweep.
+    var centeredFill: Bool = false
     @Environment(\.theme) private var theme
+
+    private var fillStart: CGFloat {
+        let unit = max(0, min(1, fraction))
+        guard centeredFill else { return 0 }
+        return 0.75 * min(unit, 0.5)
+    }
+
+    private var fillEnd: CGFloat {
+        let unit = max(0, min(1, fraction))
+        guard centeredFill else { return 0.75 * unit }
+        return 0.75 * max(unit, 0.5)
+    }
 
     var body: some View {
         ZStack {
@@ -192,7 +257,7 @@ struct KnobChrome: View {
                 .frame(width: diameter - 6, height: diameter - 6)
 
             Circle()
-                .trim(from: 0, to: 0.75 * max(0, min(1, fraction)))
+                .trim(from: fillStart, to: fillEnd)
                 .stroke(theme.knobFill, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 .rotationEffect(.degrees(135))
                 .frame(width: diameter - 6, height: diameter - 6)

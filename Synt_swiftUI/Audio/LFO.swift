@@ -23,8 +23,14 @@ class LFO {
 
     func getValue(sampleRate: Double) -> Float {
         guard enabled else { return 0.0 }
+        return nextValue(sampleRate: sampleRate)
+    }
 
-        let phaseIncrement = AudioMath.twoPi * Double(rate) / sampleRate
+    /// One sample of the LFO, whether or not the direct target is enabled.
+    /// The matrix calls this when a row uses LFO 1 and the toggle is off.
+    func nextValue(sampleRate: Double, rateOverride: Float? = nil) -> Float {
+        let usedRate = rateOverride ?? rate
+        let phaseIncrement = AudioMath.twoPi * Double(usedRate) / sampleRate
         phase += phaseIncrement
 
         if phase >= AudioMath.twoPi {

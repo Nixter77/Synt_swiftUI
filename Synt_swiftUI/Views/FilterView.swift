@@ -20,8 +20,19 @@ struct FilterView: View {
             )
 
             HStack(spacing: 8) {
-                LargeKnobView(value: $preset.filterCutoff, range: 20...20000, label: "Cutoff", format: "%.0f Hz")
-                KnobView(value: $preset.filterResonance, range: 0...1, label: "Resonance")
+                LargeKnobView(
+                    value: $preset.filterCutoff,
+                    range: 20...20000,
+                    label: "Cutoff",
+                    format: "%.0f Hz",
+                    modulated: modSources(.cutoff, in: preset.modMatrix)
+                )
+                KnobView(
+                    value: $preset.filterResonance,
+                    range: 0...1,
+                    label: "Resonance",
+                    modulated: modSources(.resonance, in: preset.modMatrix)
+                )
                 KnobView(value: $preset.filterEnvelopeAmount, range: 0...1, label: "Env Amt")
             }
         }

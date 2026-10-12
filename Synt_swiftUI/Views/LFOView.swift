@@ -38,8 +38,19 @@ struct LFOView: View {
                         accent: theme.aLFO
                     )
                     HStack(spacing: 8) {
-                        KnobView(value: $preset.lfoRate, range: 0.1...20, label: "Rate", format: "%.1f Hz")
-                        KnobView(value: $preset.lfoDepth, range: 0...1, label: "Depth")
+                        KnobView(
+                            value: $preset.lfoRate,
+                            range: 0.1...20,
+                            label: "Rate",
+                            format: "%.1f Hz",
+                            modulated: modSources(.lfoRate, in: preset.modMatrix)
+                        )
+                        KnobView(
+                            value: $preset.lfoDepth,
+                            range: 0...1,
+                            label: "Depth",
+                            modulated: modSources(.lfoDepth, in: preset.modMatrix)
+                        )
                     }
                 }
             }

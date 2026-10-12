@@ -139,6 +139,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
     /// Peak before the safety soft-clip (tests / gain staging).
     var lastPreClipAbs: Float = 0
+    /// Previous LFO sample, used only when a row modulates LFO rate or depth.
+    var lastMatrixLFO: Float = 0
 
     // Oscilloscope Capture (audio thread buffer → AtomicMeteringState)
     var scopeBuffer: [Float] = Array(repeating: 0.0, count: 512)
