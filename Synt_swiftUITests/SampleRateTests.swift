@@ -95,4 +95,15 @@ struct SampleRateTests {
         guard let first, crossings >= 2 else { return -1 }
         return Double(last - first) / Double(crossings - 1) / engine.sampleRate
     }
+
+    @Test func parameterSmoothingTimeIsRateIndependent() {
+        #expect(AudioEngine.smoothingCoefficient(sampleRate: 44_100) == 0.999)
+        // Same decay after 1 s of samples at either rate.
+        let at44 = pow(Double(AudioEngine.smoothingCoefficient(sampleRate: 44_100)), 44_100)
+        let at96 = pow(Double(AudioEngine.smoothingCoefficient(sampleRate: 96_000)), 96_000)
+        #expect(abs(at44 - at96) < 1e-4)
+        let engine = AudioEngine()
+        engine.setSampleRateForTesting(96_000)
+        #expect(engine.smoothingCoeff > 0.999)
+    }
 }

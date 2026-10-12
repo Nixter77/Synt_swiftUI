@@ -131,7 +131,12 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     // Parameter Smoothing
     var smoothedFilterCutoff: Float = 5000.0
     var smoothedMasterVolume: Float = 0.5
-    let smoothingCoeff: Float = 0.999
+    /// 0.999 per sample at 44.1 kHz (~23 ms). Rescaled so the time stays put at
+    /// other rates; pow(0.999, 1) is exact, so 44.1 kHz renders are unchanged.
+    var smoothingCoeff: Float = 0.999
+    static func smoothingCoefficient(sampleRate: Double) -> Float {
+        Float(pow(0.999, 44_100.0 / max(8_000, sampleRate)))
+    }
     /// Peak before the safety soft-clip (tests / gain staging).
     var lastPreClipAbs: Float = 0
 
@@ -278,6 +283,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Coefficients and mip maps. Must not run from the render callback.
     private func pushSampleRateToDSP(_ rate: Double) {
         let rateF = Float(rate)
+        smoothingCoeff = Self.smoothingCoefficient(sampleRate: rate)
         parametricEQL.setSampleRate(rateF)
         parametricEQR.setSampleRate(rateF)
         phaser.setSampleRate(rateF)
