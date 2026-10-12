@@ -211,12 +211,29 @@ struct Theme: Identifiable, Equatable {
         weight: Font.Weight,
         fallbackDesign: Font.Design
     ) -> Font {
-        for name in names {
-            if NSFont(name: name, size: size) != nil {
-                return Font.custom(name, size: size).weight(weight)
-            }
+        if let name = FontNameCache.shared.firstInstalled(names) {
+            return Font.custom(name, size: size).weight(weight)
         }
         return .system(size: size, weight: weight, design: fallbackDesign)
+    }
+}
+
+/// Resolves a family list to the first installed name once per list.
+/// `NSFont(name:)` is a font-server lookup; body runs it dozens of times a frame.
+final class FontNameCache: @unchecked Sendable {
+    static let shared = FontNameCache()
+    private let lock = NSLock()
+    private var resolved: [[String]: String?] = [:]
+    private(set) var lookups = 0
+
+    func firstInstalled(_ names: [String]) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let hit = resolved[names] { return hit }
+        lookups += 1
+        let found = names.first { NSFont(name: $0, size: 12) != nil }
+        resolved[names] = .some(found)
+        return found
     }
 }
 
