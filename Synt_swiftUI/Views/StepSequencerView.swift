@@ -14,15 +14,6 @@ struct StepSequencerView: View {
     @Binding var bpm: Float
     @Binding var isPlaying: Bool
     
-    private var stepAccents: [Color] {
-        [
-            theme.destructive, theme.aOsc, theme.aMod, theme.aEnv,
-            theme.aLFO, theme.accent, theme.aFilter, theme.aFx,
-            theme.destructive, theme.aOsc, theme.aMod, theme.aEnv,
-            theme.aLFO, theme.accent, theme.aFilter, theme.aFx
-        ]
-    }
-    
     var body: some View {
         VStack(spacing: 12) {
             HStack {
@@ -42,7 +33,7 @@ struct StepSequencerView: View {
             HStack(spacing: 4) {
                 ForEach(0..<16, id: \.self) { index in
                     SeqStepButton(step: $sequencer.pattern.steps[index], index: index,
-                        isCurrentStep: playhead.step == index && sequencer.isPlaying, color: stepAccents[index])
+                        isCurrentStep: playhead.step == index && sequencer.isPlaying)
                 }
             }
             
@@ -107,24 +98,20 @@ struct SeqStepButton: View {
     @Binding var step: SequencerStep
     let index: Int
     let isCurrentStep: Bool
-    let color: Color
-    
+
     var body: some View {
         Button(action: { step.isActive.toggle() }) {
             RoundedRectangle(cornerRadius: 6)
-                .fill(step.isActive ? color.opacity(0.7) : theme.panel)
-                .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
+                .fill(step.isActive ? theme.aSeq : theme.tile)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(isCurrentStep ? theme.text : Color.white.opacity(0.4), lineWidth: isCurrentStep ? 2 : 0.5)
+                        .stroke(isCurrentStep ? theme.accent : theme.border, lineWidth: isCurrentStep ? 2 : 1)
                 )
-                .overlay(
-                    Group {
-                        if index % 4 == 0 {
-                            Circle().fill(theme.textFaint.opacity(0.5)).frame(width: 4, height: 4).offset(y: -15)
-                        }
+                .overlay(alignment: .top) {
+                    if index % 4 == 0 {
+                        Circle().fill(theme.accent).frame(width: 4, height: 4).padding(.top, 3)
                     }
-                )
+                }
         }
         .buttonStyle(.plain)
         .frame(width: 35, height: 35)
@@ -144,7 +131,7 @@ struct SeqNoteCell: View {
         VStack(spacing: 0) {
             let finalNote = rootNote + step.noteOffset + (step.octave * 12)
             Text(noteNameForMIDI(finalNote))
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .font(theme.monoFont(size: 9, weight: .medium))
                 .foregroundColor(isEnabled ? theme.text : theme.textFaint.opacity(0.5))
             HStack(spacing: 2) {
                 Button(action: { step.noteOffset = min(24, step.noteOffset + 1) }) {
@@ -179,7 +166,7 @@ struct SeqVelocityBar: View {
             ZStack(alignment: .bottom) {
                 Rectangle().fill(theme.inset)
                 Rectangle()
-                    .fill(isEnabled ? theme.aEnv.opacity(0.6) : theme.textFaint.opacity(0.2))
+                    .fill(isEnabled ? theme.aSeq : theme.tile)
                     .frame(height: geometry.size.height * CGFloat(velocity))
             }
             .gesture(

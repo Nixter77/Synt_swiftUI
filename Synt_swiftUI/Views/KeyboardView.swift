@@ -145,10 +145,10 @@ struct KeyboardView: View {
                     // and left notes hanging after release.
                     if activeZoneX + activeZoneWidth > -50 && activeZoneX < availableWidth + 50 {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(theme.accent.opacity(0.15))
+                            .fill(theme.kbZone)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(theme.accent.opacity(0.6), lineWidth: 2)
+                                    .stroke(theme.kbZoneBorder, lineWidth: 2)
                             )
                             .overlay(
                                 VStack {
@@ -156,13 +156,13 @@ struct KeyboardView: View {
                                         Image(systemName: "macwindow")
                                         Text("Mac Keyboard")
                                     }
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                                    .foregroundColor(theme.accent)
+                                    .themeCaption(theme, size: 10, weight: .bold)
+                                    .foregroundColor(theme.kbZoneBorder)
                                     .padding(.top, 6)
                                     Spacer()
 
                                     RoundedRectangle(cornerRadius: 2)
-                                        .fill(theme.accent.opacity(0.4))
+                                        .fill(theme.kbZoneBorder.opacity(0.45))
                                         .frame(width: 40, height: 4)
                                         .padding(.bottom, 6)
                                 }
@@ -172,7 +172,7 @@ struct KeyboardView: View {
                             .allowsHitTesting(false)
 
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(theme.accent.opacity(0.45))
+                            .fill(theme.kbZoneBorder)
                             .frame(width: 44, height: 12)
                             .offset(
                                 x: activeZoneX + (activeZoneWidth - 44) / 2,

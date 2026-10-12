@@ -45,19 +45,14 @@ struct WhiteKeyView: View, Equatable {
                 .fill(
                     LinearGradient(
                         colors: isPressed
-                            ? [theme.accent.opacity(0.15), theme.accent.opacity(0.08)]
-                            : [Color.white, Color(white: 0.95)],
+                            ? [theme.keyPressed, theme.keyPressed]
+                            : [theme.keyWhite, theme.keyWhiteEdge],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
                 .compositingGroup()
-                .shadow(
-                    color: isPressed ? theme.accent.opacity(0.2) : theme.cardShadow.color,
-                    radius: isPressed ? 1 : 4,
-                    x: 0,
-                    y: isPressed ? 1 : 3
-                )
+                .shadow(color: theme.cardShadow.color, radius: 2, x: 0, y: 1)
                 .drawingGroup()
             
             // Top highlight for 3D bevel
@@ -74,8 +69,8 @@ struct WhiteKeyView: View, Equatable {
             }
 
             Text(note.name.prefix(note.name.count - 1))
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundColor(isPressed ? theme.accent : theme.textFaint)
+                .font(theme.captionFont(size: 10))
+                .foregroundColor(theme.keyLabel)
                 .padding(.bottom, 8)
         }
         .frame(width: width, height: height)
@@ -110,19 +105,14 @@ struct BlackKeyView: View, Equatable {
                 .fill(
                     LinearGradient(
                         colors: isPressed
-                            ? [theme.accent.opacity(0.8), theme.accent.opacity(0.5)]
-                            : [Color(white: 0.22), Color(white: 0.12)],
+                            ? [theme.keyPressed, theme.keyPressed]
+                            : [theme.keyBlack, theme.keyBlackEnd],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
                 .compositingGroup()
-                .shadow(
-                    color: isPressed ? theme.accent.opacity(0.3) : Color.black.opacity(0.4),
-                    radius: isPressed ? 1 : 4,
-                    x: 0,
-                    y: isPressed ? 1 : 3
-                )
+                .shadow(color: Color.black.opacity(0.35), radius: 2, x: 0, y: 1)
                 .drawingGroup()
             
             // Subtle top highlight

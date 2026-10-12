@@ -14,56 +14,53 @@ struct VUMeterView: View {
 
     enum Orientation { case vertical, horizontal }
 
-    private let segmentCount = 20
-    private let yellowThreshold = 0.7
-    private let redThreshold = 0.9
+    private let segmentCount = 12
 
     var body: some View {
         if orientation == .vertical { verticalMeter } else { horizontalMeter }
     }
 
+    private var shownLevel: Float { max(level, peakLevel) }
+
     private var verticalMeter: some View {
-        VStack(spacing: 2) {
-            Circle()
-                .fill(peakLevel > Float(redThreshold) ? theme.destructive : Color.clear)
-                .frame(width: 8, height: 8)
-                .compositingGroup()
-                .shadow(color: peakLevel > Float(redThreshold) ? theme.destructive.opacity(0.6) : .clear, radius: 4)
-                .drawingGroup()
-            VStack(spacing: 1) {
-                ForEach((0..<segmentCount).reversed(), id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(segmentColor(for: index, isLit: level >= Float(index) / Float(segmentCount)))
-                        .frame(width: 12, height: 4)
-                        .opacity(level >= Float(index) / Float(segmentCount) ? 1.0 : 0.15)
-                }
+        VStack(spacing: 1) {
+            ForEach((0..<segmentCount).reversed(), id: \.self) { index in
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(ledColor(index: index, lit: shownLevel >= Float(index + 1) / Float(segmentCount)))
+                    .frame(width: 12, height: 5)
             }
-            Text(label).font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundColor(theme.textFaint)
+            Text(label)
+                .font(theme.monoFont(size: 9, weight: .medium))
+                .foregroundColor(theme.textFaint)
         }
     }
 
     private var horizontalMeter: some View {
         HStack(spacing: 2) {
-            Text(label).font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundColor(theme.textFaint).frame(width: 12)
+            Text(label)
+                .font(theme.monoFont(size: 9, weight: .medium))
+                .foregroundColor(theme.textFaint)
+                .frame(width: 12)
             HStack(spacing: 1) {
                 ForEach(0..<segmentCount, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(segmentColor(for: index, isLit: level >= Float(index) / Float(segmentCount)))
-                        .frame(width: 4, height: 12)
-                        .opacity(level >= Float(index) / Float(segmentCount) ? 1.0 : 0.15)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(ledColor(index: index, lit: shownLevel >= Float(index + 1) / Float(segmentCount)))
+                        .frame(width: 5, height: 12)
                 }
             }
-            Circle()
-                .fill(peakLevel > Float(redThreshold) ? theme.destructive : Color.clear)
-                .frame(width: 8, height: 8)
         }
     }
 
-    private func segmentColor(for index: Int, isLit: Bool) -> Color {
-        let pos = Double(index) / Double(segmentCount)
-        if pos >= redThreshold { return isLit ? theme.destructive : theme.destructive.opacity(0.2) }
-        else if pos >= yellowThreshold { return isLit ? theme.aMod : theme.aMod.opacity(0.2) }
-        else { return isLit ? theme.positive : theme.positive.opacity(0.2) }
+    private func ledColor(index: Int, lit: Bool) -> Color {
+        let color: Color
+        if index >= segmentCount - 2 {
+            color = theme.meterHigh
+        } else if index >= segmentCount - 5 {
+            color = theme.meterMid
+        } else {
+            color = theme.meterLow
+        }
+        return lit ? color : theme.meterOff
     }
 }
 
@@ -75,16 +72,27 @@ struct StereoVUMeterView: View {
     let rightPeak: Float
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text("OUTPUT").font(.system(size: 10, weight: .bold, design: .rounded)).foregroundColor(theme.positive)
-            HStack(spacing: 4) {
-                VUMeterView(level: leftLevel, peakLevel: leftPeak, label: "L")
-                VUMeterView(level: rightLevel, peakLevel: rightPeak, label: "R")
+        VStack(spacing: 6) {
+            Text("OUTPUT")
+                .themeCaption(theme, size: 10, weight: .bold)
+                .foregroundColor(theme.positive)
+            if theme.meterStyle == .needle {
+                HStack(spacing: 4) {
+                    NeedleVUMeterView(level: leftLevel, label: "L")
+                    NeedleVUMeterView(level: rightLevel, label: "R")
+                }
+            } else {
+                HStack(spacing: 4) {
+                    VUMeterView(level: leftLevel, peakLevel: leftPeak, label: "L")
+                    VUMeterView(level: rightLevel, peakLevel: rightPeak, label: "R")
+                }
+                HStack {
+                    Text("-∞"); Spacer(); Text("-12"); Spacer(); Text("-6"); Spacer(); Text("0")
+                }
+                .font(theme.monoFont(size: 7))
+                .foregroundColor(theme.textFaint)
+                .frame(width: 44)
             }
-            HStack {
-                Text("-∞"); Spacer(); Text("-12"); Spacer(); Text("-6"); Spacer(); Text("0")
-            }
-            .font(.system(size: 7, design: .monospaced)).foregroundColor(theme.textFaint).frame(width: 40)
         }
         .padding(8)
         .appleInset(cornerRadius: 10)
@@ -95,16 +103,17 @@ struct CompactVUMeterView: View {
     @Environment(\.theme) private var theme
     let level: Float
     let peakLevel: Float
-    private let segmentCount = 16
+    private let segmentCount = 12
     var body: some View {
         HStack(spacing: 1) {
             ForEach(0..<segmentCount, id: \.self) { index in
-                let t = Float(index) / Float(segmentCount)
-                let isLit = level >= t
-                let pos = Double(index) / Double(segmentCount)
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(pos >= 0.9 ? theme.destructive : pos >= 0.7 ? theme.aMod : theme.positive)
-                    .frame(width: 3, height: 8).opacity(isLit ? 1.0 : 0.1)
+                let lit = max(level, peakLevel) >= Float(index + 1) / Float(segmentCount)
+                let color: Color = index >= segmentCount - 2
+                    ? theme.meterHigh
+                    : index >= segmentCount - 5 ? theme.meterMid : theme.meterLow
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(lit ? color : theme.meterOff)
+                    .frame(width: 3, height: 8)
             }
         }
     }

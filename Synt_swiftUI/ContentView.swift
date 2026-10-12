@@ -16,6 +16,20 @@ struct ContentView: View {
     @State private var sessionSaveTask: Task<Void, Never>?
 
     var body: some View {
+        HStack(spacing: 0) {
+            if theme.chromeWidth > 0 {
+                WoodCheek().frame(width: theme.chromeWidth)
+            }
+            mainColumn
+                .frame(minWidth: theme.chromeWidth > 0 ? 1000 : nil)
+            if theme.chromeWidth > 0 {
+                WoodCheek().frame(width: theme.chromeWidth)
+            }
+        }
+        .background(theme.bg)
+    }
+
+    private var mainColumn: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 16) {
@@ -45,7 +59,6 @@ struct ContentView: View {
             )
             .padding(.bottom, 8)
         }
-        .background(theme.bg)
         // Playhead only. The clock itself runs on the audio thread.
         .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { _ in
             guard showSequencer, stepSequencer.isPlaying else { return }
@@ -288,6 +301,19 @@ struct EngineMetersView: View {
             OscilloscopeView(metering: scope)
                 .frame(width: 160, height: 100)
         }
+    }
+}
+
+struct WoodCheek: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        LinearGradient(
+            colors: [theme.chrome, theme.bg, theme.chrome],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .accessibilityHidden(true)
     }
 }
 
