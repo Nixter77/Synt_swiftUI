@@ -18,10 +18,7 @@ struct OscillatorView: View {
                 AppleSectionHeader(title: "OSC \(oscillatorNumber)", accent: theme.aOsc, icon: "waveform")
                 Spacer()
                 if oscillatorNumber == 2 {
-                    Toggle("", isOn: $preset.osc2Enabled)
-                        .toggleStyle(.switch)
-                        .scaleEffect(0.7)
-                        .tint(theme.aOsc)
+                    ThemeToggle(isOn: $preset.osc2Enabled)
                 }
             }
 
@@ -29,11 +26,14 @@ struct OscillatorView: View {
                 VStack(spacing: 12) {
                     HStack {
                         Text("Wave")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .themeCaption(theme, size: 11)
                             .foregroundColor(theme.textDim)
                         Spacer()
                     }
-                    WaveformPicker(selected: oscillatorNumber == 1 ? $preset.osc1Waveform : $preset.osc2Waveform)
+                    WaveformPicker(
+                        selected: oscillatorNumber == 1 ? $preset.osc1Waveform : $preset.osc2Waveform,
+                        accent: theme.aOsc
+                    )
                     HStack(spacing: 16) {
                         KnobView(
                             value: oscillatorNumber == 1 ? $preset.osc1Volume : $preset.osc2Volume,
@@ -42,7 +42,7 @@ struct OscillatorView: View {
                         )
                         VStack(spacing: 4) {
                             Text("Octave")
-                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .themeCaption(theme, size: 10)
                                 .foregroundColor(theme.textDim)
                             HStack(spacing: 8) {
                                 Button("-") {
@@ -51,7 +51,7 @@ struct OscillatorView: View {
                                 }
                                 .buttonStyle(.plain).foregroundColor(theme.text)
                                 Text("\(oscillatorNumber == 1 ? preset.osc1Octave : preset.osc2Octave)")
-                                    .font(.system(size: 12, design: .monospaced))
+                                    .font(theme.monoFont(size: 12))
                                     .foregroundColor(theme.text).frame(width: 30)
                                 Button("+") {
                                     if oscillatorNumber == 1 { preset.osc1Octave = min(2, preset.osc1Octave + 1) }
@@ -71,22 +71,23 @@ struct OscillatorView: View {
                        (oscillatorNumber == 2 && preset.osc2Waveform == .square) {
                         HStack {
                             Text("PWM")
-                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .themeCaption(theme, size: 10)
                                 .foregroundColor(theme.textDim)
                                 .frame(width: 40, alignment: .trailing)
-                            Slider(value: oscillatorNumber == 1 ? $preset.osc1PulseWidth : $preset.osc2PulseWidth, in: 0.05...0.95)
-                                .tint(theme.aOsc)
+                            ThemeSlider(
+                                value: oscillatorNumber == 1 ? $preset.osc1PulseWidth : $preset.osc2PulseWidth,
+                                range: 0.05...0.95
+                            )
                         }
                         .padding(.top, 4)
                     }
                     if isWavetableSelected, audioEngine != nil {
                         HStack {
                             Text("Morph")
-                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .themeCaption(theme, size: 10)
                                 .foregroundColor(theme.textDim)
                                 .frame(width: 40, alignment: .trailing)
-                            Slider(value: wavetableMorph, in: 0...1)
-                                .tint(theme.aOsc)
+                            ThemeSlider(value: wavetableMorph, range: 0...1)
                         }
                         .padding(.top, 4)
                     }

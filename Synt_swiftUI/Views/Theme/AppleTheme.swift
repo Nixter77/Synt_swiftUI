@@ -125,7 +125,9 @@ struct AppleSectionHeader: View {
             }
 
             Text(title)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .font(theme.headerFont)
+                .tracking(theme.labelTracking)
+                .textCase(theme.uppercaseLabels ? .uppercase : nil)
                 .foregroundColor(theme.text)
 
             RoundedRectangle(cornerRadius: 1)

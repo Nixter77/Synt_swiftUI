@@ -15,7 +15,7 @@ struct EffectsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Reverb")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .themeCaption(theme, size: 12)
                     .foregroundColor(theme.text)
                 HStack(spacing: 16) {
                     KnobView(value: $preset.reverbMix, range: 0...1, label: "Mix")
@@ -27,7 +27,7 @@ struct EffectsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Chorus")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .themeCaption(theme, size: 12)
                     .foregroundColor(theme.text)
                 HStack(spacing: 12) {
                     KnobView(value: $preset.chorusRate, range: 0.1...5.0, label: "Rate", format: "%.1fHz")
@@ -40,7 +40,7 @@ struct EffectsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Delay")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .themeCaption(theme, size: 12)
                     .foregroundColor(theme.text)
                 HStack(spacing: 12) {
                     KnobView(value: $preset.delayTime, range: 0.01...1.0, label: "Time", format: "%.2fs")

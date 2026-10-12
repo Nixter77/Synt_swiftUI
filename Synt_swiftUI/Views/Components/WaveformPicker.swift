@@ -8,6 +8,7 @@ import SwiftUI
 struct WaveformPicker: View {
     @Environment(\.theme) private var theme
     @Binding var selected: WaveformType
+    var accent: Color? = nil
 
     var body: some View {
         HStack(spacing: 8) {
@@ -15,7 +16,12 @@ struct WaveformPicker: View {
                 Button {
                     selected = waveform
                 } label: {
-                    WaveformIcon(type: waveform, isSelected: selected == waveform, themeID: theme.id)
+                    WaveformIcon(
+                        type: waveform,
+                        isSelected: selected == waveform,
+                        themeID: theme.id,
+                        accent: accent ?? theme.aOsc
+                    )
                         .equatable()
                 }
                 .buttonStyle(.plain)
@@ -29,28 +35,31 @@ struct WaveformIcon: View, Equatable {
     let type: WaveformType
     let isSelected: Bool
     let themeID: ThemeID
+    let accent: Color
 
     static func == (lhs: WaveformIcon, rhs: WaveformIcon) -> Bool {
         lhs.type == rhs.type && lhs.isSelected == rhs.isSelected && lhs.themeID == rhs.themeID
+            && lhs.accent == rhs.accent
     }
 
     var body: some View {
         ZStack {
-            // 3D raised pill. Rasterize the two shadows once per selection change.
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? theme.aOsc.opacity(0.12) : theme.panel)
+            RoundedRectangle(cornerRadius: theme.rSmall)
+                .fill(isSelected ? theme.tileSel : theme.tile)
                 .frame(width: 38, height: 30)
-                .compositingGroup()
-                .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
-                .drawingGroup()
-            
-            // Border
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? theme.aOsc.opacity(0.5) : Color.white.opacity(0.6), lineWidth: 1)
+                .shadow(
+                    color: isSelected && theme.id == .baseline ? theme.cardShadow.color : .clear,
+                    radius: isSelected && theme.id == .baseline ? 2 : 0,
+                    x: 0,
+                    y: 1
+                )
+
+            RoundedRectangle(cornerRadius: theme.rSmall)
+                .stroke(isSelected ? accent : theme.border, lineWidth: 1)
                 .frame(width: 38, height: 30)
 
             WaveformShape(type: type)
-                .stroke(isSelected ? theme.aOsc : theme.textFaint, lineWidth: 2)
+                .stroke(isSelected ? accent : theme.textFaint, lineWidth: 2)
                 .frame(width: 24, height: 16)
         }
     }

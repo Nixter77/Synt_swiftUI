@@ -42,13 +42,10 @@ struct AdvancedEffectsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Distortion")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .themeCaption(theme, size: 12)
                     .foregroundColor(theme.text)
                 Spacer()
-                Toggle("", isOn: distortionEnabled)
-                    .toggleStyle(.switch)
-                    .scaleEffect(0.7)
-                    .tint(theme.aMod)
+                ThemeToggle(isOn: distortionEnabled)
             }
 
             if audioEngine.preset.distortionEnabled {
@@ -75,19 +72,16 @@ struct AdvancedEffectsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Parametric EQ")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .themeCaption(theme, size: 12)
                     .foregroundColor(theme.text)
                 Spacer()
-                Toggle("", isOn: eqEnabled)
-                    .toggleStyle(.switch)
-                    .scaleEffect(0.7)
-                    .tint(theme.aMod)
+                ThemeToggle(isOn: eqEnabled)
             }
 
             if audioEngine.preset.eqEnabled {
                 HStack {
                     Text("Preset")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .themeCaption(theme, size: 11)
                         .foregroundColor(theme.textDim)
                     Spacer()
                     Picker("EQ Preset", selection: $selectedEQPreset) {
@@ -129,13 +123,10 @@ struct AdvancedEffectsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Phaser")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .themeCaption(theme, size: 12)
                     .foregroundColor(theme.text)
                 Spacer()
-                Toggle("", isOn: phaserEnabled)
-                    .toggleStyle(.switch)
-                    .scaleEffect(0.7)
-                    .tint(theme.aMod)
+                ThemeToggle(isOn: phaserEnabled)
             }
 
             if audioEngine.preset.phaserEnabled {

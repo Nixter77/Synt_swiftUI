@@ -115,7 +115,7 @@ struct ContentView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("SYNTH")
-                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .font(theme.titleFont)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [theme.logoA, theme.logoB],
@@ -125,7 +125,7 @@ struct ContentView: View {
                     )
 
                 Text("SwiftUI Synthesizer")
-                    .font(.system(size: 12, design: .rounded))
+                    .themeCaption(theme, size: 12, weight: .regular)
                     .foregroundColor(theme.textDim)
                 
                 if !midiHandler.availableDevices.isEmpty {
@@ -170,15 +170,14 @@ struct ContentView: View {
                 VStack(spacing: 4) {
                     HStack(spacing: 4) {
                         Text("BPM")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .themeCaption(theme, size: 10)
                             .foregroundColor(theme.textDim)
                         Text("\(Int(audioEngine.preset.bpm))")
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            .font(theme.monoFont(size: 14, weight: .bold))
                             .foregroundColor(theme.accent2)
                     }
-                    Slider(value: $audioEngine.preset.bpm, in: 40...240, step: 1)
+                    ThemeSlider(value: $audioEngine.preset.bpm, range: 40...240, step: 1)
                         .frame(width: 80)
-                        .tint(theme.accent2)
                 }
                 
                 // Sequencer Toggle & Play

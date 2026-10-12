@@ -29,7 +29,7 @@ struct StepSequencerView: View {
                 AppleSectionHeader(title: "STEP SEQUENCER", accent: theme.aSeq, icon: "squares.leading.rectangle")
                 Spacer()
                 Text("Root: \(noteNameForMIDI(sequencer.rootNote))")
-                    .font(.system(size: 12, design: .rounded)).foregroundColor(theme.textDim)
+                    .themeCaption(theme, size: 12, weight: .regular).foregroundColor(theme.textDim)
                 Spacer()
                 Button(action: { sequencer.clearPattern() }) {
                     Image(systemName: "trash").foregroundColor(theme.textFaint)
@@ -62,22 +62,22 @@ struct StepSequencerView: View {
             
             HStack(spacing: 20) {
                 VStack(spacing: 2) {
-                    Text("SWING").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(theme.textDim)
+                    Text("SWING").themeCaption(theme, size: 10).foregroundColor(theme.textDim)
                     SeqKnob(value: $sequencer.swing, range: 0...1).frame(width: 40, height: 40)
-                    Text("\(Int(sequencer.swing * 100))%").font(.system(size: 10, design: .rounded)).foregroundColor(theme.text)
+                    Text("\(Int(sequencer.swing * 100))%").font(theme.monoFont(size: 10)).foregroundColor(theme.text)
                 }
                 VStack(spacing: 2) {
-                    Text("ROOT").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(theme.textDim)
+                    Text("ROOT").themeCaption(theme, size: 10).foregroundColor(theme.textDim)
                     HStack(spacing: 8) {
                         Button("-") { sequencer.rootNote = max(24, sequencer.rootNote - 1) }
                             .buttonStyle(.plain).foregroundColor(theme.text)
-                        Text(noteNameForMIDI(sequencer.rootNote)).frame(width: 35).foregroundColor(theme.text).font(.system(size: 12, design: .rounded))
+                        Text(noteNameForMIDI(sequencer.rootNote)).frame(width: 35).foregroundColor(theme.text).font(theme.monoFont(size: 12))
                         Button("+") { sequencer.rootNote = min(96, sequencer.rootNote + 1) }
                             .buttonStyle(.plain).foregroundColor(theme.text)
                     }
                 }
                 VStack(spacing: 2) {
-                    Text("LENGTH").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(theme.textDim)
+                    Text("LENGTH").themeCaption(theme, size: 10).foregroundColor(theme.textDim)
                     HStack(spacing: 8) {
                         Button("-") { sequencer.pattern.length = max(1, sequencer.pattern.length - 1) }
                             .buttonStyle(.plain).foregroundColor(theme.text)
@@ -204,22 +204,9 @@ struct SeqKnob: View {
     var body: some View {
         GeometryReader { geometry in
             let size = min(geometry.size.width, geometry.size.height)
-            let normalizedValue = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
-            let rotation = -135 + Double(normalizedValue) * 270
-            ZStack {
-                Circle()
-                    .fill(theme.panel)
-                    .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
-                Circle()
-                    .trim(from: 0.25, to: 0.25 + CGFloat(normalizedValue) * 0.75)
-                    .stroke(theme.accent, lineWidth: 3)
-                    .rotationEffect(.degrees(-135))
-                Rectangle()
-                    .fill(theme.knobIndicator)
-                    .frame(width: 2, height: size * 0.35)
-                    .offset(y: -size * 0.15)
-                    .rotationEffect(.degrees(rotation))
-            }
+            let fraction = knobArcFraction(value: value, range: range)
+            KnobChrome(fraction: fraction, angle: -135 + Double(fraction) * 270, diameter: size, indicatorWidth: 2)
+                .shadow(color: theme.knobShadow.color, radius: theme.knobShadow.radius, x: 0, y: theme.knobShadow.y)
             .gesture(
                 DragGesture()
                     .onChanged { gesture in

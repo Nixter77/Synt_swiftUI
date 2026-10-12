@@ -44,6 +44,19 @@ struct ThemeTests {
         #expect(Theme.baseline.uppercaseLabels == false)
     }
 
+    @Test func knobArcFractionClampsEdgesAndMidpoint() {
+        #expect(knobArcFraction(value: 0, range: 0...1) == 0)
+        #expect(knobArcFraction(value: 1, range: 0...1) == 1)
+        #expect(abs(knobArcFraction(value: 0.5, range: 0...1) - 0.5) < 0.0001)
+        #expect(knobArcFraction(value: -4, range: 0...1) == 0)
+        #expect(knobArcFraction(value: 3, range: 0...1) == 1)
+        #expect(knobArcFraction(value: 20, range: 20...20000) == 0)
+        #expect(knobArcFraction(value: 10010, range: 20...20000) > 0.49)
+        #expect(knobArcFraction(value: 10010, range: 20...20000) < 0.51)
+        #expect(knobArcFraction(value: 5, range: 5...5) == 0)
+        #expect(knobArcFraction(value: .nan, range: 0...1) == 0)
+    }
+
     @Test func fontsResolveWithoutBundledFaces() {
         _ = Theme.baseline.titleFont
         _ = Theme.baseline.valueFont(size: 12)

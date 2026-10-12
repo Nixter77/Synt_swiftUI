@@ -26,8 +26,6 @@ private struct KnobBody: View, Equatable {
     let format: String
     let themeID: ThemeID
 
-    @State private var isDragging = false
-
     private let knobSize: CGFloat = 50
 
     static func == (lhs: KnobBody, rhs: KnobBody) -> Bool {
@@ -44,65 +42,33 @@ private struct KnobBody: View, Equatable {
                 KnobDiscShadow(diameter: knobSize + 4, themeID: theme.id)
                 .equatable()
 
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [theme.knobTop, theme.knobBottom],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: knobSize, height: knobSize)
-
-                Circle()
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.9), Color.white.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.5
-                    )
-                    .frame(width: knobSize - 2, height: knobSize - 2)
-
-                Circle()
-                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
-                    .frame(width: knobSize - 6, height: knobSize - 6)
-
-                Rectangle()
-                    .fill(isDragging ? theme.knobFill : theme.knobIndicator)
-                    .frame(width: 3, height: knobSize / 3)
-                    .offset(y: -knobSize / 6)
-                    .rotationEffect(Angle(degrees: rotationAngle))
-                    .shadow(color: isDragging ? theme.knobFill.opacity(0.4) : .clear, radius: 3)
+                KnobChrome(fraction: fraction, angle: rotationAngle, diameter: knobSize)
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
-                        isDragging = true
                         let delta = Float(-gesture.translation.height) / 150.0
                         let range = self.range.upperBound - self.range.lowerBound
                         let newValue = value + delta * range
                         value = min(max(newValue, self.range.lowerBound), self.range.upperBound)
                     }
-                    .onEnded { _ in
-                        isDragging = false
-                    }
+                    .onEnded { _ in }
             )
 
             Text(label)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .themeCaption(theme, size: 10)
                 .foregroundColor(theme.textDim)
 
             Text(String(format: format, value))
-                .font(.system(size: 9, weight: .regular, design: .monospaced))
+                .font(theme.monoFont(size: 9))
                 .foregroundColor(theme.textFaint)
         }
     }
 
+    private var fraction: CGFloat { knobArcFraction(value: value, range: range) }
+
     private var rotationAngle: Double {
-        let normalized = Double(value - range.lowerBound) / Double(range.upperBound - range.lowerBound)
-        return -135 + normalized * 270
+        -135 + Double(fraction) * 270
     }
 }
 
@@ -126,8 +92,6 @@ private struct LargeKnobBody: View, Equatable {
     let label: String
     let format: String
     let themeID: ThemeID
-
-    @State private var isDragging = false
 
     private let knobSize: CGFloat = 70
 
@@ -154,65 +118,79 @@ private struct LargeKnobBody: View, Equatable {
                         .rotationEffect(Angle(degrees: angle))
                 }
 
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [theme.knobTop, theme.knobBottom],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: knobSize, height: knobSize)
-
-                Circle()
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.95), Color.white.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 2
-                    )
-                    .frame(width: knobSize - 3, height: knobSize - 3)
-
-                Circle()
-                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
-                    .frame(width: knobSize - 8, height: knobSize - 8)
-
-                Rectangle()
-                    .fill(isDragging ? theme.knobFill : theme.accent)
-                    .frame(width: 4, height: knobSize / 2.5)
-                    .offset(y: -knobSize / 5)
-                    .rotationEffect(Angle(degrees: rotationAngle))
-                    .shadow(color: isDragging ? theme.knobFill.opacity(0.5) : theme.accent.opacity(0.3), radius: 4)
+                KnobChrome(fraction: fraction, angle: rotationAngle, diameter: knobSize, indicatorWidth: 4)
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
-                        isDragging = true
                         let delta = Float(-gesture.translation.height) / 150.0
                         let range = self.range.upperBound - self.range.lowerBound
                         let newValue = value + delta * range
                         value = min(max(newValue, self.range.lowerBound), self.range.upperBound)
                     }
-                    .onEnded { _ in
-                        isDragging = false
-                    }
+                    .onEnded { _ in }
             )
 
             Text(label)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .themeCaption(theme, size: 12, weight: .semibold)
                 .foregroundColor(theme.text)
 
             Text(String(format: format, value))
-                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                .font(theme.monoFont(size: 10))
                 .foregroundColor(theme.accent)
         }
     }
 
+    private var fraction: CGFloat { knobArcFraction(value: value, range: range) }
+
     private var rotationAngle: Double {
-        let normalized = Double(value - range.lowerBound) / Double(range.upperBound - range.lowerBound)
-        return -135 + normalized * 270
+        -135 + Double(fraction) * 270
+    }
+}
+
+struct KnobChrome: View {
+    var fraction: CGFloat
+    var angle: Double
+    var diameter: CGFloat
+    var indicatorWidth: CGFloat = 3
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [theme.knobTop, theme.knobBottom],
+                        center: UnitPoint(x: 0.5, y: 0.38),
+                        startRadius: 1,
+                        endRadius: diameter * 0.62
+                    )
+                )
+                .frame(width: diameter, height: diameter)
+
+            Circle()
+                .stroke(theme.knobRing, lineWidth: 1.5)
+                .frame(width: diameter - 2, height: diameter - 2)
+
+            Circle()
+                .trim(from: 0, to: 0.75)
+                .stroke(theme.knobTrack, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(135))
+                .frame(width: diameter - 6, height: diameter - 6)
+
+            Circle()
+                .trim(from: 0, to: 0.75 * max(0, min(1, fraction)))
+                .stroke(theme.knobFill, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(135))
+                .frame(width: diameter - 6, height: diameter - 6)
+
+            Rectangle()
+                .fill(theme.knobIndicator)
+                .frame(width: indicatorWidth, height: diameter * 0.34)
+                .offset(y: -diameter * 0.16)
+                .rotationEffect(.degrees(angle))
+        }
+        .frame(width: diameter, height: diameter)
     }
 }
 
@@ -231,7 +209,7 @@ private struct KnobDiscShadow: View, Equatable {
             .fill(theme.inset)
             .frame(width: diameter, height: diameter)
             .compositingGroup()
-            .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
+            .shadow(color: theme.knobShadow.color, radius: theme.knobShadow.radius, x: 0, y: theme.knobShadow.y)
             .drawingGroup()
     }
 }

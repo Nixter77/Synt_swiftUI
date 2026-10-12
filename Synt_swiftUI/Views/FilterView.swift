@@ -13,12 +13,11 @@ struct FilterView: View {
         VStack(alignment: .leading, spacing: 12) {
             AppleSectionHeader(title: "FILTER", accent: theme.aFilter, icon: "line.3.horizontal.decrease")
 
-            Picker("Type", selection: $preset.filterType) {
-                ForEach(FilterType.allCases, id: \.self) { type in
-                    Text(type.rawValue).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
+            ThemeSegmented(
+                options: FilterType.allCases.map { (value: $0, title: $0.rawValue) },
+                selection: $preset.filterType,
+                accent: theme.aFilter
+            )
 
             HStack(spacing: 20) {
                 LargeKnobView(value: $preset.filterCutoff, range: 20...20000, label: "Cutoff", format: "%.0f Hz")

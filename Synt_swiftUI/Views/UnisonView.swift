@@ -20,7 +20,7 @@ struct UnisonView: View {
             HStack(spacing: 20) {
                 VStack(spacing: 4) {
                     Text("Voices")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .themeCaption(theme, size: 10)
                         .foregroundColor(theme.textDim)
                     
                     Picker("Voices", selection: $preset.unisonVoices) {

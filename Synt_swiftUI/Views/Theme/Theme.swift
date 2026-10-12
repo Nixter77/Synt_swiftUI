@@ -147,6 +147,29 @@ struct Theme: Identifiable, Equatable {
     var labelFont: Font { Self.face(id, role: .label) }
     func valueFont(size: CGFloat) -> Font { Self.face(id, role: .value(size)) }
 
+    /// Label face at the size already used in the layout.
+    func captionFont(size: CGFloat, weight: Font.Weight = .medium) -> Font {
+        switch id {
+        case .baseline:
+            return .system(size: size, weight: weight, design: .rounded)
+        case .studio:
+            return Self.custom(["Helvetica Neue", "Inter"], size: size, weight: weight, fallbackDesign: .default)
+        case .retro:
+            return Self.custom(["Avenir Next", "Futura"], size: size, weight: weight, fallbackDesign: .default)
+        }
+    }
+
+    func monoFont(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        switch id {
+        case .baseline:
+            return .system(size: size, weight: weight, design: .monospaced)
+        case .studio:
+            return Self.custom(["JetBrains Mono", "SF Mono"], size: size, weight: weight, fallbackDesign: .monospaced)
+        case .retro:
+            return Self.custom(["Courier", "Courier New"], size: size, weight: weight, fallbackDesign: .monospaced)
+        }
+    }
+
     static let all = ThemeCollection(items: [.baseline, .studio, .retro])
 
     private enum FontRole {

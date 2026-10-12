@@ -14,33 +14,29 @@ struct LFOView: View {
             HStack {
                 AppleSectionHeader(title: "LFO", accent: theme.aLFO, icon: "waveform.path")
                 Spacer()
-                Toggle("", isOn: $preset.lfoEnabled)
-                    .toggleStyle(.switch)
-                    .scaleEffect(0.7)
-                    .tint(theme.aLFO)
+                ThemeToggle(isOn: $preset.lfoEnabled)
             }
 
             if preset.lfoEnabled {
                 VStack(spacing: 12) {
                     HStack {
                         Text("Wave")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .themeCaption(theme, size: 11)
                             .foregroundColor(theme.textDim)
                         Spacer()
                     }
-                    WaveformPicker(selected: $preset.lfoWaveform)
+                    WaveformPicker(selected: $preset.lfoWaveform, accent: theme.aLFO)
                     HStack {
                         Text("Target")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .themeCaption(theme, size: 11)
                             .foregroundColor(theme.textDim)
                         Spacer()
                     }
-                    Picker("Target", selection: $preset.lfoTarget) {
-                        ForEach(LFOTarget.allCases, id: \.self) { target in
-                            Text(target.rawValue).tag(target)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    ThemeSegmented(
+                        options: LFOTarget.allCases.map { (value: $0, title: $0.rawValue) },
+                        selection: $preset.lfoTarget,
+                        accent: theme.aLFO
+                    )
                     HStack(spacing: 16) {
                         KnobView(value: $preset.lfoRate, range: 0.1...20, label: "Rate", format: "%.1f Hz")
                         KnobView(value: $preset.lfoDepth, range: 0...1, label: "Depth")
