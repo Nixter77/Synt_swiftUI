@@ -50,14 +50,17 @@ struct MIDIPerformanceTests {
         preset.lfoDepth = 0.4
         engine.preset = preset
         engine.applyPresetForTesting()
+        _ = engine.renderOneSample()
         #expect(abs(engine.lfo.depth - 0.4) < 0.0001)
 
         engine.modWheel(0)
         engine.processCommandsForTesting()
+        _ = engine.renderOneSample()
         #expect(engine.lfo.depth == 0)
 
         engine.modWheel(1)
         engine.processCommandsForTesting()
+        _ = engine.renderOneSample()
         #expect(abs(engine.lfo.depth - 0.4) < 0.0001)
     }
 

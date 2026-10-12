@@ -146,6 +146,8 @@ extension AudioEngine {
 
         advanceSequencerOneSample()
 
+        // Single writer: preset (main) and CC1 (MIDI) only feed the inputs.
+        lfo.depth = cachedLfoDepth * modWheel
         let pitchBendMultiplier = advancePitchBend()
         let lfoValue = lfo.getValue(sampleRate: sampleRate)
         let lfoEnabled = lfo.enabled
@@ -428,7 +430,6 @@ extension AudioEngine {
                 pitchBendTarget = amount
             case .setModWheel(let amount):
                 modWheel = amount
-                lfo.depth = cachedLfoDepth * modWheel
             case .setSustain(let down):
                 setSustainPedal(down: down)
             case .clearAll:

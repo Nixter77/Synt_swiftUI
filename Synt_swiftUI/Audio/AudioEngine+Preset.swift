@@ -41,8 +41,8 @@ extension AudioEngine {
 
         lfo.enabled = preset.lfoEnabled
         lfo.rate = preset.lfoRate
+        // lfo.depth itself is written only by the render thread (renderOneSample).
         cachedLfoDepth = preset.lfoDepth
-        lfo.depth = cachedLfoDepth * modWheel
         lfo.waveform = preset.lfoWaveform
         lfo.target = preset.lfoTarget
         cachedPitchBendRange = max(0, preset.pitchBendRange)
