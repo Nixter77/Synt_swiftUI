@@ -10,6 +10,7 @@
 //
 
 import AVFoundation
+import AudioToolbox
 import Combine
 import SwiftUI
 
@@ -20,6 +21,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     let reverb = ReverbEffect()
     let delay = DelayEffect()
     let dspChorus = DSPChorus()
+    /// After Apple Reverb, before the mixer. Pre-gain 0, so levels under 0 dBFS stay put.
+    let peakLimiter = AudioEngine.makePeakLimiter()
 
     // Stage 4 advanced FX — disabled by default so factory sound is unchanged.
     let distortion = Distortion()
@@ -197,16 +200,39 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.attach(sourceNode)
         engine.attach(delay.delay)
         engine.attach(reverb.reverb)
+        engine.attach(peakLimiter)
 
-        // Audio chain: Source → Delay → Reverb → Output
+        // Source → Delay → Reverb → Peak Limiter → Mixer.
+        // The limiter is the only ceiling after Apple FX. It does not change sends.
         engine.connect(sourceNode, to: delay.delay, format: format)
         engine.connect(delay.delay, to: reverb.reverb, format: format)
-        engine.connect(reverb.reverb, to: engine.mainMixerNode, format: format)
+        engine.connect(reverb.reverb, to: peakLimiter, format: format)
+        engine.connect(peakLimiter, to: engine.mainMixerNode, format: format)
+        configurePeakLimiter()
 
         // Extra headroom after Apple Delay/Reverb (they sit past our clipper).
         engine.mainMixerNode.outputVolume = 0.62
 
         engine.prepare()
+    }
+
+    private static func makePeakLimiter() -> AVAudioUnitEffect {
+        let description = AudioComponentDescription(
+            componentType: kAudioUnitType_Effect,
+            componentSubType: kAudioUnitSubType_PeakLimiter,
+            componentManufacturer: kAudioUnitManufacturer_Apple,
+            componentFlags: 0,
+            componentFlagsMask: 0
+        )
+        return AVAudioUnitEffect(audioComponentDescription: description)
+    }
+
+    /// Attack 1 ms, release 50 ms, pre-gain 0 dB. Ceiling is the AU's 0 dBFS.
+    private func configurePeakLimiter() {
+        let au = peakLimiter.audioUnit
+        AudioUnitSetParameter(au, kLimiterParam_AttackTime, kAudioUnitScope_Global, 0, 0.001, 0)
+        AudioUnitSetParameter(au, kLimiterParam_DecayTime, kAudioUnitScope_Global, 0, 0.050, 0)
+        AudioUnitSetParameter(au, kLimiterParam_PreGain, kAudioUnitScope_Global, 0, 0, 0)
     }
 
 
@@ -298,6 +324,29 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
 
     // MARK: - Test / diagnostic hooks (drive shipped types without AVAudioEngine)
+
+    /// Live graph: reverb's output is the peak limiter, which feeds the mixer.
+    func postFXChainForTesting() -> (
+        limiterFollowsReverb: Bool,
+        limiterFeedsMixer: Bool,
+        limiterIsAttached: Bool,
+        attack: Float,
+        decay: Float,
+        preGain: Float
+    ) {
+        let afterReverb = engine.outputConnectionPoints(for: reverb.reverb, outputBus: 0)
+            .contains { $0.node === peakLimiter }
+        let intoMixer = engine.outputConnectionPoints(for: peakLimiter, outputBus: 0)
+            .contains { $0.node === engine.mainMixerNode }
+        let attached = engine.attachedNodes.contains { $0 === peakLimiter }
+        var attack: AudioUnitParameterValue = -999
+        var decay: AudioUnitParameterValue = -999
+        var preGain: AudioUnitParameterValue = -999
+        AudioUnitGetParameter(peakLimiter.audioUnit, kLimiterParam_AttackTime, kAudioUnitScope_Global, 0, &attack)
+        AudioUnitGetParameter(peakLimiter.audioUnit, kLimiterParam_DecayTime, kAudioUnitScope_Global, 0, &decay)
+        AudioUnitGetParameter(peakLimiter.audioUnit, kLimiterParam_PreGain, kAudioUnitScope_Global, 0, &preGain)
+        return (afterReverb, intoMixer, attached, attack, decay, preGain)
+    }
 
     /// Applies current preset caches (same path as didSet). Exposed for unit tests.
     func applyPresetForTesting() {
