@@ -33,7 +33,12 @@ struct OscilloscopeView: View {
                         let sample = min(1.0, max(-1.0, CGFloat(data[i])))
                         path.addLine(to: CGPoint(x: CGFloat(i) * stepX, y: midY - sample * midY))
                     }
-                    context.addFilter(.shadow(color: lineColor.opacity(0.4), radius: 3, x: 0, y: 0))
+                    // Glow without a per-frame blur filter: a wide faint pass, then the line.
+                    context.stroke(
+                        path,
+                        with: .color(lineColor.opacity(0.22)),
+                        style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round, lineJoin: .round)
+                    )
                     context.stroke(
                         path,
                         with: .color(lineColor),
