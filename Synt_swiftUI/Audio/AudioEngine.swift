@@ -256,14 +256,17 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         isApplyingSampleRate = true
         defer { isApplyingSampleRate = false }
 
+        let needsGraph = rebuildGraph && abs(rate - graphSampleRate) > 0.5
+        // Stop the render callback BEFORE touching DSP state it reads.
+        let wasRunning = needsGraph && engine.isRunning
+        if wasRunning { engine.stop() }
+
         if abs(rate - sampleRate) > 0.5 {
             sampleRate = rate
             pushSampleRateToDSP(rate)
         }
-        guard rebuildGraph, abs(rate - graphSampleRate) > 0.5 else { return }
+        guard needsGraph else { return }
 
-        let wasRunning = engine.isRunning
-        if wasRunning { engine.stop() }
         reconnectGraph(sampleRate: rate)
         if wasRunning {
             try? engine.start()
