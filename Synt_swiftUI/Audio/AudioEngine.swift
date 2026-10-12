@@ -25,6 +25,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     let dspChorus = DSPChorus()
     /// After Apple Reverb, before the mixer. Pre-gain 0, so levels under 0 dBFS stay put.
     let peakLimiter = AudioEngine.makePeakLimiter()
+    /// Fixed 0.62 headroom in front of the limiter, so the limiter is truly last.
+    let headroomMixer = AVAudioMixerNode()
+    static let postFXHeadroom: Float = 0.62
 
     // Stage 4 advanced FX — disabled by default so factory sound is unchanged.
     let distortion = Distortion()
@@ -217,17 +220,15 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.attach(delay.delay)
         engine.attach(reverb.reverb)
         engine.attach(peakLimiter)
+        engine.attach(headroomMixer)
 
-        // Source → Delay → Reverb → Peak Limiter → Mixer.
-        // The limiter is the only ceiling after Apple FX. It does not change sends.
-        engine.connect(sourceNode, to: delay.delay, format: format)
-        engine.connect(delay.delay, to: reverb.reverb, format: format)
-        engine.connect(reverb.reverb, to: peakLimiter, format: format)
-        engine.connect(peakLimiter, to: engine.mainMixerNode, format: format)
+        // Source → Delay → Reverb → Headroom (×0.62) → Peak Limiter → Mixer (×1).
+        // Below the ceiling this is the old gain exactly; the limiter is now last,
+        // so it holds ~0 dBFS instead of an unreachable −4 dBFS.
+        connectPostFX(format: format)
         configurePeakLimiter()
-
-        // Extra headroom after Apple Delay/Reverb (they sit past our clipper).
-        engine.mainMixerNode.outputVolume = 0.62
+        headroomMixer.outputVolume = Self.postFXHeadroom
+        engine.mainMixerNode.outputVolume = 1
 
         engine.prepare()
         graphSampleRate = sampleRate
@@ -298,10 +299,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.disconnectNodeOutput(delay.delay)
         engine.disconnectNodeOutput(reverb.reverb)
         engine.disconnectNodeOutput(peakLimiter)
-        engine.connect(sourceNode, to: delay.delay, format: format)
-        engine.connect(delay.delay, to: reverb.reverb, format: format)
-        engine.connect(reverb.reverb, to: peakLimiter, format: format)
-        engine.connect(peakLimiter, to: engine.mainMixerNode, format: format)
+        engine.disconnectNodeOutput(headroomMixer)
+        connectPostFX(format: format)
         configurePeakLimiter()
         graphSampleRate = sampleRate
         engine.prepare()
@@ -334,12 +333,29 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
     }
 
+    private func connectPostFX(format: AVAudioFormat) {
+        guard let sourceNode else { return }
+        engine.connect(sourceNode, to: delay.delay, format: format)
+        engine.connect(delay.delay, to: reverb.reverb, format: format)
+        engine.connect(reverb.reverb, to: headroomMixer, format: format)
+        engine.connect(headroomMixer, to: peakLimiter, format: format)
+        engine.connect(peakLimiter, to: engine.mainMixerNode, format: format)
+    }
+
     /// Attack 1 ms, release 50 ms, pre-gain 0 dB. Ceiling is the AU's 0 dBFS.
     private func configurePeakLimiter() {
         let au = peakLimiter.audioUnit
-        AudioUnitSetParameter(au, kLimiterParam_AttackTime, kAudioUnitScope_Global, 0, 0.001, 0)
-        AudioUnitSetParameter(au, kLimiterParam_DecayTime, kAudioUnitScope_Global, 0, 0.050, 0)
-        AudioUnitSetParameter(au, kLimiterParam_PreGain, kAudioUnitScope_Global, 0, 0, 0)
+        let params: [(AudioUnitParameterID, AudioUnitParameterValue)] = [
+            (kLimiterParam_AttackTime, 0.001),
+            (kLimiterParam_DecayTime, 0.050),
+            (kLimiterParam_PreGain, 0),
+        ]
+        for (id, value) in params {
+            let status = AudioUnitSetParameter(au, id, kAudioUnitScope_Global, 0, value, 0)
+            if status != noErr {
+                Self.log.error("Peak limiter param \(id) failed: \(status)")
+            }
+        }
     }
 
 
@@ -486,6 +502,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     var graphSampleRateForTesting: Double { graphSampleRate }
+    var mainMixerVolumeForTesting: Float { engine.mainMixerNode.outputVolume }
 
     var sourceNodeSampleRateForTesting: Double {
         sourceNode?.outputFormat(forBus: 0).sampleRate ?? 0
@@ -500,8 +517,11 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         decay: Float,
         preGain: Float
     ) {
-        let afterReverb = engine.outputConnectionPoints(for: reverb.reverb, outputBus: 0)
+        let reverbToHeadroom = engine.outputConnectionPoints(for: reverb.reverb, outputBus: 0)
+            .contains { $0.node === headroomMixer }
+        let headroomToLimiter = engine.outputConnectionPoints(for: headroomMixer, outputBus: 0)
             .contains { $0.node === peakLimiter }
+        let afterReverb = reverbToHeadroom && headroomToLimiter
         let intoMixer = engine.outputConnectionPoints(for: peakLimiter, outputBus: 0)
             .contains { $0.node === engine.mainMixerNode }
         let attached = engine.attachedNodes.contains { $0 === peakLimiter }
