@@ -7,7 +7,7 @@
 - у каждого эффекта свои пресеты;
 - в значение под любой ручкой можно ввести число с клавиатуры.
 
-Исходное состояние: ветка `feat/phaser-control-rate`, HEAD `33e0cbd` (GROK_BUILD_TASKS_2, скины Baseline / Dark Studio / Retro Analog), тесты зелёные.
+Исходное состояние: ветка `feat/phaser-control-rate`, HEAD `7a879d9` (GROK_BUILD_TASKS_2 + 8 коммитов CodeReviewer по аудиту 2026-10-13, `4848dd3..7a879d9`). Тестов 179, проходят 178, падающих нет (один пропущен).
 Делай задачи по порядку, не спрашивая.
 
 ## Что сейчас в коде (проверено)
@@ -19,11 +19,24 @@
   Третья колонка намного длиннее остальных, отсюда скролл и пустое место под колонками 1 и 2.
 - **LFO в синте один** (`LFOView`, `ModSource.lfo1`). Второго LFO нет. «Под LFO 2» из запроса понимаем так: Mod Matrix ставим прямо под карточку LFO. Второй LFO в этом задании НЕ добавляем.
 - `UnisonView`: `Picker` Voices `.pickerStyle(.menu)` с `.frame(width: 50)` в `HStack(spacing: 20)` рядом с тремя ручками. Меню сжимается до стрелки, и число голосов не видно.
-- `KnobView` и `LargeKnobView` (`Views/Components/KnobView.swift`) показывают значение через `Text(String(format: format, value))`. Ввода с клавиатуры нет.
-- Мод-матрица: `ModSource` = LFO 1 / Env 1 (Amp) / Velocity. `ModDestination` = 11 целей. Рендер: `AudioEngine+Render.swift` ~стр. 222–240, данные через `RTModMatrix`.
+- `KnobView` и `LargeKnobView` (`Views/Components/KnobView.swift`, `KnobBody` ~стр. 72, `LargeKnobBody` ~стр. 151) показывают значение через `Text(String(format: format, value))`. Ввода с клавиатуры нет. Перетаскивание уже линейное от точки захвата: `@State dragStart` + свободная функция `knobDragValue(start:translationY:range:)` (CodeReviewer, `c7c9a7c`, тест `KnobDragTests`).
+- Мод-матрица: `ModSource` = LFO 1 / Env 1 (Amp) / Velocity. `ModDestination` = 11 целей. Рендер: `AudioEngine+Render.swift` ~стр. 225–241 (`switch entry.destination` на стр. 234, `default: break` на стр. 239), данные через `RTModMatrix`. Амоунт в `ModMatrixView.swift:47-48` — `KnobView(... format: "%.1f").scaleEffect(0.8)`.
+- `UnisonView.swift`: `HStack(spacing: 20)` стр. 20, `Picker("Voices")` стр. 26, `.frame(width: 50)` стр. 32.
+- `LFO.swift:25` — `guard enabled else { return 0.0 }`. `SynthPreset.swift:421` — комментарий «stored and silent».
 - EQ уже имеет `EQPreset` (Picker в `AdvancedEffectsView`). У остальных эффектов пресетов нет.
 
-## Найденные баги мод-матрицы (аудит кода)
+## Уже сделано CodeReviewer (4848dd3..7a879d9) — НЕ переделывать и НЕ ломать
+- `e479b4d` **кэш шрифтов:** `FontNameCache.shared.firstInstalled(_:)` в `Theme.swift`; `NSFont(name:)` вызывается один раз на список. Новые шрифты/поля (TextField из задачи 5, StepperField) брать из `theme.*Font`, НЕ вызывать `NSFont(name:)` в `body`. Тест `FontNameCacheTests`.
+- `6975f77` **стрелочный VU** (`NeedleVUMeterView`): шкала в dB, красная зона достижима, цвета `Theme.needleFace/needleRed/needleInk`. Тест `NeedleVUMeterTests`.
+- `6226c82` **LED-метр** (`VUMeterView`): полоса по уровню + сегмент peak-hold, 3 dB на LED. Тест `LEDMeterTests`.
+- `1c027af` **без зашитых white/black** в `PresetView`, `PianoKeyView`, сегментах, стрелках; новый токен `theme.keyHighlight`.
+- `c7c9a7c` **ручки без ускорения** (`knobDragValue`, `dragStart`). Задача 5 добавляет ввод поверх этого, жест перетаскивания не переписывать.
+- `d5cb74d` **осциллограф** на паузе при остановленном движке (`OscilloscopeView(isRunning:)`, `EngineMetersView(isRunning:)`). При перестановке карточек в задаче 1 не терять этот параметр.
+- `7a879d9` **сброс DSP при смене патча** идёт на аудио-потоке: команда `.resetPatchState` → `resetPatchStateRT()`; на main только `delay/reverb.reset()` (AU API). FX-пресеты (задача 4) и мод-матрица (задача 3) не должны сбрасывать фильтры/эффекты с main.
+- `3a43353` **`ThemeNoAudioChangeTests`** теперь настоящий (Audio/Models/Input/Utils не видят тему). Новые типы в `Models/`/`Utils/` (FXPreset, KnobValueParser) не должны импортировать/упоминать `Theme`.
+Метры и шрифты тем в этом задании не трогаем: задача только про раскладку, Voices, матрицу, FX-пресеты и ввод чисел.
+
+## Найденные баги мод-матрицы (аудит кода, перепроверено на 7a879d9 — всё ещё актуально)
 Источник × цель — 3 × 11 = 33 пары. В рендере `switch entry.destination` обрабатывает только `.pitch1 .pitch2 .amp .pan`, всё остальное уходит в `default: break`. Это подтверждает комментарий в `PresetAuthoring.liveDestinations`: «Cutoff / PWM / mix entries are stored and silent».
 
 | Цель | Статус | Почему |
@@ -87,7 +100,7 @@ xcodebuild test -project Synt_swiftUI.xcodeproj -scheme Synt_swiftUI \
 4. Mod Matrix — под LFO в колонке 3, ширина колонки. Внутренний `ScrollView` фиксированной высоты 120 убрать: высота растёт со строками, максимум 6 строк видимы, дальше скролл.
 5. Unison/Master — в колонке 2 под Filter (раскладку внутри меняет задача 2).
 6. Если ширина окна < 1000 (минимум 900), 4 колонки остаются, но сжимаются через `.frame(minWidth:)`. Перенос в 2 ряда не нужен.
-7. Проверить все 3 скина и состояние с раскрытым секвенсором.
+7. Проверить все 3 скина и состояние с раскрытым секвенсором. `EngineMetersView(..., isRunning:)` и `OscilloscopeView(isRunning:)` сохранить при перестановке.
 **Тесты:**
 - `LayoutTests.swift`: через `NSHostingView(rootView: ContentView().environment(\.theme, …))` с размером 1000×700 и `fittingSize` / `layoutSubtreeIfNeeded` проверить, что высота `controlsSection` ≤ 520 pt для Init во всех 3 темах (до изменений было больше; запиши обе цифры в коммит).
 - Ни один `KnobView` не меньше 50 pt (через идентификаторы доступности или размеры).
@@ -132,6 +145,7 @@ xcodebuild test -project Synt_swiftUI.xcodeproj -scheme Synt_swiftUI \
 - `formatAmount` для каждой цели (знак, единицы).
 - Фабричные пресеты и Init: golden бит-в-бит.
 - Рендер без аллокаций с 16 записями (существующий бюджет `RenderBudgetTests`).
+- `ThemeNoAudioChangeTests`, `FontNameCacheTests`, `KnobDragTests`, `LEDMeterTests`, `NeedleVUMeterTests` остаются зелёными.
 **Приёмка:** все 33 пары слышны. Подписи, единицы и подсказки на месте. Точка-индикатор на модулируемых ручках. Golden зелёный.
 
 ## Задача 4 — Пресеты эффектов
@@ -156,14 +170,15 @@ xcodebuild test -project Synt_swiftUI.xcodeproj -scheme Synt_swiftUI \
 3. `KnobValueParser.parse(_ text: String, format: String, range: ClosedRange<Float>) -> Float?`. Понимает запятую и точку, пробелы, знак, единицы и суффиксы: `Hz`, `kHz`/`k` (×1000), `s`, `ms` (÷1000, если формат в секундах), `dB`, `%` (для диапазона 0…1 — ÷100), `oct`. Пустое или мусор → `nil` → значение не меняется, поле коротко подсвечивается `theme.destructive`. Результат клампится в `range`.
 4. Применяется ко ВСЕМ ручкам: `KnobView`, `LargeKnobView` (Master), `SeqKnob`, Amount матрицы, поле Voices из задачи 2.
 5. Пока поле открыто, клавиши не играют ноты: `KeyboardHandler` не должен ловить ввод (проверить, как он слушает — `startListening`. Если через `NSEvent` local monitor, пропускать события, когда first responder — текстовое поле).
-6. Стиль поля из темы (inset, rSmall, valueFont), одна тень максимум.
+6. Стиль поля из темы (inset, rSmall, valueFont — уже кэшированный через `FontNameCache`), одна тень максимум. Никаких `NSFont(name:)` в `body`.
+7. Жест перетаскивания (`dragStart` + `knobDragValue`) не менять; тап по тексту значения не должен запускать `DragGesture` ручки. `KnobBody`/`LargeKnobBody` — `Equatable`: новое состояние поля держать в `@State`/`@FocusState` внутри, чтобы не сломать сравнение.
 **Тесты (`KnobValueParserTests.swift`):** `"440"`, `"440 Hz"`, `"1.2k"`, `"1,5 kHz"`, `"250ms"` при формате `%.2fs` → 0.25, `"-6 dB"`, `"50%"` при range 0…1 → 0.5, `"999"` при range 0…1 → 1.0 (кламп), `"abc"` → nil, `""` → nil, `"+0.5 oct"`. UI-тест или юнит на `KnobBody`: Esc не меняет значение. Тест, что `KeyboardHandler` игнорирует нажатия при активном поле.
 **Приёмка:** в каждой ручке во всех 3 темах можно ввести число. Буквы в поле не играют ноты. Esc отменяет.
 
 ## Задача 6 — Сверка и регресс
 **Цель:** подтвердить, что вместе всё работает.
 **Шаги:**
-1. Полный прогон тестов, golden Init и фабричных пресетов бит-в-бит.
+1. Полный прогон тестов (база — 179 тестов, 178 проходят, ни один не падает; новых падений быть не должно), golden Init и фабричных пресетов бит-в-бит. Проверить, что исправления CodeReviewer на месте: кэш шрифтов, dB-шкала стрелок, LED по уровню, линейные ручки, пауза осциллографа, `.resetPatchState`.
 2. Скриншоты 1000×700 трёх тем, с секвенсором и без: `docs/design/layout_v3_*.png`.
 3. В «Журнал» записать высоту `controlsSection` до/после, список целей матрицы с единицами и известные ограничения (например, модуляция cutoff глобальная, а не пер-голосовая).
 **Приёмка:** тесты зелёные, скриншоты закоммичены, журнал заполнен.
