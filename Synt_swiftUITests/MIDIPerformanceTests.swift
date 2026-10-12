@@ -144,6 +144,25 @@ struct MIDIPerformanceTests {
         #expect(!engine.sustainPedalDown)
     }
 
+    @Test func runningStatusAndSysExDoNotDropNotes() {
+        let engine = AudioEngine()
+        let midi = MIDIHandler()
+        midi.audioEngine = engine
+        // SysEx, then Note On with running status for 3 notes, a clock byte mid-stream,
+        // then running-status velocity-0 offs.
+        midi.parseMIDIBytesForTesting([0xF0, 0x7E, 0x01, 0x02, 0xF7,
+                                       0x90, 60, 100, 64, 100, 0xF8, 67, 100])
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteActiveForTesting(60))
+        #expect(engine.isNoteActiveForTesting(64))
+        #expect(engine.isNoteActiveForTesting(67))
+        midi.parseMIDIBytesForTesting([60, 0, 64, 0, 67, 0])
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteReleasingForTesting(60))
+        #expect(engine.isNoteReleasingForTesting(64))
+        #expect(engine.isNoteReleasingForTesting(67))
+    }
+
     /// Real golden: Init must match the pre-MIDI capture, not just itself.
     @Test func initWithoutMIDIMatchesTheGolden() {
         #expect(InitGoldenTests.renderHash(.defaultPreset) == InitGoldenTests.golden["Init"])

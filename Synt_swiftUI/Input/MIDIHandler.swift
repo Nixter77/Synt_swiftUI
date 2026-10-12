@@ -111,94 +111,87 @@ class MIDIHandler: ObservableObject {
     }
     
     private func handleMIDIPacketList(_ packetList: UnsafePointer<MIDIPacketList>) {
-        let packetListMutable = UnsafeMutablePointer(mutating: packetList)
-        let numPackets = packetListMutable.pointee.numPackets
-        
-        // Safely get pointer to the first packet using MemoryLayout
-        var currentPacketPtr = UnsafeMutableRawPointer(packetListMutable)
+        let numPackets = packetList.pointee.numPackets
+        var packet = UnsafeRawPointer(packetList)
             .advanced(by: MemoryLayout<MIDIPacketList>.offset(of: \.packet)!)
             .assumingMemoryBound(to: MIDIPacket.self)
-        
+        let dataOffset = MemoryLayout<MIDIPacket>.offset(of: \.data)!
+
         for _ in 0..<numPackets {
-            let length = Int(currentPacketPtr.pointee.length)
-            
-            // Access packet data safely
-            var bytes = [UInt8]()
-            withUnsafeBytes(of: currentPacketPtr.pointee.data) { ptr in
-               for i in 0..<length {
-                   bytes.append(ptr[i])
-               }
+            // Read `length` bytes in place. The `data` tuple is only 256 long, but a
+            // SysEx packet can be longer, so never go through the tuple; no [UInt8] either.
+            let length = Int(packet.pointee.length)
+            let bytes = UnsafeRawPointer(packet).advanced(by: dataOffset)
+                .assumingMemoryBound(to: UInt8.self)
+            for k in 0..<length {
+                feed(bytes[k])
             }
-            
-            parseMIDIBytes(bytes)
-            
-            currentPacketPtr = MIDIPacketNext(currentPacketPtr)
+            packet = UnsafePointer(MIDIPacketNext(packet))
         }
     }
-    
+
     func parseMIDIBytesForTesting(_ bytes: [UInt8]) {
-        parseMIDIBytes(bytes)
+        for b in bytes { feed(b) }
     }
 
-    private func parseMIDIBytes(_ bytes: [UInt8]) {
-        guard !bytes.isEmpty else { return }
-        
-        // Simple state machine or parser needed really, but for now assuming standard 3-byte messages
-        var i = 0
-        while i < bytes.count {
-            let status = bytes[i]
-            let command = status & 0xF0
-            // let channel = status & 0x0F
-            
-            if command == 0x90 { // Note On
-                if i + 2 < bytes.count {
-                    let note = bytes[i+1]
-                    let velocity = bytes[i+2]
-                    
-                    if velocity > 0 {
-                        audioEngine?.midiNoteOn(midiNote: Int(note), velocity: Float(velocity) / 127.0)
-                    } else {
-                        audioEngine?.midiNoteOff(midiNote: Int(note))
-                    }
-                    i += 3
-                } else { break }
-            } else if command == 0x80 { // Note Off
-                if i + 2 < bytes.count {
-                    let note = bytes[i+1]
-                    // let velocity = bytes[i+2]
-                    
-                    audioEngine?.midiNoteOff(midiNote: Int(note))
-                    i += 3
-                } else { break }
-            } else if command == 0xE0 { // Pitch bend
-                if i + 2 < bytes.count {
-                    let lsb = Int(bytes[i + 1] & 0x7F)
-                    let msb = Int(bytes[i + 2] & 0x7F)
-                    let value = (msb << 7) | lsb
-                    let normalized: Float
-                    if value >= 8192 {
-                        normalized = Float(value - 8192) / 8191
-                    } else {
-                        normalized = Float(value - 8192) / 8192
-                    }
-                    audioEngine?.midiPitchBend(normalized)
-                    i += 3
-                } else { break }
-            } else if command == 0xB0 { // Control change
-                if i + 2 < bytes.count {
-                    let cc = bytes[i + 1]
-                    let value = bytes[i + 2]
-                    if cc == 1 {
-                        audioEngine?.midiModWheel(Float(value) / 127)
-                    } else if cc == 64 {
-                        audioEngine?.midiSustainPedal(down: value >= 64)
-                    }
-                    i += 3
-                } else { break }
+    // MARK: - Byte parser (CoreMIDI thread only)
+
+    /// Channel-voice status kept for running status. 0 = none.
+    private var runningStatus: UInt8 = 0
+    private var inSysEx = false
+    private var data0: UInt8 = 0
+    private var dataCount = 0
+
+    private func feed(_ b: UInt8) {
+        if b >= 0xF8 { return }                     // realtime: ignore, keep running status
+        if b == 0xF0 { inSysEx = true; runningStatus = 0; dataCount = 0; return }
+        if b == 0xF7 { inSysEx = false; return }
+        if b & 0x80 != 0 {
+            inSysEx = false
+            dataCount = 0
+            // System common (F1–F6) cancels running status; its data is dropped.
+            runningStatus = b < 0xF0 ? b : 0
+            return
+        }
+        if inSysEx || runningStatus == 0 { return }
+
+        let command = runningStatus & 0xF0
+        let needed = (command == 0xC0 || command == 0xD0) ? 1 : 2
+        if dataCount == 0 && needed == 2 {
+            data0 = b
+            dataCount = 1
+            return
+        }
+        let d1 = needed == 2 ? data0 : b
+        let d2 = needed == 2 ? b : 0
+        dataCount = 0
+        dispatch(command: command, d1: d1, d2: d2)
+    }
+
+    private func dispatch(command: UInt8, d1: UInt8, d2: UInt8) {
+        switch command {
+        case 0x90:
+            if d2 > 0 {
+                audioEngine?.midiNoteOn(midiNote: Int(d1), velocity: Float(d2) / 127.0)
             } else {
-                // Skip other messages for now or implement proper parsing
-                i += 1
+                audioEngine?.midiNoteOff(midiNote: Int(d1))
             }
+        case 0x80:
+            audioEngine?.midiNoteOff(midiNote: Int(d1))
+        case 0xE0:
+            let value = (Int(d2) << 7) | Int(d1)
+            let normalized: Float = value >= 8192
+                ? Float(value - 8192) / 8191
+                : Float(value - 8192) / 8192
+            audioEngine?.midiPitchBend(normalized)
+        case 0xB0:
+            if d1 == 1 {
+                audioEngine?.midiModWheel(Float(d2) / 127)
+            } else if d1 == 64 {
+                audioEngine?.midiSustainPedal(down: d2 >= 64)
+            }
+        default:
+            break
         }
     }
 }
