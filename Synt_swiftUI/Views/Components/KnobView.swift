@@ -5,6 +5,13 @@
 
 import SwiftUI
 
+/// 150 pt of vertical drag sweeps the full range, linearly from the grab point.
+func knobDragValue(start: Float, translationY: CGFloat, range: ClosedRange<Float>) -> Float {
+    let delta = Float(-translationY) / 150.0
+    let span = range.upperBound - range.lowerBound
+    return min(max(start + delta * span, range.lowerBound), range.upperBound)
+}
+
 struct KnobView: View {
     @Environment(\.theme) private var theme
     @Binding var value: Float
@@ -27,6 +34,8 @@ private struct KnobBody: View, Equatable {
     let themeID: ThemeID
 
     private let knobSize: CGFloat = 50
+    /// Value at drag start. Translation is cumulative, so it adds to this, not to `value`.
+    @State private var dragStart: Float?
 
     static func == (lhs: KnobBody, rhs: KnobBody) -> Bool {
         lhs.value == rhs.value
@@ -47,12 +56,11 @@ private struct KnobBody: View, Equatable {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
-                        let delta = Float(-gesture.translation.height) / 150.0
-                        let range = self.range.upperBound - self.range.lowerBound
-                        let newValue = value + delta * range
-                        value = min(max(newValue, self.range.lowerBound), self.range.upperBound)
+                        let start = dragStart ?? value
+                        if dragStart == nil { dragStart = start }
+                        value = knobDragValue(start: start, translationY: gesture.translation.height, range: range)
                     }
-                    .onEnded { _ in }
+                    .onEnded { _ in dragStart = nil }
             )
 
             Text(label)
@@ -96,6 +104,8 @@ private struct LargeKnobBody: View, Equatable {
     let themeID: ThemeID
 
     private let knobSize: CGFloat = 70
+    /// Value at drag start. Translation is cumulative, so it adds to this, not to `value`.
+    @State private var dragStart: Float?
 
     static func == (lhs: LargeKnobBody, rhs: LargeKnobBody) -> Bool {
         lhs.value == rhs.value
@@ -125,12 +135,11 @@ private struct LargeKnobBody: View, Equatable {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
-                        let delta = Float(-gesture.translation.height) / 150.0
-                        let range = self.range.upperBound - self.range.lowerBound
-                        let newValue = value + delta * range
-                        value = min(max(newValue, self.range.lowerBound), self.range.upperBound)
+                        let start = dragStart ?? value
+                        if dragStart == nil { dragStart = start }
+                        value = knobDragValue(start: start, translationY: gesture.translation.height, range: range)
                     }
-                    .onEnded { _ in }
+                    .onEnded { _ in dragStart = nil }
             )
 
             Text(label)
