@@ -14,6 +14,8 @@ class LFO {
 
     private var phase: Double = 0.0
     private var lastRandomValue: Float = 0.0
+    /// LCG for S&H. Float.random hits the system RNG (can lock) on the audio thread.
+    private var randomState: UInt32 = 0x9E37_79B9
 
     func reset() {
         phase = 0.0
@@ -28,7 +30,8 @@ class LFO {
         if phase >= AudioMath.twoPi {
             phase -= AudioMath.twoPi
             // Trigger Sample & Hold update
-            lastRandomValue = Float.random(in: -1.0...1.0)
+            randomState = randomState &* 1_664_525 &+ 1_013_904_223
+            lastRandomValue = Float(randomState) / Float(UInt32.max) * 2 - 1
         }
 
         var value: Float = 0.0
