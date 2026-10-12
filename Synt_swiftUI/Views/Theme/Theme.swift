@@ -237,6 +237,23 @@ final class FontNameCache: @unchecked Sendable {
     }
 }
 
+/// Derived tokens. Kept computed so the 49-color table stays as specified.
+extension Theme {
+    /// Bevel highlight on keys: white on Baseline, the skin's own key tone elsewhere.
+    var keyHighlight: Color {
+        switch id {
+        case .baseline: return .white
+        case .studio: return keyWhiteEdge
+        case .retro: return keyWhite
+        }
+    }
+
+    /// Retro needle face, red zone and ink (task 5.2 values, now in one place).
+    static let needleFace = Color(hex: "#F4E3B0")
+    static let needleRed = Color(hex: "#C0392B")
+    static let needleInk = Color.black
+}
+
 struct ThemeCollection: Equatable {
     let items: [Theme]
 

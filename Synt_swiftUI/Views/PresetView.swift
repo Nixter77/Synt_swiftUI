@@ -37,7 +37,7 @@ struct PresetView: View {
                         .fill(theme.panel)
                         .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                 )
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.6), lineWidth: 0.5))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.border, lineWidth: 0.5))
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showingPresetList) {

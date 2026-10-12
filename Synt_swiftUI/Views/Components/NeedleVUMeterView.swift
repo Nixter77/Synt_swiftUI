@@ -48,7 +48,7 @@ struct NeedleVUMeterView: View {
     var peak: Float = 0
     var label: String
 
-    private let face = Color(hex: "#F4E3B0")
+    private let face = Theme.needleFace
 
     var body: some View {
         VStack(spacing: 2) {
@@ -57,7 +57,7 @@ struct NeedleVUMeterView: View {
                     .fill(face)
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.black.opacity(0.35), lineWidth: 1)
+                            .stroke(Theme.needleInk.opacity(0.35), lineWidth: 1)
                     )
 
                 ForEach(needleTickVU.indices, id: \.self) { i in
@@ -65,25 +65,25 @@ struct NeedleVUMeterView: View {
                     let angle = angleForVU(vu)
                     let major = vu == -20 || vu == -10 || vu == 0 || vu == 3
                     Rectangle()
-                        .fill(vu > 0 ? Color(hex: "#C0392B") : Color.black)
+                        .fill(vu > 0 ? Theme.needleRed : Theme.needleInk)
                         .frame(width: 1, height: major ? 7 : 4)
                         .offset(y: -12)
                         .rotationEffect(.degrees(angle))
                 }
 
                 Rectangle()
-                    .fill(Color.black)
+                    .fill(Theme.needleInk)
                     .frame(width: 1.5, height: 16)
                     .offset(y: -7)
                     .rotationEffect(.degrees(needleAngle(level: level)))
                     .animation(.linear(duration: 0.05), value: level)
 
                 Circle()
-                    .fill(Color.black)
+                    .fill(Theme.needleInk)
                     .frame(width: 4, height: 4)
 
                 Circle()
-                    .fill(needlePeakLampLit(peak: peak) ? Color(hex: "#C0392B") : Color.black.opacity(0.15))
+                    .fill(needlePeakLampLit(peak: peak) ? Theme.needleRed : Theme.needleInk.opacity(0.15))
                     .frame(width: 4, height: 4)
                     .offset(x: 14, y: 10)
             }
@@ -92,7 +92,7 @@ struct NeedleVUMeterView: View {
 
             Text(label)
                 .font(.system(size: 8, weight: .medium, design: .monospaced))
-                .foregroundColor(Color.black.opacity(0.7))
+                .foregroundColor(Theme.needleInk.opacity(0.7))
         }
     }
 }

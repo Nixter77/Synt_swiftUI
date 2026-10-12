@@ -60,7 +60,7 @@ struct WhiteKeyView: View, Equatable {
                 RoundedRectangle(cornerRadius: 5)
                     .stroke(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.9), Color.white.opacity(0.2)],
+                            colors: [theme.keyHighlight.opacity(0.9), theme.keyHighlight.opacity(0.2)],
                             startPoint: .top,
                             endPoint: .bottom
                         ),
@@ -112,7 +112,7 @@ struct BlackKeyView: View, Equatable {
                     )
                 )
                 .compositingGroup()
-                .shadow(color: Color.black.opacity(0.35), radius: 2, x: 0, y: 1)
+                .shadow(color: theme.cardShadow.color, radius: 2, x: 0, y: 1)
                 .drawingGroup()
             
             // Subtle top highlight
@@ -120,7 +120,7 @@ struct BlackKeyView: View, Equatable {
                 RoundedRectangle(cornerRadius: 4)
                     .fill(
                         LinearGradient(
-                            colors: [Color.white.opacity(isPressed ? 0.15 : 0.2), Color.clear],
+                            colors: [theme.keyHighlight.opacity(isPressed ? 0.15 : 0.2), Color.clear],
                             startPoint: .top,
                             endPoint: .center
                         )

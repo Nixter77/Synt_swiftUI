@@ -127,7 +127,7 @@ struct ThemeSegmented<T: Hashable>: View {
     private func fill(_ selected: Bool) -> some View {
         let color: Color = {
             guard selected else { return .clear }
-            return theme.id == .baseline ? .white : accent
+            return theme.id == .baseline ? theme.card : accent
         }()
         return RoundedRectangle(cornerRadius: max(theme.rSmall - 1, 2))
             .fill(color)
