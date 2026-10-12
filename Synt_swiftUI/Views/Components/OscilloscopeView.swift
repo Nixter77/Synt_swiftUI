@@ -10,13 +10,15 @@ struct OscilloscopeView: View {
     var metering: AtomicMeteringState
     var lineColor: Color? = nil
     var lineWidth: CGFloat = 2.0
+    /// Engine stopped: freeze the last frame instead of redrawing at 30 Hz.
+    var isRunning: Bool = true
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: theme.rSmall)
                 .fill(theme.scopeBg)
 
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { _ in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isRunning)) { _ in
                 Canvas { context, size in
                     let data = metering.readScopeBuffer()
                     let count = data.count

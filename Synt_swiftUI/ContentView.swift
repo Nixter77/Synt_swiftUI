@@ -180,7 +180,7 @@ struct ContentView: View {
 
             HStack(spacing: 16) {
                 // Meters observe AudioMeterModel, not AudioEngine, so knobs stay put.
-                EngineMetersView(meters: audioEngine.meters, scope: audioEngine.meteringState)
+                EngineMetersView(meters: audioEngine.meters, scope: audioEngine.meteringState, isRunning: audioEngine.isPlaying)
                 
                 // Sequencer Controls
                 VStack(spacing: 4) {
@@ -295,6 +295,7 @@ struct ContentView: View {
 struct EngineMetersView: View {
     @ObservedObject var meters: AudioMeterModel
     let scope: AtomicMeteringState
+    var isRunning: Bool = true
 
     var body: some View {
         HStack(spacing: 16) {
@@ -304,7 +305,7 @@ struct EngineMetersView: View {
                 leftPeak: meters.peakLevel,
                 rightPeak: meters.peakLevel
             )
-            OscilloscopeView(metering: scope)
+            OscilloscopeView(metering: scope, isRunning: isRunning)
                 .frame(width: 160, height: 100)
         }
     }
