@@ -102,8 +102,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var pitchBendTarget: Float = 0
     var pitchBendSmoothed: Float = 0
     var cachedPitchBendRange: Float = 2
-    /// 1 keeps the preset LFO depth. CC1 writes 0…1.
-    var modWheel: Float = 1
+    /// 0 keeps the preset LFO depth; CC1 adds on top, up to full depth at 127.
+    var modWheel: Float = 0
     var cachedLfoDepth: Float = 0.5
     var sustainPedalDown = false
     var sustainedLo: UInt64 = 0

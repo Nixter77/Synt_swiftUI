@@ -43,7 +43,7 @@ struct MIDIPerformanceTests {
         #expect(engine.isNoteReleasingForTesting(60))
     }
 
-    @Test func modWheelScalesPresetLFODepth() {
+    @Test func modWheelAddsToPresetLFODepth() {
         let engine = AudioEngine()
         var preset = SynthPreset.defaultPreset
         preset.lfoEnabled = true
@@ -53,15 +53,16 @@ struct MIDIPerformanceTests {
         _ = engine.renderOneSample()
         #expect(abs(engine.lfo.depth - 0.4) < 0.0001)
 
+        // CC1 = 0 (a resting wheel) must not kill the patch's vibrato.
         engine.modWheel(0)
         engine.processCommandsForTesting()
         _ = engine.renderOneSample()
-        #expect(engine.lfo.depth == 0)
+        #expect(abs(engine.lfo.depth - 0.4) < 0.0001)
 
         engine.modWheel(1)
         engine.processCommandsForTesting()
         _ = engine.renderOneSample()
-        #expect(abs(engine.lfo.depth - 0.4) < 0.0001)
+        #expect(abs(engine.lfo.depth - 1.0) < 0.0001)
     }
 
     @Test func midiBytesReachBendWheelAndPedal() {

@@ -21,7 +21,7 @@ enum AudioCommand: Equatable {
     case arpKeyUp(midiNote: Int)
     /// -1…1, center 0. Full throw is `pitchBendRange` semitones.
     case setPitchBend(Float)
-    /// 0…1. Scales the preset LFO depth. 1 leaves the preset alone.
+    /// 0…1. Adds LFO depth on top of the preset. 0 leaves the preset alone.
     case setModWheel(Float)
     case setSustain(Bool)
     /// MIDI key. The audio thread routes it to the arp or a voice (it owns arp mode).
