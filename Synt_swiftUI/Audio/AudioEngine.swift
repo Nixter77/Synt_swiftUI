@@ -12,9 +12,11 @@
 import AVFoundation
 import AudioToolbox
 import Combine
+import os
 import SwiftUI
 
 final class AudioEngine: ObservableObject, @unchecked Sendable {
+    private static let log = Logger(subsystem: "Home.Synt-swiftUI", category: "AudioEngine")
     private let engine = AVAudioEngine()
     private var sourceNode: AVAudioSourceNode?
 
@@ -161,7 +163,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
         } catch {
-            print("Failed to set up audio session: \(error)")
+            Self.log.error("Failed to set up audio session: \(error.localizedDescription, privacy: .public)")
         }
         #endif
     }
@@ -310,7 +312,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             try engine.start()
             isPlaying = true
         } catch {
-            print("Failed to restart audio engine after a device change: \(error)")
+            Self.log.error("Failed to restart audio engine after a device change: \(error.localizedDescription, privacy: .public)")
             isPlaying = false
         }
     }
@@ -338,7 +340,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
             try engine.start()
             isPlaying = true
         } catch {
-            print("Failed to start audio engine: \(error)")
+            Self.log.error("Failed to start audio engine: \(error.localizedDescription, privacy: .public)")
         }
     }
 

@@ -68,7 +68,7 @@ struct GlassHorizonHangProbeTests {
 
     @Test(.timeLimit(.minutes(3)))
     func glassHorizon_stock_1_2_3_4_7_and_phaserAB() async throws {
-        guard var base = Self.stockGlass() else {
+        guard let base = Self.stockGlass() else {
             Issue.record("Missing Glass Horizon")
             return
         }
