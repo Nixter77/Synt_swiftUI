@@ -35,13 +35,9 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         didSet { applyPreset() }
     }
 
-    // VU Meter levels (0.0 to 1.0) — written only on main via pollMetering()
-    @Published var outputLevel: Float = 0.0
-    @Published var peakLevel: Float = 0.0
-
-    // UI Visualization
+    // UI Visualization. Levels live on `meters`, which ContentView does not observe.
     @Published var pressedKeys: Set<Int> = []
-    @Published var scopeData: [Float] = Array(repeating: 0.0, count: 512)
+    let meters = AudioMeterModel()
 
     var oscillator1 = Oscillator()
     var oscillator2 = Oscillator()
@@ -350,8 +346,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         engine.stop()
         isPlaying = false
         clearAllNotes()
-        outputLevel = 0.0
-        peakLevel = 0.0
+        meters.resetDisplay()
         currentLevel = 0.0
         currentPeak = 0.0
         meteringState.setOutputLevel(0)

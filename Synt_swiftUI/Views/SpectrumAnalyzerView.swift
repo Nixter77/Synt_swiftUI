@@ -10,9 +10,9 @@ import Accelerate
 
 // MARK: - Spectrum Data Model
 
-final class SpectrumData: ObservableObject {
-    @Published var magnitudes: [Float] = []
-    @Published var peakMagnitudes: [Float] = []
+final class SpectrumData {
+    var magnitudes: [Float] = []
+    var peakMagnitudes: [Float] = []
     
     private let fftSize: Int
     private let binCount: Int
@@ -72,51 +72,74 @@ final class SpectrumData: ObservableObject {
 // MARK: - Spectrum Analyzer View
 
 struct SpectrumAnalyzerView: View {
-    @ObservedObject var data: SpectrumData
+    var data: SpectrumData
     var barCount: Int = 32
     var showPeaks: Bool = true
     var colorScheme: SpectrumColorScheme = .gradient
     /// Display mapping. The live engine rate replaces this default.
     var sampleRate: Float = 44100
-    
+
     enum SpectrumColorScheme { case gradient, rainbow, mono }
-    
+
     var body: some View {
-        GeometryReader { geometry in
-            let barWidth = geometry.size.width / CGFloat(barCount)
-            let barSpacing: CGFloat = 2
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(AppleTheme.surfaceInset)
-                    .shadow(color: Color.black.opacity(0.06), radius: 3, x: 1, y: 2)
-                    .shadow(color: Color.white.opacity(0.8), radius: 2, x: -1, y: -1)
-                
-                gridLines(size: geometry.size)
-                
-                HStack(spacing: barSpacing) {
-                    ForEach(0..<barCount, id: \.self) { index in
-                        let magnitude = getMagnitude(forBar: index)
-                        let peakMagnitude = getPeakMagnitude(forBar: index)
-                        ZStack(alignment: .bottom) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(barGradient(forIndex: index, magnitude: magnitude))
-                                .frame(width: max(1, barWidth - barSpacing), height: CGFloat(magnitude) * geometry.size.height)
-                            if showPeaks {
-                                Rectangle()
-                                    .fill(AppleTheme.textSecondary.opacity(0.6))
-                                    .frame(width: max(1, barWidth - barSpacing), height: 2)
-                                    .offset(y: -CGFloat(peakMagnitude) * geometry.size.height)
-                            }
-                        }
-                        .frame(height: geometry.size.height, alignment: .bottom)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { _ in
+            Canvas { context, size in
+                let barWidth = size.width / CGFloat(barCount)
+                let barSpacing: CGFloat = 2
+                for index in 0..<barCount {
+                    let magnitude = CGFloat(getMagnitude(forBar: index))
+                    let width = max(1, barWidth - barSpacing)
+                    let x = 4 + CGFloat(index) * barWidth
+                    let barHeight = magnitude * size.height
+                    let rect = CGRect(x: x, y: size.height - barHeight, width: width, height: max(0, barHeight))
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: 2),
+                        with: barShading(index: index, magnitude: magnitude, rect: rect)
+                    )
+                    if showPeaks {
+                        let peak = CGFloat(getPeakMagnitude(forBar: index))
+                        let peakRect = CGRect(x: x, y: size.height - peak * size.height, width: width, height: 2)
+                        context.fill(Path(peakRect), with: .color(AppleTheme.textSecondary.opacity(0.6)))
                     }
                 }
-                .padding(.horizontal, 4)
-                
-                frequencyLabels(size: geometry.size)
             }
         }
+        .background(spectrumChrome)
+        .overlay(gridLines(size: .zero))
+        .overlay(frequencyLabels(size: .zero))
         .frame(minWidth: 200, minHeight: 100)
+    }
+
+    private var spectrumChrome: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(AppleTheme.surfaceInset)
+            .compositingGroup()
+            .shadow(color: Color.black.opacity(0.06), radius: 3, x: 1, y: 2)
+            .shadow(color: Color.white.opacity(0.8), radius: 2, x: -1, y: -1)
+            .drawingGroup()
+    }
+
+    private func barShading(index: Int, magnitude: CGFloat, rect: CGRect) -> GraphicsContext.Shading {
+        let colors: [Color]
+        switch colorScheme {
+        case .gradient:
+            let mag = Double(magnitude)
+            colors = [
+                AppleTheme.accentEnvelope.opacity(mag),
+                AppleTheme.accentModulation.opacity(mag),
+                AppleTheme.accentOscillator.opacity(mag)
+            ]
+        case .rainbow:
+            let hue = Double(index) / Double(barCount)
+            colors = [Color(hue: hue, saturation: 0.6, brightness: 0.85)]
+        case .mono:
+            colors = [AppleTheme.accentBlue.opacity(0.7)]
+        }
+        return .linearGradient(
+            Gradient(colors: colors),
+            startPoint: CGPoint(x: rect.midX, y: rect.maxY),
+            endPoint: CGPoint(x: rect.midX, y: rect.minY)
+        )
     }
     
     private func getMagnitude(forBar barIndex: Int) -> Float {
@@ -143,20 +166,6 @@ struct SpectrumAnalyzerView: View {
         let freq0 = minFreq * pow(maxFreq / minFreq, t0); let freq1 = minFreq * pow(maxFreq / minFreq, t1)
         let bin0 = Int(freq0 * Float(binCount) * 2 / sampleRate); let bin1 = Int(freq1 * Float(binCount) * 2 / sampleRate)
         return (max(0, min(bin0, binCount - 1)), max(bin0 + 1, min(bin1 + 1, binCount)))
-    }
-    
-    private func barGradient(forIndex index: Int, magnitude: Float) -> LinearGradient {
-        switch colorScheme {
-        case .gradient:
-            return LinearGradient(
-                colors: [AppleTheme.accentEnvelope.opacity(Double(magnitude)), AppleTheme.accentModulation.opacity(Double(magnitude)), AppleTheme.accentOscillator.opacity(Double(magnitude))],
-                startPoint: .bottom, endPoint: .top)
-        case .rainbow:
-            let hue = Double(index) / Double(barCount)
-            return LinearGradient(colors: [Color(hue: hue, saturation: 0.6, brightness: 0.85)], startPoint: .bottom, endPoint: .top)
-        case .mono:
-            return LinearGradient(colors: [AppleTheme.accentBlue.opacity(0.7)], startPoint: .bottom, endPoint: .top)
-        }
     }
     
     private func gridLines(size: CGSize) -> some View {

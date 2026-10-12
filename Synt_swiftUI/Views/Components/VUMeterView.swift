@@ -26,7 +26,9 @@ struct VUMeterView: View {
             Circle()
                 .fill(peakLevel > Float(redThreshold) ? AppleTheme.accentDestructive : Color.clear)
                 .frame(width: 8, height: 8)
+                .compositingGroup()
                 .shadow(color: peakLevel > Float(redThreshold) ? AppleTheme.accentDestructive.opacity(0.6) : .clear, radius: 4)
+                .drawingGroup()
             VStack(spacing: 1) {
                 ForEach((0..<segmentCount).reversed(), id: \.self) { index in
                     RoundedRectangle(cornerRadius: 1.5)

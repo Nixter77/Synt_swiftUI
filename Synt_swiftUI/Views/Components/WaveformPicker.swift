@@ -15,6 +15,7 @@ struct WaveformPicker: View {
                     selected = waveform
                 } label: {
                     WaveformIcon(type: waveform, isSelected: selected == waveform)
+                        .equatable()
                 }
                 .buttonStyle(.plain)
             }
@@ -22,18 +23,20 @@ struct WaveformPicker: View {
     }
 }
 
-struct WaveformIcon: View {
+struct WaveformIcon: View, Equatable {
     let type: WaveformType
     let isSelected: Bool
 
     var body: some View {
         ZStack {
-            // 3D raised pill
+            // 3D raised pill. Rasterize the two shadows once per selection change.
             RoundedRectangle(cornerRadius: 8)
                 .fill(isSelected ? AppleTheme.accentOscillator.opacity(0.12) : AppleTheme.surfaceSecondary)
                 .frame(width: 38, height: 30)
+                .compositingGroup()
                 .shadow(color: isSelected ? AppleTheme.accentOscillator.opacity(0.2) : AppleTheme.shadowDark, radius: isSelected ? 2 : 4, x: 1, y: 2)
                 .shadow(color: AppleTheme.shadowLight, radius: isSelected ? 1 : 3, x: -1, y: -1)
+                .drawingGroup()
             
             // Border
             RoundedRectangle(cornerRadius: 8)

@@ -14,7 +14,7 @@ extension AudioEngine {
 
     func startMeteringPoll() {
         // UI-side poll — never hop to main from the render callback
-        Timer.publish(every: 1.0 / 60.0, on: .main, in: .common)
+        Timer.publish(every: 1.0 / 30.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.pollMetering()
@@ -22,10 +22,12 @@ extension AudioEngine {
             .store(in: &cancellables)
     }
 
-    /// Main-thread only: copy atomics into @Published properties for SwiftUI.
+    /// Main-thread only. Copies levels into AudioMeterModel when they move.
+    /// The scope buffer stays in AtomicMeteringState; the oscilloscope reads it.
     func pollMetering() {
-        outputLevel = meteringState.getOutputLevel()
-        peakLevel = meteringState.getPeakLevel()
-        scopeData = meteringState.readScopeBuffer()
+        meters.ingest(
+            output: meteringState.getOutputLevel(),
+            peak: meteringState.getPeakLevel()
+        )
     }
 }

@@ -6,49 +6,66 @@
 import SwiftUI
 
 struct OscilloscopeView: View {
-    var data: [Float]
+    var metering: AtomicMeteringState
     var lineColor: Color = AppleTheme.accentBlue
     var lineWidth: CGFloat = 2.0
-    
+
     var body: some View {
-        GeometryReader { geometry in
-            Path { path in
-                let width = geometry.size.width
-                let height = geometry.size.height
-                let midY = height / 2.0
-                let count = data.count
-                let stepX = width / CGFloat(count - 1)
-                if count > 0 {
-                    let startY = midY - CGFloat(data[0]) * midY
-                    path.move(to: CGPoint(x: 0, y: startY))
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(AppleTheme.surfaceInset)
+                .compositingGroup()
+                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 1, y: 1)
+                .shadow(color: Color.white.opacity(0.8), radius: 1, x: -1, y: -1)
+                .drawingGroup()
+
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { _ in
+                Canvas { context, size in
+                    let data = metering.readScopeBuffer()
+                    let count = data.count
+                    guard count > 1 else { return }
+                    let midY = size.height / 2.0
+                    let stepX = size.width / CGFloat(count - 1)
+                    var path = Path()
+                    let start = min(1.0, max(-1.0, CGFloat(data[0])))
+                    path.move(to: CGPoint(x: 0, y: midY - start * midY))
                     for i in 1..<count {
-                        let x = CGFloat(i) * stepX
-                        var val = CGFloat(data[i])
-                        val = max(-1.0, min(1.0, val))
-                        let y = midY - val * midY
-                        path.addLine(to: CGPoint(x: x, y: y))
+                        let sample = min(1.0, max(-1.0, CGFloat(data[i])))
+                        path.addLine(to: CGPoint(x: CGFloat(i) * stepX, y: midY - sample * midY))
                     }
+                    context.addFilter(.shadow(color: lineColor.opacity(0.4), radius: 3, x: 0, y: 0))
+                    context.stroke(
+                        path,
+                        with: .color(lineColor),
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+                    )
                 }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            .stroke(lineColor, lineWidth: lineWidth)
-            .shadow(color: lineColor.opacity(0.4), radius: 3, x: 0, y: 0)
-        }
-        .background(AppleTheme.surfaceInset)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
+
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
-        )
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 1, y: 1)
-        .shadow(color: Color.white.opacity(0.8), radius: 1, x: -1, y: -1)
+        }
     }
 }
 
 #Preview {
-    OscilloscopeView(data: (0..<512).map { sin(Double($0) * 0.1).toFloat() })
+    OscilloscopePreview()
         .frame(height: 100)
         .padding()
         .background(AppleTheme.windowBackground)
+}
+
+private struct OscilloscopePreview: View {
+    let metering = AtomicMeteringState()
+
+    var body: some View {
+        OscilloscopeView(metering: metering)
+            .onAppear {
+                let samples = (0..<512).map { sin(Double($0) * 0.1).toFloat() }
+                metering.writeScopeBuffer(samples)
+            }
+    }
 }
 
 extension Double {

@@ -11,21 +11,39 @@ struct KnobView: View {
     let label: String
     var format: String = "%.2f"
 
+    var body: some View {
+        KnobBody(value: $value, range: range, label: label, format: format)
+            .equatable()
+    }
+}
+
+private struct KnobBody: View, Equatable {
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let label: String
+    let format: String
+
     @State private var isDragging = false
 
     private let knobSize: CGFloat = 50
 
+    static func == (lhs: KnobBody, rhs: KnobBody) -> Bool {
+        lhs.value == rhs.value
+            && lhs.range == rhs.range
+            && lhs.label == rhs.label
+            && lhs.format == rhs.format
+    }
+
     var body: some View {
         VStack(spacing: 4) {
             ZStack {
-                // 3D base shadow
-                Circle()
-                    .fill(AppleTheme.surfaceInset)
-                    .frame(width: knobSize + 4, height: knobSize + 4)
-                    .shadow(color: AppleTheme.shadowDark, radius: 4, x: 2, y: 3)
-                    .shadow(color: AppleTheme.shadowLight, radius: 3, x: -2, y: -2)
-                
-                // Knob body with 3D gradient
+                KnobDiscShadow(
+                    diameter: knobSize + 4,
+                    darkRadius: 4, darkX: 2, darkY: 3,
+                    lightRadius: 3, lightX: -2, lightY: -2
+                )
+                .equatable()
+
                 Circle()
                     .fill(
                         LinearGradient(
@@ -36,7 +54,6 @@ struct KnobView: View {
                     )
                     .frame(width: knobSize, height: knobSize)
 
-                // Highlight rim (3D depth)
                 Circle()
                     .stroke(
                         LinearGradient(
@@ -47,13 +64,11 @@ struct KnobView: View {
                         lineWidth: 1.5
                     )
                     .frame(width: knobSize - 2, height: knobSize - 2)
-                
-                // Inner shadow ring
+
                 Circle()
                     .stroke(Color.black.opacity(0.06), lineWidth: 1)
                     .frame(width: knobSize - 6, height: knobSize - 6)
 
-                // Indicator line
                 Rectangle()
                     .fill(isDragging ? AppleTheme.knobIndicatorActive : AppleTheme.knobIndicator)
                     .frame(width: 3, height: knobSize / 3)
@@ -97,21 +112,39 @@ struct LargeKnobView: View {
     let label: String
     var format: String = "%.2f"
 
+    var body: some View {
+        LargeKnobBody(value: $value, range: range, label: label, format: format)
+            .equatable()
+    }
+}
+
+private struct LargeKnobBody: View, Equatable {
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let label: String
+    let format: String
+
     @State private var isDragging = false
 
     private let knobSize: CGFloat = 70
 
+    static func == (lhs: LargeKnobBody, rhs: LargeKnobBody) -> Bool {
+        lhs.value == rhs.value
+            && lhs.range == rhs.range
+            && lhs.label == rhs.label
+            && lhs.format == rhs.format
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
-                // 3D base shadow
-                Circle()
-                    .fill(AppleTheme.surfaceInset)
-                    .frame(width: knobSize + 6, height: knobSize + 6)
-                    .shadow(color: AppleTheme.shadowDark, radius: 6, x: 3, y: 4)
-                    .shadow(color: AppleTheme.shadowLight, radius: 4, x: -3, y: -3)
-                
-                // Scale tick marks
+                KnobDiscShadow(
+                    diameter: knobSize + 6,
+                    darkRadius: 6, darkX: 3, darkY: 4,
+                    lightRadius: 4, lightX: -3, lightY: -3
+                )
+                .equatable()
+
                 ForEach(0..<11) { i in
                     let angle = -135 + Double(i) * 27
                     Rectangle()
@@ -120,8 +153,7 @@ struct LargeKnobView: View {
                         .offset(y: -knobSize / 2 - 5)
                         .rotationEffect(Angle(degrees: angle))
                 }
-                
-                // Knob body with 3D gradient
+
                 Circle()
                     .fill(
                         LinearGradient(
@@ -132,7 +164,6 @@ struct LargeKnobView: View {
                     )
                     .frame(width: knobSize, height: knobSize)
 
-                // Highlight rim
                 Circle()
                     .stroke(
                         LinearGradient(
@@ -143,13 +174,11 @@ struct LargeKnobView: View {
                         lineWidth: 2
                     )
                     .frame(width: knobSize - 3, height: knobSize - 3)
-                
-                // Inner shadow
+
                 Circle()
                     .stroke(Color.black.opacity(0.06), lineWidth: 1)
                     .frame(width: knobSize - 8, height: knobSize - 8)
 
-                // Indicator
                 Rectangle()
                     .fill(isDragging ? AppleTheme.knobIndicatorActive : AppleTheme.accentBlue)
                     .frame(width: 4, height: knobSize / 2.5)
@@ -184,6 +213,27 @@ struct LargeKnobView: View {
     private var rotationAngle: Double {
         let normalized = Double(value - range.lowerBound) / Double(range.upperBound - range.lowerBound)
         return -135 + normalized * 270
+    }
+}
+
+/// Static knob well. Parent redraws skip this when the diameter is unchanged.
+private struct KnobDiscShadow: View, Equatable {
+    let diameter: CGFloat
+    let darkRadius: CGFloat
+    let darkX: CGFloat
+    let darkY: CGFloat
+    let lightRadius: CGFloat
+    let lightX: CGFloat
+    let lightY: CGFloat
+
+    var body: some View {
+        Circle()
+            .fill(AppleTheme.surfaceInset)
+            .frame(width: diameter, height: diameter)
+            .compositingGroup()
+            .shadow(color: AppleTheme.shadowDark, radius: darkRadius, x: darkX, y: darkY)
+            .shadow(color: AppleTheme.shadowLight, radius: lightRadius, x: lightX, y: lightY)
+            .drawingGroup()
     }
 }
 

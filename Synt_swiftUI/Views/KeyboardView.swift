@@ -92,6 +92,7 @@ struct KeyboardView: View {
                                 onPress: { keyboardHandler.noteOn(midiNote: note.midiNote) },
                                 onRelease: { keyboardHandler.noteOff(midiNote: note.midiNote) }
                             )
+                            .equatable()
                         }
                     }
 
@@ -123,6 +124,7 @@ struct KeyboardView: View {
                                 onPress: { keyboardHandler.noteOn(midiNote: midiNote) },
                                 onRelease: { keyboardHandler.noteOff(midiNote: midiNote) }
                             )
+                            .equatable()
                             .offset(x: leadingX, y: 0)
                         }
                     }
@@ -203,8 +205,10 @@ struct KeyboardView: View {
             .background(
                 RoundedRectangle(cornerRadius: AppleTheme.radiusLarge)
                     .fill(AppleTheme.surfaceSecondary)
+                    .compositingGroup()
                     .shadow(color: AppleTheme.shadowDark, radius: 2, x: 0, y: 1)
                     .shadow(color: .white.opacity(0.5), radius: 2, x: 0, y: -1)
+                    .drawingGroup()
             )
             .padding(.horizontal)
         }

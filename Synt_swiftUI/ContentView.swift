@@ -143,17 +143,8 @@ struct ContentView: View {
             Spacer()
 
             HStack(spacing: 16) {
-                // VU Meter
-                StereoVUMeterView(
-                    leftLevel: audioEngine.outputLevel,
-                    rightLevel: audioEngine.outputLevel,
-                    leftPeak: audioEngine.peakLevel,
-                    rightPeak: audioEngine.peakLevel
-                )
-                
-                // Oscilloscope
-                OscilloscopeView(data: audioEngine.scopeData)
-                    .frame(width: 160, height: 100)
+                // Meters observe AudioMeterModel, not AudioEngine, so knobs stay put.
+                EngineMetersView(meters: audioEngine.meters, scope: audioEngine.meteringState)
                 
                 // Sequencer Controls
                 VStack(spacing: 4) {
@@ -259,6 +250,25 @@ struct ContentView: View {
                 ModMatrixView(preset: $audioEngine.preset)
             }
             .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+/// Header VU + scope. This is the only view that observes `AudioMeterModel`.
+struct EngineMetersView: View {
+    @ObservedObject var meters: AudioMeterModel
+    let scope: AtomicMeteringState
+
+    var body: some View {
+        HStack(spacing: 16) {
+            StereoVUMeterView(
+                leftLevel: meters.outputLevel,
+                rightLevel: meters.outputLevel,
+                leftPeak: meters.peakLevel,
+                rightPeak: meters.peakLevel
+            )
+            OscilloscopeView(metering: scope)
+                .frame(width: 160, height: 100)
         }
     }
 }

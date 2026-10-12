@@ -14,19 +14,25 @@ struct PianoKeyView: View {
     var body: some View {
         if note.isBlack {
             BlackKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease)
+                .equatable()
         } else {
             WhiteKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease)
+                .equatable()
         }
     }
 }
 
-struct WhiteKeyView: View {
+struct WhiteKeyView: View, Equatable {
     let note: Note
     let isPressed: Bool
     var width: CGFloat = 36
     var height: CGFloat = 140
     let onPress: () -> Void
     let onRelease: () -> Void
+
+    static func == (lhs: WhiteKeyView, rhs: WhiteKeyView) -> Bool {
+        lhs.note == rhs.note && lhs.isPressed == rhs.isPressed && lhs.width == rhs.width && lhs.height == rhs.height
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -41,12 +47,14 @@ struct WhiteKeyView: View {
                         endPoint: .bottom
                     )
                 )
+                .compositingGroup()
                 .shadow(
                     color: isPressed ? AppleTheme.accentBlue.opacity(0.2) : AppleTheme.shadowDark,
                     radius: isPressed ? 1 : 4,
                     x: 0,
                     y: isPressed ? 1 : 3
                 )
+                .drawingGroup()
             
             // Top highlight for 3D bevel
             if !isPressed {
@@ -76,13 +84,17 @@ struct WhiteKeyView: View {
     }
 }
 
-struct BlackKeyView: View {
+struct BlackKeyView: View, Equatable {
     let note: Note
     let isPressed: Bool
     var width: CGFloat = 24
     var height: CGFloat = 90
     let onPress: () -> Void
     let onRelease: () -> Void
+
+    static func == (lhs: BlackKeyView, rhs: BlackKeyView) -> Bool {
+        lhs.note == rhs.note && lhs.isPressed == rhs.isPressed && lhs.width == rhs.width && lhs.height == rhs.height
+    }
 
     var body: some View {
         ZStack {
@@ -97,12 +109,14 @@ struct BlackKeyView: View {
                         endPoint: .bottom
                     )
                 )
+                .compositingGroup()
                 .shadow(
                     color: isPressed ? AppleTheme.accentBlue.opacity(0.3) : Color.black.opacity(0.4),
                     radius: isPressed ? 1 : 4,
                     x: 0,
                     y: isPressed ? 1 : 3
                 )
+                .drawingGroup()
             
             // Subtle top highlight
             VStack {
