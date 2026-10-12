@@ -163,6 +163,23 @@ struct MIDIPerformanceTests {
         #expect(engine.isNoteReleasingForTesting(67))
     }
 
+    @Test func presetSwitchResetsDSPOnTheRenderThreadOnly() {
+        let engine = AudioEngine()
+        engine.processCommandsForTesting()
+        #expect(engine.commandQueueForTesting.isEmpty)
+        var next = SynthPreset.defaultPreset
+        next.id = UUID()
+        next.name = "Other"
+        next.filterCutoff = 1234
+        engine.preset = next
+        // Main thread only queued the work; smoothers are untouched until the render drains.
+        #expect(!engine.commandQueueForTesting.isEmpty)
+        #expect(engine.smoothedFilterCutoff != 1234)
+        engine.processCommandsForTesting()
+        #expect(engine.smoothedFilterCutoff == 1234)
+        #expect(engine.commandQueueForTesting.isEmpty)
+    }
+
     /// Real golden: Init must match the pre-MIDI capture, not just itself.
     @Test func initWithoutMIDIMatchesTheGolden() {
         #expect(InitGoldenTests.renderHash(.defaultPreset) == InitGoldenTests.golden["Init"])

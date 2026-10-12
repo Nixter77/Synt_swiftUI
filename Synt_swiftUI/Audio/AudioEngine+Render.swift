@@ -414,6 +414,8 @@ extension AudioEngine {
 
     func handleCommand(_ command: AudioCommand) {
             switch command {
+            case .resetPatchState:
+                resetPatchStateRT()
             case .keyDown(let midiNote, let velocity):
                 if cachedArpMode != .off {
                     handleCommand(.arpKeyDown(midiNote: midiNote))

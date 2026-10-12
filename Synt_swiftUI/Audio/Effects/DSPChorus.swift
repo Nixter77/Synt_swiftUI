@@ -101,8 +101,9 @@ class DSPChorus {
     }
 
     func reset() {
-        bufferL = Array(repeating: 0.0, count: bufferSize)
-        bufferR = Array(repeating: 0.0, count: bufferSize)
+        // In place: reset runs on the render thread (no allocation, no free).
+        for i in 0..<bufferL.count { bufferL[i] = 0 }
+        for i in 0..<bufferR.count { bufferR[i] = 0 }
         writeIndex = 0
         phaseL = 0.0
         phaseR = Double.pi / 2.0

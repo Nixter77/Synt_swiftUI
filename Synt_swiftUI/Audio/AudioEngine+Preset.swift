@@ -125,6 +125,15 @@ extension AudioEngine {
     /// Knob edits keep the same id/name and must not cut the note.
     func silenceForPresetChange() {
         clearAllNotes()
+        // Render-owned state is reset by the render thread, never from here.
+        _ = commandQueue.push(.resetPatchState)
+        // Apple AUs: AudioUnitReset is the main-thread API.
+        delay.reset()
+        reverb.reset()
+    }
+
+    /// Render thread only (via `.resetPatchState`).
+    func resetPatchStateRT() {
         filterL.reset()
         filterR.reset()
         dspChorus.reset()
@@ -133,8 +142,6 @@ extension AudioEngine {
         parametricEQR.reset()
         phaser.reset()
         lfo.reset()
-        delay.reset()
-        reverb.reset()
         smoothedFilterCutoff = cachedFilterCutoff
         smoothedMasterVolume = cachedMasterVolume
         lastPlayedFrequency = nil

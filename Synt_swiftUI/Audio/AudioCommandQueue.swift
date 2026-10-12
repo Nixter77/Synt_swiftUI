@@ -28,10 +28,13 @@ enum AudioCommand: Equatable {
     case keyDown(midiNote: Int, velocity: Float)
     /// MIDI key up. Goes to the arp if the arp holds the key, otherwise note off.
     case keyUp(midiNote: Int)
+    /// New patch: zero the render-owned DSP state (filters, chorus, drive, EQ,
+    /// phaser, LFO, smoothers). Apple Delay/Reverb are reset on main via the AU API.
+    case resetPatchState
 
     var isCritical: Bool {
         switch self {
-        case .noteOff, .clearAll, .arpKeyUp, .setSustain, .keyUp:
+        case .noteOff, .clearAll, .arpKeyUp, .setSustain, .keyUp, .resetPatchState:
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown:
             return false
@@ -56,6 +59,7 @@ final class AudioCommandQueue: @unchecked Sendable {
     private let pendingClearAll = Atomic<Bool>(false)
     /// 0 = none, 1 = pedal up, 2 = pedal down. Latest wins when the ring is full.
     private let pendingSustain = Atomic<Int8>(0)
+    private let pendingResetPatch = Atomic<Bool>(false)
 
     init(capacity: Int = 256) {
         self.capacity = max(2, capacity)
@@ -88,6 +92,9 @@ final class AudioCommandQueue: @unchecked Sendable {
             return true
         case .setSustain(let down):
             pendingSustain.store(down ? 2 : 1, ordering: .releasing)
+            return true
+        case .resetPatchState:
+            pendingResetPatch.store(true, ordering: .releasing)
             return true
         case .keyUp(let midiNote):
             // Route is unknown here. Park both; each is a no-op if that side is idle.
@@ -205,6 +212,11 @@ final class AudioCommandQueue: @unchecked Sendable {
             didClearAll = true
             clearCriticalSideChannelBits()
             discardRingContents()
+        }
+        // Parked only when the ring was full; it always follows its clearAll.
+        if pendingResetPatch.exchange(false, ordering: .acquiringAndReleasing) {
+            body(.resetPatchState)
+            count += 1
         }
 
         if !didClearAll {
@@ -381,6 +393,7 @@ final class AudioCommandQueue: @unchecked Sendable {
         let ringEmpty = tail.load(ordering: .acquiring) == head.load(ordering: .acquiring)
         guard ringEmpty else { return false }
         if pendingClearAll.load(ordering: .acquiring) { return false }
+        if pendingResetPatch.load(ordering: .acquiring) { return false }
         if pendingNoteOffLo.load(ordering: .acquiring) != 0 { return false }
         if pendingNoteOffHi.load(ordering: .acquiring) != 0 { return false }
         if pendingArpKeyUpLo.load(ordering: .acquiring) != 0 { return false }
