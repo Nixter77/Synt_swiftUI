@@ -12,6 +12,7 @@ struct ContentView: View {
     @StateObject private var stepSequencer = StepSequencer()
     
     @State private var showSequencer: Bool = false
+    @State private var sessionSaveTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,7 +66,13 @@ struct ContentView: View {
         .onChange(of: audioEngine.preset.bpm) { _, _ in
             publishSequencerSnapshot()
         }
+        .onChange(of: audioEngine.preset) { _, preset in
+            scheduleSessionSave(preset)
+        }
         .onAppear {
+            if let saved = PresetManager.loadLastSession() {
+                audioEngine.preset = saved
+            }
             keyboardHandler.audioEngine = audioEngine
             midiHandler.audioEngine = audioEngine
             keyboardHandler.startListening()
@@ -73,10 +80,22 @@ struct ContentView: View {
             publishSequencerSnapshot()
         }
         .onDisappear {
+            sessionSaveTask?.cancel()
+            PresetManager.saveLastSession(audioEngine.preset)
             keyboardHandler.stopListening()
             audioEngine.stop()
             stepSequencer.stop()
             publishSequencerSnapshot()
+        }
+    }
+
+    /// Debounced off the audio thread. A burst of knob moves writes one file.
+    private func scheduleSessionSave(_ preset: SynthPreset) {
+        sessionSaveTask?.cancel()
+        sessionSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            PresetManager.saveLastSession(preset)
         }
     }
 

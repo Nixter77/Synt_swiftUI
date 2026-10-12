@@ -86,6 +86,51 @@ class PresetManager: ObservableObject {
         return userPresets.contains { $0.name == name }
     }
     
+    // MARK: - File session and .synthpreset
+
+    static let sessionFileName = "last_session.json"
+    static let presetPathExtension = "synthpreset"
+
+    static func applicationSupportDirectory() -> URL {
+        let base = (try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )) ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let dir = base.appendingPathComponent("Home.Synt-swiftUI", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    static func lastSessionURL(in directory: URL? = nil) -> URL {
+        let dir = directory ?? applicationSupportDirectory()
+        return dir.appendingPathComponent(sessionFileName)
+    }
+
+    /// Off the audio thread. Corrupt or missing files return nil so the caller keeps Init.
+    static func loadLastSession(from url: URL? = nil) -> SynthPreset? {
+        let file = url ?? lastSessionURL()
+        guard let data = try? Data(contentsOf: file) else { return nil }
+        return try? JSONDecoder().decode(SynthPreset.self, from: data)
+    }
+
+    static func saveLastSession(_ preset: SynthPreset, to url: URL? = nil) {
+        let file = url ?? lastSessionURL()
+        guard let data = try? JSONEncoder().encode(preset) else { return }
+        try? data.write(to: file, options: .atomic)
+    }
+
+    static func exportPreset(_ preset: SynthPreset, to url: URL) throws {
+        let data = try JSONEncoder().encode(preset)
+        try data.write(to: url, options: .atomic)
+    }
+
+    static func importPreset(from url: URL) -> SynthPreset? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(SynthPreset.self, from: data)
+    }
+
     /// Generate unique name for preset
     func generateUniqueName(baseName: String) -> String {
         var name = baseName

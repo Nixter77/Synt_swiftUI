@@ -3,7 +3,9 @@
 //  Synt_swiftUI
 //
 
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PresetView: View {
     @Binding var currentPreset: SynthPreset
@@ -58,10 +60,56 @@ struct PresetView: View {
                     .foregroundColor(AppleTheme.textTertiary)
             }
             .buttonStyle(.plain).help("Reset to default")
+
+            Button {
+                exportPresetFile()
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .foregroundColor(AppleTheme.accentBlue)
+            }
+            .buttonStyle(.plain).help("Export preset")
+
+            Button {
+                importPresetFile()
+            } label: {
+                Image(systemName: "tray.and.arrow.down")
+                    .foregroundColor(AppleTheme.accentBlue)
+            }
+            .buttonStyle(.plain).help("Import preset")
         }
         .sheet(isPresented: $showingSaveDialog) {
             SavePresetSheet(presetName: $newPresetName, currentPreset: currentPreset, presetManager: presetManager, isPresented: $showingSaveDialog)
         }
+    }
+
+    private func exportPresetFile() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [synthpresetType]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = safeFileName(currentPreset.name) + ".synthpreset"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? PresetManager.exportPreset(currentPreset, to: url)
+    }
+
+    private func importPresetFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [synthpresetType]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let preset = PresetManager.importPreset(from: url) {
+            currentPreset = preset
+        }
+    }
+
+    private var synthpresetType: UTType {
+        UTType(filenameExtension: PresetManager.presetPathExtension) ?? .json
+    }
+
+    private func safeFileName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = trimmed.replacingOccurrences(of: "/", with: "-")
+        return cleaned.isEmpty ? "Preset" : cleaned
     }
 }
 
