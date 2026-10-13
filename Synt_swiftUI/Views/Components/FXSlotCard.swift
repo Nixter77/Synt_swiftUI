@@ -80,8 +80,6 @@ struct FXSlotCard<Menu: View, Content: View>: View {
             .accessibilityLabel(title)
             .accessibilityValue(showsBody ? "expanded" : "collapsed")
 
-            menu()
-
             if let enabled {
                 ThemeToggle(isOn: Binding(
                     get: { enabled.wrappedValue },
@@ -91,6 +89,11 @@ struct FXSlotCard<Menu: View, Content: View>: View {
                     }
                 ))
             }
+        }
+        .overlay(alignment: .trailing) {
+            // Sits on the header rule, so the column stays as wide as the knobs.
+            menu()
+                .padding(.trailing, enabled == nil ? 0 : 36)
         }
     }
 }

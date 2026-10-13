@@ -186,4 +186,23 @@ xcodebuild test -project Synt_swiftUI.xcodeproj -scheme Synt_swiftUI \
 ---
 
 ## Журнал
-(заполняет Grok Build)
+
+### Высота `controlsSection`
+Замер при ширине 968 pt (окно 1000, поля прокрутки по 16). До уплотнения: **893 pt**. После четырёх колонок: Baseline **509**, Dark Studio **505**, Retro Analog **510**. Ручки 50 pt, большая 70 pt. Колонки не уже 240 / 280 / 140 / 160.
+
+### Цели матрицы и единицы
+Amount хранится как −1…1. Подпись — `formatAmount`:
+
+- Pitch OSC1, Pitch OSC2: октавы, 1.0 = 1 oct (`+0.50 oct` при 0.5).
+- Filter Cutoff: октавы среза, 1.0 = ±4 oct (`+2.0 oct` при 0.5).
+- Amplitude, PWM OSC1, PWM OSC2, Resonance, LFO Depth, Osc Mix: проценты (`+25 %` при 0.25).
+- Pan: `L 30 %` / `R 30 %` / `C 0 %`.
+- LFO Rate: множитель скорости `× 2^(2·amount)` (`×1.4 rate`).
+
+Ограничение: cutoff и resonance глобальные. Фильтр один на весь инструмент, поэтому модуляция идёт от самого громкого звучащего голоса, а не отдельно на каждый голос.
+
+### Пресеты эффектов
+Свои пресеты лежат рядом с сессией: `~/Library/Application Support/Home.Synt-swiftUI/FXPresets/<kind>.json`. В патч они не входят. Тумблер включения в пресет эффекта не входит.
+
+### Сверка
+Скриншоты окна 1000×700 (Retro 1028 из‑за деревянных щёк): `docs/design/layout_v3_{baseline,studio,retro}.png` и те же имена с `_seq` — секвенсор открыт. Кэш шрифтов, dB-шкала стрелок, LED по уровню (3 dB на сегмент), линейный drag ручек, пауза осциллографа и `.resetPatchState` на потоке рендера на месте. Полный `Synt_swiftUITests` зелёный.
