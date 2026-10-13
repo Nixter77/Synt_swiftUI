@@ -78,7 +78,7 @@ enum KnobValueParser {
                 return number / 100
             }
             return number
-        case "hz", "db", "oct":
+        case "hz", "db", "oct", "ct", "st":
             return number
         case "k", "khz":
             return number * 1000
