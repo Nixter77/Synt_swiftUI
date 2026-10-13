@@ -71,64 +71,70 @@ struct ModMatrixView: View {
     private func matrixRow(_ entry: Binding<ModMatrixEntry>) -> some View {
         let row = entry.wrappedValue
         let warn = row.source == .lfo1 && !preset.lfoEnabled && preset.lfoTarget != .none
-        return HStack(spacing: 6) {
-            Picker("Source", selection: entry.source) {
-                ForEach(ModSource.allCases, id: \.self) { source in
-                    Text(source.rawValue).tag(source)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-
-            Image(systemName: "arrow.right")
-                .font(.system(size: 10))
-                .foregroundColor(theme.textFaint)
-
-            Picker("Destination", selection: entry.destination) {
-                Section("Oscillator") {
-                    ForEach([ModDestination.pitch1, .pitch2, .pwm1, .pwm2, .mix], id: \.self) { dest in
-                        Text(dest.menuTitle).tag(dest)
+        // Two lines: the pickers get the full column width (min 140 pt), the
+        // knob and icons sit below, so the menus never collapse to arrows.
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Picker("Source", selection: entry.source) {
+                    ForEach(ModSource.allCases, id: \.self) { source in
+                        Text(source.rawValue).tag(source)
                     }
                 }
-                Section("Filter") {
-                    ForEach([ModDestination.cutoff, .resonance], id: \.self) { dest in
-                        Text(dest.menuTitle).tag(dest)
-                    }
-                }
-                Section("Amp") {
-                    ForEach([ModDestination.amp, .pan], id: \.self) { dest in
-                        Text(dest.menuTitle).tag(dest)
-                    }
-                }
-                Section("LFO") {
-                    ForEach([ModDestination.lfoRate, .lfoDepth], id: \.self) { dest in
-                        Text(dest.menuTitle).tag(dest)
-                    }
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
+                .pickerStyle(.menu)
+                .labelsHidden()
 
-            KnobView(
-                value: entry.amount,
-                range: -1...1,
-                label: "Amt",
-                valueText: row.destination.formatAmount(row.amount)
-            )
-
-            if warn {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: "arrow.right")
                     .font(.system(size: 10))
-                    .foregroundColor(theme.destructive)
-                    .help("LFO is off and still has a direct target. This row runs the LFO on its own.")
-            }
+                    .foregroundColor(theme.textFaint)
 
-            Button(action: { removeEntry(row.id) }) {
-                Image(systemName: "trash")
-                    .font(.system(size: 10))
-                    .foregroundColor(theme.destructive)
+                Picker("Destination", selection: entry.destination) {
+                    Section("Oscillator") {
+                        ForEach([ModDestination.pitch1, .pitch2, .pwm1, .pwm2, .mix], id: \.self) { dest in
+                            Text(dest.menuTitle).tag(dest)
+                        }
+                    }
+                    Section("Filter") {
+                        ForEach([ModDestination.cutoff, .resonance], id: \.self) { dest in
+                            Text(dest.menuTitle).tag(dest)
+                        }
+                    }
+                    Section("Amp") {
+                        ForEach([ModDestination.amp, .pan], id: \.self) { dest in
+                            Text(dest.menuTitle).tag(dest)
+                        }
+                    }
+                    Section("LFO") {
+                        ForEach([ModDestination.lfoRate, .lfoDepth], id: \.self) { dest in
+                            Text(dest.menuTitle).tag(dest)
+                        }
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
             }
-            .buttonStyle(.plain)
+            HStack(spacing: 6) {
+                KnobView(
+                    value: entry.amount,
+                    range: -1...1,
+                    label: "Amt",
+                    valueText: row.destination.formatAmount(row.amount)
+                )
+
+                if warn {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(theme.destructive)
+                        .help("LFO is off and still has a direct target. This row runs the LFO on its own.")
+                }
+
+                Button(action: { removeEntry(row.id) }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
+                        .foregroundColor(theme.destructive)
+                }
+                .buttonStyle(.plain)
+                Spacer(minLength: 0)
+            }
         }
         .padding(6)
         .background(theme.panel)

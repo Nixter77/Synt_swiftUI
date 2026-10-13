@@ -66,6 +66,28 @@ struct LayoutTests {
         #expect(modMatrixScrollMaxHeight < 470)
     }
 
+    /// The pickers own the first line and the knob the second, so in the
+    /// 140 pt column the knob line alone must fit; the menus can flex.
+    @Test func matrixRowKnobLineFitsTheNarrowColumn() {
+        var preset = SynthPreset.defaultPreset
+        preset.modMatrix = [ModMatrixEntry(source: .velocity, destination: .amp, amount: 0.3)]
+        let one = measure(ModMatrixView(preset: .constant(preset)), theme: .baseline, width: 140)
+        preset.modMatrix = []
+        let none = measure(ModMatrixView(preset: .constant(preset)), theme: .baseline, width: 140)
+        // Two lines (menus ~22 pt + knob ≥ 50 pt) per row.
+        #expect(one.height - none.height >= 72, "row adds \(one.height - none.height) pt")
+        let knobLine = measure(
+            HStack(spacing: 6) {
+                KnobView(value: .constant(0.3), range: -1...1, label: "Amt", valueText: "+30 %")
+                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10))
+                Image(systemName: "trash").font(.system(size: 10))
+            },
+            theme: .baseline,
+            width: 140
+        )
+        #expect(knobLine.width + 12 <= 140, "knob line \(knobLine.width) pt")
+    }
+
     @Test func knobStaysAtLeast50Points() {
         let size = measure(
             KnobView(value: .constant(0.4), range: 0...1, label: "Vol"),
