@@ -49,6 +49,23 @@ struct LayoutTests {
         try? line.write(toFile: "/tmp/layout-after.txt", atomically: true, encoding: .utf8)
     }
 
+    /// Many rows scroll inside a bounded box instead of growing the column.
+    @Test func longModMatrixScrollsWithinItsBudget() {
+        var preset = SynthPreset.defaultPreset
+        preset.modMatrix = (0..<8).map { _ in
+            ModMatrixEntry(source: .velocity, destination: .amp, amount: 0.3)
+        }
+        for id in ThemeID.allCases {
+            let height = measure(
+                ModMatrixView(preset: .constant(preset)),
+                theme: Theme.all[id],
+                width: 200
+            ).height
+            #expect(height <= modMatrixScrollMaxHeight + 80, "\(id.rawValue) matrix \(height) pt")
+        }
+        #expect(modMatrixScrollMaxHeight < 470)
+    }
+
     @Test func knobStaysAtLeast50Points() {
         let size = measure(
             KnobView(value: .constant(0.4), range: 0...1, label: "Vol"),

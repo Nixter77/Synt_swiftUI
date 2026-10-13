@@ -13,6 +13,9 @@ func modSources(_ destination: ModDestination, in entries: [ModMatrixEntry]) -> 
     return seen
 }
 
+/// Rows past this height scroll. Keeps the grid inside its ~470 pt budget.
+let modMatrixScrollMaxHeight: CGFloat = 260
+
 struct ModMatrixView: View {
     @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
@@ -56,9 +59,9 @@ struct ModMatrixView: View {
             }
         }
         return Group {
-            if preset.modMatrix.count > 6 {
+            if preset.modMatrix.count > 2 {
                 ScrollView { list }
-                    .frame(height: 6 * 96)
+                    .frame(maxHeight: modMatrixScrollMaxHeight)
             } else {
                 list
             }
