@@ -50,6 +50,27 @@ struct InitGoldenTests {
         "Glitch Arp": 0xb8136988069ba7,
         "Deep Drone": 0xa97c8cd29ded4aec,
         "Space Pluck FX": 0x9c1bda7f8c872325,
+        // Showcase library (2026-10-13), captured at first add.
+        "Rubber Wobble": 0x9204bf990f7d7c79,
+        "PWM Sub Pulse": 0x7d3405924ee3fff3,
+        "Snap Resonator": 0x7ed3dfc7b156a473,
+        "Vox Morph Lead": 0xe96967fd7f4496b,
+        "Delayed Vibrato": 0x2161d8bce741ed19,
+        "Fifth Sync Lead": 0xaedcab1c80f8df75,
+        "Phase Cathedral": 0x8f29c0a0b44327bb,
+        "Breathing Glass": 0xd3b984a9f9a65e39,
+        "Tidal Pad": 0x50ef3701753ce114,
+        "Phaser Rhodes": 0xc5f6a04a8865d8ab,
+        "Wurli Tremolo": 0x9e8014144dc8b7fc,
+        "Velvet Clav": 0x5283dc546bc26cf6,
+        "Pan Ping Pluck": 0x74154b1be024afea,
+        "Flange Harp": 0x7f6df8b6019a4f88,
+        "Bit Pluck Arp": 0xc860c0742370f5fe,
+        "Chamber Swell": 0xca9fcd10de09f3e7,
+        "Phased Violins": 0x97e49b07a61b9f60,
+        "Siren Drift": 0x7e344b92e40099cf,
+        "Jet Flanger": 0xa10e689b8597278f,
+        "Random Bloom": 0x9c1bda7f8c872325,
     ]
 
     @Test func initAndFactoryPresetsRenderBitIdenticalToGolden() {

@@ -38,7 +38,7 @@ extension SynthPreset {
             var p = preset
             p.lfoRowsFollowDepth = p.modMatrix.contains { $0.source == .lfo1 }
             return p
-        }
+        } + showcasePresets  // new library: raw LFO rows (lfoRowsFollowDepth = false)
 
     // MARK: - BASS (6) — usually one note: unison / mild drive are safe
 
