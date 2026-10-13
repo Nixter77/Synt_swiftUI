@@ -12,17 +12,19 @@ struct AdvancedEffectsView: View {
     @Environment(\.theme) private var theme
     @ObservedObject var audioEngine: AudioEngine
 
-    @State private var selectedEQPreset: EQPreset = .flat
-
     var body: some View {
         VStack(spacing: 10) {
             distortionCard
             eqCard
             phaserCard
         }
-        .onAppear {
-            selectedEQPreset = audioEngine.preset.eqPreset
-        }
+    }
+
+    private var presetBinding: Binding<SynthPreset> {
+        Binding(
+            get: { audioEngine.preset },
+            set: { audioEngine.preset = $0 }
+        )
     }
 
     private var distortionCard: some View {
@@ -32,7 +34,7 @@ struct AdvancedEffectsView: View {
             accent: theme.aFx,
             storageName: "distortion",
             startsExpanded: audioEngine.preset.distortionEnabled,
-            menu: { EmptyView() }
+            menu: { FXPresetMenu(kind: .distortion, preset: presetBinding) }
         ) {
             VStack(alignment: .leading, spacing: 8) {
                 Picker("Type", selection: distortionType) {
@@ -59,26 +61,9 @@ struct AdvancedEffectsView: View {
             accent: theme.aFx,
             storageName: "eq",
             startsExpanded: audioEngine.preset.eqEnabled,
-            menu: { EmptyView() }
+            menu: { FXPresetMenu(kind: .eq, preset: presetBinding) }
         ) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Preset")
-                        .themeCaption(theme, size: 11)
-                        .foregroundColor(theme.textDim)
-                    Spacer()
-                    Picker("EQ Preset", selection: $selectedEQPreset) {
-                        ForEach(EQPreset.allCases) { preset in
-                            Text(preset.rawValue).tag(preset)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .font(.system(size: 11, design: .rounded))
-                    .onChange(of: selectedEQPreset) { _, newValue in
-                        applyEQPreset(newValue)
-                    }
-                }
-
                 HStack(spacing: 8) {
                     KnobView(value: eqLowGain, range: -12...12, label: "Low", format: "%.0fdB")
                     KnobView(value: eqMidGain, range: -12...12, label: "Mid", format: "%.0fdB")
@@ -100,7 +85,7 @@ struct AdvancedEffectsView: View {
             accent: theme.aFx,
             storageName: "phaser",
             startsExpanded: audioEngine.preset.phaserEnabled,
-            menu: { EmptyView() }
+            menu: { FXPresetMenu(kind: .phaser, preset: presetBinding) }
         ) {
             VStack(alignment: .leading, spacing: 8) {
                 Picker("Mode", selection: phaserMode) {
@@ -122,13 +107,6 @@ struct AdvancedEffectsView: View {
                     KnobView(value: phaserSpread, range: 0...1, label: "Spread")
                 }
             }
-        }
-    }
-
-    private func applyEQPreset(_ curve: EQPreset) {
-        audioEngine.updatePreset { p in
-            p.eqEnabled = true
-            p.applyEQCurve(curve)
         }
     }
 
@@ -165,17 +143,7 @@ struct AdvancedEffectsView: View {
     }
 
     private var eqEnabled: Binding<Bool> {
-        Binding(
-            get: { audioEngine.preset.eqEnabled },
-            set: { enabled in
-                audioEngine.updatePreset { p in
-                    p.eqEnabled = enabled
-                    if enabled {
-                        p.applyEQCurve(selectedEQPreset)
-                    }
-                }
-            }
-        )
+        binding(get: { $0.eqEnabled }, set: { $0.eqEnabled = $1 })
     }
 
     private var eqLowGain: Binding<Float> {

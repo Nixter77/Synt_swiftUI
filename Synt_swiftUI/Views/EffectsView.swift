@@ -19,7 +19,7 @@ struct EffectsView: View {
                 accent: theme.aFx,
                 storageName: "chorus",
                 startsExpanded: preset.chorusMix > 0.001,
-                menu: { EmptyView() }
+                menu: { FXPresetMenu(kind: .chorus, preset: $preset) }
             ) {
                 HStack(spacing: 8) {
                     KnobView(value: $preset.chorusRate, range: 0.1...5.0, label: "Rate", format: "%.1fHz")
@@ -33,7 +33,7 @@ struct EffectsView: View {
                 accent: theme.aFx,
                 storageName: "delay",
                 startsExpanded: preset.delayMix > 0.001,
-                menu: { EmptyView() }
+                menu: { FXPresetMenu(kind: .delay, preset: $preset) }
             ) {
                 HStack(spacing: 8) {
                     KnobView(value: $preset.delayTime, range: 0.01...1.0, label: "Time", format: "%.2fs")
@@ -47,7 +47,7 @@ struct EffectsView: View {
                 accent: theme.aFx,
                 storageName: "reverb",
                 startsExpanded: preset.reverbMix > 0.001,
-                menu: { EmptyView() }
+                menu: { FXPresetMenu(kind: .reverb, preset: $preset) }
             ) {
                 HStack(spacing: 8) {
                     KnobView(value: $preset.reverbMix, range: 0...1, label: "Mix")
