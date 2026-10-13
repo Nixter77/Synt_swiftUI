@@ -27,14 +27,12 @@ enum StepperMath {
         return clamped(raw, to: range)
     }
 
-    /// Whole number from a typed field. Comma or dot is accepted. Garbage is nil.
+    /// Whole number from a typed field. Shares `KnobValueParser`. Garbage is nil.
     static func parse(_ text: String) -> Int? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return nil }
-        let normalized = trimmed.replacingOccurrences(of: ",", with: ".")
-        if let whole = Int(normalized) { return whole }
-        guard let number = Double(normalized), number.isFinite else { return nil }
-        return Int(number.rounded())
+        guard let value = KnobValueParser.parse(text, format: "%.0f", range: -1_000_000...1_000_000) else {
+            return nil
+        }
+        return Int(value.rounded())
     }
 }
 

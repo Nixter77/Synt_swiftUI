@@ -3,6 +3,7 @@
 //  Synt_swiftUI
 //
 
+import AppKit
 import SwiftUI
 import Combine
 
@@ -42,6 +43,12 @@ class KeyboardHandler: ObservableObject {
     static let keyCodeOctaveDown: UInt16 = 6 // Z
     static let keyCodeOctaveUp: UInt16 = 7   // X
 
+    /// A focused text field owns the key. Note keys must not play or be swallowed.
+    static func ignoresTyping(firstResponder: NSResponder?) -> Bool {
+        guard let responder = firstResponder else { return false }
+        return responder is NSText || responder is NSTextField
+    }
+
     init() {}
 
     deinit {
@@ -54,6 +61,9 @@ class KeyboardHandler: ObservableObject {
 
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self = self else { return event }
+            if Self.ignoresTyping(firstResponder: event.window?.firstResponder) {
+                return event
+            }
 
             let code = event.keyCode
             let isOurKey = Self.keyCodeToNoteOffset[code] != nil

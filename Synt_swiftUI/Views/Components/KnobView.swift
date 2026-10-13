@@ -3,6 +3,7 @@
 //  Synt_swiftUI
 //
 
+import AppKit
 import SwiftUI
 
 /// 150 pt of vertical drag sweeps the full range, linearly from the grab point.
@@ -97,9 +98,14 @@ private struct KnobBody: View, Equatable {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
-            Text(valueText ?? String(format: format, value))
-                .font(theme.monoFont(size: 9))
-                .foregroundColor(theme.textFaint)
+            KnobValueField(
+                value: $value,
+                range: range,
+                format: format,
+                valueText: valueText,
+                fontSize: 9,
+                color: theme.textFaint
+            )
         }
     }
 
@@ -199,9 +205,13 @@ private struct LargeKnobBody: View, Equatable {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
-            Text(String(format: format, value))
-                .font(theme.monoFont(size: 10))
-                .foregroundColor(theme.accent)
+            KnobValueField(
+                value: $value,
+                range: range,
+                format: format,
+                fontSize: 10,
+                color: theme.accent
+            )
         }
     }
 
@@ -269,6 +279,122 @@ struct KnobChrome: View {
                 .rotationEffect(.degrees(angle))
         }
         .frame(width: diameter, height: diameter)
+    }
+}
+
+/// Click the readout to type. The disc keeps its own drag gesture.
+struct KnobValueField: View {
+    @Environment(\.theme) private var theme
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    var format: String = "%.2f"
+    var valueText: String? = nil
+    var fontSize: CGFloat = 9
+    var color: Color
+
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var rejectEdit = false
+    @State private var invalid = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        Group {
+            if editing {
+                TextField("", text: $draft)
+                    .font(theme.valueFont(size: fontSize))
+                    .multilineTextAlignment(.center)
+                    .textFieldStyle(.plain)
+                    .foregroundColor(theme.text)
+                    .frame(minWidth: 28)
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 1)
+                    .background(
+                        RoundedRectangle(cornerRadius: theme.rSmall, style: .continuous)
+                            .fill(theme.inset)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: theme.rSmall, style: .continuous)
+                            .stroke(invalid ? theme.destructive : theme.border, lineWidth: 1)
+                    )
+                    .focused($focused)
+                    .onSubmit { commit() }
+                    .onExitCommand { cancel() }
+                    .onAppear { beginTyping() }
+                    .onChange(of: focused) { _, isFocused in
+                        if !isFocused { finishTyping() }
+                    }
+            } else {
+                Text(KnobValueParser.display(value: value, format: format, valueText: valueText, range: range))
+                    .font(theme.valueFont(size: fontSize))
+                    .foregroundColor(invalid ? theme.destructive : color)
+                    .lineLimit(1)
+                    .contentShape(Rectangle())
+                    .onTapGesture { startEditing() }
+                    .background(
+                        RoundedRectangle(cornerRadius: theme.rSmall, style: .continuous)
+                            .fill(invalid ? theme.destructive.opacity(0.35) : Color.clear)
+                    )
+            }
+        }
+    }
+
+    private func startEditing() {
+        draft = KnobValueParser.editingText(value: value, format: format, valueText: valueText, range: range)
+        rejectEdit = false
+        invalid = false
+        editing = true
+    }
+
+    private func beginTyping() {
+        focused = true
+        DispatchQueue.main.async {
+            (NSApp.keyWindow?.firstResponder as? NSText)?.selectAll(nil)
+        }
+    }
+
+    private func cancel() {
+        let kept = KnobTyping.resolved(
+            draft: draft,
+            current: value,
+            format: format,
+            range: range,
+            cancelled: true
+        )
+        if kept.value != value { value = kept.value }
+        rejectEdit = true
+        invalid = false
+        editing = false
+        focused = false
+    }
+
+    private func finishTyping() {
+        if rejectEdit {
+            rejectEdit = false
+            editing = false
+            return
+        }
+        guard editing else { return }
+        commit()
+    }
+
+    private func commit() {
+        let result = KnobTyping.resolved(
+            draft: draft,
+            current: value,
+            format: format,
+            range: range,
+            cancelled: false
+        )
+        if result.value != value { value = result.value }
+        invalid = result.invalid
+        if result.invalid {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                invalid = false
+            }
+        }
+        editing = false
+        focused = false
     }
 }
 

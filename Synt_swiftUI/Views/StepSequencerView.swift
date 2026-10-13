@@ -54,8 +54,7 @@ struct StepSequencerView: View {
             HStack(spacing: 20) {
                 VStack(spacing: 2) {
                     Text("SWING").themeCaption(theme, size: 10).foregroundColor(theme.textDim)
-                    SeqKnob(value: $sequencer.swing, range: 0...1).frame(width: 40, height: 40)
-                    Text("\(Int(sequencer.swing * 100))%").font(theme.monoFont(size: 10)).foregroundColor(theme.text)
+                    SeqKnob(value: $sequencer.swing, range: 0...1)
                 }
                 VStack(spacing: 2) {
                     Text("ROOT").themeCaption(theme, size: 10).foregroundColor(theme.textDim)
@@ -187,21 +186,33 @@ struct SeqKnob: View {
     @Binding var value: Float
     let range: ClosedRange<Float>
     @State private var lastY: CGFloat = 0
-    
+
     var body: some View {
-        GeometryReader { geometry in
-            let size = min(geometry.size.width, geometry.size.height)
-            let fraction = knobArcFraction(value: value, range: range)
-            KnobChrome(fraction: fraction, angle: -135 + Double(fraction) * 270, diameter: size, indicatorWidth: 2)
-                .shadow(color: theme.knobShadow.color, radius: theme.knobShadow.radius, x: 0, y: theme.knobShadow.y)
-            .gesture(
-                DragGesture()
-                    .onChanged { gesture in
-                        let delta = Float((lastY - gesture.location.y) / 100)
-                        value = max(range.lowerBound, min(range.upperBound, value + delta * (range.upperBound - range.lowerBound)))
-                        lastY = gesture.location.y
-                    }
-                    .onEnded { _ in lastY = 0 }
+        VStack(spacing: 2) {
+            GeometryReader { geometry in
+                let size = min(geometry.size.width, geometry.size.height)
+                let fraction = knobArcFraction(value: value, range: range)
+                KnobChrome(fraction: fraction, angle: -135 + Double(fraction) * 270, diameter: size, indicatorWidth: 2)
+                    .shadow(color: theme.knobShadow.color, radius: theme.knobShadow.radius, x: 0, y: theme.knobShadow.y)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { gesture in
+                                let delta = Float((lastY - gesture.location.y) / 100)
+                                value = max(range.lowerBound, min(range.upperBound, value + delta * (range.upperBound - range.lowerBound)))
+                                lastY = gesture.location.y
+                            }
+                            .onEnded { _ in lastY = 0 }
+                    )
+            }
+            .frame(width: 40, height: 40)
+
+            KnobValueField(
+                value: $value,
+                range: range,
+                format: "%.0f%%",
+                valueText: "\(Int((value * 100).rounded()))%",
+                fontSize: 10,
+                color: theme.text
             )
         }
     }
