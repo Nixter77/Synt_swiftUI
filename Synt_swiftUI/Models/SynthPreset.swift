@@ -115,6 +115,10 @@ struct SynthPreset: Codable, Identifiable, Hashable {
     var phaserMix: Float = 0.4
     /// Semitones at full pitch-bend throw. Older JSON leaves this at 2.
     var pitchBendRange: Float = 2
+    /// Older behaviour: "LFO 1 → X" rows are multiplied by LFO Depth. New patches
+    /// use the raw LFO so the row Amount is the real depth. Saved JSON without the
+    /// key and the factory patches with LFO rows keep `true`, so they sound the same.
+    var lfoRowsFollowDepth: Bool = false
 
     /// Safe neutral starting point (clean headroom).
     static let defaultPreset = SynthPreset(name: "Init", category: .lead)
@@ -139,6 +143,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         case phaserEnabled, phaserMode, phaserRate, phaserDepth, phaserFeedback
         case phaserCenterFrequency, phaserStereoSpread, phaserMix
         case pitchBendRange
+        case lfoRowsFollowDepth
     }
 
     init(
@@ -358,6 +363,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         phaserStereoSpread = try c.decodeIfPresent(Float.self, forKey: .phaserStereoSpread) ?? 0.5
         phaserMix = try c.decodeIfPresent(Float.self, forKey: .phaserMix) ?? 0.4
         pitchBendRange = try c.decodeIfPresent(Float.self, forKey: .pitchBendRange) ?? 2
+        lfoRowsFollowDepth = try c.decodeIfPresent(Bool.self, forKey: .lfoRowsFollowDepth) ?? true
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

@@ -197,19 +197,23 @@ extension AudioEngine {
         if depthMod != 0 {
             lfo.depth = max(0, min(1, lfo.depth + depthMod))
         }
-        let lfoValue: Float
+        // Raw bipolar LFO; the direct target gets raw × Depth (same product as before).
+        let lfoRaw: Float
         if lfoEnabled || matrixWantsLFO {
             if rateMod != 0 {
                 let scaled = lfo.rate * pow(2, 2 * rateMod)
                 let clamped = max(0.01, min(40, scaled))
-                lfoValue = lfo.nextValue(sampleRate: sampleRate, rateOverride: clamped)
+                lfoRaw = lfo.nextRawValue(sampleRate: sampleRate, rateOverride: clamped)
             } else {
-                lfoValue = lfo.nextValue(sampleRate: sampleRate)
+                lfoRaw = lfo.nextRawValue(sampleRate: sampleRate)
             }
         } else {
-            lfoValue = 0
+            lfoRaw = 0
         }
-        lastMatrixLFO = lfoValue
+        let lfoValue = lfoRaw * lfo.depth
+        // Matrix rows: Amount is the depth. Older patches keep rows × Depth.
+        let matrixLFO = cachedLfoRowsFollowDepth ? lfoValue : lfoRaw
+        lastMatrixLFO = matrixLFO
 
         // One noise draw per sample. Each voice hashes it so noise chords
         // do not stack as N identical copies (that sum is just a loud clip).
@@ -236,7 +240,7 @@ extension AudioEngine {
         if modCount > 0 {
             for m in 0..<modCount {
                 let entry = modSlots[m]
-                let src = matrixSource(entry.source, lfo: lfoValue, env: globalEnv, velocity: globalVel)
+                let src = matrixSource(entry.source, lfo: matrixLFO, env: globalEnv, velocity: globalVel)
                 let modVal = src * entry.amount
                 switch entry.destination {
                 case .cutoff: cutoffMod += modVal
@@ -309,7 +313,7 @@ extension AudioEngine {
             if modCount > 0 {
                 for m in 0..<modCount {
                     let entry = modSlots[m]
-                    let sourceVal = matrixSource(entry.source, lfo: lfoValue, env: envelopeValue, velocity: velValue)
+                    let sourceVal = matrixSource(entry.source, lfo: matrixLFO, env: envelopeValue, velocity: velValue)
                     let modVal = sourceVal * entry.amount
                     switch entry.destination {
                     case .pitch1: pitchMod1 += modVal

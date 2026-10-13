@@ -109,6 +109,42 @@ struct ModMatrixTests {
         #expect(engine.filterL.resonance == 0.6)
     }
 
+    @Test func lfoRowAmountIsTheDepthNotDepthTimesAmount() {
+        var p = SynthPreset.defaultPreset
+        p.lfoEnabled = true
+        p.lfoTarget = .none
+        p.lfoRate = 6
+        p.modMatrix = [ModMatrixEntry(source: .lfo1, destination: .cutoff, amount: 0.8)]
+        p.lfoDepth = 0
+        var plain = p
+        plain.modMatrix = []
+        // Depth 0 no longer silences the row.
+        #expect(differenceRMS(render(p).mono, render(plain).mono) > 1e-4)
+        // And Depth does not change what the row does.
+        var deep = p
+        deep.lfoDepth = 1
+        #expect(differenceRMS(render(p).mono, render(deep).mono) < 1e-7)
+    }
+
+    @Test func legacyPatchesKeepRowsTimesDepth() throws {
+        var p = SynthPreset.defaultPreset
+        p.lfoEnabled = true
+        p.lfoTarget = .none
+        p.lfoDepth = 0
+        p.modMatrix = [ModMatrixEntry(source: .lfo1, destination: .cutoff, amount: 0.8)]
+        p.lfoRowsFollowDepth = true
+        var plain = p
+        plain.modMatrix = []
+        #expect(differenceRMS(render(p).mono, render(plain).mono) < 1e-7)
+
+        // JSON from older builds has no key and decodes as legacy.
+        let old = try JSONDecoder().decode(SynthPreset.self, from: Data(#"{"name":"Old"}"#.utf8))
+        #expect(old.lfoRowsFollowDepth)
+        #expect(!SynthPreset.defaultPreset.lfoRowsFollowDepth)
+        let legacy = SynthPreset.factoryPresets.filter(\.lfoRowsFollowDepth).map(\.name).sorted()
+        #expect(legacy == ["Analog Drift", "Tremolo Strings"])
+    }
+
     @Test func initHashStaysTheGolden() {
         #expect(InitGoldenTests.renderHash(.defaultPreset) == 0xd1b3635203a4799e)
     }

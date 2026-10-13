@@ -27,13 +27,18 @@ import Foundation
 
 extension SynthPreset {
     /// Full factory library grouped by category.
-    static let factoryPresets: [SynthPreset] = bassPresets
+    static let factoryPresets: [SynthPreset] = (bassPresets
         + leadPresets
         + padPresets
         + keysPresets
         + pluckPresets
         + stringsPresets
-        + fxPresets
+        + fxPresets).map { preset in
+            // Authored with LFO rows × Depth (Analog Drift, Tremolo Strings): keep that sound.
+            var p = preset
+            p.lfoRowsFollowDepth = p.modMatrix.contains { $0.source == .lfo1 }
+            return p
+        }
 
     // MARK: - BASS (6) — usually one note: unison / mild drive are safe
 

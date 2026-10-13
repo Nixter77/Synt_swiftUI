@@ -29,6 +29,11 @@ class LFO {
     /// One sample of the LFO, whether or not the direct target is enabled.
     /// The matrix calls this when a row uses LFO 1 and the toggle is off.
     func nextValue(sampleRate: Double, rateOverride: Float? = nil) -> Float {
+        nextRawValue(sampleRate: sampleRate, rateOverride: rateOverride) * depth
+    }
+
+    /// Bipolar −1…1, before Depth. Matrix rows use this so their Amount is the depth.
+    func nextRawValue(sampleRate: Double, rateOverride: Float? = nil) -> Float {
         let usedRate = rateOverride ?? rate
         let phaseIncrement = AudioMath.twoPi * Double(usedRate) / sampleRate
         phase += phaseIncrement
@@ -66,7 +71,7 @@ class LFO {
             value = Float(sin(phase))
         }
 
-        return value * depth
+        return value
     }
 
     func modulateFilter(_ cutoff: Float, lfoValue: Float) -> Float {

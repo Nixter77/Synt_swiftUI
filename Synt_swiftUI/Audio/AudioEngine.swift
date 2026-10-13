@@ -141,6 +141,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var lastPreClipAbs: Float = 0
     /// Previous LFO sample, used only when a row modulates LFO rate or depth.
     var lastMatrixLFO: Float = 0
+    /// Legacy patches: LFO matrix rows are scaled by LFO Depth (see SynthPreset).
+    var cachedLfoRowsFollowDepth = false
 
     // Oscilloscope Capture (audio thread buffer → AtomicMeteringState)
     var scopeBuffer: [Float] = Array(repeating: 0.0, count: 512)
