@@ -18,6 +18,11 @@ struct KnobValueParserTests {
         #expect(parsed("250ms", "%.2fs", 0...2) == 0.25)
         #expect(parsed("-6 dB", "%.0fdB", -12...12) == -6)
         #expect(parsed("50%", "%.0f%%", 0...1) == 0.5)
+        // Sustain / Swing show 0…100 without a % in the field: "50" is 50 %, not max.
+        #expect(parsed("50", "%.0f%%", 0...1) == 0.5)
+        #expect(parsed("0", "%.0f%%", 0...1) == 0)
+        #expect(parsed("100", "%.0f%%", 0...1) == 1)
+        #expect(parsed("0.5", "%.2f", 0...1) == 0.5)
         #expect(parsed("999", "%.2f", 0...1) == 1)
         #expect(parsed("abc", "%.2f", 0...1) == nil)
         #expect(parsed("", "%.2f", 0...1) == nil)

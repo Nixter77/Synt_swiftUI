@@ -72,7 +72,13 @@ enum KnobValueParser {
         range: ClosedRange<Float>
     ) -> Double? {
         switch raw.lowercased() {
-        case "", "hz", "db", "oct":
+        case "":
+            // A 0…1 knob that prints % shows 0…100, so a bare "50" means 50 %.
+            if isPercentUnitKnob(format: format, range: range) {
+                return number / 100
+            }
+            return number
+        case "hz", "db", "oct":
             return number
         case "k", "khz":
             return number * 1000
@@ -93,6 +99,10 @@ enum KnobValueParser {
         default:
             return nil
         }
+    }
+
+    private static func isPercentUnitKnob(format: String, range: ClosedRange<Float>) -> Bool {
+        format.contains("%%") && range.lowerBound == 0 && range.upperBound == 1
     }
 
     private static func formatIsSeconds(_ format: String) -> Bool {
