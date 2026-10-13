@@ -254,14 +254,11 @@ extension AudioEngine {
             }
         }
         filterL.cutoff = cutoff
-        let baseResonance = filterL.resonance
-        if resonanceMod != 0 {
-            filterL.resonance = max(0, min(1, baseResonance + resonanceMod))
-        }
-        let filterCoeffs = filterL.currentCoefficients(sampleRate: Float(sampleRate))
-        if resonanceMod != 0 {
-            filterL.resonance = baseResonance
-        }
+        // Offset is local to the render; `filterL.resonance` has one writer (main).
+        let filterCoeffs = filterL.currentCoefficients(
+            sampleRate: Float(sampleRate),
+            resonanceOffset: resonanceMod
+        )
 
         // Same for every voice: one exp() per sample, not one per voice.
         let glides = cachedPortamento > 0.001

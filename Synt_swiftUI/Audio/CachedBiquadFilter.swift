@@ -91,6 +91,9 @@ final class CachedBiquadFilter {
 
     // Dirty flag - recalculate only when needed
     private var isDirty: Bool = true
+    /// Render-side resonance offset (mod matrix). Never stored into `resonance`,
+    /// which belongs to the main thread.
+    private var resonanceOffset: Float = 0
 
     // Parameter smoothing
     private var targetCutoff: Float = 5000.0
@@ -162,7 +165,11 @@ final class CachedBiquadFilter {
     /// Smooth cutoff and return coeffs without touching this instance's z-state.
     /// Call once per sample, then run `BiquadMemory.process` on each voice.
     @inline(__always)
-    func currentCoefficients(sampleRate: Float) -> BiquadCoeffs {
+    func currentCoefficients(sampleRate: Float, resonanceOffset offset: Float = 0) -> BiquadCoeffs {
+        if offset != resonanceOffset {
+            resonanceOffset = offset
+            isDirty = true
+        }
         let cutoffDiff = targetCutoff - smoothedCutoff
         if abs(cutoffDiff) > 0.1 {
             smoothedCutoff += cutoffDiff * (1.0 - smoothingCoeff)
@@ -186,7 +193,7 @@ final class CachedBiquadFilter {
 
         // Map UI 0…1 → musical Q. Old `resonance * 10` made Q≈5 at the default
         // knob mid and rang harshly on multi-note chords ("помехи").
-        let r = max(0, min(1, resonance))
+        let r = max(0, min(1, resonanceOffset == 0 ? resonance : resonance + resonanceOffset))
         let q = 0.55 + r * r * 6.0  // 0.55 … ~6.55, gentle until high end
         let alpha = sinOmega / (2.0 * max(0.25, q))
 

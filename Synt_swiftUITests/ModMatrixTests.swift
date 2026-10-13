@@ -84,6 +84,31 @@ struct ModMatrixTests {
         #expect(differenceRMS(filterTarget.mono, silent.mono) < 1e-6)
     }
 
+    /// The render must not borrow `filterL.resonance` (main owns it), or a knob
+    /// move landing mid-sample would be overwritten by a stale restore.
+    @Test func resonanceRowNeverWritesTheSharedField() throws {
+        let render = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Synt_swiftUI/Audio/AudioEngine+Render.swift")
+        let text = try String(contentsOf: render, encoding: .utf8)
+        #expect(!text.contains("filterL.resonance ="))
+
+        var preset = SynthPreset.defaultPreset
+        preset.filterCutoff = 900
+        preset.filterResonance = 0.35
+        preset.modMatrix = [ModMatrixEntry(source: .velocity, destination: .resonance, amount: 0.8)]
+        let engine = AudioEngine()
+        engine.preset = preset
+        engine.applyPresetForTesting()
+        engine.noteOn(midiNote: 69, velocity: 0.8)
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(256)
+        #expect(engine.filterL.resonance == 0.35)
+        engine.filterL.resonance = 0.6          // what applyPreset does on main
+        _ = engine.renderFramesForTesting(256)
+        #expect(engine.filterL.resonance == 0.6)
+    }
+
     @Test func initHashStaysTheGolden() {
         #expect(InitGoldenTests.renderHash(.defaultPreset) == 0xd1b3635203a4799e)
     }
