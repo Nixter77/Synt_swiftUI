@@ -360,14 +360,14 @@ extension AudioEngine {
                 phase: v.phase,
                 phaseIncrement: phaseInc1,
                 noiseValue: noiseValue,
-                pulseWidthOverride: pwmMod1 == 0 ? nil : max(0.05, min(0.95, oscillator1.pulseWidth + 0.45 * pwmMod1))
+                pulseWidthOverride: pwmMod1 == 0 ? nil : max(0.05, min(0.95, oscillator1.pulseWidth + pwmModulationSpan * pwmMod1))
             )
             if cachedOsc2Enabled {
                 let s2 = oscillator2.generateSample(
                     phase: v.phase2,
                     phaseIncrement: phaseInc2,
                     noiseValue: noiseValue,
-                    pulseWidthOverride: pwmMod2 == 0 ? nil : max(0.05, min(0.95, oscillator2.pulseWidth + 0.45 * pwmMod2))
+                    pulseWidthOverride: pwmMod2 == 0 ? nil : max(0.05, min(0.95, oscillator2.pulseWidth + pwmModulationSpan * pwmMod2))
                 )
                 if mixMod != 0 {
                     let bias = max(-1, min(1, mixMod))

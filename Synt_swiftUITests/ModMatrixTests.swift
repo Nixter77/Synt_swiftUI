@@ -18,6 +18,9 @@ struct ModMatrixTests {
         #expect(ModDestination.pan.formatAmount(-0.3) == "L 30 %")
         #expect(ModDestination.lfoRate.formatAmount(0.24).contains("rate"))
         #expect(ModDestination.pwm1.formatAmount(0.25).contains("%"))
+        // +100 % used to mean 45 width points; the label now says so.
+        #expect(ModDestination.pwm1.formatAmount(1) == "+45 % PW")
+        #expect(ModDestination.pwm2.formatAmount(-0.5) == "-22 % PW" || ModDestination.pwm2.formatAmount(-0.5) == "-23 % PW")
         #expect(ModDestination.mix.formatAmount(-0.5).hasPrefix("-"))
         #expect(ModDestination.lfoDepth.formatAmount(0.25) == "+25 %")
         #expect(PresetAuthoring.liveDestinations == Set(ModDestination.allCases))

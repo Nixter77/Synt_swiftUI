@@ -444,8 +444,11 @@ enum ModDestination: String, CaseIterable, Codable {
             return String(format: "%+.2f oct", amount)
         case .cutoff:
             return String(format: "%+.1f oct", amount * 4)
-        case .amp, .pwm1, .pwm2, .resonance, .lfoDepth, .mix:
+        case .amp, .resonance, .lfoDepth, .mix:
             return String(format: "%+.0f %%", amount * 100)
+        case .pwm1, .pwm2:
+            // Render moves pulse width by 0.45 × amount: show the real width points.
+            return String(format: "%+.0f %% PW", amount * pwmModulationSpan * 100)
         case .pan:
             let pct = abs(amount) * 100
             if amount < -0.0001 { return String(format: "L %.0f %%", pct) }
@@ -457,6 +460,9 @@ enum ModDestination: String, CaseIterable, Codable {
         }
     }
 }
+
+/// Pulse-width travel at Amount 1 (shared by the render and the label).
+let pwmModulationSpan: Float = 0.45
 
 // MARK: - Factory authoring helpers
 
