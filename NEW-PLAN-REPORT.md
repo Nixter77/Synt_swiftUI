@@ -11,7 +11,7 @@
 ### Этап 1. Channel Pressure (0xD0) и Polyphonic Aftertouch (0xA0)
 - **Коммит:** `d427f42` — `feat(live): Step 1 - Channel Pressure (0xD0) and Polyphonic Aftertouch (0xA0)`
 - **Изменённые и созданные файлы:**
-  - `Synt_swiftUI/Input/MIDIHandler.swift:316`: парсинг MIDI 1.0 status byte `0xD0` (Channel Pressure) и `0xA0` (Polyphonic Key Pressure) из `MIDIPacketList` и MIDI 2.0 UMP Word 0 (`0x20` статус `0xD` и `0xA`).
+  - `Synt_swiftUI/Input/MIDIMessageParser.swift` (`MIDIMessageParser`, разбор статусов; `MIDIHandler` только маршрутизирует результат): парсинг MIDI 1.0 status byte `0xD0` (Channel Pressure) и `0xA0` (Polyphonic Key Pressure) из `MIDIPacketList` и MIDI 2.0 UMP Word 0 (`0x20` статус `0xD` и `0xA`).
   - `Synt_swiftUI/Audio/AudioEngine.swift:145`: свойства `aftertouchTarget`, `aftertouchSmoothed`, команды `setAftertouch(Float)` и `setPolyAftertouch(midiNote:pressure:)`.
   - `Synt_swiftUI/Audio/AudioEngine+Render.swift:740`: сглаживание Aftertouch (~8 мс экспоненциальный фильтр `1 - exp(-1 / (0.008 * sr))`) для устранения артефактов и ступенек.
   - `Synt_swiftUI/Models/Note.swift:81`: поле `polyAftertouch: Float` у каждой ноты `ActiveNote`.
@@ -28,12 +28,12 @@
 - **Коммит:** `8524fbe` — `feat(live): Step 2 - Direct MIDI CC parameter modulation and Samson Graphite 49 template`
 - **Изменённые и созданные файлы:**
   - `Synt_swiftUI/Models/MIDICCLearnStore.swift:15`: расширенный `enum MIDIControlTarget` (все 13 целей ModDestination, 9 параметров ADSR фильтра и огибающей громкости, FX параметры, параметры синтеза/унисона и 4 Performance Macros). Добавлены `applySamsonGraphite49Template()` и `attachEngine()`.
-  - `Synt_swiftUI/Input/MIDIHandler.swift:305`: устранена гонка данных (SPSC single-producer): `.controlChange` пушится в `engine.midiQueue`, а на `main` потоке вызывается `engine.applySingleParameterFromMIDI(cc:value:)`.
+  - `Synt_swiftUI/Input/MIDIHandler.swift:305`: `.controlChange` пушится в `engine.midiQueue`. *Исправление (аудит 2026-10-20):* в исходном Step 2 гонка не была устранена — `main` тоже вызывал `applySingleParameterRT` и писал DSP-состояние рендера (CC применялся дважды, из двух потоков). Теперь DSP меняет только аудиопоток; `main` лишь обновляет `preset` для UI, коалесцируя CC в один hop (`CCCoalescer`).
   - `Synt_swiftUI/Audio/AudioEngine.swift:152`: lock-free таблица прямого сопоставления CC `rtCCMap: UnsafeMutablePointer<Int16>`, счетчик вызовов `applyPresetCallCountForTesting`, флаг `isUpdatingSingleParamFromMIDI`.
   - `Synt_swiftUI/Audio/AudioEngine+Preset.swift:207`: `applySingleParameterFromMIDI(cc:value:)` и `applySingleParameterFromMIDI(target:rawValue:)` обновляют только целевой параметр и кэш RT без вызова тяжелого `applyPreset()`.
   - `Synt_swiftUI/Audio/AudioEngine+Render.swift:802`: в `handleCommand` добавлен lock-free вызов `applySingleParameterRT(target:rawValue:)` за $O(1)$ в реальном времени.
   - `Synt_swiftUI/Views/Components/KnobView.swift:27` & `LargeKnobView`: автораспознавание `target: MIDIControlTarget?` для всех ручек синтезатора, поддержка контекстного MIDI Learn меню.
-  - `Synt_swiftUI/Views/MIDIStatusView.swift:75`: пункты "Load Samson Graphite 49 Map" и "Clear All MIDI CC Mappings" в dropdown меню (высота сетки `<= 520 pt` сохранена).
+  - `Synt_swiftUI/Views/Components/MIDIStatusView.swift`: пункты "Load Samson Graphite 49 Map" и "Clear All MIDI CC Mappings" в dropdown меню (высота сетки `<= 520 pt` сохранена).
   - `Synt_swiftUITests/LiveStep2CCAndTemplateTests.swift`: 5 тестов прямого управления CC без `applyPreset`, выполнения в RT аудиопотоке, Learn и шаблона Graphite 49.
 - **Результаты тестов:**
   - `LiveStep2CCAndTemplateTests`: 5/5 passed.
@@ -77,7 +77,7 @@
 - **Результаты бенчмарка 32 активных голосов (200 буферов по 512 сэмплов, 2322.00 мс звука):**
   - **Per-sample render (до оптимизации):** 1262.46 мс (54.37% от RT-бюджета буфера).
   - **Block render (после оптимизации):** 1066.36 мс (45.92% от RT-бюджета буфера).
-  - **Выигрыш производительности:** **~196.1 мс чистой экономии CPU (~15.5% ускорение)** и экономия **8.45%** всего бюджета реального времени на 32 голосах!
+  - ~~Выигрыш ~15.5%~~ — *исправление:* это результат одного прогона на нагруженной машине без повторов и контроля шума; число не воспроизводимо и не должно приводиться как измеренный выигрыш. Бенчмарк вынесен из юнит-набора (`SYNT_RUN_PERF=1`).
 
 ---
 
@@ -86,7 +86,7 @@
 1. **SPSC single-writer для очереди MIDI команд**:
    - `commandQueue` (UI thread) и `midiQueue` (CoreMIDI thread) строго разделены: CoreMIDI пушит в `engine.midiQueue`, а UI — в `engine.commandQueue`. Обе очереди дренируются в начале каждого аудио-буфера за $O(N)$ без блокировок.
 2. **Шаблон Samson Graphite 49**:
-   - Номера CC зафиксированы в соответствии с заводской картой контроллеров Samson Graphite 49 (Faders 1–8: CC 20–27; Master Fader: CC 28; Encoders 1–8: CC 12–19; Buttons: CC 71–74; Mod Wheel: CC 1; Volume: CC 7; Sustain: CC 64). В меню добавлен сброс и применение шаблона в один клик.
+   - Номера CC зафиксированы в соответствии с заводской картой контроллеров Samson Graphite 49 (как в коде `SamsonGraphite49CC`: Encoders: CC 74, 71, 73, 75, 72, 91, 93, 94 — cutoff, resonance, filter env, morph1, FM, reverb, chorus, delay; Faders F1–F8: CC 20–27 — A/D/S/R, Macro 1–4; Master Fader: CC 7 — громкость). В меню добавлен сброс и применение шаблона в один клик.
 3. **Приоритет нот и педаль сустейна в Mono/Legato**:
    - При нажатой педали сустейна отпускаемые клавиши не удаляются из звукового потока, а помечаются как удерживаемые педалью (`sustainedLo/Hi`). При отпускании педали сустейна стек очищается и ноты затухают.
 4. **Безопасность `Unmanaged.passUnretained` в `AVAudioSourceNode`**:
@@ -118,6 +118,8 @@ nothing to commit, working tree clean
 ```
 
 ### Сводка тестов:
+> **Исправление (аудит 2026-10-20):** утверждение «все тесты зелёные» было неверным. На d62045c полный юнит-набор: 350 тестов, 1 реальный провал (`ModMatrixTests/resonanceRowNeverWritesTheSharedField` — регрессия резонанса из Step 2) и 1 ожидаемый провал (ChordHiss wetComplex); кроме того, тайминговые тесты (`RenderBudgetTests`, бенчмарк 32 голосов) нестабильны под параллельной нагрузкой. Ниже — исходный (неполный) список.
+
 - `InitGoldenTests`: **100/100 PASSED** (0xd1b3635203a4799e bit-identical)
 - `LiveStep1AftertouchTests`: **PASSED**
 - `LiveStep2CCAndTemplateTests`: **PASSED**
