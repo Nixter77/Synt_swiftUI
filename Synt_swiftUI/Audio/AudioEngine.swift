@@ -337,12 +337,20 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     deinit {
-        stop()
-        rtCCMap.deinitialize(count: 128)
-        rtCCMap.deallocate()
+        // Observer first, so a late config-change callback can't reach a dying engine.
         if let configObserver {
             NotificationCenter.default.removeObserver(configObserver)
+            self.configObserver = nil
         }
+        stop()
+        // Detach the render node before freeing memory its block reads (rtCCMap).
+        if let sourceNode {
+            engine.disconnectNodeOutput(sourceNode)
+            engine.detach(sourceNode)
+            self.sourceNode = nil
+        }
+        rtCCMap.deinitialize(count: 128)
+        rtCCMap.deallocate()
     }
 
     private static func makePeakLimiter() -> AVAudioUnitEffect {
