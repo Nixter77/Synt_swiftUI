@@ -27,6 +27,13 @@ extension AudioEngine {
     func pollMetering() {
         // MIDI key highlight rides the same 30 Hz poll (no per-note main hop).
         refreshKeyDisplay()
+        let tempoBits = externalBPMBits.load(ordering: .acquiring)
+        if tempoBits != 0 {
+            let bpm = Float(bitPattern: tempoBits)
+            if abs(bpm - externalTempo) >= 0.5 {
+                externalTempo = bpm
+            }
+        }
         meters.ingest(
             output: meteringState.getOutputLevel(),
             peak: meteringState.getPeakLevel()

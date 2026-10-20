@@ -173,6 +173,7 @@ extension AudioEngine {
         cachedVelocityToEnvAmount = max(-1, min(1, preset.velocityToEnvAmount))
         cachedMasterVolume = preset.masterVolume
         cachedBPM = preset.bpm
+        cachedSyncSource = preset.syncSource
         cachedArpMode = preset.arpMode
         cachedArpRate = preset.arpRate
         cachedArpOctaves = max(1, min(3, preset.arpOctaves))

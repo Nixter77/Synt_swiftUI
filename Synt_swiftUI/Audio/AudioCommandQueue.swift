@@ -41,12 +41,22 @@ enum AudioCommand: Equatable {
     case setAftertouch(Float)
     /// Polyphonic Aftertouch (Key Pressure 0…1)
     case setPolyAftertouch(midiNote: Int, pressure: Float)
+    /// MIDI timing clock, 24 per quarter note. Not critical: a full ring drops one tick.
+    case midiClock
+    /// MIDI 0xFA. Critical so a full ring cannot lose the downbeat.
+    case midiStart
+    /// MIDI 0xFB.
+    case midiContinue
+    /// MIDI 0xFC.
+    case midiStop
 
     var isCritical: Bool {
         switch self {
-        case .noteOff, .clearAll, .arpKeyUp, .setSustain, .keyUp, .resetPatchState, .allNotesOff:
+        case .noteOff, .clearAll, .arpKeyUp, .setSustain, .keyUp, .resetPatchState, .allNotesOff,
+             .midiStart, .midiContinue, .midiStop:
             return true
-        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch:
+        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
+             .midiClock:
             return false
         }
     }
@@ -74,6 +84,8 @@ final class AudioCommandQueue: @unchecked Sendable {
     /// 0 = none, 1 = pedal up, 2 = pedal down. Latest wins when the ring is full.
     private let pendingSustain = Atomic<Int8>(0)
     private let pendingResetPatch = Atomic<Bool>(false)
+    /// 0 = none, 1 = start, 2 = continue, 3 = stop. Latest wins when the ring is full.
+    private let pendingMIDITransport = Atomic<Int8>(0)
 
     init(capacity: Int = 256) {
         self.capacity = max(2, capacity)
@@ -128,7 +140,17 @@ final class AudioCommandQueue: @unchecked Sendable {
             orArpKeyUpBitRangeLo(.max)
             orArpKeyUpBitRangeHi(.max)
             return true
-        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch:
+        case .midiStart:
+            pendingMIDITransport.store(1, ordering: .releasing)
+            return true
+        case .midiContinue:
+            pendingMIDITransport.store(2, ordering: .releasing)
+            return true
+        case .midiStop:
+            pendingMIDITransport.store(3, ordering: .releasing)
+            return true
+        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
+             .midiClock:
             return false
         }
     }
@@ -276,6 +298,16 @@ final class AudioCommandQueue: @unchecked Sendable {
         }
 
         if !didClearAll && count < limit {
+            let transport = pendingMIDITransport.exchange(0, ordering: .acquiringAndReleasing)
+            switch transport {
+            case 1: body(.midiStart); count += 1
+            case 2: body(.midiContinue); count += 1
+            case 3: body(.midiStop); count += 1
+            default: break
+            }
+        }
+
+        if !didClearAll && count < limit {
             let sustainCode = pendingSustain.exchange(0, ordering: .acquiringAndReleasing)
             if sustainCode != 0 {
                 body(.setSustain(sustainCode == 2))
@@ -305,6 +337,7 @@ final class AudioCommandQueue: @unchecked Sendable {
         discardRingContents()
         clearCriticalSideChannelBits()
         pendingSustain.store(0, ordering: .relaxed)
+        pendingMIDITransport.store(0, ordering: .relaxed)
     }
 
     /// Consumer-only: advance tail to head, discarding unread ring slots.
@@ -320,6 +353,7 @@ final class AudioCommandQueue: @unchecked Sendable {
         pendingNoteOffHi.store(0, ordering: .relaxed)
         pendingArpKeyUpLo.store(0, ordering: .relaxed)
         pendingArpKeyUpHi.store(0, ordering: .relaxed)
+        pendingMIDITransport.store(0, ordering: .relaxed)
     }
 
     private func orNoteOffBitRangeLo(_ value: UInt64) {

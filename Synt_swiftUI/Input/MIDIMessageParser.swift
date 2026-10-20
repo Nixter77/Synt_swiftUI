@@ -32,6 +32,14 @@ enum MIDIMessage: Equatable {
     case polyPressure(note: UInt8, pressure: Float, channel: UInt8)
     /// Any other controller (kept for display / future mapping).
     case controlChange(controller: UInt8, value: UInt8, channel: UInt8)
+    /// 0xF8. Twenty-four of these make one quarter note.
+    case clock
+    /// 0xFA. Reset the transport and run.
+    case songStart
+    /// 0xFB. Run without resetting the phase.
+    case songContinue
+    /// 0xFC. Stop. Phase stays where it is.
+    case songStop
     case ignored
 }
 
@@ -115,7 +123,17 @@ struct MIDIByteParser {
 
     /// Returns a message when `byte` completes one, otherwise `nil`.
     mutating func feed(_ b: UInt8) -> MIDIMessage? {
-        if b >= 0xF8 { return nil }                 // realtime: ignore, keep running status
+        // Realtime bytes may arrive mid-message, including inside SysEx.
+        // They must not touch running status, the data count, or the SysEx flag.
+        if b >= 0xF8 {
+            switch b {
+            case 0xF8: return .clock
+            case 0xFA: return .songStart
+            case 0xFB: return .songContinue
+            case 0xFC: return .songStop
+            default: return nil
+            }
+        }
         if b == 0xF0 { inSysEx = true; runningStatus = 0; dataCount = 0; return nil }
         if b == 0xF7 { inSysEx = false; return nil }
         if b & 0x80 != 0 {

@@ -154,6 +154,9 @@ extension SynthPreset {
         if !VoiceMode.allCases.contains(p.voiceMode) {
             p.voiceMode = .poly
         }
+        if !SyncSource.allCases.contains(p.syncSource) {
+            p.syncSource = .`internal`
+        }
         return p
     }
 }

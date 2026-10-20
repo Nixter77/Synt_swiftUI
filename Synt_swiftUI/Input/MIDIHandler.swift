@@ -323,6 +323,14 @@ final class MIDIHandler: ObservableObject {
                     DispatchQueue.main.async { [weak self] in self?.drainCCDisplay() }
                 }
             }
+        case .clock:
+            _ = audioEngine?.midiQueue.push(.midiClock)
+        case .songStart:
+            _ = audioEngine?.midiQueue.push(.midiStart)
+        case .songContinue:
+            _ = audioEngine?.midiQueue.push(.midiContinue)
+        case .songStop:
+            _ = audioEngine?.midiQueue.push(.midiStop)
         case .ignored:
             break
         }

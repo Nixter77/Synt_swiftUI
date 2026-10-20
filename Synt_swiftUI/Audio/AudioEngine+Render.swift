@@ -156,6 +156,8 @@ extension AudioEngine {
         var mixedSampleL: Float = 0.0
         var mixedSampleR: Float = 0.0
         advanceCCSmoothers()
+        midiClockSample &+= 1
+        adoptSyncSourceRT()
 
         // --- CLOCK & ARP ---
         let bpm = cachedBPM
@@ -163,6 +165,9 @@ extension AudioEngine {
         let divisionMultiplier = 4.0 / Double(cachedArpRate.denominator)
         samplesPerTick = samplesPerBeat * divisionMultiplier
 
+        // Internal sync always runs this block. External sync runs it only while
+        // a MIDI Start/Continue is in effect, so a stopped Logic transport is silent.
+        if cachedSyncSource != .midiClock || midiClockRunning {
         if cachedArpMode != .off {
             arp.mode = cachedArpMode
             arp.octaves = cachedArpOctaves
@@ -193,6 +198,7 @@ extension AudioEngine {
         }
 
         advanceSequencerOneSample()
+        }
 
         // Single writer: preset (main) and CC1 (MIDI) only feed the inputs.
         lfo.depth = cachedLfoDepth + (1 - cachedLfoDepth) * modWheel
@@ -843,6 +849,14 @@ extension AudioEngine {
                         applySingleParameterRT(target: target, rawValue: value)
                     }
                 }
+            case .midiClock:
+                receiveMIDIClockRT()
+            case .midiStart:
+                applyMIDITransportRT(resetPhase: true, running: true)
+            case .midiContinue:
+                applyMIDITransportRT(resetPhase: false, running: true)
+            case .midiStop:
+                applyMIDITransportRT(resetPhase: false, running: false)
             case .clearAll:
                 clearAllVoices()
                 // A new patch / panic must not inherit a bent pitch or a stuck pedal.
@@ -887,6 +901,9 @@ extension AudioEngine {
     /// the bar length stays constant. No allocation.
     func advanceSequencerOneSample() {
         let generationChanged = sequencerTransport.pullIfChanged(into: &seqMirror)
+        if cachedSyncSource == .midiClock {
+            seqMirror.bpm = cachedBPM
+        }
         if generationChanged {
             releaseSequencerNote()
             seqMirror.stepIndex = 0

@@ -53,6 +53,7 @@ struct MIDIMessageParserTests {
                            67, 0])                        // running status, vel 0
         #expect(out == [
             .noteOn(note: 60, velocity: Float(100) / 127, channel: 0),
+            .clock,
             .noteOn(note: 64, velocity: Float(100) / 127, channel: 0),
             .noteOff(note: 67, channel: 0),
         ])

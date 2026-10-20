@@ -166,6 +166,21 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var cachedAnalogDrift: Float = 0.0
     var cachedChordMode: ChordMode = .off
     var cachedBPM: Float = 120.0
+    var cachedSyncSource: SyncSource = .`internal`
+    /// Audio thread. True only after MIDI Start/Continue while sync is external.
+    var midiClockRunning = false
+    var midiClockSample: UInt64 = 0
+    var midiClockLastSample: UInt64 = 0
+    var midiClockHaveLast = false
+    var midiClockIntervalCount = 0
+    var midiClockIntervalWrite = 0
+    /// Twenty-four clock intervals. Allocated once, freed in deinit.
+    let midiClockIntervals = UnsafeMutablePointer<Float>.allocate(capacity: 24)
+    var appliedSyncSource: SyncSource = .`internal`
+    /// Float bits of the external tempo. 0 means the clock has not locked yet.
+    let externalBPMBits = Atomic<UInt32>(0)
+    /// Main-thread copy, published only when it moves by at least half a BPM.
+    @Published var externalTempo: Float = 0
     var cachedArpMode: ArpeggiatorMode = .off
     var cachedArpRate: TimeDivision = .sixteenth
     var cachedArpOctaves: Int = 1
@@ -259,6 +274,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     init() {
         for i in 0..<128 { (rtCCMap + i).initialize(to: Atomic<Int16>(-1)) }
         for i in 0..<128 { (ccLastRaw + i).initialize(to: Atomic<UInt8>(255)) }
+        midiClockIntervals.initialize(repeating: 0, count: 24)
         _ = MIDIControlTarget.from(rtIndex: 0) // warm the static table off the audio thread
 
         // Attach wavetable engines before first render (used only if waveform == .wavetable).
@@ -377,6 +393,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         rtCCMap.deallocate()
         ccLastRaw.deinitialize(count: 128)
         ccLastRaw.deallocate()
+        midiClockIntervals.deinitialize(count: 24)
+        midiClockIntervals.deallocate()
     }
 
     private static func makePeakLimiter() -> AVAudioUnitEffect {

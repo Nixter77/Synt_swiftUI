@@ -7,6 +7,12 @@
 
 import Foundation
 
+/// Where the arp, sequencer and tempo-synced clocks take their tempo.
+enum SyncSource: String, Codable, CaseIterable, Equatable {
+    case `internal`
+    case midiClock
+}
+
 enum PresetCategory: String, CaseIterable, Codable {
     case bass = "Bass"
     case lead = "Lead"
@@ -188,6 +194,9 @@ struct SynthPreset: Codable, Identifiable, Hashable {
     // MARK: - Voice Mode (Poly / Mono / Legato)
     var voiceMode: VoiceMode = .poly
 
+    /// `.internal` uses the BPM slider. `.midiClock` follows Logic's MIDI clock.
+    var syncSource: SyncSource = .`internal`
+
     /// Safe neutral starting point (clean headroom).
     static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -227,6 +236,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         case chordMode
         case macro1, macro2, macro3, macro4
         case voiceMode
+        case syncSource
     }
 
     init(
@@ -341,7 +351,8 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         macro2: Float = 0.0,
         macro3: Float = 0.0,
         macro4: Float = 0.0,
-        voiceMode: VoiceMode = .poly
+        voiceMode: VoiceMode = .poly,
+        syncSource: SyncSource = .`internal`
     ) {
         self.id = id
         self.name = name
@@ -455,6 +466,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         self.macro3 = macro3
         self.macro4 = macro4
         self.voiceMode = voiceMode
+        self.syncSource = syncSource
     }
 
     init(from decoder: Decoder) throws {
@@ -573,6 +585,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         macro3 = try c.decodeIfPresent(Float.self, forKey: .macro3) ?? 0.0
         macro4 = try c.decodeIfPresent(Float.self, forKey: .macro4) ?? 0.0
         voiceMode = try c.decodeIfPresent(VoiceMode.self, forKey: .voiceMode) ?? .poly
+        syncSource = try c.decodeIfPresent(SyncSource.self, forKey: .syncSource) ?? .`internal`
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

@@ -186,6 +186,14 @@ struct ContentView: View {
         }
     }
 
+    /// External clock shows the locked tempo. Internal clock shows the slider.
+    private var headerBPM: Int {
+        let bpm = audioEngine.preset.syncSource == .midiClock && audioEngine.externalTempo >= 20
+            ? audioEngine.externalTempo
+            : audioEngine.preset.bpm
+        return Int(bpm.rounded())
+    }
+
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
@@ -253,10 +261,22 @@ struct ContentView: View {
                             .themeCaption(theme, size: 10)
                             .foregroundColor(theme.textDim)
                             .lineLimit(1)
-                        Text("\(Int(audioEngine.preset.bpm))")
+                        Text("\(headerBPM)")
                             .font(theme.monoFont(size: 14, weight: .bold))
                             .foregroundColor(theme.accent2)
                             .lineLimit(1)
+                        Button {
+                            audioEngine.updatePreset { preset in
+                                preset.syncSource = preset.syncSource == .midiClock ? .`internal` : .midiClock
+                            }
+                        } label: {
+                            Text(audioEngine.preset.syncSource == .midiClock ? "EXT" : "INT")
+                                .font(theme.monoFont(size: 10, weight: .bold))
+                                .foregroundColor(audioEngine.preset.syncSource == .midiClock ? theme.accent : theme.textDim)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("syncSourceToggle")
+                        .help("INT uses the BPM slider. EXT follows MIDI clock from Logic.")
                     }
                     .fixedSize(horizontal: true, vertical: false)
                     ThemeSlider(value: $audioEngine.preset.bpm, range: 40...240, step: 1)
