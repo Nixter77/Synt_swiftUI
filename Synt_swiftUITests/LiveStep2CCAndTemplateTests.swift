@@ -51,8 +51,11 @@ struct LiveStep2CCAndTemplateTests {
         #expect(abs(attackBefore - 1.0) > 0.1, "main must not write the live envelope")
         _ = engine.midiQueue.push(.controlChange(cc: 20, value: 64))
         engine.processCommandQueue()
-        #expect(abs(engine.envelope.attack - 1.0) < 0.1,
-                "Live envelope attack should be near 1.0s after the audio thread drains")
+        #expect(engine.envelope.attack == attackBefore,
+                "the audio thread stores the attack target and does not jump")
+        _ = engine.renderFramesForTesting(8_000)
+        #expect(abs(engine.envelope.attack - 1.0) < 0.05,
+                "Live envelope attack should settle near 1.0s")
 
         MIDICCLearnStore.shared.clearMappings()
     }

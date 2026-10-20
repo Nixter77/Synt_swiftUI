@@ -124,6 +124,25 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var ccResonanceRT: Float = -1
     /// MIDI CC pan offset, -1...1 (render thread only; 0 = centre / no CC).
     var ccPanRT: Float = 0
+    /// Targets for the ~8 ms CC glide. The live fields are the smoothed values.
+    var ccPanTarget: Float = 0
+    var ccPwm1Target: Float = 0.5
+    var ccPwm2Target: Float = 0.5
+    var ccDetune1Target: Float = 0
+    var ccDetune2Target: Float = 0
+    var ccMixTarget: Float = 0.5
+    var ccLfoRateTarget: Float = 5
+    var ccAttackTarget: Float = 0.01
+    var ccDecayTarget: Float = 0.1
+    var ccSustainTarget: Float = 0.7
+    var ccReleaseTarget: Float = 0.3
+    var ccSmoothCoeff: Float = 0
+    var ccSmoothCoeffSampleRate: Double = 0
+    /// Soft takeover. All bits set = every knob is live. A patch change clears them.
+    let ccCaughtLo = Atomic<UInt64>(UInt64.max)
+    let ccCaughtHi = Atomic<UInt64>(UInt64.max)
+    /// Last raw CC seen while a knob was waiting to catch. 255 = none yet.
+    let ccLastRaw = UnsafeMutablePointer<Atomic<UInt8>>.allocate(capacity: 128)
     var midiSmoothCoeff: Float = 0
     var midiSmoothCoeffSampleRate: Double = 0
     /// `filterL.resonance` when the CC arrived; a later knob / preset change drops the override.
@@ -239,6 +258,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     init() {
         for i in 0..<128 { (rtCCMap + i).initialize(to: Atomic<Int16>(-1)) }
+        for i in 0..<128 { (ccLastRaw + i).initialize(to: Atomic<UInt8>(255)) }
         _ = MIDIControlTarget.from(rtIndex: 0) // warm the static table off the audio thread
 
         // Attach wavetable engines before first render (used only if waveform == .wavetable).
@@ -355,6 +375,8 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
         }
         rtCCMap.deinitialize(count: 128)
         rtCCMap.deallocate()
+        ccLastRaw.deinitialize(count: 128)
+        ccLastRaw.deallocate()
     }
 
     private static func makePeakLimiter() -> AVAudioUnitEffect {

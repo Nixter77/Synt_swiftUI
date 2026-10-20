@@ -155,6 +155,7 @@ extension AudioEngine {
     func renderOneSample() -> (Float, Float) {
         var mixedSampleL: Float = 0.0
         var mixedSampleR: Float = 0.0
+        advanceCCSmoothers()
 
         // --- CLOCK & ARP ---
         let bpm = cachedBPM
@@ -838,7 +839,9 @@ extension AudioEngine {
             case .controlChange(let cc, let value):
                 let rtIdx = (rtCCMap + Int(cc & 127)).pointee.load(ordering: .acquiring)
                 if rtIdx >= 0, let target = MIDIControlTarget.from(rtIndex: rtIdx) {
-                    applySingleParameterRT(target: target, rawValue: value)
+                    if !target.writesAudioParameter || ccTakeoverShouldApply(cc: cc, raw: value, current: liveUnit(for: target), target: target) {
+                        applySingleParameterRT(target: target, rawValue: value)
+                    }
                 }
             case .clearAll:
                 clearAllVoices()
@@ -1059,33 +1062,33 @@ extension AudioEngine {
         case .amp:
             cachedMasterVolume = norm
         case .pan:
-            ccPanRT = (norm - 0.5) * 2.0
+            ccPanTarget = (norm - 0.5) * 2.0
         case .pitch1:
-            oscillator1.detune = (norm - 0.5) * 100.0
+            ccDetune1Target = (norm - 0.5) * 100.0
         case .pitch2:
-            oscillator2.detune = (norm - 0.5) * 100.0
+            ccDetune2Target = (norm - 0.5) * 100.0
         case .pwm1:
-            oscillator1.pulseWidth = 0.1 + norm * 0.8
+            ccPwm1Target = 0.1 + norm * 0.8
         case .pwm2:
-            oscillator2.pulseWidth = 0.1 + norm * 0.8
+            ccPwm2Target = 0.1 + norm * 0.8
         case .wtMorph1:
             oscillator1.wavetableMorph = norm
         case .wtMorph2:
             oscillator2.wavetableMorph = norm
         case .lfoRate:
-            lfo.rate = 0.05 + norm * 19.95
+            ccLfoRateTarget = 0.05 + norm * 19.95
         case .lfoDepth:
             cachedLfoDepth = norm
-        case .mix:
-            oscillator2.volume = norm
+        case .mix, .osc2Volume:
+            ccMixTarget = norm
         case .attack:
-            envelope.attack = 0.001 + norm * 1.999
+            ccAttackTarget = 0.001 + norm * 1.999
         case .decay:
-            envelope.decay = 0.001 + norm * 1.999
+            ccDecayTarget = 0.001 + norm * 1.999
         case .sustain:
-            envelope.sustain = norm
+            ccSustainTarget = norm
         case .release:
-            envelope.release = 0.001 + norm * 2.999
+            ccReleaseTarget = 0.001 + norm * 2.999
         case .filterAttack:
             let a = 0.001 + norm * 1.999
             filterEnvelope.attack = a
@@ -1131,8 +1134,6 @@ extension AudioEngine {
             phaser.depth = norm
         case .osc1Volume:
             oscillator1.volume = norm
-        case .osc2Volume:
-            oscillator2.volume = norm
         case .subOscVolume:
             cachedSubOscVolume = norm
         case .fmAmount:

@@ -183,6 +183,7 @@ extension AudioEngine {
         cachedMacro2 = preset.macro2
         cachedMacro3 = preset.macro3
         cachedMacro4 = preset.macro4
+        snapCCTargetsFromLive()
         // Do NOT touch `arp` here — it is audio-thread state.
         // generateSample / processCommandQueue apply cachedArpMode on the audio path.
 
@@ -191,6 +192,7 @@ extension AudioEngine {
         lastAppliedPresetID = preset.id
         lastAppliedPresetName = preset.name
         if switchedPatch {
+            disarmCCTakeover()
             silenceForPresetChange()
         }
     }
@@ -214,6 +216,7 @@ extension AudioEngine {
     func resetPatchStateRT() {
         ccResonanceRT = -1
         ccPanRT = 0
+        ccPanTarget = 0
         filterL.reset()
         filterR.reset()
         dspChorus.reset()
@@ -229,6 +232,7 @@ extension AudioEngine {
         smoothedFilterCutoff = cachedFilterCutoff
         smoothedMasterVolume = cachedMasterVolume
         lastPlayedFrequency = nil
+        snapCCTargetsFromLive()
     }
 
     /// Mutate the published preset as a whole so `didSet` → `applyPreset()` always runs.
@@ -288,6 +292,9 @@ extension AudioEngine {
                 _ = commandQueue.push(.controlChange(cc: cc, value: value))
             } else if let mapped = store.mappings[cc] {
                 target = mapped
+                if target != .pan && !ccTakeoverShouldApply(cc: cc, raw: value, current: target.unit(in: next, pan: ccPanRT), target: target) {
+                    continue
+                }
             } else {
                 continue
             }

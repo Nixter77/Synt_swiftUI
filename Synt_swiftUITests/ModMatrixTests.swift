@@ -304,6 +304,9 @@ struct ModMatrixTests {
         let presetSpread = engine.preset.unisonSpread
         engine.applySingleParameterRT(target: .pan, rawValue: 127)
         #expect(engine.cachedUnisonSpread == spread)
+        #expect(abs(engine.ccPanTarget - 1.0) < 0.01)
+        #expect(abs(engine.ccPanRT) < 0.05, "pan glides instead of jumping")
+        _ = engine.renderFramesForTesting(8_000)
         #expect(abs(engine.ccPanRT - 1.0) < 0.01)
         var p = engine.preset
         MIDICCLearnStore.shared.applyValue(127, to: MIDIControlTarget.pan, preset: &p)
