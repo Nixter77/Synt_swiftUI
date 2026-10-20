@@ -223,6 +223,19 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var glideLegatoOnly: Bool = false
     public var monoPriority: MonoPriority = .last
 
+    /// Stereo tool. Off leaves the master bus untouched.
+    public var stereoEnabled: Bool = false
+    public var stereoWidth: Float = 1
+    public var stereoMidSide: Float = 0
+    public var stereoHaasMs: Float = 0
+    public var stereoMonoBassHz: Float = 0
+
+    /// Reset keeps `AudioMath.voiceStartPhases`. Free and Random do not.
+    public var oscPhaseMode: OscPhaseMode = .reset
+
+    /// 1...32. 32 is `AudioEngine.maxVoices` and keeps the full voice search.
+    public var polyphonyLimit: Int = 32
+
     /// Safe neutral starting point (clean headroom).
     public static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -271,6 +284,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case modEnvAttack, modEnvDecay, modEnvSustain, modEnvRelease
         case glideMode, glideLegatoOnly
         case monoPriority
+        case stereoEnabled, stereoWidth, stereoMidSide, stereoHaasMs, stereoMonoBassHz
+        case oscPhaseMode
+        case polyphonyLimit
     }
 
     public init(
@@ -671,6 +687,13 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         glideMode = try c.decodeIfPresent(GlideMode.self, forKey: .glideMode) ?? .time
         glideLegatoOnly = try c.decodeIfPresent(Bool.self, forKey: .glideLegatoOnly) ?? false
         monoPriority = try c.decodeIfPresent(MonoPriority.self, forKey: .monoPriority) ?? .last
+        stereoEnabled = try c.decodeIfPresent(Bool.self, forKey: .stereoEnabled) ?? false
+        stereoWidth = try c.decodeIfPresent(Float.self, forKey: .stereoWidth) ?? 1
+        stereoMidSide = try c.decodeIfPresent(Float.self, forKey: .stereoMidSide) ?? 0
+        stereoHaasMs = try c.decodeIfPresent(Float.self, forKey: .stereoHaasMs) ?? 0
+        stereoMonoBassHz = try c.decodeIfPresent(Float.self, forKey: .stereoMonoBassHz) ?? 0
+        oscPhaseMode = try c.decodeIfPresent(OscPhaseMode.self, forKey: .oscPhaseMode) ?? .reset
+        polyphonyLimit = try c.decodeIfPresent(Int.self, forKey: .polyphonyLimit) ?? 32
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -691,6 +714,13 @@ public enum VoiceMode: String, CaseIterable, Codable {
     case poly = "Poly"
     case mono = "Mono"
     case legato = "Legato"
+}
+
+/// Oscillator start phase. `.reset` is the historical `voiceStartPhases` path.
+public enum OscPhaseMode: String, CaseIterable, Codable, Sendable {
+    case reset = "Reset"
+    case free = "Free"
+    case random = "Random"
 }
 
 public enum NoiseColor: String, CaseIterable, Codable {

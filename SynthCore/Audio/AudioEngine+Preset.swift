@@ -209,6 +209,24 @@ public extension AudioEngine {
         cachedGlideMode = snap.glideMode
         cachedGlideLegatoOnly = snap.glideLegatoOnly
         cachedMonoPriority = snap.monoPriority
+        let stereoWasOn = cachedStereoEnabled
+        cachedStereoEnabled = snap.stereoEnabled
+        cachedStereoWidth = snap.stereoWidth
+        cachedStereoMidSide = snap.stereoMidSide
+        cachedStereoHaasMs = snap.stereoHaasMs
+        cachedStereoMonoBassHz = snap.stereoMonoBassHz
+        if stereoWasOn && !cachedStereoEnabled {
+            stereoTool.reset()
+        }
+        cachedOscPhaseMode = snap.oscPhaseMode
+        cachedPolyphonyLimit = snap.polyphonyLimit
+        if cachedPolyphonyLimit > 0 && cachedPolyphonyLimit < AudioEngine.maxVoices {
+            for i in cachedPolyphonyLimit..<AudioEngine.maxVoices {
+                if voices[i].isActive && !voices[i].isReleasing {
+                    voices[i].beginFastRelease()
+                }
+            }
+        }
         arp.mode = snap.arpMode
         arp.octaves = snap.arpOctaves
         arp.latch = snap.arpLatch
@@ -247,6 +265,7 @@ public extension AudioEngine {
         filterL.reset()
         filterR.reset()
         dspChorus.reset()
+        stereoTool.reset()
         shimmer.reset()
         distortion.reset()
         parametricEQL.reset()

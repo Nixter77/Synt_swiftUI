@@ -810,6 +810,20 @@ public extension AudioEngine {
             outR *= sin(a)
         }
 
+        if cachedStereoEnabled {
+            let widened = stereoTool.process(
+                left: outL,
+                right: outR,
+                width: cachedStereoWidth,
+                midSide: cachedStereoMidSide,
+                haasMs: cachedStereoHaasMs,
+                monoBassHz: cachedStereoMonoBassHz,
+                sampleRate: Float(sampleRate)
+            )
+            outL = widened.0
+            outR = widened.1
+        }
+
         lastPreClipAbs = max(abs(outL), abs(outR))
         outL = AudioMath.cleanCeiling(outL)
         outR = AudioMath.cleanCeiling(outR)

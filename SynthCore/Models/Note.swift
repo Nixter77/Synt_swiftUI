@@ -119,11 +119,15 @@ public struct ActiveNote {
         pan: Float = 0.0,
         unisonScale: Float = 1.0,
         partial: Int = 0,
-        partialCount: Int = 1
+        partialCount: Int = 1,
+        phaseMode: OscPhaseMode = .reset
     ) {
         self.isActive = true
         self.midiNote = midiNote
         self.velocity = velocity
+        let keptPhase = phase
+        let keptPhase2 = phase2
+        let keptSubPhase = subPhase
         let start = AudioMath.voiceStartPhases(
             midiNote: midiNote,
             partial: partial,
@@ -132,6 +136,27 @@ public struct ActiveNote {
         self.phase = start.0
         self.phase2 = start.1
         self.subPhase = start.0
+        if phaseMode == .free {
+            phase = keptPhase
+            phase2 = keptPhase2
+            subPhase = keptSubPhase
+        } else if phaseMode == .random {
+            var h = UInt32(truncatingIfNeeded: midiNote &* 374761393)
+            h &+= UInt32(truncatingIfNeeded: partial &* 668265263)
+            h &+= UInt32(truncatingIfNeeded: partialCount &* 1442695041)
+            h ^= h >> 16
+            h &*= 2246822519
+            h ^= h >> 13
+            h &*= 3266489917
+            h ^= h >> 16
+            phase = Double(h) / Double(UInt32.max) * AudioMath.twoPi
+            h &*= 0x85ebca6b
+            h ^= h >> 13
+            phase2 = Double(h) / Double(UInt32.max) * AudioMath.twoPi
+            h &*= 0xc2b2ae35
+            h ^= h >> 16
+            subPhase = Double(h) / Double(UInt32.max) * AudioMath.twoPi
+        }
         self.currentFrequency = frequency
         self.targetFrequency = frequency
         self.envelopePhase = .attack

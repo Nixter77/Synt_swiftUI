@@ -49,6 +49,23 @@ struct OscillatorView: View {
                         .menuStyle(.borderlessButton)
                         .fixedSize()
                         .help("Sub-oscillator waveform")
+
+                        Menu {
+                            ForEach(OscPhaseMode.allCases, id: \.self) { mode in
+                                Button(mode.rawValue) { preset.oscPhaseMode = mode }
+                            }
+                        } label: {
+                            Text(preset.oscPhaseMode.rawValue)
+                                .themeCaption(theme, size: 9, weight: .semibold)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(RoundedRectangle(cornerRadius: 3).fill(theme.inset))
+                                .foregroundColor(theme.textDim)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        .accessibilityIdentifier("oscPhaseMode")
+                        .help("Oscillator phase: Reset, Free, or Random")
                     }
                 }
                 if oscillatorNumber == 2 {

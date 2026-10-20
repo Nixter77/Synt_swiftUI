@@ -19,6 +19,7 @@ struct FXChainView: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            stereoCard
             ForEach(preset.fxOrder, id: \.self) { slot in
                 slotCard(for: slot)
                     .onDrag {
@@ -81,6 +82,29 @@ struct FXChainView: View {
     }
 
     private var presetBinding: Binding<SynthPreset> { $preset }
+
+    private var stereoCard: some View {
+        FXSlotCard(
+            title: "Stereo",
+            enabled: $preset.stereoEnabled,
+            accent: theme.aFx,
+            storageName: "stereo",
+            startsExpanded: preset.stereoEnabled
+        ) {
+            EmptyView()
+        } content: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    KnobView(value: $preset.stereoWidth, range: 0...2, label: "Width", format: "%.2f")
+                    KnobView(value: $preset.stereoMidSide, range: -1...1, label: "Mid/Side", format: "%.2f")
+                }
+                HStack(spacing: 6) {
+                    KnobView(value: $preset.stereoHaasMs, range: 0...30, label: "Haas", format: "%.1f")
+                    KnobView(value: $preset.stereoMonoBassHz, range: 0...400, label: "Mono Bass", format: "%.0f")
+                }
+            }
+        }
+    }
 
     // MARK: - Distortion Slot
 

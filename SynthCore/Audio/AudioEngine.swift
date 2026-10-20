@@ -58,6 +58,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let reverb = ReverbEffect()
     public let delay = DelayEffect()
     public let dspChorus = DSPChorus()
+    public let stereoTool = DSPStereoTool()
     /// After Apple Reverb, before the mixer. Pre-gain 0, so levels under 0 dBFS stay put.
     public let peakLimiter = AudioEngine.makePeakLimiter()
     /// Fixed 0.62 headroom in front of the limiter, so the limiter is truly last.
@@ -282,6 +283,14 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedGlideMode: GlideMode = .time
     public var cachedGlideLegatoOnly: Bool = false
     public var cachedMonoPriority: MonoPriority = .last
+    public var cachedStereoEnabled: Bool = false
+    public var cachedStereoWidth: Float = 1
+    public var cachedStereoMidSide: Float = 0
+    public var cachedStereoHaasMs: Float = 0
+    public var cachedStereoMonoBassHz: Float = 0
+    public var cachedOscPhaseMode: OscPhaseMode = .reset
+    /// 32 searches every voice. A smaller limit only narrows `findFreeVoiceSlot`.
+    public var cachedPolyphonyLimit: Int = AudioEngine.maxVoices
     public var randomSeed: UInt32 = 0x12345678
     /// Optional microtonal tuning table (128 notes). Nil = standard 12-TET.
     public var customTuningTable: [Double]? = nil

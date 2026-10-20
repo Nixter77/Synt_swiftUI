@@ -173,6 +173,12 @@ public extension SynthPreset {
         p.modEnvRelease = f(p.modEnvRelease, 0.001, 10.0, 0.1)
         if !GlideMode.allCases.contains(p.glideMode) { p.glideMode = .time }
         if !MonoPriority.allCases.contains(p.monoPriority) { p.monoPriority = .last }
+        p.stereoWidth = f(p.stereoWidth, 0, 2, 1)
+        p.stereoMidSide = f(p.stereoMidSide, -1, 1, 0)
+        p.stereoHaasMs = f(p.stereoHaasMs, 0, 30, 0)
+        p.stereoMonoBassHz = f(p.stereoMonoBassHz, 0, 400, 0)
+        if !OscPhaseMode.allCases.contains(p.oscPhaseMode) { p.oscPhaseMode = .reset }
+        p.polyphonyLimit = i(p.polyphonyLimit, 1, 32)
         return p
     }
 

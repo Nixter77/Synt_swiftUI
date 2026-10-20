@@ -227,7 +227,8 @@ public extension AudioEngine {
                 pan: pan,
                 unisonScale: partialScale,
                 partial: u,
-                partialCount: unisonCount
+                partialCount: unisonCount,
+                phaseMode: cachedOscPhaseMode
             )
             voices[slot].targetFrequency = targetFreq
             voices[slot].currentFrequency = curFreq
@@ -284,7 +285,13 @@ public extension AudioEngine {
     }
 
     public func findFreeVoiceSlot() -> Int? {
-        for i in 0..<AudioEngine.maxVoices {
+        let upper: Int
+        if cachedPolyphonyLimit >= AudioEngine.maxVoices || cachedPolyphonyLimit <= 0 {
+            upper = AudioEngine.maxVoices
+        } else {
+            upper = cachedPolyphonyLimit
+        }
+        for i in 0..<upper {
             if !voices[i].isActive { return i }
         }
         // Prefer reclaiming almost-silent / fast-releasing voices
@@ -292,7 +299,7 @@ public extension AudioEngine {
         var quietEnv: Float = 0.05
         var bestSteal: Int?
         var bestStealEnv: Float = Float.greatestFiniteMagnitude
-        for i in 0..<AudioEngine.maxVoices {
+        for i in 0..<upper {
             guard voices[i].isActive else { continue }
             let env = voices[i].envelopeValue
             if voices[i].isReleasing && env < quietEnv {

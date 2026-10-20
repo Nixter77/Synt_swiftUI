@@ -107,20 +107,31 @@ struct UnisonView: View {
             }
             .padding(.horizontal, 4)
 
-            HStack(spacing: 6) {
-                VStack(spacing: 4) {
-                    Text("Voices")
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    VStack(spacing: 4) {
+                        Text("Voices")
+                            .themeCaption(theme, size: 9)
+                            .foregroundColor(theme.textDim)
+                            .lineLimit(1)
+
+                        StepperField(value: $preset.unisonVoices, range: 1...7)
+                    }
+
+                    KnobView(value: $preset.unisonDetune, range: 0...50, label: "Detune", format: "%.1f")
+                    KnobView(value: $preset.unisonSpread, range: 0...1, label: "Spread")
+                    KnobView(value: $preset.analogDrift, range: 0...1, label: "Drift", format: "%.0f%%")
+                    KnobView(value: $preset.portamento, range: 0...1.0, label: "Glide", format: "%.2fs")
+                }
+                HStack(spacing: 6) {
+                    Text("Poly")
                         .themeCaption(theme, size: 9)
                         .foregroundColor(theme.textDim)
                         .lineLimit(1)
-
-                    StepperField(value: $preset.unisonVoices, range: 1...7)
+                    StepperField(value: $preset.polyphonyLimit, range: 1...AudioEngine.maxVoices)
+                        .accessibilityIdentifier("polyphonyLimit")
+                    Spacer(minLength: 0)
                 }
-
-                KnobView(value: $preset.unisonDetune, range: 0...50, label: "Detune", format: "%.1f")
-                KnobView(value: $preset.unisonSpread, range: 0...1, label: "Spread")
-                KnobView(value: $preset.analogDrift, range: 0...1, label: "Drift", format: "%.0f%%")
-                KnobView(value: $preset.portamento, range: 0...1.0, label: "Glide", format: "%.2fs")
             }
             .padding(4)
             .appleInset(cornerRadius: 10)
