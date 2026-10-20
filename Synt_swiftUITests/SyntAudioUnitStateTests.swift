@@ -189,4 +189,22 @@ struct SyntAudioUnitStateTests {
         #expect(unit.engine.midiScheduleCount == 0)
         #expect(!unit.engine.voices.contains { $0.isActive })
     }
+
+    @Test func fullScheduleStillAppliesNoteOff() throws {
+        let unit = try makeUnit()
+        #expect(unit.audioUnitMIDIProtocol == ._1_0)
+        let engine = unit.engine
+        var on: [UInt8] = [0x90, 60, 100]
+        engine.enqueueMIDI(&on, count: 3, sampleOffset: 0)
+        let l = UnsafeMutablePointer<Float>.allocate(capacity: 64)
+        let r = UnsafeMutablePointer<Float>.allocate(capacity: 64)
+        defer { l.deallocate(); r.deallocate() }
+        engine.render(frames: 64, intoL: l, intoR: r)
+        #expect(engine.voices.contains { $0.isActive && !$0.isReleasing && $0.midiNote == 60 })
+        var cc: [UInt8] = [0xB0, 1, 10]
+        for _ in 0..<512 { engine.enqueueMIDI(&cc, count: 3, sampleOffset: 0) }
+        var off: [UInt8] = [0x80, 60, 0]
+        engine.enqueueMIDI(&off, count: 3, sampleOffset: 0)
+        #expect(!engine.voices.contains { $0.isActive && !$0.isReleasing && $0.midiNote == 60 })
+    }
 }

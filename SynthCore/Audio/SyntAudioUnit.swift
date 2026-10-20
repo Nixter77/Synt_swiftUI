@@ -8,6 +8,7 @@
 
 import AudioToolbox
 import AVFoundation
+import CoreMIDI
 import Foundation
 import Synchronization
 
@@ -74,6 +75,9 @@ public final class SyntAudioUnit: AUAudioUnit {
         guard program >= 0, let loaded = PresetBrowser.preset(forProgram: Int(program)) else { return }
         adoptPreset(loaded)
     }
+
+    /// Events arrive as MIDI 1.0 byte events (`.MIDI`); `.midiEventList` (UMP) is not parsed.
+    public override var audioUnitMIDIProtocol: MIDIProtocolID { ._1_0 }
 
     public override var inputBusses: AUAudioUnitBusArray { inputBusArray }
     public override var outputBusses: AUAudioUnitBusArray { outputBusArray }

@@ -58,7 +58,17 @@ extension AudioEngine {
                 continue
             }
             guard let command = Self.command(for: message) else { continue }
-            guard midiScheduleCount < 512 else { return }
+            guard midiScheduleCount < 512 else {
+                // Schedule full: releases must never be lost (stuck notes). Apply
+                // them now, a few samples early; drop only non-release events.
+                switch command {
+                case .keyUp, .allNotesOff, .clearAll, .setSustain(false):
+                    handleCommand(command)
+                default:
+                    break
+                }
+                continue
+            }
             midiSchedule[midiScheduleCount] = ScheduledMIDI(offset: offset, command: command)
             midiScheduleCount += 1
         }
