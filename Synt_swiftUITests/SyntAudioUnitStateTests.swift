@@ -144,4 +144,32 @@ struct SyntAudioUnitStateTests {
         let cutoff = try #require(tree.parameter(withAddress: SynthParameterAddress.filterCutoff.rawValue))
         #expect(cutoff.value == SynthParameterAddress.filterCutoff.clamped(target.filterCutoff))
     }
+
+    @Test func viewEditAfterFullStateKeepsTheLoadedState() throws {
+        let unit = try makeUnit()
+        var loaded = unit.uiPreset
+        loaded.voiceMode = .mono
+        loaded.unisonVoices = 3
+        loaded.filterCutoff = 900
+        let other = try makeUnit()
+        other.uiPreset = loaded
+        let state = try #require(other.fullState)
+
+        var notified = 0
+        let token = NotificationCenter.default.addObserver(
+            forName: SyntAudioUnit.stateDidChangeNotification, object: unit, queue: nil
+        ) { _ in notified += 1 }
+        defer { NotificationCenter.default.removeObserver(token) }
+        unit.fullState = state
+        #expect(notified == 1, "the view is told to re-read the whole preset")
+
+        // The view re-reads, then edits one non-addressed field.
+        var edited = unit.uiPreset
+        edited.unisonVoices = 4
+        edited.filterCutoff = 5000 // stale addressed value must not win here
+        unit.adoptNonAddressedFields(of: edited)
+        #expect(unit.engine.preset.voiceMode == .mono)
+        #expect(unit.engine.preset.unisonVoices == 4)
+        #expect(unit.uiPreset.filterCutoff == 900)
+    }
 }

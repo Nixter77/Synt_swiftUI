@@ -79,11 +79,23 @@ final class AUParameterSurface: ObservableObject {
     @Published private(set) var preset: SynthPreset
     private let audioUnit: SyntAudioUnit
     private var observerToken: AUParameterObserverToken?
+    private var stateObserver: NSObjectProtocol?
     private var applyingFromHost = false
 
     init(audioUnit: SyntAudioUnit) {
         self.audioUnit = audioUnit
         self.preset = audioUnit.uiPreset
+        // Host loaded a whole state: re-read everything, not just addressed knobs.
+        stateObserver = NotificationCenter.default.addObserver(
+            forName: SyntAudioUnit.stateDidChangeNotification,
+            object: audioUnit,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.preset = self.audioUnit.uiPreset
+            }
+        }
         guard let tree = audioUnit.parameterTree else { return }
         observerToken = tree.token(byAddingParameterObserver: { [weak self] address, value in
             let apply: () -> Void = {
@@ -98,6 +110,9 @@ final class AUParameterSurface: ObservableObject {
     }
 
     deinit {
+        if let stateObserver {
+            NotificationCenter.default.removeObserver(stateObserver)
+        }
         if let observerToken, let tree = audioUnit.parameterTree {
             tree.removeParameterObserver(observerToken)
         }
@@ -115,7 +130,7 @@ final class AUParameterSurface: ObservableObject {
             }
         }
         if old.withAddressedKnobsParked() != newValue.withAddressedKnobsParked() {
-            audioUnit.uiPreset = newValue
+            audioUnit.adoptNonAddressedFields(of: newValue)
         }
     }
 

@@ -167,10 +167,29 @@ public final class SyntAudioUnit: AUAudioUnit {
         return snapshot
     }
 
+    /// Posted on main after the whole preset was replaced (fullState, currentPreset,
+    /// program change). The plugin view re-reads `uiPreset` so it never writes a stale copy back.
+    public static let stateDidChangeNotification = Notification.Name("SyntAudioUnitStateDidChange")
+
     /// Main thread. Whole-preset change: the engine loads it, then the store and tree follow.
-    private func adoptPreset(_ preset: SynthPreset) {
+    private func adoptPreset(_ preset: SynthPreset, notify: Bool = true) {
         engine.preset = preset
         syncParameterTreeFromEngine()
+        if notify {
+            NotificationCenter.default.post(name: Self.stateDidChangeNotification, object: self)
+        }
+    }
+
+    /// Main thread. A view edit of non-addressed fields (matrix, voice mode, ...).
+    /// Addressed knobs keep their live values from the store; they travel through the tree.
+    public func adoptNonAddressedFields(of edited: SynthPreset) {
+        let live = presetSnapshot()
+        var merged = edited
+        for address in SynthParameterAddress.allCases {
+            merged.setParameterValue(live.parameterValue(for: address), for: address)
+        }
+        guard merged != live else { return }
+        adoptPreset(merged, notify: false)
     }
 
     public override var fullStateForDocument: [String: Any]? {
