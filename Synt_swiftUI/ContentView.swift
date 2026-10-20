@@ -355,42 +355,6 @@ struct ContentView: View {
     }
 }
 
-/// Four columns at every window width from 900 up. Columns shrink via minWidth
-/// and never wrap. Shape is wider so four 50 pt envelope knobs still fit.
-struct SynthControlGrid: View {
-    @ObservedObject var audioEngine: AudioEngine
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(spacing: 10) {
-                OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 1, audioEngine: audioEngine)
-                OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 2, audioEngine: audioEngine)
-            }
-            .frame(minWidth: 240, maxWidth: .infinity, alignment: .top)
-
-            VStack(spacing: 10) {
-                ADSRView(preset: $audioEngine.preset)
-                FilterView(preset: $audioEngine.preset)
-                UnisonView(preset: $audioEngine.preset)
-            }
-            .frame(minWidth: 280, maxWidth: .infinity, alignment: .top)
-
-            VStack(spacing: 10) {
-                LFOView(preset: $audioEngine.preset)
-                ModMatrixView(preset: $audioEngine.preset)
-            }
-            .frame(minWidth: 140, maxWidth: .infinity, alignment: .top)
-
-            VStack(spacing: 10) {
-                AdvancedEffectsView(audioEngine: audioEngine)
-                EffectsView(preset: $audioEngine.preset)
-            }
-            .frame(minWidth: 160, maxWidth: .infinity, alignment: .top)
-        }
-        .accessibilityIdentifier("controlsSection")
-    }
-}
-
 /// Header VU + scope. This is the only view that observes `AudioMeterModel`.
 struct EngineMetersView: View {
     @ObservedObject var meters: AudioMeterModel

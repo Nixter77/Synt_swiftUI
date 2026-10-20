@@ -12,6 +12,12 @@ import Foundation
 
 public final class SyntAudioUnit: AUAudioUnit {
     let engine = AudioEngine()
+    /// Preset copy for the plugin view. Assign only from the main thread.
+    /// Addressed knobs still go through the parameter tree.
+    public var uiPreset: SynthPreset {
+        get { engine.preset }
+        set { engine.preset = newValue }
+    }
     private let outputBus: AUAudioUnitBus
     private var outputBusArray: AUAudioUnitBusArray!
     private var inputBusArray: AUAudioUnitBusArray!

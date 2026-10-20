@@ -13,7 +13,7 @@ struct ThemePerformanceRuleTests {
         let views = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("Synt_swiftUI/Views", isDirectory: true)
+            .appendingPathComponent("SynthUI/Views", isDirectory: true)
         let files = try swiftFiles(under: views)
         #expect(!files.isEmpty)
 

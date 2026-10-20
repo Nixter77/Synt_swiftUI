@@ -148,7 +148,7 @@ private struct FXColumnProbe: View {
     @ObservedObject var engine: AudioEngine
     var body: some View {
         VStack(spacing: 10) {
-            AdvancedEffectsView(audioEngine: engine)
+            AdvancedEffectsView(preset: $engine.preset)
             EffectsView(preset: $engine.preset)
         }
     }

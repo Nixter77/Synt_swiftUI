@@ -11,7 +11,7 @@ import SynthCore
 
 struct AdvancedEffectsView: View {
     @Environment(\.theme) private var theme
-    @ObservedObject var audioEngine: AudioEngine
+    @Binding var preset: SynthPreset
 
     var body: some View {
         VStack(spacing: 10) {
@@ -21,12 +21,7 @@ struct AdvancedEffectsView: View {
         }
     }
 
-    private var presetBinding: Binding<SynthPreset> {
-        Binding(
-            get: { audioEngine.preset },
-            set: { audioEngine.preset = $0 }
-        )
-    }
+    private var presetBinding: Binding<SynthPreset> { $preset }
 
     private var distortionCard: some View {
         FXSlotCard(
@@ -34,7 +29,7 @@ struct AdvancedEffectsView: View {
             enabled: distortionEnabled,
             accent: theme.aFx,
             storageName: "distortion",
-            startsExpanded: audioEngine.preset.distortionEnabled,
+            startsExpanded: preset.distortionEnabled,
             menu: { FXPresetMenu(kind: .distortion, preset: presetBinding) }
         ) {
             VStack(alignment: .leading, spacing: 8) {
@@ -50,14 +45,14 @@ struct AdvancedEffectsView: View {
                     Spacer()
 
                     Button {
-                        audioEngine.preset.distortionOversampling.toggle()
+                        preset.distortionOversampling.toggle()
                     } label: {
                         Text("2X HQ")
                             .font(.system(size: 8, weight: .bold))
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
-                            .background(audioEngine.preset.distortionOversampling ? theme.aFx : Color.clear)
-                            .foregroundColor(audioEngine.preset.distortionOversampling ? .black : theme.textDim)
+                            .background(preset.distortionOversampling ? theme.aFx : Color.clear)
+                            .foregroundColor(preset.distortionOversampling ? .black : theme.textDim)
                             .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.aFx.opacity(0.6), lineWidth: 1))
                             .cornerRadius(3)
                     }
@@ -79,7 +74,7 @@ struct AdvancedEffectsView: View {
             enabled: eqEnabled,
             accent: theme.aFx,
             storageName: "eq",
-            startsExpanded: audioEngine.preset.eqEnabled,
+            startsExpanded: preset.eqEnabled,
             menu: { FXPresetMenu(kind: .eq, preset: presetBinding) }
         ) {
             VStack(alignment: .leading, spacing: 8) {
@@ -103,7 +98,7 @@ struct AdvancedEffectsView: View {
             enabled: phaserEnabled,
             accent: theme.aFx,
             storageName: "phaser",
-            startsExpanded: audioEngine.preset.phaserEnabled,
+            startsExpanded: preset.phaserEnabled,
             menu: { FXPresetMenu(kind: .phaser, preset: presetBinding) }
         ) {
             VStack(alignment: .leading, spacing: 8) {
@@ -134,9 +129,11 @@ struct AdvancedEffectsView: View {
         set: @escaping (inout SynthPreset, T) -> Void
     ) -> Binding<T> {
         Binding(
-            get: { get(audioEngine.preset) },
+            get: { get(preset) },
             set: { newValue in
-                audioEngine.updatePreset { set(&$0, newValue) }
+                var next = preset
+                set(&next, newValue)
+                preset = next
             }
         )
     }
@@ -223,7 +220,7 @@ struct AdvancedEffectsView: View {
 }
 
 #Preview {
-    AdvancedEffectsView(audioEngine: AudioEngine())
+    AdvancedEffectsView(preset: .constant(.defaultPreset))
         .frame(width: 240)
         .padding()
         .background(Theme.baseline.bg)
