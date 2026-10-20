@@ -26,6 +26,22 @@ extension AudioEngine {
         applySampleRate(sampleRate, rebuildGraph: false)
     }
 
+    /// Render stopped (AU allocate/deallocate). Voices, pedal, schedule, parser
+    /// and effect tails start from silence, so nothing survives a re-allocate.
+    public func resetRenderStateForAllocation() {
+        midiScheduleCount = 0
+        blockMIDIParser = MIDIByteParser()
+        handleCommand(.clearAll)
+        resetPatchStateRT()
+        pingPongDelay.reset()
+        dspChorus.reset()
+        shimmer.reset()
+        phaser.reset()
+        distortion.reset()
+        parametricEQL.reset()
+        parametricEQR.reset()
+    }
+
     /// UI / main thread. The audio thread applies the value from `commandQueue`.
     public func setParameter(id: UInt64, value: Float) {
         _ = commandQueue.push(.setAddressedParameter(id: id, value: value))

@@ -87,6 +87,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         renderContext.transportState = transportStateBlock
         let rate = outputBus.format.sampleRate
         engine.prepare(sampleRate: rate > 0 ? rate : 44_100, maxFrames: frames)
+        engine.resetRenderStateForAllocation()
     }
 
     public override func deallocateRenderResources() {

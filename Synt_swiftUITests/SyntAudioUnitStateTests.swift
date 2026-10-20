@@ -172,4 +172,21 @@ struct SyntAudioUnitStateTests {
         #expect(unit.engine.preset.unisonVoices == 4)
         #expect(unit.uiPreset.filterCutoff == 900)
     }
+
+    @Test func reallocateDropsVoicesAndTheSchedule() throws {
+        let unit = try makeUnit()
+        try renderOnce(unit)
+        var on: [UInt8] = [0x90, 60, 100]
+        unit.engine.enqueueMIDI(&on, count: 3, sampleOffset: 0)
+        let l = UnsafeMutablePointer<Float>.allocate(capacity: 64)
+        let r = UnsafeMutablePointer<Float>.allocate(capacity: 64)
+        defer { l.deallocate(); r.deallocate() }
+        unit.engine.render(frames: 64, intoL: l, intoR: r)
+        #expect(unit.engine.voices.contains { $0.isActive })
+        unit.engine.enqueueMIDI(&on, count: 3, sampleOffset: 10)
+        unit.deallocateRenderResources()
+        try unit.allocateRenderResources()
+        #expect(unit.engine.midiScheduleCount == 0)
+        #expect(!unit.engine.voices.contains { $0.isActive })
+    }
 }
