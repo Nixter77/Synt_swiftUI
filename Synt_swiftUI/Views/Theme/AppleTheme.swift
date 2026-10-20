@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 struct AppleCard3D: ViewModifier {
     var cornerRadius: CGFloat?

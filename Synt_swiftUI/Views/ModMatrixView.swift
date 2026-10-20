@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 func modSources(_ destination: ModDestination, in entries: [ModMatrixEntry]) -> [ModSource] {
     var seen: [ModSource] = []

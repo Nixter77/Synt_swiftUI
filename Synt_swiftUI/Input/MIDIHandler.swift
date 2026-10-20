@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import SynthCore
 import CoreMIDI
 import os
 import Synchronization

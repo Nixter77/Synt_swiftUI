@@ -5,6 +5,7 @@
 //
 
 import AppKit
+@testable import SynthCore
 import Testing
 
 struct ThemeScreenshotTests {

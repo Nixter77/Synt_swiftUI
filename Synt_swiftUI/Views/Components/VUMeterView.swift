@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 /// LED ladder in dB: 3 dB per segment, top segment = 0 dBFS (meter 1.0).
 let ledDBPerSegment: Float = 3

@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 struct AdvancedEffectsView: View {
     @Environment(\.theme) private var theme

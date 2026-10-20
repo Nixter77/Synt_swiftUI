@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 /// Collapse memory: -1 follows the preset (expanded only while the effect is on),
 /// 0 is forced open, 1 is forced shut.

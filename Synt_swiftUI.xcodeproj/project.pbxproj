@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A100000B2F30000100DD87F3 /* SynthCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A100000C2F30000100DD87F3 /* SynthCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; };
+		A10000102F30000100DD87F3 /* SynthCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		9599002E2F2804E100DD87F3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,12 +27,41 @@
 			remoteGlobalIDString = 9599001F2F2804DF00DD87F3;
 			remoteInfo = Synt_swiftUI;
 		};
+		A100000E2F30000100DD87F3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 959900182F2804DF00DD87F3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000032F30000100DD87F3;
+			remoteInfo = SynthCore;
+		};
+		A10000122F30000100DD87F3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 959900182F2804DF00DD87F3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000032F30000100DD87F3;
+			remoteInfo = SynthCore;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A100000A2F30000100DD87F3 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				A100000B2F30000100DD87F3 /* SynthCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		959900202F2804DF00DD87F3 /* Synt_swiftUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Synt_swiftUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9599002D2F2804E100DD87F3 /* Synt_swiftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Synt_swiftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		959900372F2804E100DD87F3 /* Synt_swiftUIUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Synt_swiftUIUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000012F30000100DD87F3 /* SynthCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SynthCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -45,6 +80,11 @@
 			path = Synt_swiftUIUITests;
 			sourceTree = "<group>";
 		};
+		A10000022F30000100DD87F3 /* SynthCore */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SynthCore;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,6 +92,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A100000C2F30000100DD87F3 /* SynthCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,10 +100,18 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000102F30000100DD87F3 /* SynthCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		959900342F2804E100DD87F3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000052F30000100DD87F3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -75,6 +124,7 @@
 		959900172F2804DF00DD87F3 = {
 			isa = PBXGroup;
 			children = (
+				A10000022F30000100DD87F3 /* SynthCore */,
 				959900222F2804DF00DD87F3 /* Synt_swiftUI */,
 				959900302F2804E100DD87F3 /* Synt_swiftUITests */,
 				9599003A2F2804E100DD87F3 /* Synt_swiftUIUITests */,
@@ -85,6 +135,7 @@
 		959900212F2804DF00DD87F3 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				A10000012F30000100DD87F3 /* SynthCore.framework */,
 				959900202F2804DF00DD87F3 /* Synt_swiftUI.app */,
 				9599002D2F2804E100DD87F3 /* Synt_swiftUITests.xctest */,
 				959900372F2804E100DD87F3 /* Synt_swiftUIUITests.xctest */,
@@ -102,10 +153,12 @@
 				9599001C2F2804DF00DD87F3 /* Sources */,
 				9599001D2F2804DF00DD87F3 /* Frameworks */,
 				9599001E2F2804DF00DD87F3 /* Resources */,
+				A100000A2F30000100DD87F3 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A100000D2F30000100DD87F3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				959900222F2804DF00DD87F3 /* Synt_swiftUI */,
@@ -129,6 +182,7 @@
 			);
 			dependencies = (
 				9599002F2F2804E100DD87F3 /* PBXTargetDependency */,
+				A10000112F30000100DD87F3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				959900302F2804E100DD87F3 /* Synt_swiftUITests */,
@@ -163,6 +217,28 @@
 			productReference = 959900372F2804E100DD87F3 /* Synt_swiftUIUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		A10000032F30000100DD87F3 /* SynthCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000092F30000100DD87F3 /* Build configuration list for PBXNativeTarget "SynthCore" */;
+			buildPhases = (
+				A10000042F30000100DD87F3 /* Sources */,
+				A10000052F30000100DD87F3 /* Frameworks */,
+				A10000062F30000100DD87F3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A10000022F30000100DD87F3 /* SynthCore */,
+			);
+			name = SynthCore;
+			packageProductDependencies = (
+			);
+			productName = SynthCore;
+			productReference = A10000012F30000100DD87F3 /* SynthCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +260,9 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 9599001F2F2804DF00DD87F3;
 					};
+					A10000032F30000100DD87F3 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = 9599001B2F2804DF00DD87F3 /* Build configuration list for PBXProject "Synt_swiftUI" */;
@@ -200,6 +279,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				A10000032F30000100DD87F3 /* SynthCore */,
 				9599001F2F2804DF00DD87F3 /* Synt_swiftUI */,
 				9599002C2F2804E100DD87F3 /* Synt_swiftUITests */,
 				959900362F2804E100DD87F3 /* Synt_swiftUIUITests */,
@@ -223,6 +303,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		959900352F2804E100DD87F3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000062F30000100DD87F3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +340,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000042F30000100DD87F3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +359,16 @@
 			isa = PBXTargetDependency;
 			target = 9599001F2F2804DF00DD87F3 /* Synt_swiftUI */;
 			targetProxy = 959900382F2804E100DD87F3 /* PBXContainerItemProxy */;
+		};
+		A100000D2F30000100DD87F3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000032F30000100DD87F3 /* SynthCore */;
+			targetProxy = A100000E2F30000100DD87F3 /* PBXContainerItemProxy */;
+		};
+		A10000112F30000100DD87F3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000032F30000100DD87F3 /* SynthCore */;
+			targetProxy = A10000122F30000100DD87F3 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -458,6 +562,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = NPWB26L9N6;
 				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+					"@loader_path/../../../../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "Home.Synt-swiftUITests";
@@ -479,6 +589,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = NPWB26L9N6;
 				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+					"@loader_path/../../../../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "Home.Synt-swiftUITests";
@@ -530,6 +646,70 @@
 			};
 			name = Release;
 		};
+		A10000072F30000100DD87F3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = NPWB26L9N6;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = NO;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "Home.Synt-swiftUI.SynthCore";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		A10000082F30000100DD87F3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = NPWB26L9N6;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "Home.Synt-swiftUI.SynthCore";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -565,6 +745,15 @@
 			buildConfigurations = (
 				959900482F2804E100DD87F3 /* Debug */,
 				959900492F2804E100DD87F3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000092F30000100DD87F3 /* Build configuration list for PBXNativeTarget "SynthCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000072F30000100DD87F3 /* Debug */,
+				A10000082F30000100DD87F3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

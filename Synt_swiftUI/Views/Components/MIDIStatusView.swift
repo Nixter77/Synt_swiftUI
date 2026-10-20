@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 struct MIDIStatusView: View {
     @Environment(\.theme) private var theme

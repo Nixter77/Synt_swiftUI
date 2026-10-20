@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 func knobArcFraction(value: Float, range: ClosedRange<Float>) -> CGFloat {
     let span = range.upperBound - range.lowerBound

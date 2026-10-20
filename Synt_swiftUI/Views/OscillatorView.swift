@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 import UniformTypeIdentifiers
 
 struct OscillatorView: View {

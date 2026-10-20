@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 struct UnisonView: View {
     @Environment(\.theme) private var theme

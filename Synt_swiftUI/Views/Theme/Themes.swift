@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 extension Theme {
     static let baseline = Theme(

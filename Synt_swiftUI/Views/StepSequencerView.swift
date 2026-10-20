@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import SynthCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -335,6 +336,6 @@ struct SeqTieButton: View {
 
 #Preview {
     let seq = StepSequencer()
-    return StepSequencerView(sequencer: seq, playhead: seq.playhead, bpm: .constant(120), isPlaying: .constant(false))
+    StepSequencerView(sequencer: seq, playhead: seq.playhead, bpm: .constant(120), isPlaying: .constant(false))
         .frame(width: 700, height: 200).background(Theme.baseline.bg)
 }

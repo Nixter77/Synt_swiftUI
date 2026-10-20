@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 struct OscilloscopeView: View {
     @Environment(\.theme) private var theme

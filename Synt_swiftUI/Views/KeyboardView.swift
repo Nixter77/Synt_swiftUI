@@ -1,4 +1,5 @@
 import SwiftUI
+import SynthCore
 
 struct KeyboardView: View {
     @Environment(\.theme) private var theme

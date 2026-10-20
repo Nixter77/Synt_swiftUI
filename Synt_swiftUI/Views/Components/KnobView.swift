@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import SynthCore
 import SwiftUI
 
 /// 150 pt of vertical drag sweeps the full range, linearly from the grab point.

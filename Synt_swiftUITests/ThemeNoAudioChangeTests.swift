@@ -5,6 +5,7 @@
 //
 
 import Foundation
+@testable import SynthCore
 import Testing
 @testable import Synt_swiftUI
 
@@ -47,15 +48,21 @@ struct ThemeNoAudioChangeTests {
     /// Audio, models, input and utils must not reference any theme type, so a
     /// skin cannot reach the engine through a singleton or environment.
     @Test func audioSideHasNoThemeReferences() throws {
-        let app = URL(fileURLWithPath: #filePath)
+        let repo = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("Synt_swiftUI", isDirectory: true)
         let banned = ["Theme", ".theme", "@Environment", "@EnvironmentObject"]
         var scanned = 0
         var hits: [String] = []
-        for dir in ["Audio", "Models", "Input", "Utils"] {
-            let root = app.appendingPathComponent(dir, isDirectory: true)
+        let roots = [
+            repo.appendingPathComponent("SynthCore/Audio", isDirectory: true),
+            repo.appendingPathComponent("SynthCore/Models", isDirectory: true),
+            repo.appendingPathComponent("SynthCore/Input", isDirectory: true),
+            repo.appendingPathComponent("SynthCore/Utils", isDirectory: true),
+            repo.appendingPathComponent("Synt_swiftUI/Input", isDirectory: true),
+        ]
+        for root in roots {
+            let dir = root.lastPathComponent
             guard let e = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else { continue }
             for case let url as URL in e where url.pathExtension == "swift" {
                 scanned += 1

@@ -7,6 +7,7 @@
 //
 
 import AppKit
+import SynthCore
 import SwiftUI
 
 struct StepperValueWidthKey: PreferenceKey {

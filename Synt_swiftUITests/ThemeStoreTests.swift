@@ -4,6 +4,7 @@
 //
 
 import Combine
+@testable import SynthCore
 import Foundation
 import Testing
 @testable import Synt_swiftUI

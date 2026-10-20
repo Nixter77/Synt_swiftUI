@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 @main
 struct Synt_swiftUIApp: App {

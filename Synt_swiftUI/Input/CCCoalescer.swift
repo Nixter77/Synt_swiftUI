@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import SynthCore
 import Synchronization
 
 final class CCCoalescer: @unchecked Sendable {

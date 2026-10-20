@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 struct LFOView: View {
     @Environment(\.theme) private var theme

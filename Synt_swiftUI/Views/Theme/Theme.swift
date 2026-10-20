@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import SynthCore
 import SwiftUI
 
 extension Color {

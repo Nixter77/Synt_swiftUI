@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SynthCore
 
 /// VU scale in dB: −20…+3 VU across the arc. 0 VU is meter level 0.5
 /// (the engine sends min(rms*2, 1), so 1.0 is +6 VU and pins the right stop).

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+@testable import SynthCore
 import Testing
 import AVFoundation
 @testable import Synt_swiftUI

@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import SynthCore
 import SwiftUI
 import Combine
 

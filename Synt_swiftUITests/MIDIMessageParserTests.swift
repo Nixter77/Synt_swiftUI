@@ -5,6 +5,7 @@
 //
 
 import Foundation
+@testable import SynthCore
 import CoreMIDI
 import Testing
 @testable import Synt_swiftUI

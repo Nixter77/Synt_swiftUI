@@ -3,6 +3,7 @@
 //
 
 import Foundation
+@testable import SynthCore
 import Testing
 @testable import Synt_swiftUI
 
@@ -94,7 +95,7 @@ struct ModMatrixTests {
     @Test func resonanceRowNeverWritesTheSharedField() throws {
         let render = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Synt_swiftUI/Audio/AudioEngine+Render.swift")
+            .appendingPathComponent("SynthCore/Audio/AudioEngine+Render.swift")
         let text = try String(contentsOf: render, encoding: .utf8)
         #expect(!text.contains("filterL.resonance ="))
 
