@@ -204,11 +204,6 @@ public final class SyntAudioUnit: AUAudioUnit {
         adoptPreset(merged, notify: false)
     }
 
-    public override var fullStateForDocument: [String: Any]? {
-        get { fullState }
-        set { fullState = newValue }
-    }
-
     private func installParameterTree() {
         let tree = SyntParameterTree.make()
         let store = parameters
