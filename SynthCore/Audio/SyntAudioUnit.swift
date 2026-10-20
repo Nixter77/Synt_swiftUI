@@ -32,7 +32,7 @@ public final class SyntAudioUnit: AUAudioUnit {
     private let suppressParameterObserver = Atomic<Bool>(false)
     private static let stateVersionKey = "syntStateVersion"
     static let stateVersion = 1
-    private static let statePresetKey = "syntPreset"
+    public static let statePresetKey = "syntPreset"
     private static let stateIndexKey = "syntPresetIndex"
 
     public override init(componentDescription: AudioComponentDescription, options: AudioComponentInstantiationOptions = []) throws {
@@ -162,17 +162,66 @@ public final class SyntAudioUnit: AUAudioUnit {
         Self.factoryPresetList
     }
 
+    public override var supportsUserPresets: Bool {
+        true
+    }
+
+    public override var userPresets: [AUAudioUnitPreset] {
+        PresetManager.shared.loadPresets()
+        return PresetManager.shared.userPresets.enumerated().map { index, preset in
+            let item = AUAudioUnitPreset()
+            item.number = -(index + 1)
+            item.name = preset.name
+            return item
+        }
+    }
+
+    public override func saveUserPreset(_ userPreset: AUAudioUnitPreset) throws {
+        var presetToSave = engine.preset
+        presetToSave.name = userPreset.name
+        PresetManager.shared.saveUserPreset(presetToSave)
+    }
+
+    public override func deleteUserPreset(_ userPreset: AUAudioUnitPreset) throws {
+        PresetManager.shared.deleteUserPreset(name: userPreset.name)
+    }
+
+    public override func presetState(for userPreset: AUAudioUnitPreset) throws -> [String : Any] {
+        PresetManager.shared.loadPresets()
+        guard let match = PresetManager.shared.userPresets.first(where: { $0.name == userPreset.name }) else {
+            throw NSError(domain: "SyntAudioUnit", code: -1, userInfo: [NSLocalizedDescriptionKey: "User preset '\(userPreset.name)' not found."])
+        }
+        var state = [String: Any]()
+        state[Self.stateVersionKey] = Self.stateVersion
+        let data = try JSONEncoder().encode(match)
+        state[Self.statePresetKey] = data
+        state[Self.stateProgramChangeKey] = respondsToProgramChange
+        return state
+    }
+
     public override var currentPreset: AUAudioUnitPreset? {
         get {
-            guard let index = PresetBrowser.index(of: engine.preset),
-                  Self.factoryPresetList.indices.contains(index) else { return nil }
-            return Self.factoryPresetList[index]
+            if let index = PresetBrowser.index(of: engine.preset),
+               Self.factoryPresetList.indices.contains(index) {
+                return Self.factoryPresetList[index]
+            }
+            if let userMatch = userPresets.first(where: { $0.name == engine.preset.name }) {
+                return userMatch
+            }
+            return nil
         }
         set {
             guard let newValue else { return }
-            let index = newValue.number
-            guard PresetBrowser.list.indices.contains(index) else { return }
-            adoptPreset(PresetBrowser.list[index])
+            if newValue.number >= 0 {
+                let index = newValue.number
+                guard PresetBrowser.list.indices.contains(index) else { return }
+                adoptPreset(PresetBrowser.list[index])
+            } else {
+                PresetManager.shared.loadPresets()
+                if let match = PresetManager.shared.userPresets.first(where: { $0.name == newValue.name }) {
+                    adoptPreset(match)
+                }
+            }
         }
     }
 
@@ -442,15 +491,15 @@ enum SyntParameterTree {
                 knob(.phaserDepth),
                 knob(.phaserMix),
                 knob(.phaserFeedback),
-                knob(.phaserCenterFrequency, unit: .hertz),
+                knob(.phaserCenterFrequency, unit: .hertz, flags: [continuous, logarithmic]),
                 knob(.phaserSpread),
                 toggleKnob(.eqEnabled),
                 knob(.eqLowGain, unit: .decibels),
                 knob(.eqMidGain, unit: .decibels),
                 knob(.eqHighGain, unit: .decibels),
-                knob(.eqLowFreq, unit: .hertz),
-                knob(.eqMidFreq, unit: .hertz),
-                knob(.eqHighFreq, unit: .hertz),
+                knob(.eqLowFreq, unit: .hertz, flags: [continuous, logarithmic]),
+                knob(.eqMidFreq, unit: .hertz, flags: [continuous, logarithmic]),
+                knob(.eqHighFreq, unit: .hertz, flags: [continuous, logarithmic]),
             ]
         )
         let performance = AUParameterTree.createGroup(

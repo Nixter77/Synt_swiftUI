@@ -283,6 +283,16 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedGlideLegatoOnly: Bool = false
     public var cachedMonoPriority: MonoPriority = .last
     public var randomSeed: UInt32 = 0x12345678
+    /// Optional microtonal tuning table (128 notes). Nil = standard 12-TET.
+    public var customTuningTable: [Double]? = nil
+
+    @inline(__always)
+    public func noteToFrequency(_ midiNote: Int) -> Double {
+        if let table = customTuningTable, midiNote >= 0, midiNote < table.count {
+            return table[midiNote]
+        }
+        return AudioMath.midiToFrequency(midiNote)
+    }
     public var monoNoteStack = MonoNoteStack()
     /// Lock-free RT CC mapping table: 128 slots storing target ID (-1 if unmapped)
     /// CC -> target index. Written on main, read on the audio thread: per-slot atomics.

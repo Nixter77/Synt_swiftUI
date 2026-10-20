@@ -10,6 +10,11 @@ import SwiftUI
 
 public class PresetManager: ObservableObject {
     public static let shared = PresetManager()
+    public static let appGroupID = "group.com.nixter.synt"
+
+    public var defaults: UserDefaults {
+        UserDefaults(suiteName: Self.appGroupID) ?? .standard
+    }
     
     private let userPresetsKey = "userPresets"
     
@@ -22,7 +27,7 @@ public class PresetManager: ObservableObject {
     // MARK: - Load Presets
     
     public func loadPresets() {
-        guard let data = UserDefaults.standard.data(forKey: userPresetsKey) else {
+        guard let data = defaults.data(forKey: userPresetsKey) else {
             userPresets = []
             return
         }
@@ -42,10 +47,24 @@ public class PresetManager: ObservableObject {
         do {
             let encoder = JSONEncoder()
             let data = try encoder.encode(userPresets)
-            UserDefaults.standard.set(data, forKey: userPresetsKey)
+            defaults.set(data, forKey: userPresetsKey)
         } catch {
             print("Error saving presets: \(error)")
         }
+    }
+    
+    public func saveUserPreset(_ preset: SynthPreset) {
+        if let idx = userPresets.firstIndex(where: { $0.name == preset.name }) {
+            userPresets[idx] = preset
+        } else {
+            userPresets.append(preset)
+        }
+        savePresets()
+    }
+
+    public func deleteUserPreset(name: String) {
+        userPresets.removeAll { $0.name == name }
+        savePresets()
     }
     
     // MARK: - CRUD Operations

@@ -168,7 +168,7 @@ public extension AudioEngine {
             }
         }
 
-        let baseFreq = AudioMath.midiToFrequency(midiNote)
+        let baseFreq = noteToFrequency(midiNote)
         let startFreq: Double
         if activeVoiceCountRT == 0 || cachedPortamento <= 0.001 || (cachedGlideLegatoOnly && !hadHeldNotes) {
             startFreq = baseFreq
@@ -334,7 +334,7 @@ public extension AudioEngine {
     }
 
     public func retuneActiveVoicesLegato(to midiNote: Int, velocity: Float) {
-        let baseFreq = AudioMath.midiToFrequency(midiNote)
+        let baseFreq = noteToFrequency(midiNote)
         var anyFound = false
 
         for i in 0..<AudioEngine.maxVoices {
@@ -415,7 +415,7 @@ public extension AudioEngine {
                 cachedPortamento = 0.0
                 createVoice(midiNote: midiNote, velocity: velocity, hadHeldNotes: false)
                 cachedPortamento = savedPort
-                lastPlayedFrequency = AudioMath.midiToFrequency(midiNote)
+                lastPlayedFrequency = noteToFrequency(midiNote)
             } else if active?.note != noteBefore, let target = active {
                 retuneActiveVoicesLegato(to: target.note, velocity: target.velocity)
             }
