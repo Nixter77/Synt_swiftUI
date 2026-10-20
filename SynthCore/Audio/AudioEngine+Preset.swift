@@ -220,6 +220,14 @@ public extension AudioEngine {
         }
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
+        cachedTranceEnabled = snap.tranceGateEnabled
+        cachedTranceSteps = snap.tranceGatePattern
+        cachedTranceDepth = snap.tranceGateDepth
+        cachedTranceSmooth = snap.tranceGateSmooth
+        cachedTranceDivision = snap.tranceGateDivision
+        cachedPerlinTempoSync = snap.perlinTempoSync
+        cachedPerlinDivision = snap.perlinSyncDivision
+        cachedPerlinHz = snap.perlinRate
         if cachedPolyphonyLimit > 0 && cachedPolyphonyLimit < AudioEngine.maxVoices {
             for i in cachedPolyphonyLimit..<AudioEngine.maxVoices {
                 if voices[i].isActive && !voices[i].isReleasing {
@@ -267,6 +275,10 @@ public extension AudioEngine {
         dspChorus.reset()
         stereoTool.reset()
         shimmer.reset()
+        tranceStep = 0
+        tranceCursor = 0
+        tranceGain = 1
+        smoothRandom.reset()
         distortion.reset()
         parametricEQL.reset()
         parametricEQR.reset()

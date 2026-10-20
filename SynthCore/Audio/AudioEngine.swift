@@ -291,6 +291,21 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedOscPhaseMode: OscPhaseMode = .reset
     /// 32 searches every voice. A smaller limit only narrows `findFreeVoiceSlot`.
     public var cachedPolyphonyLimit: Int = AudioEngine.maxVoices
+    public var cachedTranceEnabled: Bool = false
+    public var cachedTranceSteps: UInt16 = 0xAAAA
+    public var cachedTranceDepth: Float = 1
+    public var cachedTranceSmooth: Float = 0
+    public var cachedTranceDivision: TimeDivision = .sixteenth
+    var tranceStep: Int = 0
+    var tranceCursor: Double = 0
+    var tranceGain: Float = 1
+    var tranceSmoothForCoeff: Float = -1
+    var tranceCoeffRate: Double = 0
+    var tranceSmoothCoeff: Float = 1
+    public let smoothRandom = SmoothRandom()
+    public var cachedPerlinHz: Float = 1
+    public var cachedPerlinTempoSync: Bool = false
+    public var cachedPerlinDivision: TimeDivision = .quarter
     public var randomSeed: UInt32 = 0x12345678
     /// Optional microtonal tuning table (128 notes). Nil = standard 12-TET.
     public var customTuningTable: [Double]? = nil

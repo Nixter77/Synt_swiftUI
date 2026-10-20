@@ -154,6 +154,9 @@ extension AudioEngine {
                 let dur = cachedDelaySyncDivision.duration(bpm: cachedBPM)
                 pingPongDelay.delayTime = max(0.001, min(2, dur))
             }
+            if cachedPerlinTempoSync {
+                cachedPerlinHz = cachedPerlinDivision.frequency(bpm: cachedBPM)
+            }
         }
         if let transportMoving {
             hostTransportMoving = transportMoving

@@ -112,6 +112,15 @@ struct ModMatrixView: View {
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
+
+                Picker("Curve", selection: entry.curve) {
+                    ForEach(ModCurve.allCases, id: \.self) { curve in
+                        Text(curve.menuTitle).tag(curve)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .accessibilityIdentifier("modCurve")
             }
             HStack(spacing: 6) {
                 KnobView(
@@ -159,6 +168,7 @@ struct ModMatrixView: View {
         case .pitchBend: polarity = "Pitch Bend is bipolar."
         case .random: polarity = "Random is bipolar per voice."
         case .sampleAndHold: polarity = "Sample & Hold is stepped random."
+        case .smoothRandom: polarity = "Smooth Random is continuous noise."
         }
         let action: String
         switch row.destination {

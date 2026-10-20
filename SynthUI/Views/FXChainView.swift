@@ -20,6 +20,8 @@ struct FXChainView: View {
     var body: some View {
         VStack(spacing: 10) {
             stereoCard
+            tranceCard
+            smoothCard
             ForEach(preset.fxOrder, id: \.self) { slot in
                 slotCard(for: slot)
                     .onDrag {
@@ -101,6 +103,84 @@ struct FXChainView: View {
                 HStack(spacing: 6) {
                     KnobView(value: $preset.stereoHaasMs, range: 0...30, label: "Haas", format: "%.1f")
                     KnobView(value: $preset.stereoMonoBassHz, range: 0...400, label: "Mono Bass", format: "%.0f")
+                }
+            }
+        }
+    }
+
+    private var tranceCard: some View {
+        FXSlotCard(
+            title: "Trance Gate",
+            enabled: $preset.tranceGateEnabled,
+            accent: theme.aFx,
+            storageName: "trance",
+            startsExpanded: preset.tranceGateEnabled
+        ) {
+            EmptyView()
+        } content: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 2) {
+                    ForEach(0..<16, id: \.self) { step in
+                        let on = preset.tranceGatePattern & (UInt16(1) << UInt16(step)) != 0
+                        Button {
+                            preset.tranceGatePattern ^= UInt16(1) << UInt16(step)
+                        } label: {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(on ? theme.aFx : theme.inset)
+                                .frame(width: 10, height: 16)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("tranceStep\(step)")
+                    }
+                }
+                HStack(spacing: 6) {
+                    KnobView(value: $preset.tranceGateDepth, range: 0...1, label: "Depth")
+                    KnobView(value: $preset.tranceGateSmooth, range: 0...1, label: "Smooth")
+                }
+                Picker("Rate", selection: $preset.tranceGateDivision) {
+                    ForEach(TimeDivision.allCases, id: \.self) { division in
+                        Text(division.rawValue).tag(division)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+            }
+        }
+    }
+
+    private var smoothCard: some View {
+        FXSlotCard(
+            title: "Smooth Random",
+            accent: theme.aMod,
+            storageName: "smoothRandom",
+            startsExpanded: false
+        ) {
+            EmptyView()
+        } content: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    KnobView(value: $preset.perlinRate, range: 0.05...20, label: "Rate", format: "%.2f")
+                    Button {
+                        preset.perlinTempoSync.toggle()
+                    } label: {
+                        Text(preset.perlinTempoSync ? "SYNC" : "FREE")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(preset.perlinTempoSync ? theme.bg : theme.textDim)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(RoundedRectangle(cornerRadius: 3).fill(preset.perlinTempoSync ? theme.aMod : theme.inset))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("perlinSync")
+                }
+                if preset.perlinTempoSync {
+                    Picker("Division", selection: $preset.perlinSyncDivision) {
+                        ForEach(TimeDivision.allCases, id: \.self) { division in
+                            Text(division.rawValue).tag(division)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
                 }
             }
         }

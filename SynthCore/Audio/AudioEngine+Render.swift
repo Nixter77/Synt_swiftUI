@@ -135,7 +135,8 @@ public extension AudioEngine {
         modEnv: Float = 0,
         pitchBend: Float = 0,
         random: Float = 0,
-        sampleAndHold: Float = 0
+        sampleAndHold: Float = 0,
+        smoothRandom: Float = 0
     ) -> Float {
         switch source {
         case .lfo1: return lfo
@@ -154,7 +155,45 @@ public extension AudioEngine {
         case .pitchBend: return pitchBend
         case .random: return random
         case .sampleAndHold: return sampleAndHold
+        case .smoothRandom: return smoothRandom
         }
+    }
+
+    /// Linear rows multiply the raw source. Other curves read the bank published off the audio thread.
+    @inline(__always)
+    func modulatedAmount(_ entry: RTModSlot, slot: Int, source: Float) -> Float {
+        let shaped: Float
+        if entry.curve == .linear {
+            shaped = source
+        } else {
+            shaped = rtModMatrix.lookup(bank: entry.tableBank, slot: slot, source: source)
+        }
+        return shaped * entry.amount
+    }
+
+    /// One step clock for every voice. Runs only while the gate is enabled.
+    func advanceTranceGateRT() {
+        let dur = Double(cachedTranceDivision.duration(bpm: cachedBPM))
+        let stepSamples = max(1, dur * sampleRate)
+        tranceCursor += 1
+        if tranceCursor >= stepSamples {
+            tranceCursor -= stepSamples
+            tranceStep = (tranceStep + 1) & 15
+        }
+        let bit = UInt16(1) << UInt16(tranceStep)
+        let on = cachedTranceSteps & bit != 0
+        let target: Float = on ? 1 : (1 - cachedTranceDepth)
+        if cachedTranceSmooth <= 0.0001 {
+            tranceGain = target
+            return
+        }
+        if cachedTranceSmooth != tranceSmoothForCoeff || sampleRate != tranceCoeffRate {
+            tranceSmoothForCoeff = cachedTranceSmooth
+            tranceCoeffRate = sampleRate
+            let ms = 0.001 + Double(cachedTranceSmooth) * 0.040
+            tranceSmoothCoeff = Float(1 - exp(-1.0 / (ms * sampleRate)))
+        }
+        tranceGain += (target - tranceGain) * tranceSmoothCoeff
     }
 
     // MARK: - Audio thread render path
@@ -219,6 +258,17 @@ public extension AudioEngine {
         let lfoEnabled = lfo.enabled
         let lfoTarget = lfo.target
         let (modSlots, modCount) = rtModMatrix.snapshot()
+        var smoothRandomValue: Float = 0
+        if modCount > 0 {
+            var wantsSmooth = false
+            for m in 0..<modCount where modSlots[m].source == .smoothRandom {
+                wantsSmooth = true
+                break
+            }
+            if wantsSmooth {
+                smoothRandomValue = smoothRandom.advance(hz: cachedPerlinHz, sampleRate: sampleRate)
+            }
+        }
 
         // Global destinations (cutoff, resonance, LFO rate/depth) share one source
         // per sample. Env and velocity come from the loudest active voice.
@@ -253,9 +303,10 @@ public extension AudioEngine {
                     velocity: globalVel,
                     modWheel: modWheel,
                     keyTrack: globalKeyTrack,
-                    aftertouch: currentAftertouch
+                    aftertouch: currentAftertouch,
+                    smoothRandom: smoothRandomValue
                 )
-                let modVal = src * entry.amount
+                let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
                 case .lfoRate: rateMod += modVal
                 case .lfoDepth: depthMod += modVal
@@ -328,9 +379,10 @@ public extension AudioEngine {
                     velocity: globalVel,
                     modWheel: modWheel,
                     keyTrack: globalKeyTrack,
-                    aftertouch: currentAftertouch
+                    aftertouch: currentAftertouch,
+                    smoothRandom: smoothRandomValue
                 )
-                let modVal = src * entry.amount
+                let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
                 case .cutoff: cutoffMod += modVal
                 case .resonance: resonanceMod += modVal
@@ -392,6 +444,9 @@ public extension AudioEngine {
         // Same for every voice: one exp() per sample, not one per voice.
         let glides = cachedPortamento > 0.001
         let glideRate = glides ? portamentoGlideRate() : 0
+        if cachedTranceEnabled {
+            advanceTranceGateRT()
+        }
 
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
         for i in 0..<AudioEngine.maxVoices {
@@ -489,9 +544,10 @@ public extension AudioEngine {
                         modEnv: modEnvVal,
                         pitchBend: pitchBendSmoothed,
                         random: v.randomValue,
-                        sampleAndHold: lfo.lastRandomValue
+                        sampleAndHold: lfo.lastRandomValue,
+                        smoothRandom: smoothRandomValue
                     )
-                    let modVal = sourceVal * entry.amount
+                    let modVal = modulatedAmount(entry, slot: m, source: sourceVal)
                     switch entry.destination {
                     case .pitch1: pitchMod1 += modVal
                     case .pitch2: pitchMod2 += modVal
@@ -718,6 +774,9 @@ public extension AudioEngine {
                 amplitude = v.filter.process(amplitude, coeffs: voiceCoeffs)
             }
             if !amplitude.isFinite { amplitude = 0 }
+            if cachedTranceEnabled {
+                amplitude *= tranceGain
+            }
 
             var pan = v.pan + panMod
             if ccPanRT != 0 { pan += ccPanRT }

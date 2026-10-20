@@ -236,6 +236,18 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     /// 1...32. 32 is `AudioEngine.maxVoices` and keeps the full voice search.
     public var polyphonyLimit: Int = 32
 
+    /// Trance gate. Off skips the amplitude multiply.
+    public var tranceGateEnabled: Bool = false
+    public var tranceGatePattern: UInt16 = 0xAAAA
+    public var tranceGateDepth: Float = 1
+    public var tranceGateSmooth: Float = 0
+    public var tranceGateDivision: TimeDivision = .sixteenth
+
+    /// Smooth-random matrix source. The generator advances only while a row uses it.
+    public var perlinRate: Float = 1
+    public var perlinTempoSync: Bool = false
+    public var perlinSyncDivision: TimeDivision = .quarter
+
     /// Safe neutral starting point (clean headroom).
     public static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -287,6 +299,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case stereoEnabled, stereoWidth, stereoMidSide, stereoHaasMs, stereoMonoBassHz
         case oscPhaseMode
         case polyphonyLimit
+        case tranceGateEnabled, tranceGatePattern, tranceGateDepth, tranceGateSmooth, tranceGateDivision
+        case perlinRate, perlinTempoSync, perlinSyncDivision
     }
 
     public init(
@@ -694,6 +708,14 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         stereoMonoBassHz = try c.decodeIfPresent(Float.self, forKey: .stereoMonoBassHz) ?? 0
         oscPhaseMode = try c.decodeIfPresent(OscPhaseMode.self, forKey: .oscPhaseMode) ?? .reset
         polyphonyLimit = try c.decodeIfPresent(Int.self, forKey: .polyphonyLimit) ?? 32
+        tranceGateEnabled = try c.decodeIfPresent(Bool.self, forKey: .tranceGateEnabled) ?? false
+        tranceGatePattern = try c.decodeIfPresent(UInt16.self, forKey: .tranceGatePattern) ?? 0xAAAA
+        tranceGateDepth = try c.decodeIfPresent(Float.self, forKey: .tranceGateDepth) ?? 1
+        tranceGateSmooth = try c.decodeIfPresent(Float.self, forKey: .tranceGateSmooth) ?? 0
+        tranceGateDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .tranceGateDivision) ?? .sixteenth
+        perlinRate = try c.decodeIfPresent(Float.self, forKey: .perlinRate) ?? 1
+        perlinTempoSync = try c.decodeIfPresent(Bool.self, forKey: .perlinTempoSync) ?? false
+        perlinSyncDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .perlinSyncDivision) ?? .quarter
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -776,17 +798,85 @@ public enum LFOTarget: String, CaseIterable, Codable {
     case none = "Matrix only"
 }
 
+public enum ModCurve: String, Codable, CaseIterable, Sendable {
+    case linear
+    case exponential
+    case logarithmic
+    case sCurve
+    case steps
+
+    public var menuTitle: String {
+        switch self {
+        case .linear: return "Lin"
+        case .exponential: return "Exp"
+        case .logarithmic: return "Log"
+        case .sCurve: return "S"
+        case .steps: return "Steps"
+        }
+    }
+
+    /// Maps a source in −1...1. Linear is not tabulated.
+    public func remap(_ x: Float) -> Float {
+        if self == .linear { return x }
+        let clamped = max(-1, min(1, x))
+        let mag = abs(clamped)
+        let sign: Float = clamped < 0 ? -1 : 1
+        switch self {
+        case .linear:
+            return clamped
+        case .exponential:
+            return sign * mag * mag
+        case .logarithmic:
+            return sign * sqrt(mag)
+        case .sCurve:
+            return sign * (mag * mag * (3 - 2 * mag))
+        case .steps:
+            return sign * min(floor(mag * 8) / 8, 1)
+        }
+    }
+}
+
 public struct ModMatrixEntry: Codable, Hashable, Identifiable {
     public var id = UUID()
     public var source: ModSource
     public var destination: ModDestination
     public var amount: Float
+    public var curve: ModCurve = .linear
 
-    public init(id: UUID = UUID(), source: ModSource, destination: ModDestination, amount: Float) {
+    public init(
+        id: UUID = UUID(),
+        source: ModSource,
+        destination: ModDestination,
+        amount: Float,
+        curve: ModCurve = .linear
+    ) {
         self.id = id
         self.source = source
         self.destination = destination
         self.amount = amount
+        self.curve = curve
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, source, destination, amount, curve
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        source = try c.decode(ModSource.self, forKey: .source)
+        destination = try c.decode(ModDestination.self, forKey: .destination)
+        amount = try c.decodeIfPresent(Float.self, forKey: .amount) ?? 0
+        curve = try c.decodeIfPresent(ModCurve.self, forKey: .curve) ?? .linear
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(source, forKey: .source)
+        try c.encode(destination, forKey: .destination)
+        try c.encode(amount, forKey: .amount)
+        try c.encode(curve, forKey: .curve)
     }
 }
 
@@ -807,6 +897,7 @@ public enum ModSource: String, CaseIterable, Codable {
     case pitchBend = "Pitch Bend"
     case random = "Random"
     case sampleAndHold = "Sample & Hold"
+    case smoothRandom = "Smooth Random"
 }
 
 public enum VelocityCurve: String, CaseIterable, Codable, Sendable {

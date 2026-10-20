@@ -119,6 +119,14 @@ public struct RTPresetSnapshot: Sendable {
     public var stereoMonoBassHz: Float = 0
     public var oscPhaseMode: OscPhaseMode = .reset
     public var polyphonyLimit: Int = 32
+    public var tranceGateEnabled: Bool = false
+    public var tranceGatePattern: UInt16 = 0xAAAA
+    public var tranceGateDepth: Float = 1
+    public var tranceGateSmooth: Float = 0
+    public var tranceGateDivision: TimeDivision = .sixteenth
+    public var perlinRate: Float = 1
+    public var perlinTempoSync: Bool = false
+    public var perlinSyncDivision: TimeDivision = .quarter
     public var macro1: Float = 0.0
     public var macro2: Float = 0.0
     public var macro3: Float = 0.0
@@ -268,6 +276,16 @@ public struct RTPresetSnapshot: Sendable {
         oscPhaseMode = preset.oscPhaseMode
         let limit = preset.polyphonyLimit
         polyphonyLimit = limit < 1 ? 32 : min(32, limit)
+        tranceGateEnabled = preset.tranceGateEnabled
+        tranceGatePattern = preset.tranceGatePattern
+        tranceGateDepth = max(0, min(1, preset.tranceGateDepth))
+        tranceGateSmooth = max(0, min(1, preset.tranceGateSmooth))
+        tranceGateDivision = preset.tranceGateDivision
+        perlinTempoSync = preset.perlinTempoSync
+        perlinSyncDivision = preset.perlinSyncDivision
+        perlinRate = perlinTempoSync
+            ? perlinSyncDivision.frequency(bpm: preset.bpm)
+            : max(0.05, min(40, preset.perlinRate))
         lfoMode = preset.lfoMode
         lfoStartPhase = preset.lfoStartPhase
         lfo2Mode = preset.lfo2Mode

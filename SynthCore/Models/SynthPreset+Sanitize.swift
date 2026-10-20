@@ -107,6 +107,7 @@ public extension SynthPreset {
         p.modMatrix = Array(p.modMatrix.prefix(Self.maxModSlots)).map { e in
             var e = e
             e.amount = f(e.amount, -4, 4, 0)
+            if !ModCurve.allCases.contains(e.curve) { e.curve = .linear }
             return e
         }
 
@@ -179,6 +180,11 @@ public extension SynthPreset {
         p.stereoMonoBassHz = f(p.stereoMonoBassHz, 0, 400, 0)
         if !OscPhaseMode.allCases.contains(p.oscPhaseMode) { p.oscPhaseMode = .reset }
         p.polyphonyLimit = i(p.polyphonyLimit, 1, 32)
+        p.tranceGateDepth = f(p.tranceGateDepth, 0, 1, 1)
+        p.tranceGateSmooth = f(p.tranceGateSmooth, 0, 1, 0)
+        if !TimeDivision.allCases.contains(p.tranceGateDivision) { p.tranceGateDivision = .sixteenth }
+        p.perlinRate = f(p.perlinRate, 0.05, 40, 1)
+        if !TimeDivision.allCases.contains(p.perlinSyncDivision) { p.perlinSyncDivision = .quarter }
         return p
     }
 
