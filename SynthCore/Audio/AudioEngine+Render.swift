@@ -383,7 +383,7 @@ public extension AudioEngine {
 
         // Same for every voice: one exp() per sample, not one per voice.
         let glides = cachedPortamento > 0.001
-        let glideRate = glides ? 1.0 - exp(-5.0 / (Double(cachedPortamento) * sampleRate)) : 0
+        let glideRate = glides ? portamentoGlideRate() : 0
 
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
         for i in 0..<AudioEngine.maxVoices {
@@ -773,6 +773,16 @@ public extension AudioEngine {
     }
 
     /// ~5 ms one-pole toward the bend target. Idle bend stays exactly 1 and does no work.
+    /// exp() only when portamento time or sample rate changes (same expression, bit-identical).
+    @inline(__always) func portamentoGlideRate() -> Double {
+        if cachedPortamento != glideRateForPortamento || sampleRate != glideRateSampleRate {
+            glideRateForPortamento = cachedPortamento
+            glideRateSampleRate = sampleRate
+            glideRateCached = 1.0 - exp(-5.0 / (Double(cachedPortamento) * sampleRate))
+        }
+        return glideRateCached
+    }
+
     /// 5 ms one-pole coefficient for bend/aftertouch; exp() only when the
     /// sample rate changes (same expression, so the value is bit-identical).
     @inline(__always) public func midiSmoothingCoeff() -> Float {

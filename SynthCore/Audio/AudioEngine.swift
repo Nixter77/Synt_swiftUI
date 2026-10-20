@@ -214,6 +214,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var parameterReverbMix: Float = 0.2
     public var parameterReverbRoom: Float = 0.5
     public var parameterDelayTime: Float = 0.3
+    var glideRateCached: Double = 0
+    var glideRateForPortamento: Float = -1
+    var glideRateSampleRate: Double = 0
     public var parameterDelayFeedback: Float = 0.4
     public var parameterDelayMix: Float = 0
     public var cachedChorusStereo: Bool = true
