@@ -8,6 +8,7 @@
 
 import AudioToolbox
 import AVFoundation
+import CoreAudioKit
 import CoreMIDI
 import Foundation
 import Synchronization
@@ -80,6 +81,32 @@ public final class SyntAudioUnit: AUAudioUnit {
         set { engine.respondsToProgramChange = newValue }
     }
     private static let stateProgramChangeKey = "syntRespondsToProgramChange"
+    private static let stateChromeKey = "syntUIChrome"
+
+    /// Window scale remembered in `fullState`. Missing key stays at 100%.
+    public var uiZoom: PluginZoom = .p100
+    /// Compact while the host slot is at most 520 pt. Taller slots use the extended columns.
+    public var uiLayout: PluginLayout = .compact
+
+    public static let chromeDidChangeNotification = Notification.Name("SyntAudioUnitChromeDidChange")
+
+    public override func supportedViewConfigurations(_ availableViewConfigurations: [AUAudioUnitViewConfiguration]) -> IndexSet {
+        IndexSet(integersIn: 0..<availableViewConfigurations.count)
+    }
+
+    public override func select(_ viewConfiguration: AUAudioUnitViewConfiguration) {
+        let layout: PluginLayout = viewConfiguration.height > AUPluginMetrics.compactHeight ? .extended : .compact
+        let apply = { [weak self] in
+            guard let self else { return }
+            self.uiLayout = layout
+            NotificationCenter.default.post(name: Self.chromeDidChangeNotification, object: self)
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
+    }
 
     public override var latency: TimeInterval { 0.0 }
 
@@ -235,6 +262,9 @@ public final class SyntAudioUnit: AUAudioUnit {
             }
             state[Self.stateIndexKey] = PresetBrowser.index(of: snapshot) ?? -1
             state[Self.stateProgramChangeKey] = respondsToProgramChange
+            if let chrome = try? JSONEncoder().encode(PluginChromeState(zoom: uiZoom, layout: uiLayout)) {
+                state[Self.stateChromeKey] = chrome
+            }
             return state
         }
         set {
@@ -248,6 +278,7 @@ public final class SyntAudioUnit: AUAudioUnit {
             if let flag = newValue[Self.stateProgramChangeKey] as? Bool {
                 respondsToProgramChange = flag
             }
+            applyChrome(newValue)
             guard let data = newValue[Self.statePresetKey] as? Data,
                   let preset = try? JSONDecoder().decode(SynthPreset.self, from: data) else {
                 super.fullState = newValue
@@ -255,6 +286,18 @@ public final class SyntAudioUnit: AUAudioUnit {
             }
             adoptPreset(preset)
         }
+    }
+
+    /// Missing `syntUIChrome` restores 100% and the compact columns.
+    private func applyChrome(_ state: [String: Any]) {
+        guard let data = state[Self.stateChromeKey] as? Data,
+              let chrome = try? JSONDecoder().decode(PluginChromeState.self, from: data) else {
+            uiZoom = .p100
+            uiLayout = .compact
+            return
+        }
+        uiZoom = PluginZoom.nearest(chrome.zoom)
+        uiLayout = PluginLayout(rawValue: chrome.layout) ?? .compact
     }
 
     /// The engine preset with every addressed value taken from the store.

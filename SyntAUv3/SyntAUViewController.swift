@@ -16,20 +16,29 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
     private var hostingView: NSView?
     private weak var hostedSurface: AUParameterSurface?
 
+    private func applyPreferredSize() {
+        let layout = surface?.layout ?? .compact
+        let zoom = surface?.zoom ?? .p100
+        let size = AUPluginMetrics.preferredSize(layout: layout, zoom: zoom)
+        preferredContentSize = NSSize(width: size.width, height: size.height)
+    }
+
     public override init(nibName nibNameOrNil: NSNib.Name?, bundle nibBundleOrNil: Bundle?) {
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
-        preferredContentSize = NSSize(width: AUPluginMetrics.contentWidth, height: AUPluginMetrics.contentHeight)
+        applyPreferredSize()
     }
 
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
-        preferredContentSize = NSSize(width: AUPluginMetrics.contentWidth, height: AUPluginMetrics.contentHeight)
+        applyPreferredSize()
     }
 
     public func createAudioUnit(with componentDescription: AudioComponentDescription) throws -> AUAudioUnit {
         let unit = try SyntAudioUnit(componentDescription: componentDescription, options: [])
         let surface = AUParameterSurface(audioUnit: unit)
+        surface.onChromeChange = { [weak self] in self?.applyPreferredSize() }
         self.surface = surface
+        applyPreferredSize()
         // The host calls this from the extension XPC queue. SwiftUI views load on main.
         if Thread.isMainThread {
             installHostingView(for: surface)
@@ -43,7 +52,7 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
 
     public override func viewDidLoad() {
         super.viewDidLoad()
-        preferredContentSize = NSSize(width: AUPluginMetrics.contentWidth, height: AUPluginMetrics.contentHeight)
+        applyPreferredSize()
         guard let surface else { return }
         if Thread.isMainThread {
             installHostingView(for: surface)
@@ -56,7 +65,7 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
 
     public override func viewWillAppear() {
         super.viewWillAppear()
-        preferredContentSize = NSSize(width: AUPluginMetrics.contentWidth, height: AUPluginMetrics.contentHeight)
+        applyPreferredSize()
     }
 
     private func installHostingView(for surface: AUParameterSurface) {
@@ -77,7 +86,7 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
         ])
         hostingView = hosted
         hostedSurface = surface
-        preferredContentSize = NSSize(width: AUPluginMetrics.contentWidth, height: AUPluginMetrics.contentHeight)
+        applyPreferredSize()
     }
 }
 
@@ -85,10 +94,14 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
 @MainActor
 final class AUParameterSurface: ObservableObject {
     @Published private(set) var preset: SynthPreset
+    @Published private(set) var zoom: PluginZoom
+    @Published private(set) var layout: PluginLayout
     private let audioUnit: SyntAudioUnit
     private var observerToken: AUParameterObserverToken?
     private var stateObserver: NSObjectProtocol?
+    private var chromeObserver: NSObjectProtocol?
     private var applyingFromHost = false
+    var onChromeChange: (() -> Void)?
 
     var respondsToProgramChange: Bool {
         get { audioUnit.respondsToProgramChange }
@@ -101,6 +114,8 @@ final class AUParameterSurface: ObservableObject {
     init(audioUnit: SyntAudioUnit) {
         self.audioUnit = audioUnit
         self.preset = audioUnit.uiPreset
+        self.zoom = audioUnit.uiZoom
+        self.layout = audioUnit.uiLayout
         PatchHistoryManager.shared.registerPresetProvider { [weak self] in
             self?.preset ?? .defaultPreset
         }
@@ -113,6 +128,21 @@ final class AUParameterSurface: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.preset = self.audioUnit.uiPreset
+                self.zoom = self.audioUnit.uiZoom
+                self.layout = self.audioUnit.uiLayout
+                self.onChromeChange?()
+            }
+        }
+        chromeObserver = NotificationCenter.default.addObserver(
+            forName: SyntAudioUnit.chromeDidChangeNotification,
+            object: audioUnit,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.zoom = self.audioUnit.uiZoom
+                self.layout = self.audioUnit.uiLayout
+                self.onChromeChange?()
             }
         }
         guard let tree = audioUnit.parameterTree else { return }
@@ -131,6 +161,9 @@ final class AUParameterSurface: ObservableObject {
     deinit {
         if let stateObserver {
             NotificationCenter.default.removeObserver(stateObserver)
+        }
+        if let chromeObserver {
+            NotificationCenter.default.removeObserver(chromeObserver)
         }
         if let observerToken, let tree = audioUnit.parameterTree {
             tree.removeParameterObserver(observerToken)
@@ -162,44 +195,63 @@ final class AUParameterSurface: ObservableObject {
         preset = next
         applyingFromHost = false
     }
+
+    func setZoom(_ zoom: PluginZoom) {
+        audioUnit.uiZoom = zoom
+        self.zoom = zoom
+        onChromeChange?()
+    }
 }
 
 private struct PluginScreen: View {
     @ObservedObject var surface: AUParameterSurface
-    private let baseWidth: CGFloat = AUPluginMetrics.contentWidth
-    private let baseHeight: CGFloat = AUPluginMetrics.contentHeight
 
     var body: some View {
         GeometryReader { geo in
-            let scale = (geo.size.width > 0 && geo.size.height > 0)
-                ? min(geo.size.width / baseWidth, geo.size.height / baseHeight)
-                : 1.0
-            let effectiveScale = max(0.1, scale)
             ZStack(alignment: .topTrailing) {
                 Theme.baseline.bg.ignoresSafeArea()
-                SynthControlGrid(preset: Binding(
-                    get: { surface.preset },
-                    set: { surface.userSetPreset($0) }
-                ))
-                .frame(width: baseWidth, height: baseHeight, alignment: .top)
-                .scaleEffect(effectiveScale, anchor: .top)
-                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                SynthControlGrid(
+                    preset: Binding(
+                        get: { surface.preset },
+                        set: { surface.userSetPreset($0) }
+                    ),
+                    layout: surface.layout
+                )
+                .frame(width: max(geo.size.width, 1), height: max(geo.size.height, 1), alignment: .top)
 
-                Menu {
-                    Toggle("Program Change", isOn: Binding(
-                        get: { surface.respondsToProgramChange },
-                        set: { surface.respondsToProgramChange = $0 }
-                    ))
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 13))
-                        .foregroundColor(Theme.baseline.textDim)
-                        .padding(6)
+                HStack(spacing: 4) {
+                    Menu {
+                        ForEach(PluginZoom.allCases, id: \.self) { zoom in
+                            Button("\(zoom.rawValue)%") { surface.setZoom(zoom) }
+                        }
+                    } label: {
+                        Text("\(surface.zoom.rawValue)%")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(Theme.baseline.textDim)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Zoom")
+                    .accessibilityIdentifier("pluginZoomMenu")
+
+                    Menu {
+                        Toggle("Program Change", isOn: Binding(
+                            get: { surface.respondsToProgramChange },
+                            set: { surface.respondsToProgramChange = $0 }
+                        ))
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 13))
+                            .foregroundColor(Theme.baseline.textDim)
+                            .padding(6)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Settings")
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
                 .padding(6)
-                .help("Settings")
             }
         }
     }
