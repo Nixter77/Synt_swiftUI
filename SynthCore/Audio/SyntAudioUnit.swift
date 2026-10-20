@@ -81,7 +81,7 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// Main thread, before rendering starts. Host blocks are cached here once.
     public override func allocateRenderResources() throws {
         try super.allocateRenderResources()
-        let frames = Int(maximumFramesToRender == 0 ? 512 : maximumFramesToRender)
+        let frames = max(1, Int(maximumFramesToRender))
         renderContext.reserve(frames: frames)
         renderContext.musicalContext = musicalContextBlock
         renderContext.transportState = transportStateBlock

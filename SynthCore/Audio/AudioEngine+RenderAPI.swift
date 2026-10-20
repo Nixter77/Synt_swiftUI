@@ -20,9 +20,9 @@ public struct ScheduledMIDI {
 }
 
 extension AudioEngine {
-    /// Sample-rate and block size. Allocations for the schedule already happened in `init`.
+    /// Sample rate. Block size is enforced by the caller (the AU refuses larger
+    /// buffers); allocations for the schedule already happened in `init`.
     public func prepare(sampleRate: Double, maxFrames: Int) {
-        preparedMaxFrames = max(1, maxFrames)
         applySampleRate(sampleRate, rebuildGraph: false)
     }
 

@@ -195,7 +195,6 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var blockMIDIParser = MIDIByteParser()
     /// Program change seen on the audio thread. −1 means none. The main poll applies it.
     public let pendingProgram = Atomic<Int32>(-1)
-    public var preparedMaxFrames: Int = 4096
     public var appliedSyncSource: SyncSource = .`internal`
     /// Float bits of the external tempo. 0 means the clock has not locked yet.
     public let externalBPMBits = Atomic<UInt32>(0)
