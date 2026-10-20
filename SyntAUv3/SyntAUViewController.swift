@@ -90,6 +90,14 @@ final class AUParameterSurface: ObservableObject {
     private var stateObserver: NSObjectProtocol?
     private var applyingFromHost = false
 
+    var respondsToProgramChange: Bool {
+        get { audioUnit.respondsToProgramChange }
+        set {
+            audioUnit.respondsToProgramChange = newValue
+            objectWillChange.send()
+        }
+    }
+
     init(audioUnit: SyntAudioUnit) {
         self.audioUnit = audioUnit
         self.preset = audioUnit.uiPreset
@@ -167,7 +175,7 @@ private struct PluginScreen: View {
                 ? min(geo.size.width / baseWidth, geo.size.height / baseHeight)
                 : 1.0
             let effectiveScale = max(0.1, scale)
-            ZStack(alignment: .top) {
+            ZStack(alignment: .topTrailing) {
                 Theme.baseline.bg.ignoresSafeArea()
                 SynthControlGrid(preset: Binding(
                     get: { surface.preset },
@@ -176,6 +184,22 @@ private struct PluginScreen: View {
                 .frame(width: baseWidth, height: baseHeight, alignment: .top)
                 .scaleEffect(effectiveScale, anchor: .top)
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+
+                Menu {
+                    Toggle("Program Change", isOn: Binding(
+                        get: { surface.respondsToProgramChange },
+                        set: { surface.respondsToProgramChange = $0 }
+                    ))
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 13))
+                        .foregroundColor(Theme.baseline.textDim)
+                        .padding(6)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .padding(6)
+                .help("Settings")
             }
         }
     }

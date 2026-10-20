@@ -75,8 +75,34 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// instrument settings on reset", region PCs), which loaded factory slot N over the
     /// patch chosen in the plugin. Hosts own the patch through `fullState`; a user who
     /// wants MIDI PC switching turns this on (saved in `fullState`).
-    public var respondsToProgramChange = false
+    public var respondsToProgramChange: Bool {
+        get { engine.respondsToProgramChange }
+        set { engine.respondsToProgramChange = newValue }
+    }
     private static let stateProgramChangeKey = "syntRespondsToProgramChange"
+
+    public override var latency: TimeInterval { 0.0 }
+
+    public override var channelCapabilities: [NSNumber]? {
+        [0, 2]
+    }
+
+    public override var tailTime: TimeInterval {
+        let preset = engine.preset
+        var tail: Double = Double(preset.release)
+        if preset.delayMix > 0.001 {
+            let feedback = Double(min(0.95, max(0.0, preset.delayFeedback)))
+            let delaySeconds = Double(max(0.05, preset.delayTime))
+            let delayTail = delaySeconds / max(0.05, 1.0 - feedback)
+            tail = max(tail, min(10.0, delayTail))
+        }
+        if preset.reverbMix > 0.001 {
+            let room = Double(preset.reverbRoomSize)
+            let reverbTail = 2.0 + room * 6.0
+            tail = max(tail, min(12.0, reverbTail))
+        }
+        return tail
+    }
 
     func applyPendingProgram() {
         let program = engine.pendingProgram.exchange(-1, ordering: .acquiringAndReleasing)
@@ -104,15 +130,15 @@ public final class SyntAudioUnit: AUAudioUnit {
     }
 
     public override func deallocateRenderResources() {
-        renderContext.musicalContext = nil
-        renderContext.transportState = nil
+        // R1: Do not nil out musicalContext/transportState while audio render might still be executing
+        // the final buffer. They are safely replaced on next allocateRenderResources or deinit.
         super.deallocateRenderResources()
     }
 
     public override var internalRenderBlock: AUInternalRenderBlock {
-        let context = renderContext
+        let contextUnmanaged = Unmanaged.passUnretained(renderContext)
         return { actionFlags, timestamp, frameCount, _, outputData, events, _ in
-            context.render(
+            contextUnmanaged.takeUnretainedValue().render(
                 actionFlags: actionFlags,
                 timestamp: timestamp,
                 frameCount: frameCount,
@@ -200,6 +226,12 @@ public final class SyntAudioUnit: AUAudioUnit {
         for address in SynthParameterAddress.allCases {
             parameters.set(address.rawValue, preset.parameterValue(for: address))
         }
+        // R5: Synchronously publish snapshot and modMatrix to RTPresetBuffer
+        // before returning so the very first audio buffer receives the new preset immediately!
+        let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: engine.rendersAllDelayInDSP)
+        engine.rtPresetBuffer.publish(snap)
+        engine.rtModMatrix.publish(preset.modMatrix)
+
         let apply: () -> Void = { [weak self] in
             guard let self else { return }
             self.engine.preset = preset
@@ -433,17 +465,20 @@ enum SyntParameterTree {
 /// Render-thread state for `SyntAudioUnit`. A final class with stored fields:
 /// no Obj-C dispatch and no unowned-self checks per buffer.
 final class SyntRenderContext {
-    let engine: AudioEngine
-    let parameters: AddressedParameterStore
+    private let engineUnmanaged: Unmanaged<AudioEngine>
+    private let parametersUnmanaged: Unmanaged<AddressedParameterStore>
     var musicalContext: AUHostMusicalContextBlock?
     var transportState: AUHostTransportStateBlock?
     private var renderLeft: UnsafeMutablePointer<Float>?
     private var renderRight: UnsafeMutablePointer<Float>?
     private(set) var renderCapacity = 0
 
+    var engine: AudioEngine { engineUnmanaged.takeUnretainedValue() }
+    var parameters: AddressedParameterStore { parametersUnmanaged.takeUnretainedValue() }
+
     init(engine: AudioEngine, parameters: AddressedParameterStore) {
-        self.engine = engine
-        self.parameters = parameters
+        self.engineUnmanaged = Unmanaged.passUnretained(engine)
+        self.parametersUnmanaged = Unmanaged.passUnretained(parameters)
     }
 
     deinit {
@@ -528,13 +563,30 @@ final class SyntRenderContext {
                 }
             case .midiEventList:
                 scheduleUMP(current, offset: offset)
-            case .parameter, .parameterRamp:
-                // Applied at its sample offset, like MIDI. No ramps are advertised,
-                // so a host sends dense `.parameter` events instead.
+            case .parameter:
                 let parameter = current.pointee.parameter
                 engine.enqueueParameter(id: parameter.parameterAddress, value: parameter.value, sampleOffset: offset)
                 if let address = SynthParameterAddress(rawValue: parameter.parameterAddress) {
                     parameters.record(parameter.parameterAddress, address.clamped(parameter.value))
+                }
+            case .parameterRamp:
+                let parameter = current.pointee.parameter
+                let duration = Int(parameter.rampDurationSampleFrames)
+                let startVal = parameters.value(parameter.parameterAddress)
+                let endVal = parameter.value
+                if duration > 1 {
+                    engine.enqueueParameterRamp(
+                        id: parameter.parameterAddress,
+                        startValue: startVal,
+                        endValue: endVal,
+                        durationFrames: duration,
+                        sampleOffset: offset
+                    )
+                } else {
+                    engine.enqueueParameter(id: parameter.parameterAddress, value: endVal, sampleOffset: offset)
+                }
+                if let address = SynthParameterAddress(rawValue: parameter.parameterAddress) {
+                    parameters.record(parameter.parameterAddress, address.clamped(endVal))
                 }
             default:
                 break

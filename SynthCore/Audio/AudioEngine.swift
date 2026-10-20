@@ -21,6 +21,35 @@ public final class PressedKeysModel: ObservableObject {
     public init() {}
 }
 
+public struct ActiveParameterRamp: Sendable {
+    public var id: UInt64 = 0
+    public var currentValue: Float = 0
+    public var targetValue: Float = 0
+    public var stepPerFrame: Float = 0
+    public var remainingFrames: Int = 0
+    public var startOffset: Int = 0
+    public var active: Bool = false
+
+    public init() {}
+    public init(
+        id: UInt64,
+        currentValue: Float,
+        targetValue: Float,
+        stepPerFrame: Float,
+        remainingFrames: Int,
+        startOffset: Int,
+        active: Bool
+    ) {
+        self.id = id
+        self.currentValue = currentValue
+        self.targetValue = targetValue
+        self.stepPerFrame = stepPerFrame
+        self.remainingFrames = remainingFrames
+        self.startOffset = startOffset
+        self.active = active
+    }
+}
+
 public final class AudioEngine: ObservableObject, @unchecked Sendable {
     private static let log = Logger(subsystem: "Home.Synt-swiftUI", category: "AudioEngine")
     private let engine = AVAudioEngine()
@@ -225,6 +254,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var rendersAllDelayInDSP = false
     /// Fixed table of FX slots read on the RT audio thread without allocations.
     public var cachedFXOrder: FXOrderTable = FXOrderTable()
+    /// Host or user preference for MIDI Program Change events.
+    @Published public var respondsToProgramChange: Bool = false
+    public static let maxActiveRamps = 8
+    public var activeRamps = [ActiveParameterRamp](repeating: ActiveParameterRamp(), count: maxActiveRamps)
+    public var hasActiveRamps = false
     /// Knob values for Apple Delay and Reverb. The parameter provider reads these
     /// instead of copying `preset` (the preset holds arrays).
     public var parameterReverbMix: Float = 0.2
@@ -381,16 +415,86 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public func renderBlock(intoL: UnsafeMutablePointer<Float>, intoR: UnsafeMutablePointer<Float>?, frameCount: Int) {
         if let intoR = intoR {
             for frame in 0..<frameCount {
+                advanceParameterRampsRT()
                 let (sampleL, sampleR) = renderOneSample()
                 intoL[frame] = sampleL
                 intoR[frame] = sampleR
             }
         } else {
             for frame in 0..<frameCount {
+                advanceParameterRampsRT()
                 let (sampleL, sampleR) = renderOneSample()
                 intoL[frame] = (sampleL + sampleR) * 0.5
             }
         }
+    }
+
+    public func enqueueParameterRamp(
+        id: UInt64,
+        startValue: Float,
+        endValue: Float,
+        durationFrames: Int,
+        sampleOffset: Int
+    ) {
+        guard durationFrames > 1 else {
+            enqueueParameter(id: id, value: endValue, sampleOffset: sampleOffset)
+            return
+        }
+        let dur = max(1, durationFrames)
+        let step = (endValue - startValue) / Float(dur)
+        var targetIndex = -1
+        for i in 0..<Self.maxActiveRamps {
+            if activeRamps[i].active && activeRamps[i].id == id {
+                targetIndex = i
+                break
+            }
+        }
+        if targetIndex == -1 {
+            for i in 0..<Self.maxActiveRamps {
+                if !activeRamps[i].active {
+                    targetIndex = i
+                    break
+                }
+            }
+        }
+        if targetIndex == -1 {
+            targetIndex = 0
+        }
+        activeRamps[targetIndex] = ActiveParameterRamp(
+            id: id,
+            currentValue: startValue,
+            targetValue: endValue,
+            stepPerFrame: step,
+            remainingFrames: dur,
+            startOffset: max(0, sampleOffset),
+            active: true
+        )
+        hasActiveRamps = true
+    }
+
+    @inline(__always)
+    public func advanceParameterRampsRT() {
+        guard hasActiveRamps else { return }
+        var stillActive = false
+        for i in 0..<Self.maxActiveRamps {
+            if activeRamps[i].active {
+                if activeRamps[i].startOffset > 0 {
+                    activeRamps[i].startOffset -= 1
+                    stillActive = true
+                    continue
+                }
+                activeRamps[i].currentValue += activeRamps[i].stepPerFrame
+                activeRamps[i].remainingFrames -= 1
+                if activeRamps[i].remainingFrames <= 0 {
+                    activeRamps[i].currentValue = activeRamps[i].targetValue
+                    activeRamps[i].active = false
+                } else {
+                    stillActive = true
+                }
+                applyAddressedParameterRT(id: activeRamps[i].id, value: activeRamps[i].currentValue)
+            }
+        }
+        hasActiveRamps = stillActive
     }
 
     private func setupAudioEngine() {

@@ -17,8 +17,8 @@ public extension AudioEngine {
         rtModMatrix.publish(preset.modMatrix)
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP)
         rtPresetBuffer.publish(snap)
-        cachedFXOrder = snap.fxOrder
         if !isRenderingActive.load(ordering: .acquiring) {
+            cachedFXOrder = snap.fxOrder
             applyPresetDSP(snap)
         }
 
@@ -264,7 +264,9 @@ public extension AudioEngine {
             }
         }
         let table = FXOrderTable(order: clean)
-        cachedFXOrder = table
+        if !isRenderingActive.load(ordering: .acquiring) {
+            cachedFXOrder = table
+        }
         _ = commandQueue.push(.setFXOrder(table: table))
     }
 

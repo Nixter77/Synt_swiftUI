@@ -245,6 +245,16 @@ struct ContentView: View {
             PresetView(currentPreset: $audioEngine.preset)
             ThemePickerMenu()
 
+            Menu {
+                Toggle("Program Change", isOn: $audioEngine.respondsToProgramChange)
+            } label: {
+                Image(systemName: "gearshape")
+                    .foregroundColor(theme.textDim)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Settings")
+
             // Audio Output Recorder (● REC)
             Button {
                 toggleRecording()
