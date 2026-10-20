@@ -14,6 +14,7 @@ import SynthCore
 public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
     private var surface: AUParameterSurface?
     private var hostingView: NSView?
+    private weak var hostedSurface: AUParameterSurface?
 
     public override init(nibName nibNameOrNil: NSNib.Name?, bundle nibBundleOrNil: Bundle?) {
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
@@ -55,6 +56,8 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
 
     private func installHostingView(for surface: AUParameterSurface) {
         guard isViewLoaded else { return }
+        // createAudioUnit and viewDidLoad both land here; build the view once per surface.
+        if hostingView != nil && hostedSurface === surface { return }
         hostingView?.removeFromSuperview()
         let root = PluginScreen(surface: surface)
             .environment(\.theme, Theme.baseline)
@@ -69,6 +72,7 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
             hosted.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         hostingView = hosted
+        hostedSurface = surface
         preferredContentSize = NSSize(width: AUPluginMetrics.contentWidth, height: AUPluginMetrics.contentHeight)
     }
 }
