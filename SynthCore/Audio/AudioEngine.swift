@@ -171,6 +171,17 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedSyncSource: SyncSource = .`internal`
     /// Audio thread. True only after MIDI Start/Continue while sync is external.
     public var midiClockRunning = false
+    /// The Audio Unit sets this. Standalone and golden renders leave it false,
+    /// so the MIDI-clock gate below stays bit-identical.
+    public var usesHostTransport = false
+    /// Audio thread. Ignored unless `usesHostTransport` is true.
+    public var hostTransportMoving = true
+    public var cachedLfoTempoSync = false
+    public var cachedLfo2TempoSync = false
+    public var cachedLfoSyncDivision: TimeDivision = .quarter
+    public var cachedLfo2SyncDivision: TimeDivision = .quarter
+    public var cachedDelayTempoSync = false
+    public var cachedDelaySyncDivision: TimeDivision = .quarter
     public var midiClockSample: UInt64 = 0
     public var midiClockLastSample: UInt64 = 0
     public var midiClockHaveLast = false

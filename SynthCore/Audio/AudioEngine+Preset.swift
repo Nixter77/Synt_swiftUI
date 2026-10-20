@@ -54,6 +54,8 @@ public extension AudioEngine {
         filterR.resonance = preset.filterResonance
 
         lfo.enabled = preset.lfoEnabled
+        cachedLfoTempoSync = preset.lfoTempoSync
+        cachedLfoSyncDivision = preset.lfoSyncDivision
         if preset.lfoTempoSync {
             lfo.rate = preset.lfoSyncDivision.frequency(bpm: preset.bpm)
         } else {
@@ -67,6 +69,8 @@ public extension AudioEngine {
 
         // LFO 2
         lfo2.enabled = preset.lfo2Enabled
+        cachedLfo2TempoSync = preset.lfo2TempoSync
+        cachedLfo2SyncDivision = preset.lfo2SyncDivision
         if preset.lfo2TempoSync {
             lfo2.rate = preset.lfo2SyncDivision.frequency(bpm: preset.bpm)
         } else {
@@ -181,6 +185,8 @@ public extension AudioEngine {
         cachedArpGateLength = max(0.1, min(1.0, preset.arpGateLength))
         cachedArpSwing = max(0.0, min(0.75, preset.arpSwing))
         cachedDelayPingPong = preset.delayPingPong
+        cachedDelayTempoSync = preset.delayTempoSync
+        cachedDelaySyncDivision = preset.delaySyncDivision
         cachedMacro1 = preset.macro1
         cachedMacro2 = preset.macro2
         cachedMacro3 = preset.macro3

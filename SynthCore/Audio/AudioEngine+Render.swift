@@ -165,9 +165,13 @@ public extension AudioEngine {
         let divisionMultiplier = 4.0 / Double(cachedArpRate.denominator)
         samplesPerTick = samplesPerBeat * divisionMultiplier
 
-        // Internal sync always runs this block. External sync runs it only while
-        // a MIDI Start/Continue is in effect, so a stopped Logic transport is silent.
-        if cachedSyncSource != .midiClock || midiClockRunning {
+        // Internal sync always runs this block. External MIDI clock runs it only
+        // while a Start/Continue is in effect. A plugin uses the host transport
+        // instead, and only while that transport is moving.
+        let transportRunning = usesHostTransport
+            ? hostTransportMoving
+            : (cachedSyncSource != .midiClock || midiClockRunning)
+        if transportRunning {
         if cachedArpMode != .off {
             arp.mode = cachedArpMode
             arp.octaves = cachedArpOctaves
@@ -936,7 +940,7 @@ public extension AudioEngine {
     /// the bar length stays constant. No allocation.
     public func advanceSequencerOneSample() {
         let generationChanged = sequencerTransport.pullIfChanged(into: &seqMirror)
-        if cachedSyncSource == .midiClock {
+        if usesHostTransport || cachedSyncSource == .midiClock {
             seqMirror.bpm = cachedBPM
         }
         if generationChanged {
