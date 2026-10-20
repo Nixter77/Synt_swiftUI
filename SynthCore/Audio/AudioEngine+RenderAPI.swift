@@ -118,37 +118,22 @@ extension AudioEngine {
             return
         }
         sortMIDISchedule(scheduled)
+        // Offsets are clamped to [0, frames] by the caller, so every event of
+        // this buffer is applied here: render up to it, apply, continue.
         var cursor = 0
-        var index = 0
-        while cursor < frames {
-            let next = index < scheduled ? min(frames, max(cursor, Int(midiSchedule[index].offset))) : frames
-            if next > cursor {
-                let right = intoR?.advanced(by: cursor)
-                renderBlock(intoL: intoL.advanced(by: cursor), intoR: right, frameCount: next - cursor)
-                cursor = next
+        for index in 0..<scheduled {
+            let at = min(frames, max(cursor, Int(midiSchedule[index].offset)))
+            if at > cursor {
+                renderBlock(intoL: intoL.advanced(by: cursor), intoR: intoR?.advanced(by: cursor), frameCount: at - cursor)
+                cursor = at
             }
-            while index < scheduled && Int(midiSchedule[index].offset) <= cursor {
-                handleCommand(midiSchedule[index].command)
-                index += 1
-            }
-            if index >= scheduled && cursor < frames && next == cursor {
-                let right = intoR?.advanced(by: cursor)
-                renderBlock(intoL: intoL.advanced(by: cursor), intoR: right, frameCount: frames - cursor)
-                cursor = frames
-            }
+            handleCommand(midiSchedule[index].command)
         }
-        if index > 0 {
-            trimAbandonedTails()
+        if cursor < frames {
+            renderBlock(intoL: intoL.advanced(by: cursor), intoR: intoR?.advanced(by: cursor), frameCount: frames - cursor)
         }
-        var kept = 0
-        for i in index..<scheduled {
-            var event = midiSchedule[i]
-            event.offset -= Int32(frames)
-            if event.offset < 0 { event.offset = 0 }
-            midiSchedule[kept] = event
-            kept += 1
-        }
-        midiScheduleCount = kept
+        trimAbandonedTails()
+        midiScheduleCount = 0
     }
 
     /// Audio thread. Host tempo updates the render cache only. `preset.bpm` stays
