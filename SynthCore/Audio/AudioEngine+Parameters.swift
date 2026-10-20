@@ -295,21 +295,17 @@ extension AudioEngine {
         case .chorusRate: preset.chorusRate = v
         case .chorusDepth: preset.chorusDepth = v
         case .chorusMix: preset.chorusMix = v
+        // The DSP delay and parameterDelay* belong to the audio thread
+        // (applyAddressedParameterRT). Main only drives the Apple Delay node.
         case .delayTime:
-            parameterDelayTime = v
             preset.delayTime = v
-            pingPongDelay.delayTime = v
-            if !preset.delayPingPong { delay.delayTime = v }
+            if !preset.delayPingPong && !rendersAllDelayInDSP { delay.delayTime = v }
         case .delayFeedback:
-            parameterDelayFeedback = v
             preset.delayFeedback = v
-            pingPongDelay.feedback = v
-            if !preset.delayPingPong { delay.feedback = v }
+            if !preset.delayPingPong && !rendersAllDelayInDSP { delay.feedback = v }
         case .delayMix:
-            parameterDelayMix = v
             preset.delayMix = v
-            pingPongDelay.mix = v
-            if !preset.delayPingPong { delay.wetDryMix = AudioMath.appleFXWetPercent(v) }
+            if !preset.delayPingPong && !rendersAllDelayInDSP { delay.wetDryMix = AudioMath.appleFXWetPercent(v) }
         case .distortionEnabled: preset.distortionEnabled = v >= 0.5
         case .distortionDrive: preset.distortionDrive = v
         case .distortionTone: preset.distortionTone = v
