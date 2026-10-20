@@ -48,6 +48,18 @@ extension AudioEngine {
         }
     }
 
+    /// Audio thread. Host automation, applied at `sampleOffset` inside the next `render`.
+    /// A full schedule applies it at once rather than dropping it.
+    public func enqueueParameter(id: UInt64, value: Float, sampleOffset: Int) {
+        guard midiScheduleCount < 512 else {
+            applyAddressedParameterRT(id: id, value: value)
+            return
+        }
+        let offset = Int32(max(0, sampleOffset))
+        midiSchedule[midiScheduleCount] = ScheduledMIDI(offset: offset, command: .setAddressedParameter(id: id, value: value))
+        midiScheduleCount += 1
+    }
+
     public func render(frames: Int, into audioBufferList: UnsafeMutablePointer<AudioBufferList>) {
         let frames = max(0, frames)
         guard frames > 0 else { return }

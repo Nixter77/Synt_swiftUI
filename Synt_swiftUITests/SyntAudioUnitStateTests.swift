@@ -75,4 +75,21 @@ struct SyntAudioUnitStateTests {
         #expect(unit.engine.cachedFilterCutoff == 800)
         #expect(tree.allParameters.count == SynthParameterAddress.allCases.count)
     }
+
+    @Test func hostParameterEventsAreScheduledByOffsetAndNotRamped() throws {
+        let unit = try makeUnit()
+        let tree = try #require(unit.parameterTree)
+        for parameter in tree.allParameters {
+            #expect(!parameter.flags.contains(.flag_CanRamp))
+        }
+        let engine = unit.engine
+        engine.prepare(sampleRate: 44_100, maxFrames: 64)
+        engine.enqueueParameter(id: SynthParameterAddress.filterCutoff.rawValue, value: 1234, sampleOffset: 40)
+        #expect(engine.cachedFilterCutoff != 1234, "not applied before its offset is rendered")
+        let l = UnsafeMutablePointer<Float>.allocate(capacity: 64)
+        let r = UnsafeMutablePointer<Float>.allocate(capacity: 64)
+        defer { l.deallocate(); r.deallocate() }
+        engine.render(frames: 64, intoL: l, intoR: r)
+        #expect(engine.cachedFilterCutoff == 1234)
+    }
 }

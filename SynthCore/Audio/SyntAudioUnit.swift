@@ -169,10 +169,9 @@ enum SyntParameterTree {
     static func make() -> AUParameterTree {
         let readable = AudioUnitParameterOptions.flag_IsReadable
         let writable = AudioUnitParameterOptions.flag_IsWritable
-        let ramp = AudioUnitParameterOptions.flag_CanRamp
         let logarithmic = AudioUnitParameterOptions.flag_DisplayLogarithmic
         let strings = AudioUnitParameterOptions.flag_ValuesHaveStrings
-        let continuous: AudioUnitParameterOptions = [readable, writable, ramp]
+        let continuous: AudioUnitParameterOptions = [readable, writable]
         let indexed: AudioUnitParameterOptions = [readable, writable, strings]
         let toggle: AudioUnitParameterOptions = [readable, writable]
 
@@ -418,8 +417,10 @@ final class SyntRenderContext {
                     }
                 }
             case .parameter, .parameterRamp:
+                // Applied at its sample offset, like MIDI. No ramps are advertised,
+                // so a host sends dense `.parameter` events instead.
                 let parameter = current.pointee.parameter
-                engine.applyAddressedParameterRT(id: parameter.parameterAddress, value: parameter.value)
+                engine.enqueueParameter(id: parameter.parameterAddress, value: parameter.value, sampleOffset: offset)
             default:
                 break
             }
