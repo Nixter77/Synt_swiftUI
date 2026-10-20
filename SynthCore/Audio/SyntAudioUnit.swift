@@ -77,7 +77,8 @@ public final class SyntAudioUnit: AUAudioUnit {
         adoptPreset(loaded)
     }
 
-    /// Events arrive as MIDI 1.0 byte events (`.MIDI`); `.midiEventList` (UMP) is not parsed.
+    /// MIDI 1.0 protocol. Hosts may still deliver either `.MIDI` byte events or a
+    /// `.midiEventList` of UMP packets (AVAudioEngine / Logic do the latter); both are parsed.
     public override var audioUnitMIDIProtocol: MIDIProtocolID { ._1_0 }
 
     public override var inputBusses: AUAudioUnitBusArray { inputBusArray }
@@ -514,6 +515,8 @@ final class SyntRenderContext {
                         }
                     }
                 }
+            case .midiEventList:
+                scheduleUMP(current, offset: offset)
             case .parameter, .parameterRamp:
                 // Applied at its sample offset, like MIDI. No ramps are advertised,
                 // so a host sends dense `.parameter` events instead.
@@ -526,6 +529,100 @@ final class SyntRenderContext {
                 break
             }
             event = UnsafePointer(header.next)
+        }
+    }
+
+    /// Audio thread. Walks the UMP packets in place (no copy of the list, no allocation)
+    /// and feeds MIDI 1.0 bytes to the same parser as `.MIDI` events.
+    private func scheduleUMP(_ event: UnsafePointer<AURenderEvent>, offset: Int) {
+        let listOffset = MemoryLayout<AUMIDIEventList>.offset(of: \AUMIDIEventList.eventList) ?? 0
+        let list = UnsafeRawPointer(event).advanced(by: listOffset)
+        let numPackets = list.load(fromByteOffset: MemoryLayout<MIDIEventList>.offset(of: \MIDIEventList.numPackets) ?? 4, as: UInt32.self)
+        let wordCountOffset = MemoryLayout<MIDIEventPacket>.offset(of: \MIDIEventPacket.wordCount) ?? 8
+        let wordsOffset = MemoryLayout<MIDIEventPacket>.offset(of: \MIDIEventPacket.words) ?? 12
+        var packet = list.advanced(by: MemoryLayout<MIDIEventList>.offset(of: \MIDIEventList.packet) ?? 8)
+        var bytes: (UInt8, UInt8, UInt8) = (0, 0, 0)
+        for _ in 0..<min(Int(numPackets), 256) {
+            let wordCount = min(Int(packet.load(fromByteOffset: wordCountOffset, as: UInt32.self)), 64)
+            let words = packet.advanced(by: wordsOffset)
+            var w = 0
+            while w < wordCount {
+                let word = words.load(fromByteOffset: w * 4, as: UInt32.self)
+                let type = Int(word >> 28)
+                let size = Self.umpWordCount(type)
+                var count = 0
+                switch type {
+                case 0x1, 0x2:
+                    let status = UInt8((word >> 16) & 0xFF)
+                    bytes = (status, UInt8((word >> 8) & 0x7F), UInt8(word & 0x7F))
+                    count = Self.midi1Length(status)
+                case 0x4 where w + 1 < wordCount:
+                    let data = words.load(fromByteOffset: (w + 1) * 4, as: UInt32.self)
+                    (bytes, count) = Self.midi2ToMidi1(word, data)
+                default:
+                    break
+                }
+                if count > 0 {
+                    withUnsafeBytes(of: &bytes) { raw in
+                        if let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) {
+                            engine.enqueueMIDI(base, count: count, sampleOffset: offset)
+                        }
+                    }
+                }
+                w += size
+            }
+            packet = words.advanced(by: wordCount * 4)
+        }
+    }
+
+    @inline(__always)
+    static func umpWordCount(_ type: Int) -> Int {
+        switch type {
+        case 0x0, 0x1, 0x2, 0x6, 0x7: return 1
+        case 0x3, 0x4, 0x8, 0x9, 0xA: return 2
+        case 0xB, 0xC: return 3
+        default: return 4
+        }
+    }
+
+    @inline(__always)
+    static func midi1Length(_ status: UInt8) -> Int {
+        switch status & 0xF0 {
+        case 0x80, 0x90, 0xA0, 0xB0, 0xE0: return 3
+        case 0xC0, 0xD0: return 2
+        case 0xF0:
+            switch status {
+            case 0xF2: return 3
+            case 0xF1, 0xF3: return 2
+            case 0xF0, 0xF7: return 0
+            default: return 1
+            }
+        default: return 0
+        }
+    }
+
+    /// MIDI 2.0 channel voice (UMP type 4) down to MIDI 1.0 bytes.
+    static func midi2ToMidi1(_ word0: UInt32, _ word1: UInt32) -> ((UInt8, UInt8, UInt8), Int) {
+        let opcode = UInt8((word0 >> 20) & 0xF)
+        let channel = UInt8((word0 >> 16) & 0xF)
+        let index = UInt8((word0 >> 8) & 0x7F)
+        let status = (opcode << 4) | channel
+        switch opcode {
+        case 0x8, 0x9:
+            var velocity = UInt8(word1 >> 25)
+            if opcode == 0x9 && velocity == 0 && (word1 >> 16) != 0 { velocity = 1 }
+            return ((status, index, velocity), 3)
+        case 0xA, 0xB:
+            return ((status, index, UInt8(word1 >> 25)), 3)
+        case 0xC:
+            return ((status, UInt8((word1 >> 24) & 0x7F), 0), 2)
+        case 0xD:
+            return ((status, UInt8(word1 >> 25), 0), 2)
+        case 0xE:
+            let bend = word1 >> 18
+            return ((status, UInt8(bend & 0x7F), UInt8((bend >> 7) & 0x7F)), 3)
+        default:
+            return ((0, 0, 0), 0)
         }
     }
 
