@@ -82,6 +82,8 @@ public extension AudioEngine {
 
         cachedPitchBendRange = max(0, preset.pitchBendRange)
 
+        parameterReverbMix = preset.reverbMix
+        parameterReverbRoom = preset.reverbRoomSize
         reverb.wetDryMix = AudioMath.appleFXWetPercent(preset.reverbMix)
         reverb.setRoomSize(preset.reverbRoomSize)
         cachedReverbShimmer = preset.reverbShimmer
@@ -102,6 +104,9 @@ public extension AudioEngine {
             delayEffectiveTime = preset.delayTime
         }
 
+        parameterDelayTime = preset.delayTime
+        parameterDelayFeedback = preset.delayFeedback
+        parameterDelayMix = preset.delayMix
         if preset.delayPingPong {
             delay.wetDryMix = 0.0
             pingPongDelay.enabled = true

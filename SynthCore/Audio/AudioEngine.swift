@@ -207,6 +207,13 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedArpGateLength: Float = 0.8
     public var cachedArpSwing: Float = 0.0
     public var cachedDelayPingPong: Bool = false
+    /// Knob values for Apple Delay and Reverb. The parameter provider reads these
+    /// instead of copying `preset` (the preset holds arrays).
+    public var parameterReverbMix: Float = 0.2
+    public var parameterReverbRoom: Float = 0.5
+    public var parameterDelayTime: Float = 0.3
+    public var parameterDelayFeedback: Float = 0.4
+    public var parameterDelayMix: Float = 0
     public var cachedChorusStereo: Bool = true
     public var cachedReverbShimmer: Float = 0.0
     public var cachedRingModAmount: Float = 0.0
@@ -314,7 +321,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         setupAudioEngine()
         applyPreset()
         startMeteringPoll()
-        MIDICCLearnStore.shared.attachEngine(self)
+        // Tests build an engine per case. Attaching every one of them would point
+        // the shared CC store at a throwaway engine and drop a mapping mid-test.
+        if !RuntimeEnvironment.isUnitTestHost {
+            MIDICCLearnStore.shared.attachEngine(self)
+        }
     }
 
     public func updateRTMappings(_ mappings: [UInt8: MIDIControlTarget]) {

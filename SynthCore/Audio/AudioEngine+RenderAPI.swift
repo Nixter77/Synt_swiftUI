@@ -113,11 +113,6 @@ extension AudioEngine {
         midiScheduleCount = kept
     }
 
-    /// Known addresses are filled in with the parameter tree. Unknown ids do nothing.
-    func applyAddressedParameterRT(id: UInt64, value: Float) {
-        _ = (id, value)
-    }
-
     /// Audio thread. Host tempo updates the render cache only. `preset.bpm` stays
     /// on the main thread. Apple Delay is a graph object and is left at the
     /// preset tempo; the DSP ping-pong delay follows the host.
