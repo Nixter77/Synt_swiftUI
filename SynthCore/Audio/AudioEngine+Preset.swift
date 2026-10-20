@@ -17,6 +17,7 @@ public extension AudioEngine {
         rtModMatrix.publish(preset.modMatrix)
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP)
         rtPresetBuffer.publish(snap)
+        cachedFXOrder = snap.fxOrder
         if !isRenderingActive.load(ordering: .acquiring) {
             applyPresetDSP(snap)
         }
@@ -46,6 +47,7 @@ public extension AudioEngine {
     }
 
     public func applyPresetDSP(_ snap: RTPresetSnapshot) {
+        cachedFXOrder = snap.fxOrder
         oscillator1.waveform = snap.osc1Waveform
         oscillator1.volume = snap.osc1Volume
         oscillator1.octave = snap.osc1Octave
@@ -159,6 +161,7 @@ public extension AudioEngine {
         phaser.stereoSpread = snap.phaserStereoSpread
         phaser.mix = snap.phaserMix
 
+        cachedFXOrder = snap.fxOrder
         cachedPortamento = snap.portamento
         cachedUnisonVoices = snap.unisonVoices
         cachedUnisonDetune = snap.unisonDetune
@@ -248,6 +251,21 @@ public extension AudioEngine {
         var next = preset
         body(&next)
         preset = next
+    }
+
+    /// Reorders the FX chain on the main thread and publishes the fixed table to the RT audio thread.
+    public func setFXOrder(_ order: [FXSlotID]) {
+        let clean = SynthPreset.sanitizeFXOrder(order)
+        if Thread.isMainThread {
+            updatePreset { $0.fxOrder = clean }
+        } else {
+            DispatchQueue.main.sync { [weak self] in
+                self?.updatePreset { $0.fxOrder = clean }
+            }
+        }
+        let table = FXOrderTable(order: clean)
+        cachedFXOrder = table
+        _ = commandQueue.push(.setFXOrder(table: table))
     }
 
     /// Loads a user wavetable file into the shared user slot and applies it to the specified oscillator.

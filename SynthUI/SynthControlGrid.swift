@@ -47,8 +47,7 @@ struct SynthControlGrid: View {
             .frame(minWidth: 140, maxWidth: .infinity, alignment: .top)
 
             VStack(spacing: 10) {
-                AdvancedEffectsView(preset: preset)
-                EffectsView(preset: preset)
+                FXChainView(preset: preset, audioEngine: audioEngine)
             }
             .frame(minWidth: 160, maxWidth: .infinity, alignment: .top)
         }

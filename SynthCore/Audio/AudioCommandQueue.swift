@@ -51,6 +51,8 @@ public enum AudioCommand: Equatable {
     case midiStop
     /// Host or UI parameter. The producer is never the audio thread.
     case setAddressedParameter(id: UInt64, value: Float)
+    /// Reordered FX chain applied lock-free at buffer boundary.
+    case setFXOrder(table: FXOrderTable)
 
     public var isCritical: Bool {
         switch self {
@@ -58,7 +60,7 @@ public enum AudioCommand: Equatable {
              .midiStart, .midiContinue, .midiStop:
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
-             .midiClock, .setAddressedParameter:
+             .midiClock, .setAddressedParameter, .setFXOrder:
             return false
         }
     }
@@ -152,7 +154,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
             pendingMIDITransport.store(3, ordering: .releasing)
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
-             .midiClock, .setAddressedParameter:
+             .midiClock, .setAddressedParameter, .setFXOrder:
             return false
         }
     }

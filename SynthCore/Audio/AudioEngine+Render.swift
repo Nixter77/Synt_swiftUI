@@ -697,42 +697,67 @@ public extension AudioEngine {
         if !mixedSampleR.isFinite { mixedSampleR = 0 }
 
         let headroom: Float = 0.65
-        var fxL = mixedSampleL * smoothedMasterVolume * headroom
-        var fxR = mixedSampleR * smoothedMasterVolume * headroom
+        var outL = mixedSampleL * smoothedMasterVolume * headroom
+        var outR = mixedSampleR * smoothedMasterVolume * headroom
 
         // EQ before the rider. A boost after it walked straight into the ceiling
         // and rasped; the rider now holds that extra level with one linear gain.
-        if parametricEQL.enabled {
-            if !parametricEQR.enabled { parametricEQR.enabled = true }
-            fxL = parametricEQL.process(fxL)
-            fxR = parametricEQR.process(fxR)
+        var processedCleanBus = false
+        for i in 0..<6 {
+            let slot = cachedFXOrder[i]
+            if !processedCleanBus && slot != .eq {
+                (outL, outR) = cleanBus.process(
+                    left: outL,
+                    right: outR,
+                    sampleRate: Float(sampleRate)
+                )
+                processedCleanBus = true
+            }
+            switch slot {
+            case .eq:
+                if parametricEQL.enabled {
+                    if !parametricEQR.enabled { parametricEQR.enabled = true }
+                    outL = parametricEQL.process(outL)
+                    outR = parametricEQR.process(outR)
+                }
+            case .distortion:
+                if distortion.enabled {
+                    (outL, outR) = distortion.processStereo(inputL: outL, inputR: outR)
+                }
+            case .phaser:
+                if !phaser.bypass {
+                    let p = phaser.process(inputL: outL, inputR: outR)
+                    outL = p.left
+                    outR = p.right
+                }
+            case .chorus:
+                (outL, outR) = dspChorus.process(inputL: outL, inputR: outR)
+            case .delay:
+                if cachedDelayPingPong {
+                    (outL, outR) = pingPongDelay.process(inputL: outL, inputR: outR)
+                }
+            case .reverb:
+                if cachedReverbShimmer > 0 {
+                    let (shimL, shimR) = shimmer.process(inputL: outL, inputR: outR)
+                    outL += shimL * cachedReverbShimmer
+                    outR += shimR * cachedReverbShimmer
+                }
+            }
+            if !processedCleanBus && slot == .eq {
+                (outL, outR) = cleanBus.process(
+                    left: outL,
+                    right: outR,
+                    sampleRate: Float(sampleRate)
+                )
+                processedCleanBus = true
+            }
         }
-
-        (fxL, fxR) = cleanBus.process(
-            left: fxL,
-            right: fxR,
-            sampleRate: Float(sampleRate)
-        )
-
-        if distortion.enabled {
-            (fxL, fxR) = distortion.processStereo(inputL: fxL, inputR: fxR)
-        }
-        if !phaser.bypass {
-            let p = phaser.process(inputL: fxL, inputR: fxR)
-            fxL = p.left
-            fxR = p.right
-        }
-
-        var (outL, outR) = dspChorus.process(inputL: fxL, inputR: fxR)
-
-        if cachedDelayPingPong {
-            (outL, outR) = pingPongDelay.process(inputL: outL, inputR: outR)
-        }
-
-        if cachedReverbShimmer > 0 {
-            let (shimL, shimR) = shimmer.process(inputL: outL, inputR: outR)
-            outL += shimL * cachedReverbShimmer
-            outR += shimR * cachedReverbShimmer
+        if !processedCleanBus {
+            (outL, outR) = cleanBus.process(
+                left: outL,
+                right: outR,
+                sampleRate: Float(sampleRate)
+            )
         }
 
         if lfoEnabled && lfoTarget == .pan {
@@ -913,6 +938,8 @@ public extension AudioEngine {
                 applyMIDITransportRT(resetPhase: false, running: false)
             case .setAddressedParameter(let id, let value):
                 applyAddressedParameterRT(id: id, value: value)
+            case .setFXOrder(let table):
+                cachedFXOrder = table
             case .clearAll:
                 clearAllVoices()
                 // A new patch / panic must not inherit a bent pitch or a stuck pedal.

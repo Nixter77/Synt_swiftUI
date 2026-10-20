@@ -159,6 +159,27 @@ public extension SynthPreset {
         }
         p.filterDrive = f(p.filterDrive, 0, 1, 0)
         p.pan = f(p.pan, -1.0, 1.0, 0.0)
+        p.fxOrder = Self.sanitizeFXOrder(p.fxOrder)
         return p
+    }
+
+    /// Cleans duplicate, missing, or corrupted slots so that exactly all `FXSlotID.allCases` are present once.
+    static func sanitizeFXOrder(_ order: [FXSlotID]?) -> [FXSlotID] {
+        guard let order, !order.isEmpty else { return FXSlotID.defaultOrder }
+        var result: [FXSlotID] = []
+        var seen = Set<FXSlotID>()
+        for slot in order {
+            if FXSlotID.allCases.contains(slot) && !seen.contains(slot) {
+                seen.insert(slot)
+                result.append(slot)
+            }
+        }
+        for slot in FXSlotID.defaultOrder {
+            if !seen.contains(slot) {
+                seen.insert(slot)
+                result.append(slot)
+            }
+        }
+        return result
     }
 }

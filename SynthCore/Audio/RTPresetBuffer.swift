@@ -145,6 +145,7 @@ public struct RTPresetSnapshot: Sendable {
     public var phaserCenterFrequency: Float = 800.0
     public var phaserStereoSpread: Float = 0.5
     public var phaserMix: Float = 0.4
+    public var fxOrder: FXOrderTable = FXOrderTable()
 
     public init() {}
 
@@ -281,6 +282,7 @@ public struct RTPresetSnapshot: Sendable {
         phaserCenterFrequency = preset.phaserCenterFrequency
         phaserStereoSpread = preset.phaserStereoSpread
         phaserMix = preset.phaserMix
+        fxOrder = FXOrderTable(order: preset.fxOrder)
     }
 }
 

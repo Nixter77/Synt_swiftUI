@@ -223,6 +223,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Audio Unit: no device graph, so Apple Delay never runs. The DSP delay
     /// renders both modes (ping-pong off = plain stereo delay).
     public var rendersAllDelayInDSP = false
+    /// Fixed table of FX slots read on the RT audio thread without allocations.
+    public var cachedFXOrder: FXOrderTable = FXOrderTable()
     /// Knob values for Apple Delay and Reverb. The parameter provider reads these
     /// instead of copying `preset` (the preset holds arrays).
     public var parameterReverbMix: Float = 0.2

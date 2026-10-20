@@ -20,6 +20,8 @@ struct FXSlotCard<Menu: View, Content: View>: View {
     let storageName: String
     /// Used only while the user has never clicked this header (`collapseMode == -1`).
     let startsExpanded: Bool
+    var onMoveUp: (() -> Void)?
+    var onMoveDown: (() -> Void)?
     @ViewBuilder var menu: () -> Menu
     @ViewBuilder var content: () -> Content
 
@@ -31,6 +33,8 @@ struct FXSlotCard<Menu: View, Content: View>: View {
         accent: Color,
         storageName: String,
         startsExpanded: Bool,
+        onMoveUp: (() -> Void)? = nil,
+        onMoveDown: (() -> Void)? = nil,
         @ViewBuilder menu: @escaping () -> Menu,
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -39,6 +43,8 @@ struct FXSlotCard<Menu: View, Content: View>: View {
         self.accent = accent
         self.storageName = storageName
         self.startsExpanded = startsExpanded
+        self.onMoveUp = onMoveUp
+        self.onMoveDown = onMoveDown
         self.menu = menu
         self.content = content
         self._collapseMode = AppStorage(wrappedValue: -1, "fx.collapsed.\(storageName)")
@@ -62,6 +68,14 @@ struct FXSlotCard<Menu: View, Content: View>: View {
         .padding(8)
         .appleCard(cornerRadius: theme.rCard, accent: accent)
         .accessibilityIdentifier("fx.slot.\(storageName)")
+        .contextMenu {
+            if let onMoveUp {
+                Button("Move Up") { onMoveUp() }
+            }
+            if let onMoveDown {
+                Button("Move Down") { onMoveDown() }
+            }
+        }
     }
 
     private var header: some View {
@@ -80,6 +94,31 @@ struct FXSlotCard<Menu: View, Content: View>: View {
             .buttonStyle(.plain)
             .accessibilityLabel(title)
             .accessibilityValue(showsBody ? "expanded" : "collapsed")
+
+            if onMoveUp != nil || onMoveDown != nil {
+                HStack(spacing: 2) {
+                    if let onMoveUp {
+                        Button { onMoveUp() } label: {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(theme.textDim)
+                                .frame(width: 12, height: 12)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Move \(title) up")
+                    }
+                    if let onMoveDown {
+                        Button { onMoveDown() } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(theme.textDim)
+                                .frame(width: 12, height: 12)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Move \(title) down")
+                    }
+                }
+            }
 
             if let enabled {
                 ThemeToggle(isOn: Binding(

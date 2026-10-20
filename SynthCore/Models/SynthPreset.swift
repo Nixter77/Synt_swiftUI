@@ -203,6 +203,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     /// Master stereo pan (-1.0...1.0, 0 = center).
     public var pan: Float = 0.0
 
+    /// Reorderable FX slots.
+    public var fxOrder: [FXSlotID] = FXSlotID.defaultOrder
+
     /// Safe neutral starting point (clean headroom).
     public static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -245,6 +248,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case syncSource
         case filterDrive
         case pan
+        case fxOrder
     }
 
     public init(
@@ -362,7 +366,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         voiceMode: VoiceMode = .poly,
         syncSource: SyncSource = .`internal`,
         filterDrive: Float = 0,
-        pan: Float = 0.0
+        pan: Float = 0.0,
+        fxOrder: [FXSlotID] = FXSlotID.defaultOrder
     ) {
         self.id = id
         self.name = name
@@ -479,6 +484,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.syncSource = syncSource
         self.filterDrive = filterDrive
         self.pan = pan
+        self.fxOrder = fxOrder
     }
 
     public init(from decoder: Decoder) throws {
@@ -600,6 +606,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         syncSource = try c.decodeIfPresent(SyncSource.self, forKey: .syncSource) ?? .`internal`
         filterDrive = try c.decodeIfPresent(Float.self, forKey: .filterDrive) ?? 0
         pan = try c.decodeIfPresent(Float.self, forKey: .pan) ?? 0.0
+        fxOrder = try c.decodeIfPresent([FXSlotID].self, forKey: .fxOrder) ?? FXSlotID.defaultOrder
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
