@@ -11,6 +11,7 @@ struct PresetView: View {
     @Environment(\.theme) private var theme
     @Binding var currentPreset: SynthPreset
     @StateObject private var presetManager = PresetManager.shared
+    @ObservedObject private var favoritesStore = FavoritePresetsStore.shared
     @State private var showingPresetList = false
     @State private var showingSaveDialog = false
     @State private var showingMacrosPopover = false
@@ -25,8 +26,35 @@ struct PresetView: View {
         HStack(spacing: 8) {
             presetStepper
 
-            Button {
-                showingPresetList.toggle()
+            Menu {
+                ForEach(PresetCategory.allCases, id: \.self) { category in
+                    Menu(category.rawValue) {
+                        ForEach(PresetBrowser.presets(in: category)) { preset in
+                            Button(preset.name) { selectListedPreset(preset) }
+                        }
+                    }
+                }
+                Menu("Expansion") {
+                    ForEach(SynthPreset.expansionPresets) { preset in
+                        Button(preset.name) { selectListedPreset(preset) }
+                    }
+                }
+                Menu("★ Favorites") {
+                    let favorites = PresetBrowser.favoritePresets(
+                        named: favoritesStore.favorites,
+                        userPresets: presetManager.userPresets
+                    )
+                    if favorites.isEmpty {
+                        Button("No favorites") {}
+                            .disabled(true)
+                    } else {
+                        ForEach(favorites) { preset in
+                            Button(preset.name) { selectListedPreset(preset) }
+                        }
+                    }
+                }
+                Divider()
+                Button("Browse All…") { showingPresetList = true }
             } label: {
                 HStack {
                     Image(systemName: "folder.fill")
@@ -53,7 +81,10 @@ struct PresetView: View {
                 )
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.border, lineWidth: 0.5))
             }
-            .buttonStyle(.plain)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityIdentifier("presetCategoryMenu")
             .popover(isPresented: $showingPresetList) {
                 PresetListView(currentPreset: $currentPreset, isPresented: $showingPresetList, presetManager: presetManager)
             }
@@ -191,6 +222,11 @@ struct PresetView: View {
         .sheet(isPresented: $showingSaveDialog) {
             SavePresetSheet(presetName: $newPresetName, currentPreset: currentPreset, presetManager: presetManager, isPresented: $showingSaveDialog)
         }
+    }
+
+    private func selectListedPreset(_ preset: SynthPreset) {
+        resetComparisonAndMacros()
+        currentPreset = preset
     }
 
     private func resetComparisonAndMacros() {

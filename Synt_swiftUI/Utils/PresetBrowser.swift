@@ -18,6 +18,25 @@ enum PresetBrowser {
 
     static var count: Int { list.count }
 
+    /// Factory presets of one category, in the same order as `list`.
+    static func presets(in category: PresetCategory) -> [SynthPreset] {
+        list.filter { $0.category == category }
+    }
+
+    /// Favorites in browse order: factory list, then Expansion, then user presets.
+    /// The first name wins, so a user copy does not hide the numbered factory patch.
+    static func favoritePresets(named names: Set<String>, userPresets: [SynthPreset] = []) -> [SynthPreset] {
+        guard !names.isEmpty else { return [] }
+        var seen = Set<String>()
+        var result: [SynthPreset] = []
+        for preset in list + SynthPreset.expansionPresets + userPresets {
+            if names.contains(preset.name), seen.insert(preset.name).inserted {
+                result.append(preset)
+            }
+        }
+        return result
+    }
+
     /// Position of `preset` in `list`, matched by name (an edited factory
     /// patch keeps its name and its number). `nil` for Init / user presets.
     static func index(of preset: SynthPreset) -> Int? {

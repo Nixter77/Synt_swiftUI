@@ -60,4 +60,43 @@ struct PresetBrowserTests {
         #expect(PresetBrowser.preset(forProgram: list.count) == nil)
         #expect(PresetBrowser.preset(forProgram: -1) == nil)
     }
+
+    @Test func categoryMenusHaveTheLibraryCounts() {
+        let expected: [(PresetCategory, Int)] = [
+            (.bass, 15), (.lead, 15), (.pad, 14), (.keys, 13),
+            (.pluck, 13), (.strings, 11), (.brass, 5), (.arp, 4), (.fx, 10)
+        ]
+        var total = 0
+        for (category, count) in expected {
+            let presets = PresetBrowser.presets(in: category)
+            #expect(presets.count == count, "\(category.rawValue) has \(presets.count)")
+            #expect(presets.allSatisfy { $0.category == category })
+            total += presets.count
+        }
+        #expect(total == list.count)
+        #expect(total == 100)
+    }
+
+    @Test func submenuPresetIsTheSamePatchAsItsProgramNumber() {
+        for (index, preset) in list.enumerated() {
+            let fromMenu = PresetBrowser.presets(in: preset.category).first { $0.name == preset.name }
+            let fromProgram = PresetBrowser.preset(forProgram: index)
+            #expect(fromMenu?.name == preset.name)
+            #expect(fromProgram?.name == preset.name)
+            #expect(fromMenu?.name == fromProgram?.name)
+        }
+    }
+
+    @Test func favoritesFollowBrowseOrderAndKeepTheNumberedPatch() {
+        let bass = PresetBrowser.presets(in: .bass)
+        #expect(bass.count >= 2)
+        let userCopy = SynthPreset(name: bass[0].name, category: .pad)
+        let picked = PresetBrowser.favoritePresets(
+            named: [bass[1].name, bass[0].name, "Missing"],
+            userPresets: [userCopy]
+        )
+        #expect(picked.map(\.name) == [bass[0].name, bass[1].name])
+        #expect(picked[0].category == .bass)
+        #expect(PresetBrowser.favoritePresets(named: []).isEmpty)
+    }
 }
