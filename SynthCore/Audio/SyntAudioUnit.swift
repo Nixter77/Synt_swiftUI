@@ -31,6 +31,7 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// Set while the tree is being copied from the engine, so the observer does not apply twice.
     private var suppressParameterObserver = false
     private static let stateVersionKey = "syntStateVersion"
+    static let stateVersion = 1
     private static let statePresetKey = "syntPreset"
     private static let stateIndexKey = "syntPresetIndex"
 
@@ -144,7 +145,7 @@ public final class SyntAudioUnit: AUAudioUnit {
     public override var fullState: [String: Any]? {
         get {
             var state = super.fullState ?? [:]
-            state[Self.stateVersionKey] = 1
+            state[Self.stateVersionKey] = Self.stateVersion
             let snapshot = presetSnapshot()
             if let data = try? JSONEncoder().encode(snapshot) {
                 state[Self.statePresetKey] = data
@@ -154,6 +155,12 @@ public final class SyntAudioUnit: AUAudioUnit {
         }
         set {
             guard let newValue else { return }
+            // A newer plugin wrote this state: keep the current sound rather than
+            // half-decode it, and say so.
+            if let version = newValue[Self.stateVersionKey] as? Int, version > Self.stateVersion {
+                NSLog("SyntAudioUnit: state version %d is newer than %d; not loaded", version, Self.stateVersion)
+                return
+            }
             guard let data = newValue[Self.statePresetKey] as? Data,
                   let preset = try? JSONDecoder().decode(SynthPreset.self, from: data) else {
                 super.fullState = newValue

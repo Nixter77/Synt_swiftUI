@@ -207,4 +207,19 @@ struct SyntAudioUnitStateTests {
         engine.enqueueMIDI(&off, count: 3, sampleOffset: 0)
         #expect(!engine.voices.contains { $0.isActive && !$0.isReleasing && $0.midiNote == 60 })
     }
+
+    @Test func newerStateVersionIsNotLoaded() throws {
+        let unit = try makeUnit()
+        var state = try #require(unit.fullState)
+        var other = unit.uiPreset
+        other.filterCutoff = 321
+        state["syntPreset"] = try JSONEncoder().encode(other)
+        state["syntStateVersion"] = 99
+        let before = unit.uiPreset.filterCutoff
+        unit.fullState = state
+        #expect(unit.uiPreset.filterCutoff == before)
+        state["syntStateVersion"] = 1
+        unit.fullState = state
+        #expect(unit.uiPreset.filterCutoff == 321)
+    }
 }
