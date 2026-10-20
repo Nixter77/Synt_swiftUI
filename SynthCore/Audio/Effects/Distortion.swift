@@ -28,9 +28,18 @@ public final class Distortion {
     public var mix: Float = 0.25
     public var oversampling: Bool = false
 
+    /// The setter only counts toggles. State is cleared on the first processed
+    /// sample after a toggle (audio thread), not in the setter.
     public var enabled: Bool = false {
-        didSet {
-            if enabled != oldValue { reset() }
+        didSet { if enabled != oldValue { toggleCount &+= 1 } }
+    }
+    private var toggleCount: UInt32 = 0
+    private var toggleCountSeen: UInt32 = 0
+
+    @inline(__always) private func resetIfJustEnabled() {
+        if toggleCountSeen != toggleCount {
+            toggleCountSeen = toggleCount
+            reset()
         }
     }
 
@@ -55,6 +64,7 @@ public final class Distortion {
 
     @inline(__always)
     public func process(_ input: Float) -> Float {
+        if !channelToggle { resetIfJustEnabled() }
         // Mono API used by engine for L then R — alternate channel state.
         if !channelToggle {
             channelToggle = true
@@ -83,6 +93,7 @@ public final class Distortion {
 
     @inline(__always)
     public func processStereo(inputL: Float, inputR: Float) -> (Float, Float) {
+        resetIfJustEnabled()
         channelToggle = false
         let l = processChannel(
             inputL,

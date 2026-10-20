@@ -89,14 +89,13 @@ public final class ParametricEQ {
         didSet { highDirty = true }
     }
     
-    /// Anti-pop: clear biquad history when enabling/disabling.
+    /// The setter only counts toggles. Biquad history is cleared on the first
+    /// processed sample after a toggle (audio thread), not in the setter.
     public var enabled: Bool = false {
-        didSet {
-            if enabled != oldValue {
-                reset()
-            }
-        }
+        didSet { if enabled != oldValue { toggleCount &+= 1 } }
     }
+    private var toggleCount: UInt32 = 0
+    private var toggleCountSeen: UInt32 = 0
     
     private var sampleRate: Float
     
@@ -151,6 +150,10 @@ public final class ParametricEQ {
     @inline(__always)
     public func process(_ input: Float) -> Float {
         guard enabled else { return input }
+        if toggleCountSeen != toggleCount {
+            toggleCountSeen = toggleCount
+            reset()
+        }
         
         if lowDirty || midDirty || highDirty {
             if lowDirty { calculateLowShelf(); lowDirty = false }

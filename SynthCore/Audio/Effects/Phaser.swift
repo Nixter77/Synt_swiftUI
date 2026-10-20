@@ -70,14 +70,13 @@ public final class Phaser {
         }
     }
 
-    /// Leaving bypass resets state (anti-pop).
+    /// The setter only counts toggles. The anti-pop reset runs inside `process`
+    /// on the audio thread, not in the setter.
     public var bypass: Bool = true {
-        didSet {
-            if oldValue == true && bypass == false {
-                reset()
-            }
-        }
+        didSet { if bypass != oldValue { toggleCount &+= 1 } }
     }
+    private var toggleCount: UInt32 = 0
+    private var toggleCountSeen: UInt32 = 0
 
     // MARK: - Internal State
 
@@ -142,6 +141,10 @@ public final class Phaser {
 
     public func process(inputL: Float, inputR: Float) -> (left: Float, right: Float) {
         guard !bypass else { return (inputL, inputR) }
+        if toggleCountSeen != toggleCount {
+            toggleCountSeen = toggleCount
+            reset()
+        }
 
         // Guard poison on input (recover if upstream ever sends NaN)
         let inL = finiteOrZero(inputL)
