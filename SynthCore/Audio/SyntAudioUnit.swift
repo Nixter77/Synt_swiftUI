@@ -15,9 +15,12 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// Preset copy for the plugin view. Assign only from the main thread.
     /// Addressed knobs still go through the parameter tree.
     public var uiPreset: SynthPreset {
-        get { engine.preset }
-        set { engine.preset = newValue }
+        get { presetSnapshot() }
+        set { adoptPreset(newValue) }
     }
+    /// Host-addressed parameter values: the single source of truth for the tree,
+    /// `fullState`, and the render (which drains changes at the start of a buffer).
+    let parameters: AddressedParameterStore
     private let outputBus: AUAudioUnitBus
     private var outputBusArray: AUAudioUnitBusArray!
     private var inputBusArray: AUAudioUnitBusArray!
@@ -35,7 +38,9 @@ public final class SyntAudioUnit: AUAudioUnit {
         outputBus.maximumChannelCount = 2
         let core = AudioEngine()
         engine = core
-        renderContext = SyntRenderContext(engine: core)
+        let store = AddressedParameterStore()
+        parameters = store
+        renderContext = SyntRenderContext(engine: core, parameters: store)
         try super.init(componentDescription: componentDescription, options: options)
         outputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outputBus])
         inputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .input, busses: [])
@@ -101,8 +106,7 @@ public final class SyntAudioUnit: AUAudioUnit {
             guard let newValue else { return }
             let index = newValue.number
             guard PresetBrowser.list.indices.contains(index) else { return }
-            engine.preset = PresetBrowser.list[index]
-            syncParameterTreeFromEngine()
+            adoptPreset(PresetBrowser.list[index])
         }
     }
 
@@ -110,10 +114,11 @@ public final class SyntAudioUnit: AUAudioUnit {
         get {
             var state = super.fullState ?? [:]
             state[Self.stateVersionKey] = 1
-            if let data = try? JSONEncoder().encode(engine.preset) {
+            let snapshot = presetSnapshot()
+            if let data = try? JSONEncoder().encode(snapshot) {
                 state[Self.statePresetKey] = data
             }
-            state[Self.stateIndexKey] = PresetBrowser.index(of: engine.preset) ?? -1
+            state[Self.stateIndexKey] = PresetBrowser.index(of: snapshot) ?? -1
             return state
         }
         set {
@@ -123,9 +128,23 @@ public final class SyntAudioUnit: AUAudioUnit {
                 super.fullState = newValue
                 return
             }
-            engine.preset = preset
-            syncParameterTreeFromEngine()
+            adoptPreset(preset)
         }
+    }
+
+    /// The engine preset with every addressed value taken from the store.
+    func presetSnapshot() -> SynthPreset {
+        var snapshot = engine.preset
+        for address in SynthParameterAddress.allCases {
+            snapshot.setParameterValue(parameters.value(address.rawValue), for: address)
+        }
+        return snapshot
+    }
+
+    /// Main thread. Whole-preset change: the engine loads it, then the store and tree follow.
+    private func adoptPreset(_ preset: SynthPreset) {
+        engine.preset = preset
+        syncParameterTreeFromEngine()
     }
 
     public override var fullStateForDocument: [String: Any]? {
@@ -135,19 +154,23 @@ public final class SyntAudioUnit: AUAudioUnit {
 
     private func installParameterTree() {
         let tree = SyntParameterTree.make()
+        let store = parameters
         tree.implementorValueObserver = { [weak self] parameter, value in
-            guard let self, !self.suppressParameterObserver else { return }
+            guard let self, !self.suppressParameterObserver,
+                  let address = SynthParameterAddress(rawValue: parameter.address) else { return }
+            // Any thread: the store is the only DSP writer path (render drains it).
+            store.set(parameter.address, address.clamped(value))
+            // The preset copy is display-only and lives on main.
             if Thread.isMainThread {
-                self.engine.adoptAddressedParameterOnMain(id: parameter.address, value: value)
+                self.engine.adoptAddressedParameterOnMain(id: parameter.address, value: value, pushToRender: false)
             } else {
-                self.engine.applyAddressedParameterRT(id: parameter.address, value: value)
+                DispatchQueue.main.async { [weak self] in
+                    self?.engine.adoptAddressedParameterOnMain(id: parameter.address, value: value, pushToRender: false)
+                }
             }
         }
-        tree.implementorValueProvider = { [weak self] parameter in
-            guard let self, let address = SynthParameterAddress(rawValue: parameter.address) else {
-                return parameter.minValue
-            }
-            return self.engine.addressedParameterValue(address)
+        tree.implementorValueProvider = { parameter in
+            store.value(parameter.address)
         }
         parameterTree = tree
         syncParameterTreeFromEngine()
@@ -157,8 +180,9 @@ public final class SyntAudioUnit: AUAudioUnit {
         guard let tree = parameterTree else { return }
         suppressParameterObserver = true
         for address in SynthParameterAddress.allCases {
+            parameters.set(address.rawValue, engine.preset.parameterValue(for: address))
             guard let parameter = tree.parameter(withAddress: address.rawValue) else { continue }
-            parameter.value = engine.addressedParameterValue(address)
+            parameter.value = parameters.value(address.rawValue)
         }
         suppressParameterObserver = false
     }
@@ -334,14 +358,16 @@ enum SyntParameterTree {
 /// no Obj-C dispatch and no unowned-self checks per buffer.
 final class SyntRenderContext {
     let engine: AudioEngine
+    let parameters: AddressedParameterStore
     var musicalContext: AUHostMusicalContextBlock?
     var transportState: AUHostTransportStateBlock?
     private var renderLeft: UnsafeMutablePointer<Float>?
     private var renderRight: UnsafeMutablePointer<Float>?
     private(set) var renderCapacity = 0
 
-    init(engine: AudioEngine) {
+    init(engine: AudioEngine, parameters: AddressedParameterStore) {
         self.engine = engine
+        self.parameters = parameters
     }
 
     deinit {
@@ -371,6 +397,8 @@ final class SyntRenderContext {
         let frames = Int(frameCount)
         guard frames > 0 else { return noErr }
         guard frames <= renderCapacity else { return kAudioUnitErr_TooManyFramesToProcess }
+        let engine = self.engine
+        parameters.drain { id, value in engine.applyAddressedParameterRT(id: id, value: value) }
         pullHostTransport()
         schedule(events, timestamp: timestamp, frameCount: frames)
         guard let buffers = bind(outputData, frames: frames) else { return kAudioUnitErr_TooManyFramesToProcess }
@@ -421,6 +449,9 @@ final class SyntRenderContext {
                 // so a host sends dense `.parameter` events instead.
                 let parameter = current.pointee.parameter
                 engine.enqueueParameter(id: parameter.parameterAddress, value: parameter.value, sampleOffset: offset)
+                if let address = SynthParameterAddress(rawValue: parameter.parameterAddress) {
+                    parameters.record(parameter.parameterAddress, address.clamped(parameter.value))
+                }
             default:
                 break
             }

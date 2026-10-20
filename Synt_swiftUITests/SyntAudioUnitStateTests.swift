@@ -54,15 +54,38 @@ struct SyntAudioUnitStateTests {
         #expect(unit.engine.preset.name == first.name)
     }
 
-    @Test func renderThreadCutoffDoesNotWriteThePreset() throws {
+    @Test func hostCutoffFromAnyThreadLandsInFullStateAndTheRender() async throws {
         let unit = try makeUnit()
-        let before = unit.engine.preset.filterCutoff
-        unit.engine.applyAddressedParameterRT(
-            id: SynthParameterAddress.filterCutoff.rawValue,
-            value: 1234
-        )
+        let tree = try #require(unit.parameterTree)
+        let cutoff = try #require(tree.parameter(withAddress: SynthParameterAddress.filterCutoff.rawValue))
+        await Task.detached { cutoff.value = 1234 }.value
+        let state = try #require(unit.fullState)
+        let data = try #require(state["syntPreset"] as? Data)
+        let saved = try JSONDecoder().decode(SynthPreset.self, from: data)
+        #expect(saved.filterCutoff == 1234)
+        #expect(cutoff.value == 1234)
+        #expect(unit.engine.cachedFilterCutoff != 1234, "only the render applies it")
+        try renderOnce(unit)
         #expect(unit.engine.cachedFilterCutoff == 1234)
-        #expect(unit.engine.preset.filterCutoff == before)
+    }
+
+    private func renderOnce(_ unit: SyntAudioUnit, frames: Int = 64) throws {
+        try unit.allocateRenderResources()
+        let list = AudioBufferList.allocate(maximumBuffers: 2)
+        let bytes = frames * MemoryLayout<Float>.size
+        for i in 0..<2 {
+            list[i] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(bytes),
+                                  mData: UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 16))
+        }
+        defer {
+            list[0].mData?.deallocate(); list[1].mData?.deallocate()
+            list.unsafeMutablePointer.deallocate()
+        }
+        var flags = AudioUnitRenderActionFlags()
+        var time = AudioTimeStamp()
+        time.mFlags = .sampleTimeValid
+        let status = unit.internalRenderBlock(&flags, &time, AUAudioFrameCount(frames), 0, list.unsafeMutablePointer, nil, nil)
+        #expect(status == noErr)
     }
 
     @Test func mainThreadCutoffWritesThePresetAndTheCache() throws {
@@ -71,7 +94,7 @@ struct SyntAudioUnitStateTests {
         let cutoff = try #require(tree.parameter(withAddress: SynthParameterAddress.filterCutoff.rawValue))
         cutoff.value = 800
         #expect(unit.engine.preset.filterCutoff == 800)
-        unit.engine.processCommandsForTesting()
+        try renderOnce(unit)
         #expect(unit.engine.cachedFilterCutoff == 800)
         #expect(tree.allParameters.count == SynthParameterAddress.allCases.count)
     }

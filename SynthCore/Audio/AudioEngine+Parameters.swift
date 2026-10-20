@@ -227,7 +227,7 @@ extension AudioEngine {
 
     /// Main thread. Updates the preset the UI and `fullState` save, then queues the DSP write.
     /// Wavetable index loads a table, so it goes through `applyPreset` on main.
-    func adoptAddressedParameterOnMain(id: UInt64, value: Float) {
+    func adoptAddressedParameterOnMain(id: UInt64, value: Float, pushToRender: Bool = true) {
         guard let address = SynthParameterAddress(rawValue: id) else { return }
         let v = address.clamped(value)
         if address == .osc1WavetableIndex || address == .osc2WavetableIndex {
@@ -338,7 +338,7 @@ extension AudioEngine {
         case .macro4: preset.macro4 = v
         }
         isUpdatingSingleParamFromMIDI = false
-        setParameter(id: id, value: v)
+        if pushToRender { setParameter(id: id, value: v) }
     }
 
     private static func waveform(_ value: Float) -> WaveformType {
