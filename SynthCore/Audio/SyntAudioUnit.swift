@@ -46,6 +46,8 @@ public final class SyntAudioUnit: AUAudioUnit {
         inputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .input, busses: [])
         maximumFramesToRender = 512
         engine.usesHostTransport = true
+        engine.rendersAllDelayInDSP = true
+        engine.applyPreset()
         installParameterTree()
     }
 
@@ -305,8 +307,8 @@ enum SyntParameterTree {
             withIdentifier: "fx",
             name: "Effects",
             children: [
-                knob(.reverbMix),
-                knob(.reverbRoomSize),
+                // Reverb mix/room drive Apple Reverb, a device-graph node the
+                // Audio Unit does not run, so they are not published here.
                 knob(.reverbShimmer),
                 knob(.chorusRate, unit: .hertz),
                 knob(.chorusDepth),

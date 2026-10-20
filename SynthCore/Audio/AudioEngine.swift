@@ -207,6 +207,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedArpGateLength: Float = 0.8
     public var cachedArpSwing: Float = 0.0
     public var cachedDelayPingPong: Bool = false
+    /// Audio Unit: no device graph, so Apple Delay never runs. The DSP delay
+    /// renders both modes (ping-pong off = plain stereo delay).
+    public var rendersAllDelayInDSP = false
     /// Knob values for Apple Delay and Reverb. The parameter provider reads these
     /// instead of copying `preset` (the preset holds arrays).
     public var parameterReverbMix: Float = 0.2

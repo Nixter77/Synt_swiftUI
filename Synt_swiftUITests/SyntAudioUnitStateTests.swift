@@ -96,7 +96,7 @@ struct SyntAudioUnitStateTests {
         #expect(unit.engine.preset.filterCutoff == 800)
         try renderOnce(unit)
         #expect(unit.engine.cachedFilterCutoff == 800)
-        #expect(tree.allParameters.count == SynthParameterAddress.allCases.count)
+        #expect(tree.allParameters.count == SynthParameterAddress.allCases.count - 2) // no Apple reverb in the AU
     }
 
     @Test func hostParameterEventsAreScheduledByOffsetAndNotRamped() throws {
@@ -114,5 +114,20 @@ struct SyntAudioUnitStateTests {
         defer { l.deallocate(); r.deallocate() }
         engine.render(frames: 64, intoL: l, intoR: r)
         #expect(engine.cachedFilterCutoff == 1234)
+    }
+
+    @Test func audioUnitDelayIsAudibleWithPingPongOff() throws {
+        let unit = try makeUnit()
+        var preset = unit.uiPreset
+        preset.delayPingPong = false
+        preset.delayMix = 0.8
+        preset.delayTime = 0.01
+        preset.delayFeedback = 0.5
+        unit.uiPreset = preset
+        #expect(unit.engine.cachedDelayPingPong, "DSP delay renders in the AU")
+        #expect(unit.engine.pingPongDelay.enabled)
+        #expect(!unit.engine.pingPongDelay.crossFeed)
+        let tree = try #require(unit.parameterTree)
+        #expect(tree.parameter(withAddress: SynthParameterAddress.reverbMix.rawValue) == nil)
     }
 }

@@ -107,8 +107,9 @@ public extension AudioEngine {
         parameterDelayTime = preset.delayTime
         parameterDelayFeedback = preset.delayFeedback
         parameterDelayMix = preset.delayMix
-        if preset.delayPingPong {
+        if preset.delayPingPong || rendersAllDelayInDSP {
             delay.wetDryMix = 0.0
+            pingPongDelay.crossFeed = preset.delayPingPong
             pingPongDelay.enabled = true
             pingPongDelay.delayTime = delayEffectiveTime
             pingPongDelay.feedback = preset.delayFeedback
@@ -189,7 +190,7 @@ public extension AudioEngine {
         cachedArpOctaves = max(1, min(3, preset.arpOctaves))
         cachedArpGateLength = max(0.1, min(1.0, preset.arpGateLength))
         cachedArpSwing = max(0.0, min(0.75, preset.arpSwing))
-        cachedDelayPingPong = preset.delayPingPong
+        cachedDelayPingPong = preset.delayPingPong || rendersAllDelayInDSP
         cachedDelayTempoSync = preset.delayTempoSync
         cachedDelaySyncDivision = preset.delaySyncDivision
         cachedMacro1 = preset.macro1

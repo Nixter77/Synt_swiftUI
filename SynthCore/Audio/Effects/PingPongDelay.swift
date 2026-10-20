@@ -12,6 +12,8 @@ public final class PingPongDelay {
     public var delayTime: Float = 0.3 // seconds (0.001...2.0)
     public var feedback: Float = 0.4  // 0...0.95
     public var mix: Float = 0.0       // 0...1.0
+    /// true = ping-pong (L/R cross feedback). false = plain stereo delay.
+    public var crossFeed: Bool = true
 
     private var bufferL: [Float]
     private var bufferR: [Float]
@@ -74,8 +76,15 @@ public final class PingPongDelay {
         let monoInput = (inputL + inputR) * 0.5
         let stereoDiff = inputR - inputL
 
-        let toL = monoInput + dampR * fb
-        let toR = stereoDiff * 0.5 + dampL * fb
+        let toL: Float
+        let toR: Float
+        if crossFeed {
+            toL = monoInput + dampR * fb
+            toR = stereoDiff * 0.5 + dampL * fb
+        } else {
+            toL = inputL + dampL * fb
+            toR = inputR + dampR * fb
+        }
 
         bufferL[writeIndex] = toL.isFinite ? toL : 0
         bufferR[writeIndex] = toR.isFinite ? toR : 0
