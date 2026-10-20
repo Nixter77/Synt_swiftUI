@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct PianoKeyView: View {
+    @Environment(\.theme) private var theme
     let note: Note
     let isPressed: Bool
     let onPress: () -> Void
@@ -13,20 +14,29 @@ struct PianoKeyView: View {
 
     var body: some View {
         if note.isBlack {
-            BlackKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease)
+            BlackKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease, themeID: theme.id)
+                .equatable()
         } else {
-            WhiteKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease)
+            WhiteKeyView(note: note, isPressed: isPressed, onPress: onPress, onRelease: onRelease, themeID: theme.id)
+                .equatable()
         }
     }
 }
 
-struct WhiteKeyView: View {
+struct WhiteKeyView: View, Equatable {
+    @Environment(\.theme) private var theme
     let note: Note
     let isPressed: Bool
     var width: CGFloat = 36
     var height: CGFloat = 140
     let onPress: () -> Void
     let onRelease: () -> Void
+    let themeID: ThemeID
+
+    static func == (lhs: WhiteKeyView, rhs: WhiteKeyView) -> Bool {
+        lhs.note == rhs.note && lhs.isPressed == rhs.isPressed && lhs.width == rhs.width && lhs.height == rhs.height
+            && lhs.themeID == rhs.themeID
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -35,25 +45,22 @@ struct WhiteKeyView: View {
                 .fill(
                     LinearGradient(
                         colors: isPressed
-                            ? [AppleTheme.accentBlue.opacity(0.15), AppleTheme.accentBlue.opacity(0.08)]
-                            : [Color.white, Color(white: 0.95)],
+                            ? [theme.keyPressed, theme.keyPressed]
+                            : [theme.keyWhite, theme.keyWhiteEdge],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .shadow(
-                    color: isPressed ? AppleTheme.accentBlue.opacity(0.2) : AppleTheme.shadowDark,
-                    radius: isPressed ? 1 : 4,
-                    x: 0,
-                    y: isPressed ? 1 : 3
-                )
+                .compositingGroup()
+                .shadow(color: theme.cardShadow.color, radius: 2, x: 0, y: 1)
+                .drawingGroup()
             
             // Top highlight for 3D bevel
             if !isPressed {
                 RoundedRectangle(cornerRadius: 5)
                     .stroke(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.9), Color.white.opacity(0.2)],
+                            colors: [theme.keyHighlight.opacity(0.9), theme.keyHighlight.opacity(0.2)],
                             startPoint: .top,
                             endPoint: .bottom
                         ),
@@ -62,12 +69,13 @@ struct WhiteKeyView: View {
             }
 
             Text(note.name.prefix(note.name.count - 1))
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundColor(isPressed ? AppleTheme.accentBlue : AppleTheme.textTertiary)
+                .font(theme.captionFont(size: 10))
+                .foregroundColor(theme.keyLabel)
                 .padding(.bottom, 8)
         }
         .frame(width: width, height: height)
-        .gesture(
+        .contentShape(Rectangle())
+        .highPriorityGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in onPress() }
                 .onEnded { _ in onRelease() }
@@ -75,13 +83,20 @@ struct WhiteKeyView: View {
     }
 }
 
-struct BlackKeyView: View {
+struct BlackKeyView: View, Equatable {
+    @Environment(\.theme) private var theme
     let note: Note
     let isPressed: Bool
     var width: CGFloat = 24
     var height: CGFloat = 90
     let onPress: () -> Void
     let onRelease: () -> Void
+    let themeID: ThemeID
+
+    static func == (lhs: BlackKeyView, rhs: BlackKeyView) -> Bool {
+        lhs.note == rhs.note && lhs.isPressed == rhs.isPressed && lhs.width == rhs.width && lhs.height == rhs.height
+            && lhs.themeID == rhs.themeID
+    }
 
     var body: some View {
         ZStack {
@@ -90,25 +105,22 @@ struct BlackKeyView: View {
                 .fill(
                     LinearGradient(
                         colors: isPressed
-                            ? [AppleTheme.accentBlue.opacity(0.8), AppleTheme.accentBlue.opacity(0.5)]
-                            : [Color(white: 0.22), Color(white: 0.12)],
+                            ? [theme.keyPressed, theme.keyPressed]
+                            : [theme.keyBlack, theme.keyBlackEnd],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .shadow(
-                    color: isPressed ? AppleTheme.accentBlue.opacity(0.3) : Color.black.opacity(0.4),
-                    radius: isPressed ? 1 : 4,
-                    x: 0,
-                    y: isPressed ? 1 : 3
-                )
+                .compositingGroup()
+                .shadow(color: theme.cardShadow.color, radius: 2, x: 0, y: 1)
+                .drawingGroup()
             
             // Subtle top highlight
             VStack {
                 RoundedRectangle(cornerRadius: 4)
                     .fill(
                         LinearGradient(
-                            colors: [Color.white.opacity(isPressed ? 0.15 : 0.2), Color.clear],
+                            colors: [theme.keyHighlight.opacity(isPressed ? 0.15 : 0.2), Color.clear],
                             startPoint: .top,
                             endPoint: .center
                         )
@@ -119,7 +131,8 @@ struct BlackKeyView: View {
             .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .frame(width: width, height: height)
-        .gesture(
+        .contentShape(Rectangle())
+        .highPriorityGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in onPress() }
                 .onEnded { _ in onRelease() }
@@ -143,5 +156,5 @@ struct BlackKeyView: View {
         )
     }
     .padding()
-    .background(AppleTheme.windowBackground)
+    .background(Theme.baseline.bg)
 }

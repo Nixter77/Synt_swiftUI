@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct KeyboardView: View {
+    @Environment(\.theme) private var theme
     @ObservedObject var keyboardHandler: KeyboardHandler
-    var pressedKeys: Set<Int>
+    @ObservedObject var keyDisplay: PressedKeysModel
+    private var pressedKeys: Set<Int> { keyDisplay.keys }
     let startNote: Int
     let numberOfOctaves: Int
 
@@ -10,9 +12,9 @@ struct KeyboardView: View {
 
     private let whiteKeySpacing: CGFloat = 2
 
-    init(keyboardHandler: KeyboardHandler, pressedKeys: Set<Int>, startNote: Int = 48, numberOfOctaves: Int = 2) {
+    init(keyboardHandler: KeyboardHandler, keyDisplay: PressedKeysModel, startNote: Int = 48, numberOfOctaves: Int = 2) {
         self.keyboardHandler = keyboardHandler
-        self.pressedKeys = pressedKeys
+        self.keyDisplay = keyDisplay
         self.startNote = startNote
         self.numberOfOctaves = numberOfOctaves
     }
@@ -32,13 +34,13 @@ struct KeyboardView: View {
                 } label: {
                     Image(systemName: "chevron.left.circle.fill")
                         .font(.title2)
-                        .foregroundColor(AppleTheme.textSecondary)
+                        .foregroundColor(theme.textDim)
                 }
                 .buttonStyle(.plain)
 
                 Text("Octave \(keyboardHandler.baseOctave)")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(AppleTheme.textPrimary)
+                    .foregroundColor(theme.text)
                     .frame(minWidth: 70)
 
                 Button {
@@ -46,7 +48,7 @@ struct KeyboardView: View {
                 } label: {
                     Image(systemName: "chevron.right.circle.fill")
                         .font(.title2)
-                        .foregroundColor(AppleTheme.textSecondary)
+                        .foregroundColor(theme.textDim)
                 }
                 .buttonStyle(.plain)
 
@@ -54,18 +56,18 @@ struct KeyboardView: View {
 
                 HStack(spacing: 6) {
                     Image(systemName: "hand.draw")
-                        .foregroundColor(AppleTheme.textTertiary)
+                        .foregroundColor(theme.textFaint)
                     Text("Drag Blue Zone")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(AppleTheme.accentBlue)
+                        .foregroundColor(theme.accent)
                     
                     Text(" | Z/X: Octave | A-L: Play")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(AppleTheme.textTertiary)
+                        .foregroundColor(theme.textFaint)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(AppleTheme.surfaceSecondary)
+                .background(theme.panel)
                 .cornerRadius(6)
             }
             .padding(.horizontal)
@@ -90,8 +92,10 @@ struct KeyboardView: View {
                                 width: whiteKeyWidth,
                                 height: whiteKeyHeight,
                                 onPress: { keyboardHandler.noteOn(midiNote: note.midiNote) },
-                                onRelease: { keyboardHandler.noteOff(midiNote: note.midiNote) }
+                                onRelease: { keyboardHandler.noteOff(midiNote: note.midiNote) },
+                                themeID: theme.id
                             )
+                            .equatable()
                         }
                     }
 
@@ -121,8 +125,10 @@ struct KeyboardView: View {
                                 width: blackKeyWidth,
                                 height: blackKeyHeight,
                                 onPress: { keyboardHandler.noteOn(midiNote: midiNote) },
-                                onRelease: { keyboardHandler.noteOff(midiNote: midiNote) }
+                                onRelease: { keyboardHandler.noteOff(midiNote: midiNote) },
+                                themeID: theme.id
                             )
+                            .equatable()
                             .offset(x: leadingX, y: 0)
                         }
                     }
@@ -135,13 +141,14 @@ struct KeyboardView: View {
                     
                     let activeZoneX = CGFloat(baseOctaveOffset) * octaveWidth + dragOffset
                     
-                    // Only show if it's somewhat in view
+                    // Visual only — a full-key hit target here stole piano onEnded
+                    // and left notes hanging after release.
                     if activeZoneX + activeZoneWidth > -50 && activeZoneX < availableWidth + 50 {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(AppleTheme.accentBlue.opacity(0.15))
+                            .fill(theme.kbZone)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(AppleTheme.accentBlue.opacity(0.6), lineWidth: 2)
+                                    .stroke(theme.kbZoneBorder, lineWidth: 2)
                             )
                             .overlay(
                                 VStack {
@@ -149,30 +156,37 @@ struct KeyboardView: View {
                                         Image(systemName: "macwindow")
                                         Text("Mac Keyboard")
                                     }
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                                    .foregroundColor(AppleTheme.accentBlue)
+                                    .themeCaption(theme, size: 10, weight: .bold)
+                                    .foregroundColor(theme.kbZoneBorder)
                                     .padding(.top, 6)
                                     Spacer()
-                                    
-                                    // Drag handle
+
                                     RoundedRectangle(cornerRadius: 2)
-                                        .fill(AppleTheme.accentBlue.opacity(0.4))
+                                        .fill(theme.kbZoneBorder.opacity(0.45))
                                         .frame(width: 40, height: 4)
                                         .padding(.bottom, 6)
                                 }
                             )
                             .frame(width: activeZoneWidth, height: whiteKeyHeight)
                             .offset(x: activeZoneX, y: 0)
+                            .allowsHitTesting(false)
+
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(theme.kbZoneBorder)
+                            .frame(width: 44, height: 12)
+                            .offset(
+                                x: activeZoneX + (activeZoneWidth - 44) / 2,
+                                y: whiteKeyHeight - 18
+                            )
                             .gesture(
                                 DragGesture()
                                     .onChanged { value in
                                         dragOffset = value.translation.width
                                     }
-                                    .onEnded { value in
+                                    .onEnded { _ in
                                         let draggedOctaves = Int(round(dragOffset / octaveWidth))
                                         let newOctave = keyboardHandler.baseOctave + draggedOctaves
-                                        
-                                        // Update octave
+
                                         if newOctave != keyboardHandler.baseOctave {
                                             if newOctave > keyboardHandler.baseOctave {
                                                 for _ in 0..<(newOctave - keyboardHandler.baseOctave) { keyboardHandler.octaveUp() }
@@ -180,8 +194,7 @@ struct KeyboardView: View {
                                                 for _ in 0..<(keyboardHandler.baseOctave - newOctave) { keyboardHandler.octaveDown() }
                                             }
                                         }
-                                        
-                                        // Snap back
+
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                             dragOffset = 0
                                         }
@@ -194,21 +207,22 @@ struct KeyboardView: View {
             }
             .frame(height: 140 + 16) // Explicit height since GeometryReader collapses in ScrollView
             .background(
-                RoundedRectangle(cornerRadius: AppleTheme.radiusLarge)
-                    .fill(AppleTheme.surfaceSecondary)
-                    .shadow(color: AppleTheme.shadowDark, radius: 2, x: 0, y: 1)
-                    .shadow(color: .white.opacity(0.5), radius: 2, x: 0, y: -1)
+                RoundedRectangle(cornerRadius: theme.rHeader)
+                    .fill(theme.panel)
+                    .compositingGroup()
+                    .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
+                    .drawingGroup()
             )
             .padding(.horizontal)
         }
         .padding(.vertical)
-        .appleCard(cornerRadius: AppleTheme.radiusLarge)
+        .appleCard(cornerRadius: theme.rHeader)
     }
 }
 
 #Preview {
-    KeyboardView(keyboardHandler: KeyboardHandler(), pressedKeys: [60, 64, 67], startNote: 36, numberOfOctaves: 4)
+    KeyboardView(keyboardHandler: KeyboardHandler(), keyDisplay: PressedKeysModel(), startNote: 36, numberOfOctaves: 4)
         .frame(height: 250)
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
         .padding()
 }

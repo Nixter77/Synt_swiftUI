@@ -6,30 +6,59 @@
 import SwiftUI
 
 struct ADSRView: View {
+    @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
+    @State private var selectedEnv: Int = 1
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AppleSectionHeader(title: "ENVELOPE", accent: AppleTheme.accentEnvelope, icon: "chart.xyaxis.line")
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                AppleSectionHeader(title: "ENVELOPE", accent: theme.aEnv, icon: "chart.xyaxis.line")
+                Spacer()
+                ThemeSegmented(
+                    options: [(1, "AMP"), (2, "FLT")],
+                    selection: $selectedEnv,
+                    accent: theme.aEnv
+                )
+                .frame(width: 76)
+                if selectedEnv == 2 {
+                    ThemeToggle(isOn: $preset.filterEnvUseDedicatedADSR)
+                }
+            }
 
-            ADSRGraph(attack: preset.attack, decay: preset.decay, sustain: preset.sustain, release: preset.release)
-                .frame(height: 60)
-                .padding(6)
-                .appleInset()
+            if selectedEnv == 1 {
+                ADSRGraph(attack: preset.attack, decay: preset.decay, sustain: preset.sustain, release: preset.release)
+                    .frame(height: 54)
+                    .padding(2)
+                    .appleInset()
 
-            HStack(spacing: 12) {
-                KnobView(value: $preset.attack, range: 0.001...2.0, label: "Attack", format: "%.2fs")
-                KnobView(value: $preset.decay, range: 0.001...2.0, label: "Decay", format: "%.2fs")
-                KnobView(value: $preset.sustain, range: 0...1, label: "Sustain", format: "%.0f%%")
-                KnobView(value: $preset.release, range: 0.001...3.0, label: "Release", format: "%.2fs")
+                HStack(spacing: 8) {
+                    KnobView(value: $preset.attack, range: 0.001...2.0, label: "Attack", format: "%.2fs")
+                    KnobView(value: $preset.decay, range: 0.001...2.0, label: "Decay", format: "%.2fs")
+                    KnobView(value: $preset.sustain, range: 0...1, label: "Sustain", format: "%.0f%%")
+                    KnobView(value: $preset.release, range: 0.001...3.0, label: "Release", format: "%.2fs")
+                }
+            } else {
+                ADSRGraph(attack: preset.filterAttack, decay: preset.filterDecay, sustain: preset.filterSustain, release: preset.filterRelease)
+                    .frame(height: 54)
+                    .padding(2)
+                    .appleInset()
+
+                HStack(spacing: 8) {
+                    KnobView(value: $preset.filterAttack, range: 0.001...2.0, label: "Attack", format: "%.2fs", target: .filterAttack)
+                    KnobView(value: $preset.filterDecay, range: 0.001...2.0, label: "Decay", format: "%.2fs", target: .filterDecay)
+                    KnobView(value: $preset.filterSustain, range: 0...1, label: "Sustain", format: "%.0f%%", target: .filterSustain)
+                    KnobView(value: $preset.filterRelease, range: 0.001...3.0, label: "Release", format: "%.2fs", target: .filterRelease)
+                }
             }
         }
-        .padding()
-        .appleCard(accent: AppleTheme.accentEnvelope)
+        .padding(6)
+        .appleCard(accent: theme.aEnv)
     }
 }
 
 struct ADSRGraph: View {
+    @Environment(\.theme) private var theme
     let attack: Float
     let decay: Float
     let sustain: Float
@@ -53,7 +82,7 @@ struct ADSRGraph: View {
             }
             .stroke(
                 LinearGradient(
-                    colors: [AppleTheme.accentEnvelope, AppleTheme.accentLFO],
+                    colors: [theme.aEnv, theme.aLFO],
                     startPoint: .leading, endPoint: .trailing
                 ),
                 lineWidth: 2.5
@@ -69,7 +98,7 @@ struct ADSRGraph: View {
             }
             .fill(
                 LinearGradient(
-                    colors: [AppleTheme.accentEnvelope.opacity(0.2), AppleTheme.accentLFO.opacity(0.05)],
+                    colors: [theme.aEnv.opacity(0.2), theme.aLFO.opacity(0.05)],
                     startPoint: .top, endPoint: .bottom
                 )
             )
@@ -80,5 +109,5 @@ struct ADSRGraph: View {
 #Preview {
     ADSRView(preset: .constant(.defaultPreset))
         .frame(width: 300).padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }

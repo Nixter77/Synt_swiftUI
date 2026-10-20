@@ -6,15 +6,23 @@
 import SwiftUI
 
 struct WaveformPicker: View {
+    @Environment(\.theme) private var theme
     @Binding var selected: WaveformType
+    var accent: Color? = nil
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(WaveformType.allCases, id: \.self) { waveform in
                 Button {
                     selected = waveform
                 } label: {
-                    WaveformIcon(type: waveform, isSelected: selected == waveform)
+                    WaveformIcon(
+                        type: waveform,
+                        isSelected: selected == waveform,
+                        themeID: theme.id,
+                        accent: accent ?? theme.aOsc
+                    )
+                        .equatable()
                 }
                 .buttonStyle(.plain)
             }
@@ -22,26 +30,36 @@ struct WaveformPicker: View {
     }
 }
 
-struct WaveformIcon: View {
+struct WaveformIcon: View, Equatable {
+    @Environment(\.theme) private var theme
     let type: WaveformType
     let isSelected: Bool
+    let themeID: ThemeID
+    let accent: Color
+
+    static func == (lhs: WaveformIcon, rhs: WaveformIcon) -> Bool {
+        lhs.type == rhs.type && lhs.isSelected == rhs.isSelected && lhs.themeID == rhs.themeID
+            && lhs.accent == rhs.accent
+    }
 
     var body: some View {
         ZStack {
-            // 3D raised pill
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? AppleTheme.accentOscillator.opacity(0.12) : AppleTheme.surfaceSecondary)
+            RoundedRectangle(cornerRadius: theme.rSmall)
+                .fill(isSelected ? theme.tileSel : theme.tile)
                 .frame(width: 38, height: 30)
-                .shadow(color: isSelected ? AppleTheme.accentOscillator.opacity(0.2) : AppleTheme.shadowDark, radius: isSelected ? 2 : 4, x: 1, y: 2)
-                .shadow(color: AppleTheme.shadowLight, radius: isSelected ? 1 : 3, x: -1, y: -1)
-            
-            // Border
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? AppleTheme.accentOscillator.opacity(0.5) : Color.white.opacity(0.6), lineWidth: 1)
+                .shadow(
+                    color: isSelected && theme.id == .baseline ? theme.cardShadow.color : .clear,
+                    radius: isSelected && theme.id == .baseline ? 2 : 0,
+                    x: 0,
+                    y: 1
+                )
+
+            RoundedRectangle(cornerRadius: theme.rSmall)
+                .stroke(isSelected ? accent : theme.border, lineWidth: 1)
                 .frame(width: 38, height: 30)
 
             WaveformShape(type: type)
-                .stroke(isSelected ? AppleTheme.accentOscillator : AppleTheme.textTertiary, lineWidth: 2)
+                .stroke(isSelected ? accent : theme.textFaint, lineWidth: 2)
                 .frame(width: 24, height: 16)
         }
     }
@@ -88,6 +106,17 @@ struct WaveformShape: Shape {
                  let randomY = rect.midY + CGFloat.random(in: -rect.height/2...rect.height/2)
                  path.addLine(to: CGPoint(x: x, y: randomY))
              }
+
+        case .wavetable:
+            // Stylized multi-frame morph: sine → richer partials
+            path.move(to: CGPoint(x: 0, y: rect.midY))
+            for x in stride(from: 0, through: rect.width, by: 1) {
+                let t = x / rect.width
+                let y = rect.midY
+                    - sin(t * .pi * 2) * rect.height * 0.35
+                    - sin(t * .pi * 4) * rect.height * 0.15
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
         }
 
         return path
@@ -97,5 +126,5 @@ struct WaveformShape: Shape {
 #Preview {
     WaveformPicker(selected: .constant(.sawtooth))
         .padding()
-        .background(AppleTheme.windowBackground)
+        .background(Theme.baseline.bg)
 }

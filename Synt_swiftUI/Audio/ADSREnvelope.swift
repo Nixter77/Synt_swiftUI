@@ -2,6 +2,9 @@
 //  ADSREnvelope.swift
 //  Synt_swiftUI
 //
+//  Exponential-ish ADSR with minimum attack/release times so factory
+//  presets with 0.001s attack never hard-step to full amplitude (clicks).
+//
 
 import Foundation
 
@@ -11,16 +14,26 @@ struct ADSREnvelope {
     var sustain: Float = 0.7
     var release: Float = 0.3
 
+    /// Floor for attack/release — below this the ear hears a click on note on/off.
+    static let minAttackSeconds: Float = 0.004   // 4 ms
+    static let minReleaseSeconds: Float = 0.012  // 12 ms
+    /// Fast release used by voice steal / re-trigger fade-out.
+    static let fastReleaseSeconds: Float = 0.006 // 6 ms
+
     func process(
         currentValue: Float,
         phase: inout EnvelopePhase,
         time: inout Double,
         releaseStartValue: Float,
         isReleasing: Bool,
-        sampleRate: Double
+        sampleRate: Double,
+        releaseOverride: Float? = nil
     ) -> Float {
         let deltaTime = 1.0 / sampleRate
         var value = currentValue
+
+        let attackT = max(Self.minAttackSeconds, attack)
+        let releaseT = max(Self.minReleaseSeconds, releaseOverride ?? release)
 
         if isReleasing && phase != .release && phase != .finished {
             phase = .release
@@ -29,30 +42,31 @@ struct ADSREnvelope {
 
         switch phase {
         case .attack:
-            if attack <= 0.001 {
+            // Smooth raise: 1 - e^(-k t/T) reaches ~1 at t≈T (k≈5)
+            let a = Double(attackT)
+            let coeff = Float(exp(-5.0 * deltaTime / a))
+            value = 1.0 - (1.0 - value) * coeff
+            time += deltaTime
+            if time >= a || value >= 0.999 {
                 value = 1.0
                 phase = .decay
                 time = 0.0
-            } else {
-                value = Float(time / Double(attack))
-                if value >= 1.0 {
-                    value = 1.0
-                    phase = .decay
-                    time = 0.0
-                }
             }
 
         case .decay:
+            let d = max(0.003, Double(decay))
             if decay <= 0.001 {
                 value = sustain
                 phase = .sustain
+                time = 0.0
             } else {
-                let decayProgress = Float((time + deltaTime) / Double(decay))
-                let coefficient = Float(exp(-5.0 * deltaTime / Double(decay)))
+                let coefficient = Float(exp(-5.0 * deltaTime / d))
                 value = sustain + (value - sustain) * coefficient
-                if decayProgress >= 1.0 || abs(value - sustain) < 0.0001 {
+                time += deltaTime
+                if time >= d || abs(value - sustain) < 0.0005 {
                     value = sustain
                     phase = .sustain
+                    time = 0.0
                 }
             }
 
@@ -60,14 +74,15 @@ struct ADSREnvelope {
             value = sustain
 
         case .release:
-            if release <= 0.001 {
+            let r = Double(releaseT)
+            if releaseT <= 0.0001 {
                 value = 0.0
                 phase = .finished
             } else {
-                let releaseProgress = Float((time + deltaTime) / Double(release))
-                let coefficient = Float(exp(-5.0 * deltaTime / Double(release)))
+                let coefficient = Float(exp(-5.0 * deltaTime / r))
                 value = value * coefficient
-                if releaseProgress >= 1.0 || value < 0.0001 {
+                time += deltaTime
+                if time >= r || value < 0.0002 {
                     value = 0.0
                     phase = .finished
                 }
@@ -76,8 +91,6 @@ struct ADSREnvelope {
         case .finished:
             value = 0.0
         }
-
-        time += deltaTime
 
         return AudioMath.clamp(value, min: 0.0, max: 1.0)
     }

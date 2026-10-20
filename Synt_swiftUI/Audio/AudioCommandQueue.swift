@@ -19,12 +19,34 @@ enum AudioCommand: Equatable {
     case clearAll
     case arpKeyDown(midiNote: Int)
     case arpKeyUp(midiNote: Int)
+    /// -1…1, center 0. Full throw is `pitchBendRange` semitones.
+    case setPitchBend(Float)
+    /// 0…1. Adds LFO depth on top of the preset. 0 leaves the preset alone.
+    case setModWheel(Float)
+    case setSustain(Bool)
+    /// MIDI key. The audio thread routes it to the arp or a voice (it owns arp mode).
+    case keyDown(midiNote: Int, velocity: Float)
+    /// MIDI key up. Goes to the arp if the arp holds the key, otherwise note off.
+    case keyUp(midiNote: Int)
+    /// New patch: zero the render-owned DSP state (filters, chorus, drive, EQ,
+    /// phaser, LFO, smoothers). Apple Delay/Reverb are reset on main via the AU API.
+    case resetPatchState
+    /// MIDI CC123: a note-off for every key (arp keys dropped). With the pedal
+    /// down, voices stay pedal-held until it lifts. Unlike `clearAll` it keeps
+    /// tails, filters, bend and LFO.
+    case allNotesOff
+    /// MIDI Control Change 0…127 (controller, value 0…127)
+    case controlChange(cc: UInt8, value: UInt8)
+    /// Aftertouch (Channel Pressure 0…1)
+    case setAftertouch(Float)
+    /// Polyphonic Aftertouch (Key Pressure 0…1)
+    case setPolyAftertouch(midiNote: Int, pressure: Float)
 
     var isCritical: Bool {
         switch self {
-        case .noteOff, .clearAll, .arpKeyUp:
+        case .noteOff, .clearAll, .arpKeyUp, .setSustain, .keyUp, .resetPatchState, .allNotesOff:
             return true
-        case .noteOn, .arpKeyDown:
+        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch:
             return false
         }
     }
@@ -32,7 +54,11 @@ enum AudioCommand: Equatable {
 
 final class AudioCommandQueue: @unchecked Sendable {
     private let capacity: Int
-    private var buffer: [AudioCommand?]
+    /// Raw slots: producer writes `buffer[head]`, consumer reads `buffer[tail]`.
+    /// A Swift array here would run uniqueness / exclusivity checks on both
+    /// threads (and is a formal data race on the array storage).
+    /// `AudioCommand` is a trivial enum, so slots need no deinit or `nil`.
+    private let buffer: UnsafeMutablePointer<AudioCommand>
 
     // Atomic indices for lock-free SPSC ring (producer owns head, consumer owns tail)
     private let head = Atomic<Int>(0)
@@ -45,10 +71,19 @@ final class AudioCommandQueue: @unchecked Sendable {
     private let pendingArpKeyUpLo = Atomic<UInt64>(0)
     private let pendingArpKeyUpHi = Atomic<UInt64>(0)
     private let pendingClearAll = Atomic<Bool>(false)
+    /// 0 = none, 1 = pedal up, 2 = pedal down. Latest wins when the ring is full.
+    private let pendingSustain = Atomic<Int8>(0)
+    private let pendingResetPatch = Atomic<Bool>(false)
 
     init(capacity: Int = 256) {
         self.capacity = max(2, capacity)
-        self.buffer = Array(repeating: nil, count: self.capacity)
+        self.buffer = UnsafeMutablePointer<AudioCommand>.allocate(capacity: self.capacity)
+        self.buffer.initialize(repeating: .clearAll, count: self.capacity)
+    }
+
+    deinit {
+        buffer.deinitialize(count: capacity)
+        buffer.deallocate()
     }
 
     /// Push a command (UI / non-audio producer thread only).
@@ -75,7 +110,25 @@ final class AudioCommandQueue: @unchecked Sendable {
         case .clearAll:
             pendingClearAll.store(true, ordering: .releasing)
             return true
-        case .noteOn, .arpKeyDown:
+        case .setSustain(let down):
+            pendingSustain.store(down ? 2 : 1, ordering: .releasing)
+            return true
+        case .resetPatchState:
+            pendingResetPatch.store(true, ordering: .releasing)
+            return true
+        case .keyUp(let midiNote):
+            // Route is unknown here. Park both; each is a no-op if that side is idle.
+            orNoteOffBit(clampedMIDI(midiNote))
+            orArpKeyUpBit(clampedMIDI(midiNote))
+            return true
+        case .allNotesOff:
+            // Ring full: park an off for every key on both routes.
+            orNoteOffBitRangeLo(.max)
+            orNoteOffBitRangeHi(.max)
+            orArpKeyUpBitRangeLo(.max)
+            orArpKeyUpBitRangeHi(.max)
+            return true
+        case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch:
             return false
         }
     }
@@ -163,7 +216,6 @@ final class AudioCommandQueue: @unchecked Sendable {
         }
 
         let command = buffer[currentTail]
-        buffer[currentTail] = nil
 
         let nextTail = (currentTail + 1) % capacity
         tail.store(nextTail, ordering: .releasing)
@@ -187,17 +239,20 @@ final class AudioCommandQueue: @unchecked Sendable {
             clearCriticalSideChannelBits()
             discardRingContents()
         }
+        // Parked only when the ring was full; it always follows its clearAll.
+        if pendingResetPatch.exchange(false, ordering: .acquiringAndReleasing) {
+            body(.resetPatchState)
+            count += 1
+        }
 
         if !didClearAll {
             while count < limit, let command = pop() {
                 if case .clearAll = command {
                     body(.clearAll)
                     count += 1
-                    didClearAll = true
                     clearCriticalSideChannelBits()
-                    // Drop any commands still queued after panic clear
-                    discardRingContents()
-                    break
+                    // Keep commands pushed *after* this clearAll (new notes after a preset change).
+                    continue
                 }
                 body(command)
                 count += 1
@@ -221,6 +276,14 @@ final class AudioCommandQueue: @unchecked Sendable {
         }
 
         if !didClearAll && count < limit {
+            let sustainCode = pendingSustain.exchange(0, ordering: .acquiringAndReleasing)
+            if sustainCode != 0 {
+                body(.setSustain(sustainCode == 2))
+                count += 1
+            }
+        }
+
+        if !didClearAll && count < limit {
             let bitsLo = pendingArpKeyUpLo.exchange(0, ordering: .acquiringAndReleasing)
             let bitsHi = pendingArpKeyUpHi.exchange(0, ordering: .acquiringAndReleasing)
             _ = emitBits(
@@ -236,15 +299,18 @@ final class AudioCommandQueue: @unchecked Sendable {
         }
     }
 
+    /// Consumer-only: drop every unread ring command and parked side-channel bit
+    /// (a reset releases everything right after, so dropped offs are redundant).
+    func discardPendingRT() {
+        discardRingContents()
+        clearCriticalSideChannelBits()
+        pendingSustain.store(0, ordering: .relaxed)
+    }
+
     /// Consumer-only: advance tail to head, discarding unread ring slots.
     @inline(__always)
     private func discardRingContents() {
-        var currentTail = tail.load(ordering: .relaxed)
         let currentHead = head.load(ordering: .acquiring)
-        while currentTail != currentHead {
-            buffer[currentTail] = nil
-            currentTail = (currentTail + 1) % capacity
-        }
         tail.store(currentHead, ordering: .releasing)
     }
 
@@ -356,6 +422,7 @@ final class AudioCommandQueue: @unchecked Sendable {
         let ringEmpty = tail.load(ordering: .acquiring) == head.load(ordering: .acquiring)
         guard ringEmpty else { return false }
         if pendingClearAll.load(ordering: .acquiring) { return false }
+        if pendingResetPatch.load(ordering: .acquiring) { return false }
         if pendingNoteOffLo.load(ordering: .acquiring) != 0 { return false }
         if pendingNoteOffHi.load(ordering: .acquiring) != 0 { return false }
         if pendingArpKeyUpLo.load(ordering: .acquiring) != 0 { return false }

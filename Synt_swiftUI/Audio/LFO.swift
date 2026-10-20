@@ -14,6 +14,8 @@ class LFO {
 
     private var phase: Double = 0.0
     private var lastRandomValue: Float = 0.0
+    /// LCG for S&H. Float.random hits the system RNG (can lock) on the audio thread.
+    private var randomState: UInt32 = 0x9E37_79B9
 
     func reset() {
         phase = 0.0
@@ -21,14 +23,26 @@ class LFO {
 
     func getValue(sampleRate: Double) -> Float {
         guard enabled else { return 0.0 }
+        return nextValue(sampleRate: sampleRate)
+    }
 
-        let phaseIncrement = AudioMath.twoPi * Double(rate) / sampleRate
+    /// One sample of the LFO, whether or not the direct target is enabled.
+    /// The matrix calls this when a row uses LFO 1 and the toggle is off.
+    func nextValue(sampleRate: Double, rateOverride: Float? = nil) -> Float {
+        nextRawValue(sampleRate: sampleRate, rateOverride: rateOverride) * depth
+    }
+
+    /// Bipolar −1…1, before Depth. Matrix rows use this so their Amount is the depth.
+    func nextRawValue(sampleRate: Double, rateOverride: Float? = nil) -> Float {
+        let usedRate = rateOverride ?? rate
+        let phaseIncrement = AudioMath.twoPi * Double(usedRate) / sampleRate
         phase += phaseIncrement
 
         if phase >= AudioMath.twoPi {
             phase -= AudioMath.twoPi
             // Trigger Sample & Hold update
-            lastRandomValue = Float.random(in: -1.0...1.0)
+            randomState = randomState &* 1_664_525 &+ 1_013_904_223
+            lastRandomValue = Float(randomState) / Float(UInt32.max) * 2 - 1
         }
 
         var value: Float = 0.0
@@ -51,14 +65,13 @@ class LFO {
         case .noise:
             // Sample & Hold (Random step)
             value = lastRandomValue
+
+        case .wavetable:
+            // LFO does not use multi-frame tables — sine is a safe fallback.
+            value = Float(sin(phase))
         }
 
-        return value * depth
-    }
-
-    func modulateFrequency(_ frequency: Double, lfoValue: Float) -> Double {
-        let semitones = Double(lfoValue) * 2.0
-        return frequency * pow(2.0, semitones / 12.0)
+        return value
     }
 
     func modulateFilter(_ cutoff: Float, lfoValue: Float) -> Float {

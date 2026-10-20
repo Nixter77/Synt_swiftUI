@@ -9,18 +9,32 @@ class DSPChorus {
     private var bufferL: [Float]
     private var bufferR: [Float]
     private var writeIndex: Int = 0
-    private let bufferSize: Int
+    private var bufferSize: Int
     
     var rate: Float = 1.5
     var depth: Float = 0.5 // 0..1 corresponds to 0..maxDelay modulation
     var mix: Float = 0.5
+    var stereo: Bool = true {
+        didSet {
+            if stereo && !oldValue {
+                phaseR = phaseL + Double.pi / 2.0
+                if phaseR >= 2.0 * Double.pi { phaseR -= 2.0 * Double.pi }
+            } else if !stereo && oldValue {
+                phaseR = phaseL
+            }
+        }
+    }
+    var chorusStereo: Bool {
+        get { stereo }
+        set { stereo = newValue }
+    }
     
     // Internal LFO state
     private var phaseL: Double = 0.0
     private var phaseR: Double = Double.pi / 2.0 // 90 degree offset for stereo
     
     private let maxDelaySeconds: Double = 0.050 // 50ms max delay
-    private let sampleRate: Double
+    private var sampleRate: Double
     
     init(sampleRate: Double = 44100.0) {
         self.sampleRate = sampleRate
@@ -43,9 +57,14 @@ class DSPChorus {
         // Update LFO
         let phaseIncrement = (2.0 * Double.pi * Double(rate)) / sampleRate
         phaseL += phaseIncrement
-        phaseR += phaseIncrement
         if phaseL >= 2.0 * Double.pi { phaseL -= 2.0 * Double.pi }
-        if phaseR >= 2.0 * Double.pi { phaseR -= 2.0 * Double.pi }
+
+        if stereo {
+            phaseR += phaseIncrement
+            if phaseR >= 2.0 * Double.pi { phaseR -= 2.0 * Double.pi }
+        } else {
+            phaseR = phaseL
+        }
         
         // Calculate delay modulation
         // Base delay typically 15-20ms. Modulation swings +/- depth.
@@ -90,11 +109,22 @@ class DSPChorus {
         return s0 + (s1 - s0) * frac
     }
     
+    func setSampleRate(_ newRate: Double) {
+        let newRate = max(8_000, newRate)
+        guard abs(newRate - sampleRate) > 0.5 else { return }
+        sampleRate = newRate
+        bufferSize = Int(sampleRate * maxDelaySeconds) + 100
+        bufferL = Array(repeating: 0, count: bufferSize)
+        bufferR = Array(repeating: 0, count: bufferSize)
+        writeIndex = 0
+    }
+
     func reset() {
-        bufferL = Array(repeating: 0.0, count: bufferSize)
-        bufferR = Array(repeating: 0.0, count: bufferSize)
+        // In place: reset runs on the render thread (no allocation, no free).
+        for i in 0..<bufferL.count { bufferL[i] = 0 }
+        for i in 0..<bufferR.count { bufferR[i] = 0 }
         writeIndex = 0
         phaseL = 0.0
-        phaseR = Double.pi / 2.0
+        phaseR = stereo ? (Double.pi / 2.0) : 0.0
     }
 }

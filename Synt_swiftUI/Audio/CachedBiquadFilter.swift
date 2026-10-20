@@ -8,6 +8,57 @@
 
 import Foundation
 
+/// Shared RBJ coefficients. One set per sample; each voice keeps its own memory.
+struct BiquadCoeffs {
+    var b0: Float = 1
+    var b1: Float = 0
+    var b2: Float = 0
+    var a1: Float = 0
+    var a2: Float = 0
+}
+
+/// Per-voice z⁻¹ state. Must not be shared across MIDI notes.
+struct BiquadMemory {
+    /// Numerical rail only. A musical clamp near ±2.5 hard-clipped resonant
+    /// voices and rasped as soon as several notes rang together.
+    static let outputRail: Float = 12
+
+    var x1: Float = 0
+    var x2: Float = 0
+    var y1: Float = 0
+    var y2: Float = 0
+
+    mutating func reset() {
+        x1 = 0
+        x2 = 0
+        y1 = 0
+        y2 = 0
+    }
+
+    @inline(__always)
+    mutating func process(_ input: Float, coeffs: BiquadCoeffs) -> Float {
+        let x = max(-3, min(3, input))
+        var output = coeffs.b0 * x + coeffs.b1 * x1 + coeffs.b2 * x2
+            - coeffs.a1 * y1 - coeffs.a2 * y2
+        if !output.isFinite {
+            reset()
+            return 0
+        }
+        if abs(output) < 1.0e-15 {
+            output = 0
+        }
+        let rail = BiquadMemory.outputRail
+        output = max(-rail, min(rail, output))
+        x2 = x1
+        x1 = x
+        y2 = y1
+        y1 = output
+        return output
+    }
+
+    var energy: Float { abs(x1) + abs(x2) + abs(y1) + abs(y2) }
+}
+
 final class CachedBiquadFilter {
     var type: FilterType = .lowPass {
         didSet { if oldValue != type { isDirty = true } }
@@ -40,6 +91,9 @@ final class CachedBiquadFilter {
 
     // Dirty flag - recalculate only when needed
     private var isDirty: Bool = true
+    /// Render-side resonance offset (mod matrix). Never stored into `resonance`,
+    /// which belongs to the main thread.
+    private var resonanceOffset: Float = 0
 
     // Parameter smoothing
     private var targetCutoff: Float = 5000.0
@@ -51,6 +105,12 @@ final class CachedBiquadFilter {
 
     // Denormal threshold
     private let denormalThreshold: Float = 1.0e-15
+
+    func setSampleRate(_ sampleRate: Float) {
+        cachedSampleRate = max(8_000, sampleRate)
+        recalculateCoefficients(sampleRate: cachedSampleRate)
+        isDirty = false
+    }
 
     func reset() {
         x1 = 0.0
@@ -76,33 +136,94 @@ final class CachedBiquadFilter {
             isDirty = false
         }
 
-        // Biquad filter processing
-        var output = b0 * input + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+        // Soft-limit input so multi-note peaks cannot drive the biquad into blow-up.
+        let x = max(-3, min(3, input))
 
-        // Denormal protection
+        // Biquad filter processing
+        var output = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+
+        // Denormal + non-finite protection (recoverable silence instead of permanent NaN)
+        if !output.isFinite {
+            reset()
+            return 0
+        }
         if abs(output) < denormalThreshold {
             output = 0.0
         }
+        let rail = BiquadMemory.outputRail
+        output = max(-rail, min(rail, output))
 
         // Update state
         x2 = x1
-        x1 = input
+        x1 = x
         y2 = y1
         y1 = output
 
         return output
     }
 
+    /// Smooth cutoff and return coeffs without touching this instance's z-state.
+    /// Call once per sample, then run `BiquadMemory.process` on each voice.
+    @inline(__always)
+    func currentCoefficients(sampleRate: Float, resonanceOffset offset: Float = 0) -> BiquadCoeffs {
+        if offset != resonanceOffset {
+            resonanceOffset = offset
+            isDirty = true
+        }
+        let cutoffDiff = targetCutoff - smoothedCutoff
+        if abs(cutoffDiff) > 0.1 {
+            smoothedCutoff += cutoffDiff * (1.0 - smoothingCoeff)
+            isDirty = true
+        }
+        if isDirty || abs(cachedSampleRate - sampleRate) > 0.1 {
+            cachedSampleRate = sampleRate
+            recalculateCoefficients(sampleRate: sampleRate)
+            isDirty = false
+        }
+        return BiquadCoeffs(b0: b0, b1: b1, b2: b2, a1: a1, a2: a2)
+    }
+
+    /// Smoothed cutoff (Hz) the shared coefficients were last built from.
+    /// Per-voice filter envelope modulates around this value.
+    var smoothedCutoffValue: Float { smoothedCutoff }
+
+    /// Effective resonance (0…1) including the render-side matrix offset.
+    var effectiveResonance: Float {
+        max(0, min(1, resonanceOffset == 0 ? resonance : resonance + resonanceOffset))
+    }
+
     private func recalculateCoefficients(sampleRate: Float) {
-        let normalizedCutoff = min(smoothedCutoff / sampleRate, 0.49)
+        let c = Self.coefficients(
+            type: type,
+            cutoff: smoothedCutoff,
+            resonance: effectiveResonance,
+            sampleRate: sampleRate
+        )
+        b0 = c.b0
+        b1 = c.b1
+        b2 = c.b2
+        a1 = c.a1
+        a2 = c.a2
+    }
+
+    /// Pure RBJ biquad design. No shared state, so a voice can call it for its own cutoff.
+    static func coefficients(
+        type: FilterType,
+        cutoff: Float,
+        resonance r: Float,
+        sampleRate: Float
+    ) -> BiquadCoeffs {
+        let normalizedCutoff = min(cutoff / sampleRate, 0.49)
         let omega = 2.0 * Float.pi * normalizedCutoff
 
-        // Use fast approximations for sin/cos when possible
         let sinOmega = sin(omega)
         let cosOmega = cos(omega)
 
-        let q = max(0.1, resonance * 10.0)
-        let alpha = sinOmega / (2.0 * q)
+        // Map UI 0…1 → musical Q. Old `resonance * 10` made Q≈5 at the default
+        // knob mid and rang harshly on multi-note chords ("помехи").
+        let rr = max(0, min(1, r))
+        let q = 0.55 + rr * rr * 6.0  // 0.55 … ~6.55, gentle until high end
+        let alpha = sinOmega / (2.0 * max(0.25, q))
 
         var b0_raw: Float = 0, b1_raw: Float = 0, b2_raw: Float = 0
         var a0_raw: Float = 0, a1_raw: Float = 0, a2_raw: Float = 0
@@ -133,12 +254,13 @@ final class CachedBiquadFilter {
             a2_raw = 1.0 - alpha
         }
 
-        // Normalize coefficients
         let invA0 = 1.0 / a0_raw
-        b0 = b0_raw * invA0
-        b1 = b1_raw * invA0
-        b2 = b2_raw * invA0
-        a1 = a1_raw * invA0
-        a2 = a2_raw * invA0
+        return BiquadCoeffs(
+            b0: b0_raw * invA0,
+            b1: b1_raw * invA0,
+            b2: b2_raw * invA0,
+            a1: a1_raw * invA0,
+            a2: a2_raw * invA0
+        )
     }
 }

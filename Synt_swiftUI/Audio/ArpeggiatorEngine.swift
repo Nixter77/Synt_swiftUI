@@ -7,11 +7,39 @@
 
 import Foundation
 
+/// 128-bit set of MIDI keys. No heap, safe on the render thread.
+struct MIDIKeySet: Equatable {
+    var lo: UInt64 = 0
+    var hi: UInt64 = 0
+
+    @inline(__always) func contains(_ n: Int) -> Bool {
+        guard n >= 0, n < 128 else { return false }
+        return n < 64 ? (lo >> UInt64(n)) & 1 != 0 : (hi >> UInt64(n - 64)) & 1 != 0
+    }
+    @inline(__always) mutating func insert(_ n: Int) {
+        guard n >= 0, n < 128 else { return }
+        if n < 64 { lo |= 1 << UInt64(n) } else { hi |= 1 << UInt64(n - 64) }
+    }
+    @inline(__always) mutating func remove(_ n: Int) {
+        guard n >= 0, n < 128 else { return }
+        if n < 64 { lo &= ~(1 << UInt64(n)) } else { hi &= ~(1 << UInt64(n - 64)) }
+    }
+    mutating func removeAll() { lo = 0; hi = 0 }
+    var isEmpty: Bool { lo == 0 && hi == 0 }
+    var count: Int { lo.nonzeroBitCount + hi.nonzeroBitCount }
+}
+
 /// Pure arpeggiator sequencer: holds sorted notes + mode cursor, no audio I/O.
 struct ArpeggiatorEngine {
     var mode: ArpeggiatorMode = .off
+    var octaves: Int = 1
     /// Always stored ascending (low → high). Mode only affects index motion.
-    var sortedNotes: [Int] = []
+    /// Capacity reserved once (128) so refills on the audio thread never allocate.
+    var sortedNotes: [Int] = {
+        var a: [Int] = []
+        a.reserveCapacity(128)
+        return a
+    }()
     var noteIndex: Int = 0
     /// +1 = ascending, -1 = descending (used by upDown)
     var direction: Int = 1
@@ -19,8 +47,26 @@ struct ArpeggiatorEngine {
     /// After setHeldKeys, first advanceTick should play index 0 (or last for down).
     private var needsPriming: Bool = true
 
+    /// Test / UI convenience. The render thread uses the MIDIKeySet overload.
     mutating func setHeldKeys(_ keys: Set<Int>) {
-        sortedNotes = Array(keys).sorted()
+        var set = MIDIKeySet()
+        for k in keys { set.insert(k) }
+        setHeldKeys(set)
+    }
+
+    /// Ascending by construction (bit order), no sort, no allocation.
+    mutating func setHeldKeys(_ keys: MIDIKeySet) {
+        sortedNotes.removeAll(keepingCapacity: true)
+        let octCount = max(1, min(3, octaves))
+        for o in 0..<octCount {
+            let offset = o * 12
+            for n in 0..<128 where keys.contains(n) {
+                let note = n + offset
+                if note <= 127 {
+                    sortedNotes.append(note)
+                }
+            }
+        }
         if noteIndex >= sortedNotes.count {
             noteIndex = 0
         }
@@ -108,7 +154,7 @@ struct ArpeggiatorEngine {
     }
 
     mutating func reset() {
-        sortedNotes = []
+        sortedNotes.removeAll(keepingCapacity: true)
         noteIndex = 0
         direction = 1
         currentNote = nil
