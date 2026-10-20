@@ -178,6 +178,10 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var pitchBendTarget: Float = 0
     var pitchBendSmoothed: Float = 0
     var cachedPitchBendRange: Float = 2
+    /// Last `exp2` of the smoothed bend. Reused while the wheel and the range stay put.
+    var cachedPitchBendMultiplier: Double = 1
+    var cachedPitchBendMultiplierSmoothed: Float = 0
+    var cachedPitchBendMultiplierRange: Float = 0
     /// 0 keeps the preset LFO depth; CC1 adds on top, up to full depth at 127.
     var modWheel: Float = 0
     var aftertouchTarget: Float = 0

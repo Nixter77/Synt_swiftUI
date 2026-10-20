@@ -188,6 +188,150 @@ struct MIDIPerformanceTests {
         #expect(SynthPreset.defaultPreset.pitchBendRange == 2)
     }
 
+    /// Held wheel must match the old per-sample exp2, and the glide must not stair-step.
+    @Test func heldBendMatchesExp2AndADetunedSineWithin1e6() {
+        let bendAmount: Float = 1
+        let range: Float = 2
+        let cents = bendAmount * range * 100
+
+        let bent = AudioEngine()
+        bent.preset = drySinePreset(bendRange: range)
+        bent.pitchBend(bendAmount)
+        bent.processCommandsForTesting()
+
+        let tuned = AudioEngine()
+        tuned.preset = drySinePreset(detuneCents: cents, bendRange: range)
+
+        let settle = 4_000
+        _ = bent.renderFramesForTesting(settle)
+        _ = tuned.renderFramesForTesting(settle)
+        #expect(bent.pitchBendSmoothed == bendAmount)
+
+        let expected = exp2(Double(bent.pitchBendSmoothed) * Double(bent.cachedPitchBendRange) / 12)
+        #expect(abs(bent.cachedPitchBendMultiplier - expected) <= 1e-6)
+
+        bent.noteOn(midiNote: 69, velocity: 1)
+        tuned.noteOn(midiNote: 69, velocity: 1)
+        bent.processCommandsForTesting()
+        tuned.processCommandsForTesting()
+
+        var maxDiff: Float = 0
+        var maxMulDiff = 0.0
+        var peak: Float = 0
+        for _ in 0..<2_048 {
+            let (bl, br) = bent.renderOneSample()
+            let (tl, tr) = tuned.renderOneSample()
+            maxDiff = max(maxDiff, abs(bl - tl), abs(br - tr))
+            peak = max(peak, abs(bl), abs(br))
+            let diff = abs(bent.cachedPitchBendMultiplier - expected)
+            if diff > maxMulDiff { maxMulDiff = diff }
+        }
+        #expect(maxMulDiff <= 1e-6, "cached bend \(bent.cachedPitchBendMultiplier) vs exp2 \(expected)")
+        #expect(maxDiff <= 1e-6, "held bend vs \(cents) cent detune, max sample diff \(maxDiff)")
+        #expect(peak > 0.01)
+    }
+
+    @Test func movingBendTracksExp2WithoutSteps() {
+        let engine = AudioEngine()
+        engine.preset = drySinePreset(bendRange: 2)
+        engine.noteOn(midiNote: 69, velocity: 1)
+        engine.pitchBend(-0.65)
+        engine.processCommandsForTesting()
+
+        var refSmoothed: Float = 0
+        var previous = engine.pitchBendSmoothed
+        var maxMulDiff = 0.0
+        var maxFlatWhileMoving = 0
+        var flat = 0
+        var nan = 0
+        var peak: Float = 0
+        var settled = false
+        let coeff = Float(1 - exp(-1.0 / (0.005 * engine.sampleRate)))
+
+        for _ in 0..<8_000 {
+            let (left, right) = engine.renderOneSample()
+            if !left.isFinite || !right.isFinite { nan += 1 }
+            peak = max(peak, abs(left), abs(right))
+
+            let target = engine.pitchBendTarget
+            if !(target == 0 && refSmoothed == 0) {
+                refSmoothed += (target - refSmoothed) * coeff
+                if abs(target - refSmoothed) < 0.00002 { refSmoothed = target }
+            }
+            let expectedMul = refSmoothed == 0
+                ? 1.0
+                : exp2(Double(refSmoothed) * Double(engine.cachedPitchBendRange) / 12)
+            let mulDiff = abs(engine.cachedPitchBendMultiplier - expectedMul)
+            if mulDiff > maxMulDiff { maxMulDiff = mulDiff }
+
+            let now = engine.pitchBendSmoothed
+            if now == target {
+                settled = true
+            } else if now == previous {
+                flat += 1
+                if flat > maxFlatWhileMoving { maxFlatWhileMoving = flat }
+            } else {
+                flat = 0
+            }
+            previous = now
+            if settled { break }
+        }
+
+        #expect(maxMulDiff <= 1e-6, "glide multiplier drifted from per-sample exp2 by \(maxMulDiff)")
+        #expect(maxFlatWhileMoving <= 1, "bend held for \(maxFlatWhileMoving) samples during the glide")
+        #expect(settled)
+        #expect(abs(engine.pitchBendSmoothed - engine.pitchBendTarget) <= 0.00002)
+        #expect(nan == 0)
+        #expect(peak > 0.01)
+    }
+
+    @Test func bendCacheFollowsARangeChange() {
+        let engine = AudioEngine()
+        var preset = drySinePreset(bendRange: 2)
+        engine.preset = preset
+        engine.pitchBend(0.5)
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(4_000)
+        #expect(engine.pitchBendSmoothed == 0.5)
+
+        preset.pitchBendRange = 12
+        engine.preset = preset
+        _ = engine.renderOneSample()
+        let expected = exp2(Double(engine.pitchBendSmoothed) * Double(engine.cachedPitchBendRange) / 12)
+        #expect(engine.cachedPitchBendRange == 12)
+        #expect(abs(engine.cachedPitchBendMultiplier - expected) <= 1e-6)
+        #expect(abs(engine.cachedPitchBendMultiplier - exp2(0.5 * 2.0 / 12.0)) > 1e-4)
+    }
+
+    private func drySinePreset(detuneCents: Float = 0, bendRange: Float = 2) -> SynthPreset {
+        var preset = SynthPreset.defaultPreset
+        preset.osc1Waveform = .sine
+        preset.osc1Volume = 0.8
+        preset.osc1Detune = detuneCents
+        preset.osc2Enabled = false
+        preset.subOscVolume = 0
+        preset.attack = 0.001
+        preset.decay = 0.01
+        preset.sustain = 1
+        preset.filterCutoff = 18_000
+        preset.filterResonance = 0
+        preset.filterEnvelopeAmount = 0
+        preset.chorusMix = 0
+        preset.reverbMix = 0
+        preset.delayMix = 0
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.masterVolume = 0.7
+        preset.pitchBendRange = bendRange
+        preset.unisonVoices = 1
+        preset.portamento = 0
+        preset.lfoEnabled = false
+        preset.lfo2Enabled = false
+        preset.analogDrift = 0
+        return preset
+    }
+
     private func fundamentalHz(bend: Float?) -> Double {
         let engine = AudioEngine()
         var preset = SynthPreset.defaultPreset

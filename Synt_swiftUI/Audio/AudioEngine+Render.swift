@@ -750,9 +750,20 @@ extension AudioEngine {
             pitchBendSmoothed = target
         }
         if pitchBendSmoothed == 0 {
+            cachedPitchBendMultiplier = 1
+            cachedPitchBendMultiplierSmoothed = 0
+            cachedPitchBendMultiplierRange = cachedPitchBendRange
             return 1
         }
-        return exp2(Double(pitchBendSmoothed) * Double(cachedPitchBendRange) / 12)
+        // Same bits as calling exp2 every sample. A held wheel repeats the input.
+        if pitchBendSmoothed == cachedPitchBendMultiplierSmoothed
+            && cachedPitchBendRange == cachedPitchBendMultiplierRange {
+            return cachedPitchBendMultiplier
+        }
+        cachedPitchBendMultiplierSmoothed = pitchBendSmoothed
+        cachedPitchBendMultiplierRange = cachedPitchBendRange
+        cachedPitchBendMultiplier = exp2(Double(pitchBendSmoothed) * Double(cachedPitchBendRange) / 12)
+        return cachedPitchBendMultiplier
     }
 
     /// ~5 ms one-pole toward aftertouch target. Idle aftertouch stays 0 and skips work.
@@ -834,6 +845,9 @@ extension AudioEngine {
                 // A new patch / panic must not inherit a bent pitch or a stuck pedal.
                 pitchBendTarget = 0
                 pitchBendSmoothed = 0
+                cachedPitchBendMultiplier = 1
+                cachedPitchBendMultiplierSmoothed = 0
+                cachedPitchBendMultiplierRange = 0
                 aftertouchTarget = 0
                 aftertouchSmoothed = 0
                 cachedMacro1 = 0
