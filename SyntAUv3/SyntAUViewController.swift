@@ -54,6 +54,11 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
         }
     }
 
+    public override func viewWillAppear() {
+        super.viewWillAppear()
+        preferredContentSize = NSSize(width: AUPluginMetrics.contentWidth, height: AUPluginMetrics.contentHeight)
+    }
+
     private func installHostingView(for surface: AUParameterSurface) {
         guard isViewLoaded else { return }
         // createAudioUnit and viewDidLoad both land here; build the view once per surface.
@@ -61,7 +66,6 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
         hostingView?.removeFromSuperview()
         let root = PluginScreen(surface: surface)
             .environment(\.theme, Theme.baseline)
-            .frame(width: AUPluginMetrics.contentWidth, height: AUPluginMetrics.contentHeight, alignment: .top)
         let hosted = NSHostingView(rootView: root)
         hosted.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(hosted)
@@ -150,11 +154,25 @@ final class AUParameterSurface: ObservableObject {
 
 private struct PluginScreen: View {
     @ObservedObject var surface: AUParameterSurface
+    private let baseWidth: CGFloat = AUPluginMetrics.contentWidth
+    private let baseHeight: CGFloat = AUPluginMetrics.contentHeight
 
     var body: some View {
-        SynthControlGrid(preset: Binding(
-            get: { surface.preset },
-            set: { surface.userSetPreset($0) }
-        ))
+        GeometryReader { geo in
+            let scale = (geo.size.width > 0 && geo.size.height > 0)
+                ? min(geo.size.width / baseWidth, geo.size.height / baseHeight)
+                : 1.0
+            let effectiveScale = max(0.1, scale)
+            ZStack(alignment: .top) {
+                Theme.baseline.bg.ignoresSafeArea()
+                SynthControlGrid(preset: Binding(
+                    get: { surface.preset },
+                    set: { surface.userSetPreset($0) }
+                ))
+                .frame(width: baseWidth, height: baseHeight, alignment: .top)
+                .scaleEffect(effectiveScale, anchor: .top)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            }
+        }
     }
 }

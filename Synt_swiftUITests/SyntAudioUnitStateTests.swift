@@ -222,4 +222,9 @@ struct SyntAudioUnitStateTests {
         unit.fullState = state
         #expect(unit.uiPreset.filterCutoff == 321)
     }
+
+    @Test func auPluginMetricsAre1100x520() {
+        #expect(AUPluginMetrics.contentWidth == 1100)
+        #expect(AUPluginMetrics.contentHeight == 520)
+    }
 }
