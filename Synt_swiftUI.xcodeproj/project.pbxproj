@@ -104,6 +104,24 @@
 		B20000012F30000100DD87F3 /* SyntAUv3.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SyntAUv3.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B20000EX2F30000100DD87F3 /* Exceptions for "SyntAUv3" folder in "SyntAUv3" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B20000032F30000100DD87F3 /* SyntAUv3 */;
+		};
+		C10000EX2F30000100DD87F3 /* Exceptions for "SynthUI" folder in "SyntAUv3" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Views/Components/MIDIStatusView.swift,
+				Views/KeyboardView.swift,
+			);
+			target = B20000032F30000100DD87F3 /* SyntAUv3 */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		959900222F2804DF00DD87F3 /* Synt_swiftUI */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -142,25 +160,6 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		B20000EX2F30000100DD87F3 /* Exceptions for "SyntAUv3" folder in "SyntAUv3" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-				SyntAUv3.entitlements,
-			);
-			target = B20000032F30000100DD87F3 /* SyntAUv3 */;
-		};
-		C10000EX2F30000100DD87F3 /* Exceptions for "SynthUI" folder in "SyntAUv3" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Views/KeyboardView.swift,
-				Views/Components/MIDIStatusView.swift,
-			);
-			target = B20000032F30000100DD87F3 /* SyntAUv3 */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		9599001D2F2804DF00DD87F3 /* Frameworks */ = {
@@ -427,14 +426,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		B20000062F30000100DD87F3 /* Resources */ = {
+		A10000062F30000100DD87F3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A10000062F30000100DD87F3 /* Resources */ = {
+		B20000062F30000100DD87F3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -852,7 +851,6 @@
 			};
 			name = Release;
 		};
-
 		B20000072F30000100DD87F3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {

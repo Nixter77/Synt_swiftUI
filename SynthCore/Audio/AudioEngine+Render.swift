@@ -834,7 +834,14 @@ public extension AudioEngine {
         return aftertouchSmoothed
     }
 
+    public func pullPresetSnapshotRT() {
+        if let snap = rtPresetBuffer.pullNewSnapshot() {
+            applyPresetDSP(snap)
+        }
+    }
+
     public func processCommandQueue() {
+        pullPresetSnapshotRT()
         commandQueue.drain(limit: 128) { [self] command in
             handleCommand(command)
         }
@@ -1138,13 +1145,13 @@ public extension AudioEngine {
         case .pwm2:
             ccPwm2Target = 0.1 + norm * 0.8
         case .wtMorph1:
-            oscillator1.wavetableMorph = norm
+            ccWtMorph1Target = norm
         case .wtMorph2:
-            oscillator2.wavetableMorph = norm
+            ccWtMorph2Target = norm
         case .lfoRate:
             ccLfoRateTarget = 0.05 + norm * 19.95
         case .lfoDepth:
-            cachedLfoDepth = norm
+            ccLfoDepthTarget = norm
         case .mix, .osc2Volume:
             ccMixTarget = norm
         case .attack:
@@ -1156,20 +1163,13 @@ public extension AudioEngine {
         case .release:
             ccReleaseTarget = 0.001 + norm * 2.999
         case .filterAttack:
-            let a = 0.001 + norm * 1.999
-            filterEnvelope.attack = a
-            cachedFilterAttack = a
+            ccFilterAttackTarget = 0.001 + norm * 1.999
         case .filterDecay:
-            let d = 0.001 + norm * 1.999
-            filterEnvelope.decay = d
-            cachedFilterDecay = d
+            ccFilterDecayTarget = 0.001 + norm * 1.999
         case .filterSustain:
-            filterEnvelope.sustain = norm
-            cachedFilterSustain = norm
+            ccFilterSustainTarget = norm
         case .filterRelease:
-            let rel = 0.001 + norm * 2.999
-            filterEnvelope.release = rel
-            cachedFilterRelease = rel
+            ccFilterReleaseTarget = 0.001 + norm * 2.999
         case .filterEnvelopeAmount:
             cachedFilterEnvAmount = (norm - 0.5) * 2.0
         case .reverbMix, .reverbRoomSize:

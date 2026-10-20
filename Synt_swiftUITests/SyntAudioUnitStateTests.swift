@@ -227,4 +227,50 @@ struct SyntAudioUnitStateTests {
         #expect(AUPluginMetrics.contentWidth == 1100)
         #expect(AUPluginMetrics.contentHeight == 520)
     }
+
+    @Test func fullStateSetFromBackgroundThreadDispatchesToMain() throws {
+        let unit = try makeUnit()
+        var other = unit.uiPreset
+        other.filterCutoff = 432
+        var state = try #require(unit.fullState)
+        state["syntPreset"] = try JSONEncoder().encode(other)
+
+        let exp = NotificationCenter.default.addObserver(
+            forName: SyntAudioUnit.stateDidChangeNotification,
+            object: unit,
+            queue: nil
+        ) { _ in
+            #expect(Thread.isMainThread, "stateDidChangeNotification must arrive on main thread")
+        }
+        defer { NotificationCenter.default.removeObserver(exp) }
+
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global().async {
+            unit.fullState = state
+            group.leave()
+        }
+        group.wait()
+
+        let start = Date()
+        while Date().timeIntervalSince(start) < 2.0 {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+            if unit.uiPreset.filterCutoff == 432 { break }
+        }
+        #expect(unit.uiPreset.filterCutoff == 432)
+    }
+
+    @Test func panIsPreservedInPresetRoundtrip() throws {
+        let unit = try makeUnit()
+        var preset = SynthPreset.defaultPreset
+        preset.pan = 0.42
+        let data = try JSONEncoder().encode(preset)
+        let decoded = try JSONDecoder().decode(SynthPreset.self, from: data)
+        #expect(abs(decoded.pan - 0.42) < 1e-5)
+
+        var state = try #require(unit.fullState)
+        state["syntPreset"] = data
+        unit.fullState = state
+        #expect(abs(unit.uiPreset.pan - 0.42) < 1e-5)
+    }
 }

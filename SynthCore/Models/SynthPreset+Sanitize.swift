@@ -158,6 +158,7 @@ public extension SynthPreset {
             p.syncSource = .`internal`
         }
         p.filterDrive = f(p.filterDrive, 0, 1, 0)
+        p.pan = f(p.pan, -1.0, 1.0, 0.0)
         return p
     }
 }

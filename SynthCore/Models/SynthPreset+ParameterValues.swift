@@ -90,6 +90,7 @@ extension SynthPreset {
         case .macro2: return macro2
         case .macro3: return macro3
         case .macro4: return macro4
+        case .pan: return pan
         }
     }
 
@@ -175,6 +176,7 @@ extension SynthPreset {
         case .macro2: macro2 = value
         case .macro3: macro3 = value
         case .macro4: macro4 = value
+        case .pan: pan = value
         }
     }
 

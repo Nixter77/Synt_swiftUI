@@ -154,10 +154,22 @@ public extension AudioEngine {
         glideToward(&envelope.decay, target: ccDecayTarget, coeff: coeff)
         glideToward(&envelope.sustain, target: ccSustainTarget, coeff: coeff)
         glideToward(&envelope.release, target: ccReleaseTarget, coeff: coeff)
+        glideToward(&filterEnvelope.attack, target: ccFilterAttackTarget, coeff: coeff)
+        cachedFilterAttack = filterEnvelope.attack
+        glideToward(&filterEnvelope.decay, target: ccFilterDecayTarget, coeff: coeff)
+        cachedFilterDecay = filterEnvelope.decay
+        glideToward(&filterEnvelope.sustain, target: ccFilterSustainTarget, coeff: coeff)
+        cachedFilterSustain = filterEnvelope.sustain
+        glideToward(&filterEnvelope.release, target: ccFilterReleaseTarget, coeff: coeff)
+        cachedFilterRelease = filterEnvelope.release
+        glideToward(&oscillator1.wavetableMorph, target: ccWtMorph1Target, coeff: coeff)
+        glideToward(&oscillator2.wavetableMorph, target: ccWtMorph2Target, coeff: coeff)
+        glideToward(&cachedLfoDepth, target: ccLfoDepthTarget, coeff: coeff)
     }
 
     /// Copy the values `applyPreset` just wrote, so the next sample does not glide.
     public func snapCCTargetsFromLive() {
+        ccPanTarget = ccPanRT
         ccPwm1Target = oscillator1.pulseWidth
         ccPwm2Target = oscillator2.pulseWidth
         ccDetune1Target = oscillator1.detune
@@ -168,6 +180,13 @@ public extension AudioEngine {
         ccDecayTarget = envelope.decay
         ccSustainTarget = envelope.sustain
         ccReleaseTarget = envelope.release
+        ccFilterAttackTarget = filterEnvelope.attack
+        ccFilterDecayTarget = filterEnvelope.decay
+        ccFilterSustainTarget = filterEnvelope.sustain
+        ccFilterReleaseTarget = filterEnvelope.release
+        ccWtMorph1Target = oscillator1.wavetableMorph
+        ccWtMorph2Target = oscillator2.wavetableMorph
+        ccLfoDepthTarget = cachedLfoDepth
     }
 
     public func disarmCCTakeover() {

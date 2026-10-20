@@ -282,6 +282,9 @@ struct ContentView: View {
                     .fixedSize(horizontal: true, vertical: false)
                     ThemeSlider(value: $audioEngine.preset.bpm, range: 40...240, step: 1)
                         .frame(width: 80)
+                        .disabled(audioEngine.preset.syncSource == .midiClock)
+                        .opacity(audioEngine.preset.syncSource == .midiClock ? 0.45 : 1.0)
+                        .help(audioEngine.preset.syncSource == .midiClock ? "BPM locked to external MIDI Clock" : "Tempo in BPM")
                 }
                 
                 // Sequencer Toggle & Play
@@ -299,18 +302,20 @@ struct ContentView: View {
                     .help("Show/Hide Sequencer")
                     
                     Button {
+                        guard audioEngine.preset.syncSource != .midiClock else { return }
                         if stepSequencer.isPlaying {
                             stepSequencer.stop()
                         } else {
                             stepSequencer.start()
                         }
                     } label: {
-                        Image(systemName: stepSequencer.isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                        Image(systemName: audioEngine.preset.syncSource == .midiClock ? (stepSequencer.isPlaying ? "play.circle.fill" : "lock.circle") : (stepSequencer.isPlaying ? "stop.circle.fill" : "play.circle.fill"))
                             .font(.title3)
-                            .foregroundColor(stepSequencer.isPlaying ? theme.destructive : theme.accent)
+                            .foregroundColor(audioEngine.preset.syncSource == .midiClock ? (stepSequencer.isPlaying ? theme.positive : theme.textDim) : (stepSequencer.isPlaying ? theme.destructive : theme.accent))
                     }
                     .buttonStyle(.plain)
-                    .help("Play/Stop Sequencer")
+                    .disabled(audioEngine.preset.syncSource == .midiClock)
+                    .help(audioEngine.preset.syncSource == .midiClock ? "Sequencer clock external (Logic MIDI Clock)" : "Play/Stop Sequencer")
                 }
                 
                 LargeKnobView(

@@ -29,7 +29,7 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// Everything the render block touches. The block captures this, never `self`.
     private let renderContext: SyntRenderContext
     /// Set while the tree is being copied from the engine, so the observer does not apply twice.
-    private var suppressParameterObserver = false
+    private let suppressParameterObserver = Atomic<Bool>(false)
     private static let stateVersionKey = "syntStateVersion"
     static let stateVersion = 1
     private static let statePresetKey = "syntPreset"
@@ -183,12 +183,23 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// program change). The plugin view re-reads `uiPreset` so it never writes a stale copy back.
     public static let stateDidChangeNotification = Notification.Name("SyntAudioUnitStateDidChange")
 
-    /// Main thread. Whole-preset change: the engine loads it, then the store and tree follow.
+    /// Whole-preset change: parameters store updates immediately, then main thread applies the preset.
     private func adoptPreset(_ preset: SynthPreset, notify: Bool = true) {
-        engine.preset = preset
-        syncParameterTreeFromEngine()
-        if notify {
-            NotificationCenter.default.post(name: Self.stateDidChangeNotification, object: self)
+        for address in SynthParameterAddress.allCases {
+            parameters.set(address.rawValue, preset.parameterValue(for: address))
+        }
+        let apply: () -> Void = { [weak self] in
+            guard let self else { return }
+            self.engine.preset = preset
+            self.syncParameterTreeFromEngine()
+            if notify {
+                NotificationCenter.default.post(name: Self.stateDidChangeNotification, object: self)
+            }
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
         }
     }
 
@@ -208,7 +219,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         let tree = SyntParameterTree.make()
         let store = parameters
         tree.implementorValueObserver = { [weak self] parameter, value in
-            guard let self, !self.suppressParameterObserver,
+            guard let self, !self.suppressParameterObserver.load(ordering: .acquiring),
                   let address = SynthParameterAddress(rawValue: parameter.address) else { return }
             // Any thread: the store is the only DSP writer path (render drains it).
             store.set(parameter.address, address.clamped(value))
@@ -230,13 +241,13 @@ public final class SyntAudioUnit: AUAudioUnit {
 
     private func syncParameterTreeFromEngine() {
         guard let tree = parameterTree else { return }
-        suppressParameterObserver = true
+        suppressParameterObserver.store(true, ordering: .releasing)
         for address in SynthParameterAddress.allCases {
             parameters.set(address.rawValue, engine.preset.parameterValue(for: address))
             guard let parameter = tree.parameter(withAddress: address.rawValue) else { continue }
             parameter.value = parameters.value(address.rawValue)
         }
-        suppressParameterObserver = false
+        suppressParameterObserver.store(false, ordering: .releasing)
     }
 }
 
@@ -398,6 +409,7 @@ enum SyntParameterTree {
                 knob(.macro2),
                 knob(.macro3),
                 knob(.macro4),
+                knob(.pan, unit: .pan),
             ]
         )
         return AUParameterTree.createTree(withChildren: [
@@ -450,6 +462,7 @@ final class SyntRenderContext {
         guard frames > 0 else { return noErr }
         guard frames <= renderCapacity else { return kAudioUnitErr_TooManyFramesToProcess }
         let engine = self.engine
+        engine.pullPresetSnapshotRT()
         parameters.drain { id, value in engine.applyAddressedParameterRT(id: id, value: value) }
         pullHostTransport()
         schedule(events, timestamp: timestamp, frameCount: frames)

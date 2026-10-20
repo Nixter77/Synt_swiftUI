@@ -106,4 +106,36 @@ struct CCSmoothingTests {
         #expect(engine.ccResonanceBaseRT == captured)
         #expect(engine.filterL.resonance == writtenBase)
     }
+
+    @Test func ccStepSmoothingOnCutoffAndFilterADSRAndMorph() {
+        let engine = AudioEngine()
+        engine.snapCCTargetsFromLive()
+
+        // Cutoff via CC (smoothedFilterCutoff glides one-pole toward cachedFilterCutoff)
+        let initialCutoff = engine.smoothedFilterCutoff
+        engine.applySingleParameterRT(target: .cutoff, rawValue: 127)
+        #expect(abs(engine.smoothedFilterCutoff - initialCutoff) < 1e-4, "cutoff should not jump immediately")
+        _ = engine.renderOneSample()
+        #expect(engine.smoothedFilterCutoff > initialCutoff, "cutoff starts gliding")
+
+        // Filter attack via CC
+        let initialFA = engine.filterEnvelope.attack
+        engine.applySingleParameterRT(target: .filterAttack, rawValue: 127)
+        #expect(abs(engine.filterEnvelope.attack - initialFA) < 1e-4, "filter attack should not jump immediately")
+        _ = engine.renderOneSample()
+        #expect(engine.filterEnvelope.attack > initialFA, "filter attack starts gliding")
+
+        // WtMorph1 via CC
+        let initialMorph = engine.oscillator1.wavetableMorph
+        engine.applySingleParameterRT(target: .wtMorph1, rawValue: 127)
+        #expect(abs(engine.oscillator1.wavetableMorph - initialMorph) < 1e-4, "wtMorph should not jump immediately")
+        _ = engine.renderOneSample()
+        #expect(engine.oscillator1.wavetableMorph > initialMorph, "wtMorph starts gliding")
+
+        // Render remaining ~8ms (2000 samples)
+        _ = engine.renderFramesForTesting(2_000)
+        #expect(engine.smoothedFilterCutoff > 15000)
+        #expect(engine.filterEnvelope.attack > 1.9)
+        #expect(engine.oscillator1.wavetableMorph > 0.95)
+    }
 }

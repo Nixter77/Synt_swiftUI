@@ -95,6 +95,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case macro3 = 112
     case macro4 = 113
 
+    case pan = 120
+
     public var identifier: String {
         switch self {
         case .osc1Volume: return "osc1Volume"
@@ -176,6 +178,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .macro2: return "macro2"
         case .macro3: return "macro3"
         case .macro4: return "macro4"
+        case .pan: return "pan"
         }
     }
 
@@ -260,11 +263,13 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .macro2: return "Macro 2"
         case .macro3: return "Macro 3"
         case .macro4: return "Macro 4"
+        case .pan: return "Pan"
         }
     }
 
     public var min: Float {
         switch self {
+        case .pan: return -1
         case .osc1Detune, .osc2Detune: return -50
         case .osc1Octave, .osc2Octave: return -2
         case .osc1PulseWidth, .osc2PulseWidth: return 0.05

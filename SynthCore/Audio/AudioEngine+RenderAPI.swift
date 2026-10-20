@@ -111,6 +111,8 @@ extension AudioEngine {
     public func render(frames: Int, intoL: UnsafeMutablePointer<Float>, intoR: UnsafeMutablePointer<Float>?) {
         let frames = max(0, frames)
         guard frames > 0 else { return }
+        isRenderingActive.store(true, ordering: .releasing)
+        defer { isRenderingActive.store(false, ordering: .releasing) }
         let scheduled = midiScheduleCount
         processCommandQueue()
         guard scheduled > 0 else {

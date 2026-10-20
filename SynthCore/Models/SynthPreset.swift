@@ -200,6 +200,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     /// Extra input gain into the filter. 0 leaves LP/HP/BP on the old path.
     public var filterDrive: Float = 0
 
+    /// Master stereo pan (-1.0...1.0, 0 = center).
+    public var pan: Float = 0.0
+
     /// Safe neutral starting point (clean headroom).
     public static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -241,6 +244,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case voiceMode
         case syncSource
         case filterDrive
+        case pan
     }
 
     public init(
@@ -357,7 +361,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         macro4: Float = 0.0,
         voiceMode: VoiceMode = .poly,
         syncSource: SyncSource = .`internal`,
-        filterDrive: Float = 0
+        filterDrive: Float = 0,
+        pan: Float = 0.0
     ) {
         self.id = id
         self.name = name
@@ -473,6 +478,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.voiceMode = voiceMode
         self.syncSource = syncSource
         self.filterDrive = filterDrive
+        self.pan = pan
     }
 
     public init(from decoder: Decoder) throws {
@@ -593,6 +599,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         voiceMode = try c.decodeIfPresent(VoiceMode.self, forKey: .voiceMode) ?? .poly
         syncSource = try c.decodeIfPresent(SyncSource.self, forKey: .syncSource) ?? .`internal`
         filterDrive = try c.decodeIfPresent(Float.self, forKey: .filterDrive) ?? 0
+        pan = try c.decodeIfPresent(Float.self, forKey: .pan) ?? 0.0
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

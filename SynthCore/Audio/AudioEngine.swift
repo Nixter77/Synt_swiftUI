@@ -44,15 +44,21 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let shimmer = ShimmerProcessor(sampleRate: 44100)
 
     @Published public var isPlaying = false
-    public var isUpdatingSingleParamFromMIDI = false
     public var applyPresetCallCountForTesting: Int = 0
 
-    @Published public var preset: SynthPreset = .defaultPreset {
-        didSet {
-            if !isUpdatingSingleParamFromMIDI {
-                applyPreset()
-            }
+    @Published private var _storedPreset: SynthPreset = .defaultPreset
+
+    public var preset: SynthPreset {
+        get { _storedPreset }
+        set {
+            _storedPreset = newValue
+            applyPreset()
         }
+    }
+
+    /// Explicit path to mutate the stored display preset without triggering applyPreset().
+    public func updatePresetDisplayOnly(_ mutate: (inout SynthPreset) -> Void) {
+        mutate(&_storedPreset)
     }
 
     // UI Visualization. Levels live on `meters`, which ContentView does not observe.
@@ -138,6 +144,14 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var ccDecayTarget: Float = 0.1
     public var ccSustainTarget: Float = 0.7
     public var ccReleaseTarget: Float = 0.3
+    public var ccCutoffTarget: Float = 5000
+    public var ccFilterAttackTarget: Float = 0.01
+    public var ccFilterDecayTarget: Float = 0.3
+    public var ccFilterSustainTarget: Float = 0.0
+    public var ccFilterReleaseTarget: Float = 0.3
+    public var ccWtMorph1Target: Float = 0
+    public var ccWtMorph2Target: Float = 0
+    public var ccLfoDepthTarget: Float = 0
     public var ccSmoothCoeff: Float = 0
     public var ccSmoothCoeffSampleRate: Double = 0
     /// Soft takeover. All bits set = every knob is live. A patch change clears them.
@@ -234,6 +248,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedMacro4: Float = 0.0
     /// Read per sample on the render thread; never an array there.
     public let rtModMatrix = RTModMatrix()
+    /// Double-buffered preset snapshot consumed by render thread at buffer boundaries.
+    public let rtPresetBuffer = RTPresetBuffer()
+    public let isRenderingActive = Atomic<Bool>(false)
     public var lastAppliedPresetID: UUID?
     public var lastAppliedPresetName: String = ""
 
@@ -329,6 +346,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
             setupAudioEngine()
         }
         applyPreset()
+        _ = rtPresetBuffer.pullNewSnapshot()
         guard !coreOnly else { return }
         startMeteringPoll()
         // Tests build an engine per case. Attaching every one of them would point

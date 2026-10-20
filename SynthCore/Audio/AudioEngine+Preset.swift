@@ -14,192 +14,26 @@ public extension AudioEngine {
 
     public func applyPreset() {
         applyPresetCallCountForTesting += 1
-        oscillator1.waveform = preset.osc1Waveform
-        oscillator1.volume = preset.osc1Volume
-        oscillator1.octave = preset.osc1Octave
-        oscillator1.detune = preset.osc1Detune
-        oscillator1.pulseWidth = preset.osc1PulseWidth
-        oscillator1.wavetableMorph = max(0, min(1, preset.osc1WavetableMorph))
-        if preset.osc1WavetableIndex != loadedWTIndex1 {
-            loadedWTIndex1 = preset.osc1WavetableIndex
-            wavetableEngine1.loadBuiltin(index: preset.osc1WavetableIndex)
+        rtModMatrix.publish(preset.modMatrix)
+        let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP)
+        rtPresetBuffer.publish(snap)
+        if !isRenderingActive.load(ordering: .acquiring) {
+            applyPresetDSP(snap)
         }
-
-        oscillator2.waveform = preset.osc2Waveform
-        oscillator2.volume = preset.osc2Volume
-        oscillator2.octave = preset.osc2Octave
-        oscillator2.detune = preset.osc2Detune
-        oscillator2.pulseWidth = preset.osc2PulseWidth
-        oscillator2.wavetableMorph = max(0, min(1, preset.osc2WavetableMorph))
-        if preset.osc2WavetableIndex != loadedWTIndex2 {
-            loadedWTIndex2 = preset.osc2WavetableIndex
-            wavetableEngine2.loadBuiltin(index: preset.osc2WavetableIndex)
-        }
-
-        envelope.attack = preset.attack
-        envelope.decay = preset.decay
-        envelope.sustain = preset.sustain
-        envelope.release = preset.release
-
-        filterEnvelope.attack = preset.filterAttack
-        filterEnvelope.decay = preset.filterDecay
-        filterEnvelope.sustain = preset.filterSustain
-        filterEnvelope.release = preset.filterRelease
-
-        filterL.type = preset.filterType
-        filterR.type = preset.filterType
-        filterL.cutoff = preset.filterCutoff
-        filterR.cutoff = preset.filterCutoff
-        filterL.resonance = preset.filterResonance
-        filterR.resonance = preset.filterResonance
-
-        lfo.enabled = preset.lfoEnabled
-        cachedLfoTempoSync = preset.lfoTempoSync
-        cachedLfoSyncDivision = preset.lfoSyncDivision
-        if preset.lfoTempoSync {
-            lfo.rate = preset.lfoSyncDivision.frequency(bpm: preset.bpm)
-        } else {
-            lfo.rate = preset.lfoRate
-        }
-        // lfo.depth itself is written only by the render thread (renderOneSample).
-        cachedLfoDepth = preset.lfoDepth
-        cachedLfoRowsFollowDepth = preset.lfoRowsFollowDepth
-        lfo.waveform = preset.lfoWaveform
-        lfo.target = preset.lfoTarget
-
-        // LFO 2
-        lfo2.enabled = preset.lfo2Enabled
-        cachedLfo2TempoSync = preset.lfo2TempoSync
-        cachedLfo2SyncDivision = preset.lfo2SyncDivision
-        if preset.lfo2TempoSync {
-            lfo2.rate = preset.lfo2SyncDivision.frequency(bpm: preset.bpm)
-        } else {
-            lfo2.rate = preset.lfo2Rate
-        }
-        cachedLfo2Depth = preset.lfo2Depth
-        lfo2.waveform = preset.lfo2Waveform
-        lfo2.target = preset.lfo2Target
-
-        cachedPitchBendRange = max(0, preset.pitchBendRange)
 
         parameterReverbMix = preset.reverbMix
         parameterReverbRoom = preset.reverbRoomSize
         reverb.wetDryMix = AudioMath.appleFXWetPercent(preset.reverbMix)
         reverb.setRoomSize(preset.reverbRoomSize)
-        cachedReverbShimmer = preset.reverbShimmer
-        cachedRingModAmount = max(0, min(1, preset.ringModAmount))
-        cachedNoiseColor = preset.noiseColor
-
-        dspChorus.rate = preset.chorusRate
-        dspChorus.depth = preset.chorusDepth
-        dspChorus.mix = preset.chorusMix
-        dspChorus.stereo = preset.chorusStereo
-        cachedChorusStereo = preset.chorusStereo
-
-        let delayEffectiveTime: Float
-        if preset.delayTempoSync {
-            let dur = preset.delaySyncDivision.duration(bpm: preset.bpm)
-            delayEffectiveTime = max(0.001, min(2.0, dur))
-        } else {
-            delayEffectiveTime = preset.delayTime
-        }
 
         parameterDelayTime = preset.delayTime
         parameterDelayFeedback = preset.delayFeedback
         parameterDelayMix = preset.delayMix
-        if preset.delayPingPong || rendersAllDelayInDSP {
-            delay.wetDryMix = 0.0
-            pingPongDelay.crossFeed = preset.delayPingPong
-            pingPongDelay.enabled = true
-            pingPongDelay.delayTime = delayEffectiveTime
-            pingPongDelay.feedback = preset.delayFeedback
-            pingPongDelay.mix = preset.delayMix
-        } else {
-            pingPongDelay.enabled = false
-            pingPongDelay.reset()
-            delay.delayTime = delayEffectiveTime
+        if !preset.delayPingPong && !rendersAllDelayInDSP {
+            delay.delayTime = snap.delayEffectiveTime
             delay.feedback = max(0, min(1, preset.delayFeedback))
             delay.wetDryMix = AudioMath.appleFXWetPercent(preset.delayMix)
         }
-
-        // Advanced FX (Stage 4) — loadable with factory / user presets
-        distortion.enabled = preset.distortionEnabled
-        distortion.type = preset.distortionType
-        distortion.drive = preset.distortionDrive
-        distortion.tone = preset.distortionTone
-        distortion.mix = preset.distortionMix
-        distortion.oversampling = preset.distortionOversampling
-
-        parametricEQL.enabled = preset.eqEnabled
-        parametricEQR.enabled = preset.eqEnabled
-        parametricEQL.lowGain = preset.eqLowGain
-        parametricEQR.lowGain = preset.eqLowGain
-        parametricEQL.lowFreq = preset.eqLowFreq
-        parametricEQR.lowFreq = preset.eqLowFreq
-        parametricEQL.midGain = preset.eqMidGain
-        parametricEQR.midGain = preset.eqMidGain
-        parametricEQL.midFreq = preset.eqMidFreq
-        parametricEQR.midFreq = preset.eqMidFreq
-        parametricEQL.midQ = preset.eqMidQ
-        parametricEQR.midQ = preset.eqMidQ
-        parametricEQL.highGain = preset.eqHighGain
-        parametricEQR.highGain = preset.eqHighGain
-        parametricEQL.highFreq = preset.eqHighFreq
-        parametricEQR.highFreq = preset.eqHighFreq
-
-        phaser.bypass = !preset.phaserEnabled
-        phaser.mode = preset.phaserMode
-        phaser.rate = preset.phaserRate
-        phaser.depth = preset.phaserDepth
-        phaser.feedback = preset.phaserFeedback
-        phaser.centerFrequency = preset.phaserCenterFrequency
-        phaser.stereoSpread = preset.phaserStereoSpread
-        phaser.mix = preset.phaserMix
-
-        // Snapshot all parameters the audio path needs
-        cachedPortamento = preset.portamento
-        cachedUnisonVoices = preset.unisonVoices
-        cachedUnisonDetune = preset.unisonDetune
-        cachedUnisonSpread = preset.unisonSpread
-        cachedAnalogDrift = max(0, min(1, preset.analogDrift))
-        cachedChordMode = preset.chordMode
-        cachedVoiceMode = preset.voiceMode
-        rtModMatrix.publish(preset.modMatrix)
-        cachedOsc2Enabled = preset.osc2Enabled
-        cachedSubOscVolume = max(0, min(1, preset.subOscVolume))
-        cachedSubOscOctave = preset.subOscOctave == -2 ? -2 : -1
-        cachedSubOscWaveform = preset.subOscWaveform
-        cachedFmAmount = max(0, min(1, preset.fmAmount))
-        cachedOscSyncEnabled = preset.oscSyncEnabled
-        cachedFilterCutoff = preset.filterCutoff
-        cachedFilterDrive = min(1, max(0, preset.filterDrive))
-        cachedFilterEnvAmount = max(-1, min(1, preset.filterEnvelopeAmount))
-        cachedFilterKeyTracking = max(0, min(1, preset.filterKeyTracking))
-        cachedFilterEnvUseDedicatedADSR = preset.filterEnvUseDedicatedADSR
-        cachedFilterAttack = preset.filterAttack
-        cachedFilterDecay = preset.filterDecay
-        cachedFilterSustain = preset.filterSustain
-        cachedFilterRelease = preset.filterRelease
-        cachedVelocityToCutoff = max(0, min(1, preset.velocityToCutoff))
-        cachedVelocityToEnvAmount = max(-1, min(1, preset.velocityToEnvAmount))
-        cachedMasterVolume = preset.masterVolume
-        cachedBPM = preset.bpm
-        cachedSyncSource = preset.syncSource
-        cachedArpMode = preset.arpMode
-        cachedArpRate = preset.arpRate
-        cachedArpOctaves = max(1, min(3, preset.arpOctaves))
-        cachedArpGateLength = max(0.1, min(1.0, preset.arpGateLength))
-        cachedArpSwing = max(0.0, min(0.75, preset.arpSwing))
-        cachedDelayPingPong = preset.delayPingPong || rendersAllDelayInDSP
-        cachedDelayTempoSync = preset.delayTempoSync
-        cachedDelaySyncDivision = preset.delaySyncDivision
-        cachedMacro1 = preset.macro1
-        cachedMacro2 = preset.macro2
-        cachedMacro3 = preset.macro3
-        cachedMacro4 = preset.macro4
-        snapCCTargetsFromLive()
-        // Do NOT touch `arp` here — it is audio-thread state.
-        // generateSample / processCommandQueue apply cachedArpMode on the audio path.
 
         let switchedPatch = lastAppliedPresetID != nil
             && (lastAppliedPresetID != preset.id || lastAppliedPresetName != preset.name)
@@ -209,6 +43,164 @@ public extension AudioEngine {
             disarmCCTakeover()
             silenceForPresetChange()
         }
+    }
+
+    public func applyPresetDSP(_ snap: RTPresetSnapshot) {
+        oscillator1.waveform = snap.osc1Waveform
+        oscillator1.volume = snap.osc1Volume
+        oscillator1.octave = snap.osc1Octave
+        oscillator1.detune = snap.osc1Detune
+        oscillator1.pulseWidth = snap.osc1PulseWidth
+        oscillator1.wavetableMorph = snap.osc1WavetableMorph
+        if snap.osc1WavetableIndex != loadedWTIndex1 {
+            loadedWTIndex1 = snap.osc1WavetableIndex
+            wavetableEngine1.loadBuiltin(index: snap.osc1WavetableIndex)
+        }
+
+        oscillator2.waveform = snap.osc2Waveform
+        oscillator2.volume = snap.osc2Volume
+        oscillator2.octave = snap.osc2Octave
+        oscillator2.detune = snap.osc2Detune
+        oscillator2.pulseWidth = snap.osc2PulseWidth
+        oscillator2.wavetableMorph = snap.osc2WavetableMorph
+        if snap.osc2WavetableIndex != loadedWTIndex2 {
+            loadedWTIndex2 = snap.osc2WavetableIndex
+            wavetableEngine2.loadBuiltin(index: snap.osc2WavetableIndex)
+        }
+
+        envelope.attack = snap.attack
+        envelope.decay = snap.decay
+        envelope.sustain = snap.sustain
+        envelope.release = snap.release
+
+        filterEnvelope.attack = snap.filterAttack
+        filterEnvelope.decay = snap.filterDecay
+        filterEnvelope.sustain = snap.filterSustain
+        filterEnvelope.release = snap.filterRelease
+
+        filterL.type = snap.filterType
+        filterR.type = snap.filterType
+        filterL.cutoff = snap.filterCutoff
+        filterR.cutoff = snap.filterCutoff
+        filterL.resonance = snap.filterResonance
+        filterR.resonance = snap.filterResonance
+
+        lfo.enabled = snap.lfoEnabled
+        cachedLfoTempoSync = snap.lfoTempoSync
+        cachedLfoSyncDivision = snap.lfoSyncDivision
+        lfo.rate = snap.lfoRate
+        cachedLfoDepth = snap.lfoDepth
+        cachedLfoRowsFollowDepth = snap.lfoRowsFollowDepth
+        lfo.waveform = snap.lfoWaveform
+        lfo.target = snap.lfoTarget
+
+        lfo2.enabled = snap.lfo2Enabled
+        cachedLfo2TempoSync = snap.lfo2TempoSync
+        cachedLfo2SyncDivision = snap.lfo2SyncDivision
+        lfo2.rate = snap.lfo2Rate
+        cachedLfo2Depth = snap.lfo2Depth
+        lfo2.waveform = snap.lfo2Waveform
+        lfo2.target = snap.lfo2Target
+
+        cachedPitchBendRange = snap.pitchBendRange
+        cachedReverbShimmer = snap.reverbShimmer
+        cachedRingModAmount = snap.ringModAmount
+        cachedNoiseColor = snap.noiseColor
+
+        dspChorus.rate = snap.chorusRate
+        dspChorus.depth = snap.chorusDepth
+        dspChorus.mix = snap.chorusMix
+        dspChorus.stereo = snap.chorusStereo
+        cachedChorusStereo = snap.chorusStereo
+
+        cachedDelayPingPong = snap.delayPingPong || snap.rendersAllDelayInDSP || snap.rendersAllDelayInDSP
+        if snap.delayPingPong || snap.rendersAllDelayInDSP {
+            delay.wetDryMix = 0.0
+            pingPongDelay.crossFeed = snap.delayPingPong
+            pingPongDelay.enabled = true
+            pingPongDelay.delayTime = snap.delayEffectiveTime
+            pingPongDelay.feedback = snap.delayFeedback
+            pingPongDelay.mix = snap.delayMix
+        } else {
+            pingPongDelay.enabled = false
+            pingPongDelay.reset()
+        }
+
+        distortion.enabled = snap.distortionEnabled
+        distortion.type = snap.distortionType
+        distortion.drive = snap.distortionDrive
+        distortion.tone = snap.distortionTone
+        distortion.mix = snap.distortionMix
+        distortion.oversampling = snap.distortionOversampling
+
+        parametricEQL.enabled = snap.eqEnabled
+        parametricEQR.enabled = snap.eqEnabled
+        parametricEQL.lowGain = snap.eqLowGain
+        parametricEQR.lowGain = snap.eqLowGain
+        parametricEQL.lowFreq = snap.eqLowFreq
+        parametricEQR.lowFreq = snap.eqLowFreq
+        parametricEQL.midGain = snap.eqMidGain
+        parametricEQR.midGain = snap.eqMidGain
+        parametricEQL.midFreq = snap.eqMidFreq
+        parametricEQR.midFreq = snap.eqMidFreq
+        parametricEQL.midQ = snap.eqMidQ
+        parametricEQR.midQ = snap.eqMidQ
+        parametricEQL.highGain = snap.eqHighGain
+        parametricEQR.highGain = snap.eqHighGain
+        parametricEQL.highFreq = snap.eqHighFreq
+        parametricEQR.highFreq = snap.eqHighFreq
+
+        phaser.bypass = !snap.phaserEnabled
+        phaser.mode = snap.phaserMode
+        phaser.rate = snap.phaserRate
+        phaser.depth = snap.phaserDepth
+        phaser.feedback = snap.phaserFeedback
+        phaser.centerFrequency = snap.phaserCenterFrequency
+        phaser.stereoSpread = snap.phaserStereoSpread
+        phaser.mix = snap.phaserMix
+
+        cachedPortamento = snap.portamento
+        cachedUnisonVoices = snap.unisonVoices
+        cachedUnisonDetune = snap.unisonDetune
+        cachedUnisonSpread = snap.unisonSpread
+        cachedAnalogDrift = snap.analogDrift
+        cachedChordMode = snap.chordMode
+        cachedVoiceMode = snap.voiceMode
+        cachedOsc2Enabled = snap.osc2Enabled
+        cachedSubOscVolume = snap.subOscVolume
+        cachedSubOscOctave = snap.subOscOctave
+        cachedSubOscWaveform = snap.subOscWaveform
+        cachedFmAmount = snap.fmAmount
+        cachedOscSyncEnabled = snap.oscSyncEnabled
+        cachedFilterCutoff = snap.filterCutoff
+        cachedFilterDrive = snap.filterDrive
+        cachedFilterEnvAmount = snap.filterEnvAmount
+        cachedFilterKeyTracking = snap.filterKeyTracking
+        cachedFilterEnvUseDedicatedADSR = snap.filterEnvUseDedicatedADSR
+        cachedFilterAttack = snap.filterAttack
+        cachedFilterDecay = snap.filterDecay
+        cachedFilterSustain = snap.filterSustain
+        cachedFilterRelease = snap.filterRelease
+        cachedVelocityToCutoff = snap.velocityToCutoff
+        cachedVelocityToEnvAmount = snap.velocityToEnvAmount
+        cachedMasterVolume = snap.masterVolume
+        cachedBPM = snap.bpm
+        cachedSyncSource = snap.syncSource
+        cachedArpMode = snap.arpMode
+        cachedArpRate = snap.arpRate
+        cachedArpOctaves = snap.arpOctaves
+        cachedArpGateLength = snap.arpGateLength
+        cachedArpSwing = snap.arpSwing
+        cachedDelayPingPong = snap.delayPingPong || snap.rendersAllDelayInDSP
+        cachedDelayTempoSync = snap.delayTempoSync
+        cachedDelaySyncDivision = snap.delaySyncDivision
+        cachedMacro1 = snap.macro1
+        cachedMacro2 = snap.macro2
+        cachedMacro3 = snap.macro3
+        cachedMacro4 = snap.macro4
+        ccPanTarget = snap.pan
+        ccPanRT = snap.pan
+        snapCCTargetsFromLive()
     }
 
     public func loadPreset(_ preset: SynthPreset) {
@@ -317,9 +309,7 @@ public extension AudioEngine {
         }
         guard !touched.isEmpty else { return }
         if next != preset {
-            isUpdatingSingleParamFromMIDI = true
-            preset = next
-            isUpdatingSingleParamFromMIDI = false
+            updatePresetDisplayOnly { $0 = next }
         }
         for target in touched {
             applyAppleFXFromMIDI(target)

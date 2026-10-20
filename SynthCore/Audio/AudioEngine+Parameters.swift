@@ -16,18 +16,30 @@ extension AudioEngine {
         switch address {
         case .osc1Volume: oscillator1.volume = v
         case .osc1Octave: oscillator1.octave = Int(v.rounded())
-        case .osc1Detune: oscillator1.detune = v
-        case .osc1PulseWidth: oscillator1.pulseWidth = v
-        case .osc1WavetableMorph: oscillator1.wavetableMorph = v
+        case .osc1Detune:
+            oscillator1.detune = v
+            ccDetune1Target = v
+        case .osc1PulseWidth:
+            oscillator1.pulseWidth = v
+            ccPwm1Target = v
+        case .osc1WavetableMorph:
+            oscillator1.wavetableMorph = v
+            ccWtMorph1Target = v
         case .osc1Waveform: oscillator1.waveform = Self.waveform(v)
         case .osc1WavetableIndex, .osc2WavetableIndex: break
         case .osc2Volume:
             oscillator2.volume = v
             ccMixTarget = v
         case .osc2Octave: oscillator2.octave = Int(v.rounded())
-        case .osc2Detune: oscillator2.detune = v
-        case .osc2PulseWidth: oscillator2.pulseWidth = v
-        case .osc2WavetableMorph: oscillator2.wavetableMorph = v
+        case .osc2Detune:
+            oscillator2.detune = v
+            ccDetune2Target = v
+        case .osc2PulseWidth:
+            oscillator2.pulseWidth = v
+            ccPwm2Target = v
+        case .osc2WavetableMorph:
+            oscillator2.wavetableMorph = v
+            ccWtMorph2Target = v
         case .osc2Waveform: oscillator2.waveform = Self.waveform(v)
         case .osc2Enabled: cachedOsc2Enabled = v >= 0.5
         case .subOscVolume: cachedSubOscVolume = v
@@ -49,15 +61,19 @@ extension AudioEngine {
         case .filterAttack:
             filterEnvelope.attack = v
             cachedFilterAttack = v
+            ccFilterAttackTarget = v
         case .filterDecay:
             filterEnvelope.decay = v
             cachedFilterDecay = v
+            ccFilterDecayTarget = v
         case .filterSustain:
             filterEnvelope.sustain = v
             cachedFilterSustain = v
+            ccFilterSustainTarget = v
         case .filterRelease:
             filterEnvelope.release = v
             cachedFilterRelease = v
+            ccFilterReleaseTarget = v
         case .filterCutoff: cachedFilterCutoff = v
         case .filterResonance:
             ccResonanceRT = -1
@@ -75,7 +91,9 @@ extension AudioEngine {
         case .lfoRate:
             lfo.rate = v
             ccLfoRateTarget = v
-        case .lfoDepth: cachedLfoDepth = v
+        case .lfoDepth:
+            cachedLfoDepth = v
+            ccLfoDepthTarget = v
         case .lfoWaveform: lfo.waveform = Self.waveform(v)
         case .lfoTarget: lfo.target = Self.lfoTarget(v)
         case .lfo2Enabled: lfo2.enabled = v >= 0.5
@@ -137,6 +155,9 @@ extension AudioEngine {
         case .macro2: cachedMacro2 = v
         case .macro3: cachedMacro3 = v
         case .macro4: cachedMacro4 = v
+        case .pan:
+            ccPanRT = v
+            ccPanTarget = v
         }
     }
 
@@ -222,6 +243,7 @@ extension AudioEngine {
         case .macro2: return cachedMacro2
         case .macro3: return cachedMacro3
         case .macro4: return cachedMacro4
+        case .pan: return ccPanRT
         }
     }
 
@@ -238,102 +260,103 @@ extension AudioEngine {
             }
             return
         }
-        isUpdatingSingleParamFromMIDI = true
-        switch address {
-        case .osc1Volume: preset.osc1Volume = v
-        case .osc1Octave: preset.osc1Octave = Int(v.rounded())
-        case .osc1Detune: preset.osc1Detune = v
-        case .osc1PulseWidth: preset.osc1PulseWidth = v
-        case .osc1WavetableMorph: preset.osc1WavetableMorph = v
-        case .osc1Waveform: preset.osc1Waveform = Self.waveform(v)
-        case .osc1WavetableIndex, .osc2WavetableIndex: break
-        case .osc2Volume: preset.osc2Volume = v
-        case .osc2Octave: preset.osc2Octave = Int(v.rounded())
-        case .osc2Detune: preset.osc2Detune = v
-        case .osc2PulseWidth: preset.osc2PulseWidth = v
-        case .osc2WavetableMorph: preset.osc2WavetableMorph = v
-        case .osc2Waveform: preset.osc2Waveform = Self.waveform(v)
-        case .osc2Enabled: preset.osc2Enabled = v >= 0.5
-        case .subOscVolume: preset.subOscVolume = v
-        case .fmAmount: preset.fmAmount = v
-        case .ringModAmount: preset.ringModAmount = v
-        case .noiseColor: preset.noiseColor = Self.noiseColor(v)
-        case .attack: preset.attack = v
-        case .decay: preset.decay = v
-        case .sustain: preset.sustain = v
-        case .release: preset.release = v
-        case .filterAttack: preset.filterAttack = v
-        case .filterDecay: preset.filterDecay = v
-        case .filterSustain: preset.filterSustain = v
-        case .filterRelease: preset.filterRelease = v
-        case .filterCutoff: preset.filterCutoff = v
-        case .filterResonance: preset.filterResonance = v
-        case .filterType: preset.filterType = Self.filterType(v)
-        case .filterDrive: preset.filterDrive = v
-        case .filterEnvelopeAmount: preset.filterEnvelopeAmount = v
-        case .velocityToCutoff: preset.velocityToCutoff = v
-        case .filterKeyTracking: preset.filterKeyTracking = v
-        case .lfoEnabled: preset.lfoEnabled = v >= 0.5
-        case .lfoRate: preset.lfoRate = v
-        case .lfoDepth: preset.lfoDepth = v
-        case .lfoWaveform: preset.lfoWaveform = Self.waveform(v)
-        case .lfoTarget: preset.lfoTarget = Self.lfoTarget(v)
-        case .lfo2Enabled: preset.lfo2Enabled = v >= 0.5
-        case .lfo2Rate: preset.lfo2Rate = v
-        case .lfo2Depth: preset.lfo2Depth = v
-        case .lfo2Waveform: preset.lfo2Waveform = Self.waveform(v)
-        case .lfo2Target: preset.lfo2Target = Self.lfoTarget(v)
-        case .reverbMix:
-            parameterReverbMix = v
-            preset.reverbMix = v
-            reverb.wetDryMix = AudioMath.appleFXWetPercent(v)
-        case .reverbRoomSize:
-            parameterReverbRoom = v
-            preset.reverbRoomSize = v
-            reverb.setRoomSize(v)
-        case .reverbShimmer: preset.reverbShimmer = v
-        case .chorusRate: preset.chorusRate = v
-        case .chorusDepth: preset.chorusDepth = v
-        case .chorusMix: preset.chorusMix = v
-        // The DSP delay and parameterDelay* belong to the audio thread
-        // (applyAddressedParameterRT). Main only drives the Apple Delay node.
-        case .delayTime:
-            preset.delayTime = v
-            if !preset.delayPingPong && !rendersAllDelayInDSP { delay.delayTime = v }
-        case .delayFeedback:
-            preset.delayFeedback = v
-            if !preset.delayPingPong && !rendersAllDelayInDSP { delay.feedback = v }
-        case .delayMix:
-            preset.delayMix = v
-            if !preset.delayPingPong && !rendersAllDelayInDSP { delay.wetDryMix = AudioMath.appleFXWetPercent(v) }
-        case .distortionEnabled: preset.distortionEnabled = v >= 0.5
-        case .distortionDrive: preset.distortionDrive = v
-        case .distortionTone: preset.distortionTone = v
-        case .distortionMix: preset.distortionMix = v
-        case .phaserEnabled: preset.phaserEnabled = v >= 0.5
-        case .phaserRate: preset.phaserRate = v
-        case .phaserDepth: preset.phaserDepth = v
-        case .phaserMix: preset.phaserMix = v
-        case .phaserFeedback: preset.phaserFeedback = v
-        case .phaserCenterFrequency: preset.phaserCenterFrequency = v
-        case .phaserSpread: preset.phaserStereoSpread = v
-        case .eqEnabled: preset.eqEnabled = v >= 0.5
-        case .eqLowGain: preset.eqLowGain = v
-        case .eqMidGain: preset.eqMidGain = v
-        case .eqHighGain: preset.eqHighGain = v
-        case .eqLowFreq: preset.eqLowFreq = v
-        case .eqMidFreq: preset.eqMidFreq = v
-        case .eqHighFreq: preset.eqHighFreq = v
-        case .unisonDetune: preset.unisonDetune = v
-        case .unisonSpread: preset.unisonSpread = v
-        case .analogDrift: preset.analogDrift = v
-        case .portamento: preset.portamento = v
-        case .macro1: preset.macro1 = v
-        case .macro2: preset.macro2 = v
-        case .macro3: preset.macro3 = v
-        case .macro4: preset.macro4 = v
+        updatePresetDisplayOnly { preset in
+            switch address {
+            case .osc1Volume: preset.osc1Volume = v
+            case .osc1Octave: preset.osc1Octave = Int(v.rounded())
+            case .osc1Detune: preset.osc1Detune = v
+            case .osc1PulseWidth: preset.osc1PulseWidth = v
+            case .osc1WavetableMorph: preset.osc1WavetableMorph = v
+            case .osc1Waveform: preset.osc1Waveform = Self.waveform(v)
+            case .osc1WavetableIndex, .osc2WavetableIndex: break
+            case .osc2Volume: preset.osc2Volume = v
+            case .osc2Octave: preset.osc2Octave = Int(v.rounded())
+            case .osc2Detune: preset.osc2Detune = v
+            case .osc2PulseWidth: preset.osc2PulseWidth = v
+            case .osc2WavetableMorph: preset.osc2WavetableMorph = v
+            case .osc2Waveform: preset.osc2Waveform = Self.waveform(v)
+            case .osc2Enabled: preset.osc2Enabled = v >= 0.5
+            case .subOscVolume: preset.subOscVolume = v
+            case .fmAmount: preset.fmAmount = v
+            case .ringModAmount: preset.ringModAmount = v
+            case .noiseColor: preset.noiseColor = Self.noiseColor(v)
+            case .attack: preset.attack = v
+            case .decay: preset.decay = v
+            case .sustain: preset.sustain = v
+            case .release: preset.release = v
+            case .filterAttack: preset.filterAttack = v
+            case .filterDecay: preset.filterDecay = v
+            case .filterSustain: preset.filterSustain = v
+            case .filterRelease: preset.filterRelease = v
+            case .filterCutoff: preset.filterCutoff = v
+            case .filterResonance: preset.filterResonance = v
+            case .filterType: preset.filterType = Self.filterType(v)
+            case .filterDrive: preset.filterDrive = v
+            case .filterEnvelopeAmount: preset.filterEnvelopeAmount = v
+            case .velocityToCutoff: preset.velocityToCutoff = v
+            case .filterKeyTracking: preset.filterKeyTracking = v
+            case .lfoEnabled: preset.lfoEnabled = v >= 0.5
+            case .lfoRate: preset.lfoRate = v
+            case .lfoDepth: preset.lfoDepth = v
+            case .lfoWaveform: preset.lfoWaveform = Self.waveform(v)
+            case .lfoTarget: preset.lfoTarget = Self.lfoTarget(v)
+            case .lfo2Enabled: preset.lfo2Enabled = v >= 0.5
+            case .lfo2Rate: preset.lfo2Rate = v
+            case .lfo2Depth: preset.lfo2Depth = v
+            case .lfo2Waveform: preset.lfo2Waveform = Self.waveform(v)
+            case .lfo2Target: preset.lfo2Target = Self.lfoTarget(v)
+            case .reverbMix:
+                parameterReverbMix = v
+                preset.reverbMix = v
+                reverb.wetDryMix = AudioMath.appleFXWetPercent(v)
+            case .reverbRoomSize:
+                parameterReverbRoom = v
+                preset.reverbRoomSize = v
+                reverb.setRoomSize(v)
+            case .reverbShimmer: preset.reverbShimmer = v
+            case .chorusRate: preset.chorusRate = v
+            case .chorusDepth: preset.chorusDepth = v
+            case .chorusMix: preset.chorusMix = v
+            // The DSP delay and parameterDelay* belong to the audio thread
+            // (applyAddressedParameterRT). Main only drives the Apple Delay node.
+            case .delayTime:
+                preset.delayTime = v
+                if !preset.delayPingPong && !rendersAllDelayInDSP { delay.delayTime = v }
+            case .delayFeedback:
+                preset.delayFeedback = v
+                if !preset.delayPingPong && !rendersAllDelayInDSP { delay.feedback = v }
+            case .delayMix:
+                preset.delayMix = v
+                if !preset.delayPingPong && !rendersAllDelayInDSP { delay.wetDryMix = AudioMath.appleFXWetPercent(v) }
+            case .distortionEnabled: preset.distortionEnabled = v >= 0.5
+            case .distortionDrive: preset.distortionDrive = v
+            case .distortionTone: preset.distortionTone = v
+            case .distortionMix: preset.distortionMix = v
+            case .phaserEnabled: preset.phaserEnabled = v >= 0.5
+            case .phaserRate: preset.phaserRate = v
+            case .phaserDepth: preset.phaserDepth = v
+            case .phaserMix: preset.phaserMix = v
+            case .phaserFeedback: preset.phaserFeedback = v
+            case .phaserCenterFrequency: preset.phaserCenterFrequency = v
+            case .phaserSpread: preset.phaserStereoSpread = v
+            case .eqEnabled: preset.eqEnabled = v >= 0.5
+            case .eqLowGain: preset.eqLowGain = v
+            case .eqMidGain: preset.eqMidGain = v
+            case .eqHighGain: preset.eqHighGain = v
+            case .eqLowFreq: preset.eqLowFreq = v
+            case .eqMidFreq: preset.eqMidFreq = v
+            case .eqHighFreq: preset.eqHighFreq = v
+            case .unisonDetune: preset.unisonDetune = v
+            case .unisonSpread: preset.unisonSpread = v
+            case .analogDrift: preset.analogDrift = v
+            case .portamento: preset.portamento = v
+            case .macro1: preset.macro1 = v
+            case .macro2: preset.macro2 = v
+            case .macro3: preset.macro3 = v
+            case .macro4: preset.macro4 = v
+            case .pan: preset.pan = v
+            }
         }
-        isUpdatingSingleParamFromMIDI = false
         if pushToRender { setParameter(id: id, value: v) }
     }
 
