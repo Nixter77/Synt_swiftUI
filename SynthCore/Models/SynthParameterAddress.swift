@@ -101,6 +101,15 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case lfo2Mode = 123
     case lfo2StartPhase = 124
     case arpLatch = 125
+    case velocityCurve = 126
+    case velocityToVolume = 127
+    case modEnvAttack = 128
+    case modEnvDecay = 129
+    case modEnvSustain = 130
+    case modEnvRelease = 131
+    case glideMode = 132
+    case glideLegatoOnly = 133
+    case monoPriority = 134
 
     public var identifier: String {
         switch self {
@@ -189,6 +198,15 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .lfo2Mode: return "lfo2Mode"
         case .lfo2StartPhase: return "lfo2StartPhase"
         case .arpLatch: return "arpLatch"
+        case .velocityCurve: return "velocityCurve"
+        case .velocityToVolume: return "velocityToVolume"
+        case .modEnvAttack: return "modEnvAttack"
+        case .modEnvDecay: return "modEnvDecay"
+        case .modEnvSustain: return "modEnvSustain"
+        case .modEnvRelease: return "modEnvRelease"
+        case .glideMode: return "glideMode"
+        case .glideLegatoOnly: return "glideLegatoOnly"
+        case .monoPriority: return "monoPriority"
         }
     }
 
@@ -279,6 +297,15 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .lfo2Mode: return "LFO 2 Mode"
         case .lfo2StartPhase: return "LFO 2 Phase"
         case .arpLatch: return "Arp Latch"
+        case .velocityCurve: return "Velocity Curve"
+        case .velocityToVolume: return "Velocity To Vol"
+        case .modEnvAttack: return "Mod Env Attack"
+        case .modEnvDecay: return "Mod Env Decay"
+        case .modEnvSustain: return "Mod Env Sustain"
+        case .modEnvRelease: return "Mod Env Release"
+        case .glideMode: return "Glide Mode"
+        case .glideLegatoOnly: return "Glide Legato Only"
+        case .monoPriority: return "Mono Priority"
         }
     }
 
@@ -288,8 +315,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .osc1Detune, .osc2Detune: return -50
         case .osc1Octave, .osc2Octave: return -2
         case .osc1PulseWidth, .osc2PulseWidth: return 0.05
-        case .attack, .decay, .filterAttack, .filterDecay: return 0.001
-        case .release, .filterRelease: return 0.001
+        case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay: return 0.001
+        case .release, .filterRelease, .modEnvRelease: return 0.001
         case .filterCutoff: return 20
         case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4: return -1
         case .lfoRate, .lfo2Rate: return 0.1
@@ -312,13 +339,14 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .osc1Octave, .osc2Octave: return 2
         case .osc1PulseWidth, .osc2PulseWidth: return 0.95
         case .osc1Waveform, .osc2Waveform, .lfoWaveform, .lfo2Waveform, .osc1WavetableIndex, .osc2WavetableIndex: return 5
-        case .noiseColor: return 2
+        case .noiseColor, .velocityCurve, .monoPriority: return 2
+        case .glideMode, .glideLegatoOnly: return 1
         case .lfoMode, .lfo2Mode: return 2
         case .lfoStartPhase, .lfo2StartPhase: return 360
         case .arpLatch: return 1
         case .filterType, .lfoTarget, .lfo2Target: return 4
-        case .attack, .decay, .filterAttack, .filterDecay: return 2
-        case .release, .filterRelease: return 3
+        case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay: return 2
+        case .release, .filterRelease, .modEnvRelease: return 3
         case .filterCutoff: return 20000
         case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4: return 1
         case .lfoRate, .lfo2Rate: return 20

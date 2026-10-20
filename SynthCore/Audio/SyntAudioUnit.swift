@@ -340,6 +340,9 @@ enum SyntParameterTree {
         let lfoTargets = ["Pitch", "Filter", "Amplitude", "Pan", "None"]
         let lfoModes = ["Free", "Retrigger", "One-Shot"]
         let noise = ["White", "Pink", "Brown"]
+        let velCurves = ["Linear", "Exponential", "Logarithmic"]
+        let glideModes = ["Time", "Rate"]
+        let monoPriorities = ["Last", "Low", "High"]
 
         let oscillators = AUParameterTree.createGroup(
             withIdentifier: "osc",
@@ -378,6 +381,10 @@ enum SyntParameterTree {
                 knob(.filterDecay, unit: .seconds),
                 knob(.filterSustain),
                 knob(.filterRelease, unit: .seconds),
+                knob(.modEnvAttack, unit: .seconds),
+                knob(.modEnvDecay, unit: .seconds),
+                knob(.modEnvSustain),
+                knob(.modEnvRelease, unit: .seconds),
             ]
         )
         let filter = AUParameterTree.createGroup(
@@ -460,6 +467,11 @@ enum SyntParameterTree {
                 knob(.macro4),
                 knob(.pan, unit: .pan),
                 toggleKnob(.arpLatch),
+                indexedKnob(.velocityCurve, velCurves),
+                knob(.velocityToVolume),
+                indexedKnob(.glideMode, glideModes),
+                toggleKnob(.glideLegatoOnly),
+                indexedKnob(.monoPriority, monoPriorities),
             ]
         )
         return AUParameterTree.createTree(withChildren: [

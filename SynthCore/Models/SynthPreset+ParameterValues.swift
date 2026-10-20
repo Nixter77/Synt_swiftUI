@@ -96,6 +96,15 @@ extension SynthPreset {
         case .lfo2Mode: return lfoModeIndex(lfo2Mode)
         case .lfo2StartPhase: return lfo2StartPhase
         case .arpLatch: return arpLatch ? 1 : 0
+        case .velocityCurve: return velocityCurveIndex(velocityCurve)
+        case .velocityToVolume: return velocityToVolume
+        case .modEnvAttack: return modEnvAttack
+        case .modEnvDecay: return modEnvDecay
+        case .modEnvSustain: return modEnvSustain
+        case .modEnvRelease: return modEnvRelease
+        case .glideMode: return glideModeIndex(glideMode)
+        case .glideLegatoOnly: return glideLegatoOnly ? 1 : 0
+        case .monoPriority: return monoPriorityIndex(monoPriority)
         }
     }
 
@@ -187,6 +196,15 @@ extension SynthPreset {
         case .lfo2Mode: lfo2Mode = SynthCore.lfoModeFromFloat(value)
         case .lfo2StartPhase: lfo2StartPhase = value
         case .arpLatch: arpLatch = value >= 0.5
+        case .velocityCurve: velocityCurve = SynthCore.velocityCurveFromFloat(value)
+        case .velocityToVolume: velocityToVolume = value
+        case .modEnvAttack: modEnvAttack = value
+        case .modEnvDecay: modEnvDecay = value
+        case .modEnvSustain: modEnvSustain = value
+        case .modEnvRelease: modEnvRelease = value
+        case .glideMode: glideMode = SynthCore.glideModeFromFloat(value)
+        case .glideLegatoOnly: glideLegatoOnly = value >= 0.5
+        case .monoPriority: monoPriority = SynthCore.monoPriorityFromFloat(value)
         }
     }
 
@@ -291,5 +309,51 @@ func lfoModeFromFloat(_ value: Float) -> LFOMode {
     case 1: return .retrigger
     case 2: return .oneShot
     default: return .free
+    }
+}
+
+private func velocityCurveIndex(_ curve: VelocityCurve) -> Float {
+    switch curve {
+    case .linear: return 0
+    case .exponential: return 1
+    case .logarithmic: return 2
+    }
+}
+
+public func velocityCurveFromFloat(_ value: Float) -> VelocityCurve {
+    switch Int(value.rounded()) {
+    case 1: return .exponential
+    case 2: return .logarithmic
+    default: return .linear
+    }
+}
+
+private func glideModeIndex(_ mode: GlideMode) -> Float {
+    switch mode {
+    case .time: return 0
+    case .rate: return 1
+    }
+}
+
+public func glideModeFromFloat(_ value: Float) -> GlideMode {
+    switch Int(value.rounded()) {
+    case 1: return .rate
+    default: return .time
+    }
+}
+
+private func monoPriorityIndex(_ priority: MonoPriority) -> Float {
+    switch priority {
+    case .last: return 0
+    case .low: return 1
+    case .high: return 2
+    }
+}
+
+public func monoPriorityFromFloat(_ value: Float) -> MonoPriority {
+    switch Int(value.rounded()) {
+    case 1: return .low
+    case 2: return .high
+    default: return .last
     }
 }

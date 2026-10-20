@@ -40,6 +40,32 @@ public struct MonoNoteStack {
         return get(count - 1)
     }
 
+    public func activeNote(priority: MonoPriority) -> (note: Int, velocity: Float)? {
+        guard count > 0 else { return nil }
+        switch priority {
+        case .last:
+            return get(count - 1)
+        case .low:
+            var lowest = get(0)
+            for i in 1..<count {
+                let item = get(i)
+                if item.0 < lowest.0 {
+                    lowest = item
+                }
+            }
+            return lowest
+        case .high:
+            var highest = get(0)
+            for i in 1..<count {
+                let item = get(i)
+                if item.0 > highest.0 {
+                    highest = item
+                }
+            }
+            return highest
+        }
+    }
+
     public func get(_ index: Int) -> (note: Int, velocity: Float) {
         switch index {
         case 0: return b0
@@ -133,7 +159,7 @@ public extension AudioEngine {
     }
 
     /// Fixed-pool allocation (audio thread). No Dictionary / heap ids.
-    public func createVoice(midiNote: Int, velocity: Float) {
+    public func createVoice(midiNote: Int, velocity: Float, hadHeldNotes: Bool = false) {
         clearSustainBit(midiNote)
         // Soft re-trigger: fade previous partials of this MIDI note (hard kill = click).
         for i in 0..<AudioEngine.maxVoices {
@@ -144,12 +170,19 @@ public extension AudioEngine {
 
         let baseFreq = AudioMath.midiToFrequency(midiNote)
         let startFreq: Double
-        if activeVoiceCountRT == 0 || cachedPortamento <= 0.001 {
+        if activeVoiceCountRT == 0 || cachedPortamento <= 0.001 || (cachedGlideLegatoOnly && !hadHeldNotes) {
             startFreq = baseFreq
         } else {
             startFreq = lastPlayedFrequency ?? baseFreq
         }
         lastPlayedFrequency = baseFreq
+
+        let semitoneInterval: Float
+        if startFreq > 0 {
+            semitoneInterval = abs(Float(12.0 * log2(baseFreq / startFreq)))
+        } else {
+            semitoneInterval = 0
+        }
 
         // Unison only for a single held note. Any second key collapses to 1 partial
         // per note so a 3–4 note chord does not spawn extra oscillators.
@@ -198,6 +231,17 @@ public extension AudioEngine {
             )
             voices[slot].targetFrequency = targetFreq
             voices[slot].currentFrequency = curFreq
+            voices[slot].glideIntervalSemitones = semitoneInterval
+
+            var seed = randomSeed
+            if seed == 0 { seed = 0x12345678 }
+            seed ^= seed << 13
+            seed ^= seed >> 17
+            seed ^= seed << 5
+            randomSeed = seed
+            let randVal = Float(seed) / Float(UInt32.max) * 2.0 - 1.0
+            voices[slot].randomValue = randVal
+
             activeVoiceCountRT += 1
         }
     }
@@ -313,6 +357,13 @@ public extension AudioEngine {
 
             voices[i].midiNote = midiNote
             voices[i].targetFrequency = targetFreq
+            let semitoneInterval: Float
+            if voices[i].currentFrequency > 0 {
+                semitoneInterval = abs(Float(12.0 * log2(targetFreq / voices[i].currentFrequency)))
+            } else {
+                semitoneInterval = 0
+            }
+            voices[i].glideIntervalSemitones = semitoneInterval
             if cachedPortamento <= 0.001 {
                 voices[i].currentFrequency = targetFreq
             }
@@ -337,26 +388,36 @@ public extension AudioEngine {
             createVoice(midiNote: midiNote, velocity: velocity)
 
         case .mono:
+            let hadHeldNotes = !monoNoteStack.isEmpty
+            let noteBefore = monoNoteStack.activeNote(priority: cachedMonoPriority)?.note
             monoNoteStack.push(note: midiNote, velocity: velocity)
-            for i in 0..<AudioEngine.maxVoices {
-                if voices[i].isActive && voices[i].midiNote != midiNote && !voices[i].isReleasing {
-                    voices[i].beginFastRelease()
+            let active = monoNoteStack.activeNote(priority: cachedMonoPriority)
+
+            if !hadHeldNotes || active?.note != noteBefore {
+                for i in 0..<AudioEngine.maxVoices {
+                    if voices[i].isActive && voices[i].midiNote != (active?.note ?? midiNote) && !voices[i].isReleasing {
+                        voices[i].beginFastRelease()
+                    }
+                }
+                if let target = active {
+                    createVoice(midiNote: target.note, velocity: target.velocity, hadHeldNotes: hadHeldNotes)
                 }
             }
-            createVoice(midiNote: midiNote, velocity: velocity)
 
         case .legato:
             let hadHeldNotes = !monoNoteStack.isEmpty
+            let noteBefore = monoNoteStack.activeNote(priority: cachedMonoPriority)?.note
             monoNoteStack.push(note: midiNote, velocity: velocity)
+            let active = monoNoteStack.activeNote(priority: cachedMonoPriority)
 
             if !hadHeldNotes {
                 let savedPort = cachedPortamento
                 cachedPortamento = 0.0
-                createVoice(midiNote: midiNote, velocity: velocity)
+                createVoice(midiNote: midiNote, velocity: velocity, hadHeldNotes: false)
                 cachedPortamento = savedPort
                 lastPlayedFrequency = AudioMath.midiToFrequency(midiNote)
-            } else {
-                retuneActiveVoicesLegato(to: midiNote, velocity: velocity)
+            } else if active?.note != noteBefore, let target = active {
+                retuneActiveVoicesLegato(to: target.note, velocity: target.velocity)
             }
         }
     }
@@ -377,17 +438,18 @@ public extension AudioEngine {
                 return
             }
             clearSustainBit(midiNote)
-            let wasTop = monoNoteStack.top?.note == midiNote
+            let activeBefore = monoNoteStack.activeNote(priority: cachedMonoPriority)?.note
             monoNoteStack.remove(note: midiNote)
+            let activeAfter = monoNoteStack.activeNote(priority: cachedMonoPriority)
 
-            if wasTop {
-                if let prev = monoNoteStack.top {
+            if activeBefore == midiNote || (activeBefore != nil && activeAfter?.note != activeBefore) {
+                if let prev = activeAfter {
                     for i in 0..<AudioEngine.maxVoices {
                         if voices[i].isActive && !voices[i].isReleasing {
                             voices[i].beginFastRelease()
                         }
                     }
-                    createVoice(midiNote: prev.note, velocity: prev.velocity)
+                    createVoice(midiNote: prev.note, velocity: prev.velocity, hadHeldNotes: true)
                 } else {
                     releaseHeldNote(midiNote)
                 }
@@ -404,11 +466,12 @@ public extension AudioEngine {
                 return
             }
             clearSustainBit(midiNote)
-            let wasTop = monoNoteStack.top?.note == midiNote
+            let activeBefore = monoNoteStack.activeNote(priority: cachedMonoPriority)?.note
             monoNoteStack.remove(note: midiNote)
+            let activeAfter = monoNoteStack.activeNote(priority: cachedMonoPriority)
 
-            if wasTop {
-                if let prev = monoNoteStack.top {
+            if activeBefore == midiNote || (activeBefore != nil && activeAfter?.note != activeBefore) {
+                if let prev = activeAfter {
                     retuneActiveVoicesLegato(to: prev.note, velocity: prev.velocity)
                 } else {
                     releaseHeldNote(midiNote)
@@ -543,6 +606,9 @@ public extension AudioEngine {
                 voices[i].filterReleaseStartLevel = voices[i].filterEnvelopeValue
                 voices[i].filterEnvelopePhase = .release
                 voices[i].filterEnvelopeTime = 0
+                voices[i].modReleaseStartLevel = voices[i].modEnvelopeValue
+                voices[i].modEnvelopePhase = .release
+                voices[i].modEnvelopeTime = 0
                 released = true
             }
         }

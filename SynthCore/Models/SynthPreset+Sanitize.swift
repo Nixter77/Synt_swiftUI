@@ -165,6 +165,14 @@ public extension SynthPreset {
         if !LFOMode.allCases.contains(p.lfo2Mode) { p.lfo2Mode = .free }
         p.lfo2StartPhase = f(p.lfo2StartPhase, 0.0, 360.0, 0.0)
         if !ArpeggiatorMode.allCases.contains(p.arpMode) { p.arpMode = .off }
+        if !VelocityCurve.allCases.contains(p.velocityCurve) { p.velocityCurve = .linear }
+        p.velocityToVolume = f(p.velocityToVolume, 0.0, 1.0, 1.0)
+        p.modEnvAttack = f(p.modEnvAttack, 0.001, 10.0, 0.01)
+        p.modEnvDecay = f(p.modEnvDecay, 0.001, 10.0, 0.2)
+        p.modEnvSustain = f(p.modEnvSustain, 0.0, 1.0, 0.0)
+        p.modEnvRelease = f(p.modEnvRelease, 0.001, 10.0, 0.1)
+        if !GlideMode.allCases.contains(p.glideMode) { p.glideMode = .time }
+        if !MonoPriority.allCases.contains(p.monoPriority) { p.monoPriority = .last }
         return p
     }
 

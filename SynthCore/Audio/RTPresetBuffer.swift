@@ -50,6 +50,10 @@ public struct RTPresetSnapshot: Sendable {
     public var filterSustain: Float = 0.0
     public var filterRelease: Float = 0.3
     public var filterEnvUseDedicatedADSR: Bool = false
+    public var modEnvAttack: Float = 0.01
+    public var modEnvDecay: Float = 0.2
+    public var modEnvSustain: Float = 0.0
+    public var modEnvRelease: Float = 0.1
 
     // Filter
     public var filterType: FilterType = .lowPass
@@ -103,6 +107,11 @@ public struct RTPresetSnapshot: Sendable {
     public var arpGateLength: Float = 0.8
     public var arpSwing: Float = 0.0
     public var arpLatch: Bool = false
+    public var velocityCurve: VelocityCurve = .linear
+    public var velocityToVolume: Float = 1.0
+    public var glideMode: GlideMode = .time
+    public var glideLegatoOnly: Bool = false
+    public var monoPriority: MonoPriority = .last
     public var macro1: Float = 0.0
     public var macro2: Float = 0.0
     public var macro3: Float = 0.0
@@ -190,6 +199,10 @@ public struct RTPresetSnapshot: Sendable {
         filterSustain = preset.filterSustain
         filterRelease = preset.filterRelease
         filterEnvUseDedicatedADSR = preset.filterEnvUseDedicatedADSR
+        modEnvAttack = preset.modEnvAttack
+        modEnvDecay = preset.modEnvDecay
+        modEnvSustain = preset.modEnvSustain
+        modEnvRelease = preset.modEnvRelease
 
         filterType = preset.filterType
         filterCutoff = preset.filterCutoff
@@ -235,6 +248,11 @@ public struct RTPresetSnapshot: Sendable {
         arpGateLength = max(0.1, min(1.0, preset.arpGateLength))
         arpSwing = max(0.0, min(0.75, preset.arpSwing))
         arpLatch = preset.arpLatch
+        velocityCurve = preset.velocityCurve
+        velocityToVolume = preset.velocityToVolume
+        glideMode = preset.glideMode
+        glideLegatoOnly = preset.glideLegatoOnly
+        monoPriority = preset.monoPriority
         lfoMode = preset.lfoMode
         lfoStartPhase = preset.lfoStartPhase
         lfo2Mode = preset.lfo2Mode

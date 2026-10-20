@@ -165,6 +165,15 @@ extension AudioEngine {
         case .arpLatch:
             cachedArpLatch = v >= 0.5
             arp.latch = cachedArpLatch
+        case .velocityCurve: cachedVelocityCurve = SynthCore.velocityCurveFromFloat(v)
+        case .velocityToVolume: cachedVelocityToVolume = v
+        case .modEnvAttack: modEnvelope.attack = v
+        case .modEnvDecay: modEnvelope.decay = v
+        case .modEnvSustain: modEnvelope.sustain = v
+        case .modEnvRelease: modEnvelope.release = v
+        case .glideMode: cachedGlideMode = SynthCore.glideModeFromFloat(v)
+        case .glideLegatoOnly: cachedGlideLegatoOnly = v >= 0.5
+        case .monoPriority: cachedMonoPriority = SynthCore.monoPriorityFromFloat(v)
         }
     }
 
@@ -256,6 +265,25 @@ extension AudioEngine {
         case .lfo2Mode: return Self.index(of: lfo2.mode)
         case .lfo2StartPhase: return lfo2.startPhaseDegrees
         case .arpLatch: return arp.latch ? 1 : 0
+        case .velocityCurve:
+            switch cachedVelocityCurve {
+            case .linear: return 0
+            case .exponential: return 1
+            case .logarithmic: return 2
+            }
+        case .velocityToVolume: return cachedVelocityToVolume
+        case .modEnvAttack: return modEnvelope.attack
+        case .modEnvDecay: return modEnvelope.decay
+        case .modEnvSustain: return modEnvelope.sustain
+        case .modEnvRelease: return modEnvelope.release
+        case .glideMode: return cachedGlideMode == .rate ? 1 : 0
+        case .glideLegatoOnly: return cachedGlideLegatoOnly ? 1 : 0
+        case .monoPriority:
+            switch cachedMonoPriority {
+            case .last: return 0
+            case .low: return 1
+            case .high: return 2
+            }
         }
     }
 
@@ -372,6 +400,15 @@ extension AudioEngine {
             case .lfo2Mode: preset.lfo2Mode = Self.lfoMode(v)
             case .lfo2StartPhase: preset.lfo2StartPhase = v
             case .arpLatch: preset.arpLatch = v >= 0.5
+            case .velocityCurve: preset.velocityCurve = SynthCore.velocityCurveFromFloat(v)
+            case .velocityToVolume: preset.velocityToVolume = v
+            case .modEnvAttack: preset.modEnvAttack = v
+            case .modEnvDecay: preset.modEnvDecay = v
+            case .modEnvSustain: preset.modEnvSustain = v
+            case .modEnvRelease: preset.modEnvRelease = v
+            case .glideMode: preset.glideMode = SynthCore.glideModeFromFloat(v)
+            case .glideLegatoOnly: preset.glideLegatoOnly = v >= 0.5
+            case .monoPriority: preset.monoPriority = SynthCore.monoPriorityFromFloat(v)
             }
         }
         if pushToRender { setParameter(id: id, value: v) }

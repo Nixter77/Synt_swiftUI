@@ -212,6 +212,17 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var lfo2StartPhase: Float = 0.0
     public var arpLatch: Bool = false
 
+    // Stage 3: Velocity, Mod Envelope, Glide, Mono
+    public var velocityCurve: VelocityCurve = .linear
+    public var velocityToVolume: Float = 1.0
+    public var modEnvAttack: Float = 0.01
+    public var modEnvDecay: Float = 0.2
+    public var modEnvSustain: Float = 0.0
+    public var modEnvRelease: Float = 0.1
+    public var glideMode: GlideMode = .time
+    public var glideLegatoOnly: Bool = false
+    public var monoPriority: MonoPriority = .last
+
     /// Safe neutral starting point (clean headroom).
     public static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -256,6 +267,10 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case pan
         case fxOrder
         case lfoMode, lfoStartPhase, lfo2Mode, lfo2StartPhase, arpLatch
+        case velocityCurve, velocityToVolume
+        case modEnvAttack, modEnvDecay, modEnvSustain, modEnvRelease
+        case glideMode, glideLegatoOnly
+        case monoPriority
     }
 
     public init(
@@ -379,7 +394,16 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         lfoStartPhase: Float = 0.0,
         lfo2Mode: LFOMode = .free,
         lfo2StartPhase: Float = 0.0,
-        arpLatch: Bool = false
+        arpLatch: Bool = false,
+        velocityCurve: VelocityCurve = .linear,
+        velocityToVolume: Float = 1.0,
+        modEnvAttack: Float = 0.01,
+        modEnvDecay: Float = 0.2,
+        modEnvSustain: Float = 0.0,
+        modEnvRelease: Float = 0.1,
+        glideMode: GlideMode = .time,
+        glideLegatoOnly: Bool = false,
+        monoPriority: MonoPriority = .last
     ) {
         self.id = id
         self.name = name
@@ -502,6 +526,15 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.lfo2Mode = lfo2Mode
         self.lfo2StartPhase = lfo2StartPhase
         self.arpLatch = arpLatch
+        self.velocityCurve = velocityCurve
+        self.velocityToVolume = velocityToVolume
+        self.modEnvAttack = modEnvAttack
+        self.modEnvDecay = modEnvDecay
+        self.modEnvSustain = modEnvSustain
+        self.modEnvRelease = modEnvRelease
+        self.glideMode = glideMode
+        self.glideLegatoOnly = glideLegatoOnly
+        self.monoPriority = monoPriority
     }
 
     public init(from decoder: Decoder) throws {
@@ -629,6 +662,15 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         lfo2Mode = try c.decodeIfPresent(LFOMode.self, forKey: .lfo2Mode) ?? .free
         lfo2StartPhase = try c.decodeIfPresent(Float.self, forKey: .lfo2StartPhase) ?? 0.0
         arpLatch = try c.decodeIfPresent(Bool.self, forKey: .arpLatch) ?? false
+        velocityCurve = try c.decodeIfPresent(VelocityCurve.self, forKey: .velocityCurve) ?? .linear
+        velocityToVolume = try c.decodeIfPresent(Float.self, forKey: .velocityToVolume) ?? 1.0
+        modEnvAttack = try c.decodeIfPresent(Float.self, forKey: .modEnvAttack) ?? 0.01
+        modEnvDecay = try c.decodeIfPresent(Float.self, forKey: .modEnvDecay) ?? 0.2
+        modEnvSustain = try c.decodeIfPresent(Float.self, forKey: .modEnvSustain) ?? 0.0
+        modEnvRelease = try c.decodeIfPresent(Float.self, forKey: .modEnvRelease) ?? 0.1
+        glideMode = try c.decodeIfPresent(GlideMode.self, forKey: .glideMode) ?? .time
+        glideLegatoOnly = try c.decodeIfPresent(Bool.self, forKey: .glideLegatoOnly) ?? false
+        monoPriority = try c.decodeIfPresent(MonoPriority.self, forKey: .monoPriority) ?? .last
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -731,6 +773,27 @@ public enum ModSource: String, CaseIterable, Codable {
     case macro2 = "Macro 2"
     case macro3 = "Macro 3"
     case macro4 = "Macro 4"
+    case modEnv = "Mod Env"
+    case pitchBend = "Pitch Bend"
+    case random = "Random"
+    case sampleAndHold = "Sample & Hold"
+}
+
+public enum VelocityCurve: String, CaseIterable, Codable, Sendable {
+    case linear = "Linear"
+    case exponential = "Exponential"
+    case logarithmic = "Logarithmic"
+}
+
+public enum GlideMode: String, CaseIterable, Codable, Sendable {
+    case time = "Time"
+    case rate = "Rate"
+}
+
+public enum MonoPriority: String, CaseIterable, Codable, Sendable {
+    case last = "Last"
+    case low = "Low"
+    case high = "High"
 }
 
 public enum ModDestination: String, CaseIterable, Codable {

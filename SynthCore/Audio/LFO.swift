@@ -23,7 +23,7 @@ public class LFO {
     public internal(set) var phase: Double = 0.0
     public private(set) var isCompleted: Bool = false
     private var cycleProgress: Double = 0.0
-    private var lastRandomValue: Float = 0.0
+    public internal(set) var lastRandomValue: Float = 0.0
     /// LCG for S&H. Float.random hits the system RNG (can lock) on the audio thread.
     private var randomState: UInt32 = 0x9E37_79B9
 

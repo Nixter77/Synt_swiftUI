@@ -105,6 +105,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var oscillator2 = Oscillator()
     public var envelope = ADSREnvelope()
     public var filterEnvelope = ADSREnvelope()
+    public var modEnvelope = ADSREnvelope(attack: 0.01, decay: 0.2, sustain: 0.0, release: 0.1)
     public var filterL = CachedBiquadFilter()
     public var filterR = CachedBiquadFilter()
     public var lfo = LFO()
@@ -276,6 +277,12 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedRingModAmount: Float = 0.0
     public var cachedNoiseColor: NoiseColor = .white
     public var cachedVoiceMode: VoiceMode = .poly
+    public var cachedVelocityCurve: VelocityCurve = .linear
+    public var cachedVelocityToVolume: Float = 1.0
+    public var cachedGlideMode: GlideMode = .time
+    public var cachedGlideLegatoOnly: Bool = false
+    public var cachedMonoPriority: MonoPriority = .last
+    public var randomSeed: UInt32 = 0x12345678
     public var monoNoteStack = MonoNoteStack()
     /// Lock-free RT CC mapping table: 128 slots storing target ID (-1 if unmapped)
     /// CC -> target index. Written on main, read on the audio thread: per-slot atomics.

@@ -54,6 +54,12 @@ public struct ActiveNote {
     public var filterEnvelopeValue: Float = 0.0
     public var filterEnvelopeTime: Double = 0.0
     public var filterReleaseStartLevel: Float = 0.0
+    public var modEnvelopePhase: EnvelopePhase = .attack
+    public var modEnvelopeValue: Float = 0.0
+    public var modEnvelopeTime: Double = 0.0
+    public var modReleaseStartLevel: Float = 0.0
+    public var randomValue: Float = 0.0
+    public var glideIntervalSemitones: Float = 0.0
     public var isReleasing: Bool = false
     /// When set, release uses a short fade (steal / re-trigger / abandoned tail) instead of preset release.
     public var fastRelease: Bool = false
@@ -136,6 +142,12 @@ public struct ActiveNote {
         self.filterEnvelopeValue = 0
         self.filterEnvelopeTime = 0
         self.filterReleaseStartLevel = 0
+        self.modEnvelopePhase = .attack
+        self.modEnvelopeValue = 0
+        self.modEnvelopeTime = 0
+        self.modReleaseStartLevel = 0
+        self.randomValue = 0
+        self.glideIntervalSemitones = 0
         self.isReleasing = false
         self.fastRelease = false
         self.releaseSerial = 0
@@ -172,6 +184,11 @@ public struct ActiveNote {
         if filterEnvelopePhase != .release && filterEnvelopePhase != .finished {
             filterEnvelopePhase = .release
         }
+        modReleaseStartLevel = modEnvelopeValue
+        modEnvelopeTime = 0
+        if modEnvelopePhase != .release && modEnvelopePhase != .finished {
+            modEnvelopePhase = .release
+        }
     }
 
     /// Shorten a tail that is already in release. Time must restart: the envelope
@@ -191,6 +208,9 @@ public struct ActiveNote {
         filterReleaseStartLevel = filterEnvelopeValue
         filterEnvelopeTime = 0
         filterEnvelopePhase = .release
+        modReleaseStartLevel = modEnvelopeValue
+        modEnvelopeTime = 0
+        modEnvelopePhase = .release
     }
 
     public mutating func deactivate() {
@@ -200,6 +220,9 @@ public struct ActiveNote {
         filterEnvelopeValue = 0
         filterEnvelopePhase = .finished
         filterReleaseStartLevel = 0
+        modEnvelopeValue = 0
+        modEnvelopePhase = .finished
+        modReleaseStartLevel = 0
         isReleasing = false
         fastRelease = false
         driftState = 0

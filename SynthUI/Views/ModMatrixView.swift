@@ -155,6 +155,10 @@ struct ModMatrixView: View {
         case .env2: polarity = "Env 2 (Filter) is 0…1."
         case .aftertouch: polarity = "Aftertouch is 0…1."
         case .macro1, .macro2, .macro3, .macro4: polarity = "\(row.source.rawValue) is performance macro."
+        case .modEnv: polarity = "Mod Env is 0…1."
+        case .pitchBend: polarity = "Pitch Bend is bipolar."
+        case .random: polarity = "Random is bipolar per voice."
+        case .sampleAndHold: polarity = "Sample & Hold is stepped random."
         }
         let action: String
         switch row.destination {

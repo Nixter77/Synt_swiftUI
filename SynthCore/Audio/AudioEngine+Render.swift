@@ -131,7 +131,11 @@ public extension AudioEngine {
         modWheel: Float,
         keyTrack: Float,
         env2: Float = 0,
-        aftertouch: Float = 0
+        aftertouch: Float = 0,
+        modEnv: Float = 0,
+        pitchBend: Float = 0,
+        random: Float = 0,
+        sampleAndHold: Float = 0
     ) -> Float {
         switch source {
         case .lfo1: return lfo
@@ -146,6 +150,10 @@ public extension AudioEngine {
         case .macro2: return cachedMacro2
         case .macro3: return cachedMacro3
         case .macro4: return cachedMacro4
+        case .modEnv: return modEnv
+        case .pitchBend: return pitchBend
+        case .random: return random
+        case .sampleAndHold: return sampleAndHold
         }
     }
 
@@ -391,7 +399,15 @@ public extension AudioEngine {
             var v = voices[i]
 
             if glides {
-                v.currentFrequency += (v.targetFrequency - v.currentFrequency) * glideRate
+                let effectiveGlideRate: Double
+                if cachedGlideMode == .rate {
+                    let semitones = Double(max(0.01, v.glideIntervalSemitones))
+                    let voicePortTime = Double(cachedPortamento) * (semitones / 12.0)
+                    effectiveGlideRate = 1.0 - exp(-5.0 / (max(0.0001, voicePortTime) * sampleRate))
+                } else {
+                    effectiveGlideRate = glideRate
+                }
+                v.currentFrequency += (v.targetFrequency - v.currentFrequency) * effectiveGlideRate
                 if abs(v.currentFrequency - v.targetFrequency) < 0.1 {
                     v.currentFrequency = v.targetFrequency
                 }
@@ -437,6 +453,17 @@ public extension AudioEngine {
                 v.filterEnvelopeValue = envelopeValue
             }
 
+            let modEnvVal = modEnvelope.process(
+                currentValue: v.modEnvelopeValue,
+                phase: &v.modEnvelopePhase,
+                time: &v.modEnvelopeTime,
+                releaseStartValue: v.modReleaseStartLevel,
+                isReleasing: v.isReleasing,
+                sampleRate: sampleRate,
+                releaseOverride: releaseOverride
+            )
+            v.modEnvelopeValue = modEnvVal
+
             var pitchMod1: Float = 0
             var pitchMod2: Float = 0
             var ampMod: Float = 0
@@ -458,7 +485,11 @@ public extension AudioEngine {
                         modWheel: modWheel,
                         keyTrack: keyTrackVal,
                         env2: filterEnvVal,
-                        aftertouch: max(currentAftertouch, v.polyAftertouch)
+                        aftertouch: max(currentAftertouch, v.polyAftertouch),
+                        modEnv: modEnvVal,
+                        pitchBend: pitchBendSmoothed,
+                        random: v.randomValue,
+                        sampleAndHold: lfo.lastRandomValue
                     )
                     let modVal = sourceVal * entry.amount
                     switch entry.destination {
@@ -599,7 +630,19 @@ public extension AudioEngine {
                 if v.phase2 < 0 { v.phase2 += AudioMath.twoPi }
             }
 
-            var amplitude = sample * envelopeValue * max(0.15, min(1.0, velValue))
+            let curvedVel: Float
+            switch cachedVelocityCurve {
+            case .linear:
+                curvedVel = max(0.15, min(1.0, velValue))
+            case .exponential:
+                let clamped = max(0.0, min(1.0, velValue))
+                curvedVel = max(0.15, clamped * clamped)
+            case .logarithmic:
+                let clamped = max(0.0, min(1.0, velValue))
+                curvedVel = max(0.15, sqrt(clamped))
+            }
+            let effectiveVel = 1.0 - cachedVelocityToVolume * (1.0 - curvedVel)
+            var amplitude = sample * envelopeValue * effectiveVel
             amplitude *= max(0.0, 1.0 + ampMod)
             amplitude *= AudioMath.voiceGain * v.unisonScale
             if lfoEnabled && lfoTarget == .amplitude {

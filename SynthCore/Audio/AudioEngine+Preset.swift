@@ -80,6 +80,11 @@ public extension AudioEngine {
         filterEnvelope.sustain = snap.filterSustain
         filterEnvelope.release = snap.filterRelease
 
+        modEnvelope.attack = snap.modEnvAttack
+        modEnvelope.decay = snap.modEnvDecay
+        modEnvelope.sustain = snap.modEnvSustain
+        modEnvelope.release = snap.modEnvRelease
+
         filterL.type = snap.filterType
         filterR.type = snap.filterType
         filterL.cutoff = snap.filterCutoff
@@ -199,6 +204,11 @@ public extension AudioEngine {
         cachedArpGateLength = snap.arpGateLength
         cachedArpSwing = snap.arpSwing
         cachedArpLatch = snap.arpLatch
+        cachedVelocityCurve = snap.velocityCurve
+        cachedVelocityToVolume = snap.velocityToVolume
+        cachedGlideMode = snap.glideMode
+        cachedGlideLegatoOnly = snap.glideLegatoOnly
+        cachedMonoPriority = snap.monoPriority
         arp.mode = snap.arpMode
         arp.octaves = snap.arpOctaves
         arp.latch = snap.arpLatch
