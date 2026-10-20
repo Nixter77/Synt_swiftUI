@@ -71,9 +71,16 @@ public final class SyntAudioUnit: AUAudioUnit {
         programChangeTimer = timer
     }
 
+    /// Off by default. Logic re-sends a Program Change on every play ("Send used
+    /// instrument settings on reset", region PCs), which loaded factory slot N over the
+    /// patch chosen in the plugin. Hosts own the patch through `fullState`; a user who
+    /// wants MIDI PC switching turns this on (saved in `fullState`).
+    public var respondsToProgramChange = false
+    private static let stateProgramChangeKey = "syntRespondsToProgramChange"
+
     func applyPendingProgram() {
         let program = engine.pendingProgram.exchange(-1, ordering: .acquiringAndReleasing)
-        guard program >= 0, let loaded = PresetBrowser.preset(forProgram: Int(program)) else { return }
+        guard program >= 0, respondsToProgramChange, let loaded = PresetBrowser.preset(forProgram: Int(program)) else { return }
         adoptPreset(loaded)
     }
 
@@ -152,6 +159,7 @@ public final class SyntAudioUnit: AUAudioUnit {
                 state[Self.statePresetKey] = data
             }
             state[Self.stateIndexKey] = PresetBrowser.index(of: snapshot) ?? -1
+            state[Self.stateProgramChangeKey] = respondsToProgramChange
             return state
         }
         set {
@@ -161,6 +169,9 @@ public final class SyntAudioUnit: AUAudioUnit {
             if let version = newValue[Self.stateVersionKey] as? Int, version > Self.stateVersion {
                 NSLog("SyntAudioUnit: state version %d is newer than %d; not loaded", version, Self.stateVersion)
                 return
+            }
+            if let flag = newValue[Self.stateProgramChangeKey] as? Bool {
+                respondsToProgramChange = flag
             }
             guard let data = newValue[Self.statePresetKey] as? Data,
                   let preset = try? JSONDecoder().decode(SynthPreset.self, from: data) else {

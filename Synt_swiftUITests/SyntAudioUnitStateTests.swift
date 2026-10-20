@@ -137,6 +137,7 @@ struct SyntAudioUnitStateTests {
         #expect(unit.engine.sourceNodeSampleRateForTesting == 0, "no device graph in the AU")
         #expect(MIDICCLearnStore.shared.engine !== unit.engine)
         let target = try #require(PresetBrowser.preset(forProgram: 3))
+        unit.respondsToProgramChange = true
         unit.engine.pendingProgram.store(3, ordering: .releasing)
         unit.applyPendingProgram()
         #expect(unit.engine.preset.name == target.name)
