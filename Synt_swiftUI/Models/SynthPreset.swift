@@ -197,6 +197,9 @@ struct SynthPreset: Codable, Identifiable, Hashable {
     /// `.internal` uses the BPM slider. `.midiClock` follows Logic's MIDI clock.
     var syncSource: SyncSource = .`internal`
 
+    /// Extra input gain into the filter. 0 leaves LP/HP/BP on the old path.
+    var filterDrive: Float = 0
+
     /// Safe neutral starting point (clean headroom).
     static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -237,6 +240,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         case macro1, macro2, macro3, macro4
         case voiceMode
         case syncSource
+        case filterDrive
     }
 
     init(
@@ -352,7 +356,8 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         macro3: Float = 0.0,
         macro4: Float = 0.0,
         voiceMode: VoiceMode = .poly,
-        syncSource: SyncSource = .`internal`
+        syncSource: SyncSource = .`internal`,
+        filterDrive: Float = 0
     ) {
         self.id = id
         self.name = name
@@ -467,6 +472,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         self.macro4 = macro4
         self.voiceMode = voiceMode
         self.syncSource = syncSource
+        self.filterDrive = filterDrive
     }
 
     init(from decoder: Decoder) throws {
@@ -586,6 +592,7 @@ struct SynthPreset: Codable, Identifiable, Hashable {
         macro4 = try c.decodeIfPresent(Float.self, forKey: .macro4) ?? 0.0
         voiceMode = try c.decodeIfPresent(VoiceMode.self, forKey: .voiceMode) ?? .poly
         syncSource = try c.decodeIfPresent(SyncSource.self, forKey: .syncSource) ?? .`internal`
+        filterDrive = try c.decodeIfPresent(Float.self, forKey: .filterDrive) ?? 0
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -648,6 +655,8 @@ enum FilterType: String, CaseIterable, Codable {
     case lowPass = "Low Pass"
     case highPass = "High Pass"
     case bandPass = "Band Pass"
+    case notch = "Notch"
+    case ladder = "Ladder"
 }
 
 enum LFOTarget: String, CaseIterable, Codable {

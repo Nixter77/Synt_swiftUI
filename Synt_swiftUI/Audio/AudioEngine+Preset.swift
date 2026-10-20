@@ -162,6 +162,7 @@ extension AudioEngine {
         cachedFmAmount = max(0, min(1, preset.fmAmount))
         cachedOscSyncEnabled = preset.oscSyncEnabled
         cachedFilterCutoff = preset.filterCutoff
+        cachedFilterDrive = min(1, max(0, preset.filterDrive))
         cachedFilterEnvAmount = max(-1, min(1, preset.filterEnvelopeAmount))
         cachedFilterKeyTracking = max(0, min(1, preset.filterKeyTracking))
         cachedFilterEnvUseDedicatedADSR = preset.filterEnvUseDedicatedADSR

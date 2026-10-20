@@ -157,6 +157,7 @@ extension SynthPreset {
         if !SyncSource.allCases.contains(p.syncSource) {
             p.syncSource = .`internal`
         }
+        p.filterDrive = f(p.filterDrive, 0, 1, 0)
         return p
     }
 }

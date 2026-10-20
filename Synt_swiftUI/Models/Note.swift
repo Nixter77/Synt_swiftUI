@@ -74,6 +74,7 @@ struct ActiveNote {
     var unisonScale: Float = 1.0
     /// Per-voice filter memory. Coeffs are shared; this state is not.
     var filter = BiquadMemory()
+    var ladder = LadderFilter()
     /// Per-voice coefficients for filter envelope / key tracking. Refreshed every
     /// few samples; unused while both amounts are 0 (shared coeffs apply).
     var voiceFilterCoeffs = BiquadCoeffs()
@@ -149,6 +150,7 @@ struct ActiveNote {
         self.pinkState2 = 0.0
         self.brownState = 0.0
         self.filter.reset()
+        self.ladder.reset()
         self.filterControlTick = 0
         self.polyAftertouch = 0.0
         self.partial = partial
@@ -210,6 +212,7 @@ struct ActiveNote {
         brownState = 0.0
         polyAftertouch = 0.0
         filter.reset()
+        ladder.reset()
     }
 }
 

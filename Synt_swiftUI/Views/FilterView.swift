@@ -67,6 +67,7 @@ struct FilterView: View {
                 KnobView(value: $preset.filterEnvelopeAmount, range: -1...1, label: "Env")
                 KnobView(value: $preset.velocityToCutoff, range: 0...1, label: "Vel", format: "%.0f%%")
                 KnobView(value: $preset.filterKeyTracking, range: 0...1, label: "Key Trk")
+                KnobView(value: $preset.filterDrive, range: 0...1, label: "Drive")
             }
         }
         .padding(6)

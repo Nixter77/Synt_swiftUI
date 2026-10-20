@@ -29,6 +29,14 @@ enum AudioMath {
         pow(10.0, decibels / 20.0)
     }
 
+    /// Saturating tanh. Clamped so the rational stays inside ±1.
+    @inline(__always)
+    static func fastTanh(_ x: Float) -> Float {
+        let x = min(3, max(-3, x))
+        let x2 = x * x
+        return x * (27 + x2) / (27 + 9 * x2)
+    }
+
     static func clamp(_ value: Float, min: Float, max: Float) -> Float {
         Swift.min(Swift.max(value, min), max)
     }

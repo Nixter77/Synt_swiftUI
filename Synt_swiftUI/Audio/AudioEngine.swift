@@ -119,6 +119,7 @@ final class AudioEngine: ObservableObject, @unchecked Sendable {
     var cachedFmAmount: Float = 0.0
     var cachedOscSyncEnabled: Bool = false
     var cachedFilterCutoff: Float = 5000.0
+    var cachedFilterDrive: Float = 0
     /// Render-owned CC override for the base resonance (-1 = none). Applied as a
     /// render-local offset; `filterL/R.resonance` keep their single writer (main).
     var ccResonanceRT: Float = -1

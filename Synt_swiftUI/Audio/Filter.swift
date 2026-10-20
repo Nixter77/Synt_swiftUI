@@ -14,12 +14,14 @@ class SynthFilter {
     private var x2: Float = 0.0
     private var y1: Float = 0.0
     private var y2: Float = 0.0
+    private var ladder = LadderFilter()
 
     func reset() {
         x1 = 0.0
         x2 = 0.0
         y1 = 0.0
         y2 = 0.0
+        ladder.reset()
     }
 
     func process(_ input: Float, sampleRate: Float) -> Float {
@@ -58,6 +60,17 @@ class SynthFilter {
             a0 = 1.0 + alpha
             a1 = -2.0 * cosOmega
             a2 = 1.0 - alpha
+
+        case .notch:
+            b0 = 1.0
+            b1 = -2.0 * cosOmega
+            b2 = 1.0
+            a0 = 1.0 + alpha
+            a1 = -2.0 * cosOmega
+            a2 = 1.0 - alpha
+
+        case .ladder:
+            return ladder.process(input, cutoff: cutoff, resonance: resonance, drive: 0, sampleRate: sampleRate)
         }
 
         b0 /= a0

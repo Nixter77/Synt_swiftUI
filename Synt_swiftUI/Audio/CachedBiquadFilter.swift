@@ -252,6 +252,18 @@ final class CachedBiquadFilter {
             a0_raw = 1.0 + alpha
             a1_raw = -2.0 * cosOmega
             a2_raw = 1.0 - alpha
+
+        case .notch:
+            b0_raw = 1.0
+            b1_raw = -2.0 * cosOmega
+            b2_raw = 1.0
+            a0_raw = 1.0 + alpha
+            a1_raw = -2.0 * cosOmega
+            a2_raw = 1.0 - alpha
+
+        case .ladder:
+            // The voice path uses LadderFilter. These coeffs are only a safe fallback.
+            return coefficients(type: .lowPass, cutoff: cutoff, resonance: r, sampleRate: sampleRate)
         }
 
         let invA0 = 1.0 / a0_raw
