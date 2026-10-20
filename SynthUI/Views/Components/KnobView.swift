@@ -129,10 +129,16 @@ private struct KnobBody: View, Equatable {
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
                         let start = dragStart ?? value
-                        if dragStart == nil { dragStart = start }
+                        if dragStart == nil {
+                            dragStart = start
+                            PatchHistoryManager.shared.onDragStart()
+                        }
                         value = knobDragValue(start: start, translationY: gesture.translation.height, range: range)
                     }
-                    .onEnded { _ in dragStart = nil }
+                    .onEnded { _ in
+                        dragStart = nil
+                        PatchHistoryManager.shared.onDragEnd()
+                    }
             )
 
             Text(label)
@@ -259,10 +265,16 @@ private struct LargeKnobBody: View, Equatable {
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
                         let start = dragStart ?? value
-                        if dragStart == nil { dragStart = start }
+                        if dragStart == nil {
+                            dragStart = start
+                            PatchHistoryManager.shared.onDragStart()
+                        }
                         value = knobDragValue(start: start, translationY: gesture.translation.height, range: range)
                     }
-                    .onEnded { _ in dragStart = nil }
+                    .onEnded { _ in
+                        dragStart = nil
+                        PatchHistoryManager.shared.onDragEnd()
+                    }
             )
 
             Text(label)

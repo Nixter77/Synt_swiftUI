@@ -92,14 +92,18 @@ struct PresetView: View {
 
             // Smart Mutate (🎲)
             Button {
+                let old = currentPreset
                 if compareSnapshot == nil {
                     compareSnapshot = currentPreset
+                    PatchHistoryManager.shared.storeAsA(preset: currentPreset)
                 }
-                currentPreset = PresetMutator.mutate(preset: currentPreset)
+                let next = PresetMutator.mutate(preset: currentPreset)
+                currentPreset = next
                 workingPresetB = currentPreset
                 macroBasePreset = currentPreset
                 macros = PerformanceMacros()
                 isComparingA = false
+                PatchHistoryManager.shared.recordChange(from: old, to: next)
             } label: {
                 Image(systemName: "die.face.5.fill")
                     .foregroundColor(theme.aLFO)
@@ -131,6 +135,7 @@ struct PresetView: View {
                     compareSnapshot = currentPreset
                     workingPresetB = currentPreset
                     isComparingA = false
+                    PatchHistoryManager.shared.storeAsA(preset: currentPreset)
                 }
                 if compareSnapshot != nil {
                     Button("Clear A/B Snapshot") {
@@ -226,8 +231,10 @@ struct PresetView: View {
     }
 
     private func selectListedPreset(_ preset: SynthPreset) {
+        let old = currentPreset
         resetComparisonAndMacros()
         currentPreset = preset
+        PatchHistoryManager.shared.recordChange(from: old, to: preset)
     }
 
     private func resetComparisonAndMacros() {
@@ -236,6 +243,7 @@ struct PresetView: View {
         isComparingA = false
         macros = PerformanceMacros()
         macroBasePreset = nil
+        PatchHistoryManager.shared.clearAB()
     }
 
     private var compareButtonLabel: String {
@@ -253,21 +261,11 @@ struct PresetView: View {
     }
 
     private func toggleABCompare() {
-        if compareSnapshot == nil {
-            compareSnapshot = currentPreset
-            workingPresetB = currentPreset
-            isComparingA = false
-        } else if isComparingA {
-            if let b = workingPresetB {
-                currentPreset = b
-            }
-            isComparingA = false
-        } else {
-            workingPresetB = currentPreset
-            if let a = compareSnapshot {
-                currentPreset = a
-            }
-            isComparingA = true
+        if let (restored, slot) = PatchHistoryManager.shared.toggleAB(currentPreset: currentPreset) {
+            compareSnapshot = PatchHistoryManager.shared.presetA
+            workingPresetB = PatchHistoryManager.shared.presetB
+            isComparingA = (slot == .a)
+            currentPreset = restored
         }
     }
 
@@ -282,8 +280,11 @@ struct PresetView: View {
 
     private func stepButton(systemName: String, delta: Int, help: String) -> some View {
         Button {
+            let old = currentPreset
             resetComparisonAndMacros()
-            currentPreset = PresetBrowser.step(from: currentPreset, by: delta)
+            let next = PresetBrowser.step(from: currentPreset, by: delta)
+            currentPreset = next
+            PatchHistoryManager.shared.recordChange(from: old, to: next)
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: 10, weight: .semibold))

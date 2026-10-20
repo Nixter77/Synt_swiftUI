@@ -62,7 +62,7 @@ class KeyboardHandler: ObservableObject {
 
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self = self else { return event }
-            if Self.ignoresTyping(firstResponder: event.window?.firstResponder) {
+            if event.modifierFlags.contains(.command) || Self.ignoresTyping(firstResponder: event.window?.firstResponder) {
                 return event
             }
 

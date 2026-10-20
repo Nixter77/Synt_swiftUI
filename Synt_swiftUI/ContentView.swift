@@ -120,6 +120,9 @@ struct ContentView: View {
             scheduleSessionSave(preset)
         }
         .onAppear {
+            PatchHistoryManager.shared.registerPresetProvider { [weak audioEngine] in
+                audioEngine?.preset ?? .defaultPreset
+            }
             if let saved = PresetManager.loadLastSession() {
                 audioEngine.preset = saved
             }
@@ -131,6 +134,25 @@ struct ContentView: View {
             audioEngine.start()
             publishSequencerSnapshot()
         }
+        .background(
+            Group {
+                Button("Undo") {
+                    if let (restored, _) = PatchHistoryManager.shared.undo() {
+                        audioEngine.preset = restored
+                    }
+                }
+                .keyboardShortcut("z", modifiers: .command)
+
+                Button("Redo") {
+                    if let (restored, _) = PatchHistoryManager.shared.redo() {
+                        audioEngine.preset = restored
+                    }
+                }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+            }
+            .opacity(0)
+            .allowsHitTesting(false)
+        )
         .onDisappear {
             sessionSaveTask?.cancel()
             PresetManager.saveLastSession(audioEngine.preset)

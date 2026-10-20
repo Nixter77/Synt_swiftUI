@@ -93,6 +93,9 @@ final class AUParameterSurface: ObservableObject {
     init(audioUnit: SyntAudioUnit) {
         self.audioUnit = audioUnit
         self.preset = audioUnit.uiPreset
+        PatchHistoryManager.shared.registerPresetProvider { [weak self] in
+            self?.preset ?? .defaultPreset
+        }
         // Host loaded a whole state: re-read everything, not just addressed knobs.
         stateObserver = NotificationCenter.default.addObserver(
             forName: SyntAudioUnit.stateDidChangeNotification,
@@ -129,6 +132,7 @@ final class AUParameterSurface: ObservableObject {
     func userSetPreset(_ newValue: SynthPreset) {
         let old = preset
         preset = newValue
+        PatchHistoryManager.shared.recordChange(from: old, to: newValue)
         guard !applyingFromHost, let tree = audioUnit.parameterTree, let observerToken else { return }
         for address in SynthParameterAddress.allCases {
             let before = old.parameterValue(for: address)
