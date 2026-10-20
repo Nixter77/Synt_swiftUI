@@ -16,36 +16,39 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
     private var hostingView: NSView?
     private weak var hostedSurface: AUParameterSurface?
 
+    /// Main thread only (NSViewController asserts off main). Use `requestPreferredSize()` elsewhere.
     private func applyPreferredSize() {
+        dispatchPrecondition(condition: .onQueue(.main))
         let layout = surface?.layout ?? .compact
         let zoom = surface?.zoom ?? .p100
         let size = AUPluginMetrics.preferredSize(layout: layout, zoom: zoom)
         preferredContentSize = NSSize(width: size.width, height: size.height)
     }
 
+    private func requestPreferredSize() {
+        PluginMainThread.perform { [weak self] in self?.applyPreferredSize() }
+    }
+
     public override init(nibName nibNameOrNil: NSNib.Name?, bundle nibBundleOrNil: Bundle?) {
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
-        applyPreferredSize()
+        requestPreferredSize()
     }
 
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
-        applyPreferredSize()
+        requestPreferredSize()
     }
 
     public func createAudioUnit(with componentDescription: AudioComponentDescription) throws -> AUAudioUnit {
         let unit = try SyntAudioUnit(componentDescription: componentDescription, options: [])
         let surface = AUParameterSurface(audioUnit: unit)
-        surface.onChromeChange = { [weak self] in self?.applyPreferredSize() }
+        surface.onChromeChange = { [weak self] in self?.requestPreferredSize() }
         self.surface = surface
-        applyPreferredSize()
-        // The host calls this from the extension XPC queue. SwiftUI views load on main.
-        if Thread.isMainThread {
-            installHostingView(for: surface)
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.installHostingView(for: surface)
-            }
+        // The host calls this from the extension XPC queue. Every AppKit/SwiftUI
+        // touch (size, hosting view) must happen on main.
+        PluginMainThread.perform { [weak self] in
+            self?.applyPreferredSize()
+            self?.installHostingView(for: surface)
         }
         return unit
     }
