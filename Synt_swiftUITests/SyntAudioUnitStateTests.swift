@@ -5,6 +5,7 @@
 
 import AudioToolbox
 import Foundation
+import Synchronization
 import Testing
 @testable import Synt_swiftUI
 @testable import SynthCore
@@ -129,5 +130,18 @@ struct SyntAudioUnitStateTests {
         #expect(!unit.engine.pingPongDelay.crossFeed)
         let tree = try #require(unit.parameterTree)
         #expect(tree.parameter(withAddress: SynthParameterAddress.reverbMix.rawValue) == nil)
+    }
+
+    @Test func audioUnitEngineIsCoreOnlyAndProgramChangeSyncsTheTree() throws {
+        let unit = try makeUnit()
+        #expect(unit.engine.sourceNodeSampleRateForTesting == 0, "no device graph in the AU")
+        #expect(MIDICCLearnStore.shared.engine !== unit.engine)
+        let target = try #require(PresetBrowser.preset(forProgram: 3))
+        unit.engine.pendingProgram.store(3, ordering: .releasing)
+        unit.applyPendingProgram()
+        #expect(unit.engine.preset.name == target.name)
+        let tree = try #require(unit.parameterTree)
+        let cutoff = try #require(tree.parameter(withAddress: SynthParameterAddress.filterCutoff.rawValue))
+        #expect(cutoff.value == SynthParameterAddress.filterCutoff.clamped(target.filterCutoff))
     }
 }

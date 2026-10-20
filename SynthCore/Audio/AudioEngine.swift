@@ -301,7 +301,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     // Random noise seed (also used by arp random mode)
     public var noiseSeed: UInt32 = 12345
 
-    public init() {
+    /// `coreOnly`: DSP core for the Audio Unit. No device graph, no audio
+    /// session, no 30 Hz main poll, no shared MIDI CC store.
+    public init(coreOnly: Bool = false) {
         for i in 0..<128 { (rtCCMap + i).initialize(to: Atomic<Int16>(-1)) }
         for i in 0..<128 { (ccLastRaw + i).initialize(to: Atomic<UInt8>(255)) }
         midiClockIntervals.initialize(repeating: 0, count: 24)
@@ -320,9 +322,12 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         parametricEQR.enabled = false
         phaser.bypass = true
 
-        setupAudioSession()
-        setupAudioEngine()
+        if !coreOnly {
+            setupAudioSession()
+            setupAudioEngine()
+        }
         applyPreset()
+        guard !coreOnly else { return }
         startMeteringPoll()
         // Tests build an engine per case. Attaching every one of them would point
         // the shared CC store at a throwaway engine and drop a mapping mid-test.

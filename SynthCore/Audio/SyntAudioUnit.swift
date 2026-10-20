@@ -9,6 +9,7 @@
 import AudioToolbox
 import AVFoundation
 import Foundation
+import Synchronization
 
 public final class SyntAudioUnit: AUAudioUnit {
     let engine: AudioEngine
@@ -36,7 +37,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
         outputBus = try AUAudioUnitBus(format: format)
         outputBus.maximumChannelCount = 2
-        let core = AudioEngine()
+        let core = AudioEngine(coreOnly: true)
         engine = core
         let store = AddressedParameterStore()
         parameters = store
@@ -49,6 +50,29 @@ public final class SyntAudioUnit: AUAudioUnit {
         engine.rendersAllDelayInDSP = true
         engine.applyPreset()
         installParameterTree()
+        startProgramChangePoll()
+    }
+
+    deinit {
+        programChangeTimer?.cancel()
+    }
+
+    private var programChangeTimer: DispatchSourceTimer?
+
+    /// Host MIDI program change: the render stores it, main loads it through
+    /// the same path as `currentPreset`, so tree and view stay in sync.
+    private func startProgramChangePoll() {
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 0.1, repeating: 0.1)
+        timer.setEventHandler { [weak self] in self?.applyPendingProgram() }
+        timer.resume()
+        programChangeTimer = timer
+    }
+
+    func applyPendingProgram() {
+        let program = engine.pendingProgram.exchange(-1, ordering: .acquiringAndReleasing)
+        guard program >= 0, let loaded = PresetBrowser.preset(forProgram: Int(program)) else { return }
+        adoptPreset(loaded)
     }
 
     public override var inputBusses: AUAudioUnitBusArray { inputBusArray }
