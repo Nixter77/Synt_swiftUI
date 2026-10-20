@@ -129,3 +129,48 @@ nothing to commit, working tree clean
 - `ThemeNoAudioChangeTests`: **PASSED** (слова Theme отсутствуют в аудио-коде)
 - `ThemePerformanceRuleTests`: **PASSED** (нет запрещенных модификаторов)
 - `PhaseV2PresetMidiCCTests`: **PASSED**
+
+---
+
+## Grok Build fix
+
+Ветка `feat/phaser-control-rate`. В `main` ничего не мержилось и не пушилось. Force-push не было. Сохранение CC pan в пресете не делалось.
+
+### Этап 1. `exp2()` в `advancePitchBend`
+- **Коммит:** `203ab7e` — `perf(midi): cache pitch-bend exp2 until the smoothed bend changes`
+- Множитель `exp2(smoothed * range / 12)` считается заново только когда меняется сглаженный bend или диапазон. Пока колесо удерживается, повторного `exp2` нет. Центр по-прежнему сразу возвращает 1 и ничего не считает.
+- Голден Init остался `0xd1b3635203a4799e`. `InitGoldenTests/initAndFactoryPresetsRenderBitIdenticalToGolden()` прошёл.
+- Постоянный bend: множитель равен старому `exp2`, звук сухого синуса совпадает с тем же сдвигом в центах, разница сэмплов ≤ 1e-6 (`heldBendMatchesExp2AndADetunedSineWithin1e6`).
+- Движение колеса: траектория совпадает со старым one-pole и `exp2` на каждом сэмпле (разница ≤ 1e-6), удержание множителя во время глисса не длиннее одного сэмпла (`movingBendTracksExp2WithoutSteps`). Смена `pitchBendRange` не оставляет старый множитель (`bendCacheFollowsARangeChange`).
+
+### Этап 2. `RenderBudgetTests`
+- **Коммит:** `d8851d3` — `test: run RenderBudgetTests only when SYNT_RUN_PERF=1`
+- Лимит 50% не поднимался. Сьют serialized и запускается только при `SYNT_RUN_PERF=1`, как `benchmark32VoicesCPU`.
+
+### Результаты тестов
+Три полных прогона подряд одной и той же командой. Каждый завершился `result: Passed`, exit 0:
+
+`xcodebuild test -project Synt_swiftUI.xcodeproj -scheme Synt_swiftUI -destination "platform=macOS" -derivedDataPath /Users/nikolay/.synt_dd -only-testing:Synt_swiftUITests`
+
+| Прогон | passed | skipped | expected failures | failed | total |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 357 | 2 | 1 | 0 | 360 |
+| 2 | 357 | 2 | 1 | 0 | 360 |
+| 3 | 357 | 2 | 1 | 0 | 360 |
+
+Пропуски: `LiveStep4PerfBenchmarks/benchmark32VoicesCPU` и `RenderBudgetTests/renderBudgetForInitChordAndHeaviestFactory`. Единственный expected failure — ChordHiss wetComplex. Новых падений нет. Три теста pitch bend вошли в 357 прошедших.
+
+### `git log --oneline -4`
+
+Снимок сразу после двух коммитов фикса:
+
+```text
+d8851d3 test: run RenderBudgetTests only when SYNT_RUN_PERF=1
+203ab7e perf(midi): cache pitch-bend exp2 until the smoothed bend changes
+09464df docs: correct false claims in NEW-PLAN-REPORT.md (P3)
+ac607b9 fix(engine): deinit removes the observer first and detaches the source node before freeing RT memory (P2)
+```
+
+### `main`
+
+Не тронут: `e9c2eb520590efd8e16bd84cde37ba1324bdbbe8`. Пуши были только в `origin/feat/phaser-control-rate`.
