@@ -56,4 +56,29 @@ struct SyntAudioUnitRenderTests {
             #expect(right[index].isFinite)
         }
     }
+
+    @Test func interleavedBufferIsRefusedAndMonoIsDownmixed() throws {
+        let description = AudioComponentDescription(
+            componentType: kAudioUnitType_MusicDevice, componentSubType: 0x5379_6E74,
+            componentManufacturer: 0x4E69_7872, componentFlags: 0, componentFlagsMask: 0)
+        let unit = try SyntAudioUnit(componentDescription: description)
+        try unit.allocateRenderResources()
+        let frames = 64
+        let list = AudioBufferList.allocate(maximumBuffers: 1)
+        let bytes = frames * 2 * MemoryLayout<Float>.size
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 16)
+        defer { raw.deallocate(); list.unsafeMutablePointer.deallocate() }
+        list[0] = AudioBuffer(mNumberChannels: 2, mDataByteSize: UInt32(bytes), mData: raw)
+        var flags = AudioUnitRenderActionFlags()
+        var time = AudioTimeStamp()
+        time.mFlags = .sampleTimeValid
+        var status = unit.internalRenderBlock(&flags, &time, AUAudioFrameCount(frames), 0, list.unsafeMutablePointer, nil, nil)
+        #expect(status == kAudioUnitErr_FormatNotSupported)
+
+        list[0] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(frames * 4), mData: raw)
+        status = unit.internalRenderBlock(&flags, &time, AUAudioFrameCount(frames), 0, list.unsafeMutablePointer, nil, nil)
+        #expect(status == noErr)
+        let mono = raw.assumingMemoryBound(to: Float.self)
+        for i in 0..<frames { #expect(mono[i].isFinite) }
+    }
 }

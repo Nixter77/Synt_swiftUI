@@ -446,8 +446,13 @@ final class SyntRenderContext {
         parameters.drain { id, value in engine.applyAddressedParameterRT(id: id, value: value) }
         pullHostTransport()
         schedule(events, timestamp: timestamp, frameCount: frames)
-        guard let buffers = bind(outputData, frames: frames) else { return kAudioUnitErr_TooManyFramesToProcess }
+        guard let buffers = bind(outputData, frames: frames) else { return kAudioUnitErr_FormatNotSupported }
         engine.render(frames: frames, intoL: buffers.left, intoR: buffers.right)
+        if buffers.mono {
+            // One planar channel: explicit (L + R) / 2 downmix.
+            let l = buffers.left, r = buffers.right
+            for i in 0..<frames { l[i] = (l[i] + r[i]) * 0.5 }
+        }
         actionFlags.pointee.remove(.unitRenderAction_OutputIsSilence)
         return noErr
     }
@@ -512,30 +517,25 @@ final class SyntRenderContext {
         return delta
     }
 
-    private func bind(_ outputData: UnsafeMutablePointer<AudioBufferList>, frames: Int) -> (left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>)? {
+    /// Deinterleaved Float32 only (the bus format). Interleaved buffers are refused.
+    private func bind(_ outputData: UnsafeMutablePointer<AudioBufferList>, frames: Int) -> (left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, mono: Bool)? {
         guard let renderLeft, let renderRight else { return nil }
         let buffers = UnsafeMutableAudioBufferListPointer(outputData)
         guard buffers.count >= 1 else { return nil }
+        for i in 0..<min(2, buffers.count) where buffers[i].mNumberChannels != 1 {
+            return nil
+        }
         let byteCount = UInt32(frames * MemoryLayout<Float>.size)
         if buffers[0].mData == nil {
             buffers[0].mData = UnsafeMutableRawPointer(renderLeft)
             buffers[0].mDataByteSize = byteCount
-            buffers[0].mNumberChannels = 1
         }
         let left = buffers[0].mData!.assumingMemoryBound(to: Float.self)
-        let right: UnsafeMutablePointer<Float>
-        if buffers.count >= 2 {
-            if buffers[1].mData == nil {
-                buffers[1].mData = UnsafeMutableRawPointer(renderRight)
-                buffers[1].mDataByteSize = byteCount
-                buffers[1].mNumberChannels = 1
-            }
-            right = buffers[1].mData!.assumingMemoryBound(to: Float.self)
-        } else if buffers[0].mNumberChannels >= 2 {
-            right = left.advanced(by: frames)
-        } else {
-            right = renderRight
+        guard buffers.count >= 2 else { return (left, renderRight, true) }
+        if buffers[1].mData == nil {
+            buffers[1].mData = UnsafeMutableRawPointer(renderRight)
+            buffers[1].mDataByteSize = byteCount
         }
-        return (left, right)
+        return (left, buffers[1].mData!.assumingMemoryBound(to: Float.self), false)
     }
 }
