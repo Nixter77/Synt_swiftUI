@@ -160,6 +160,11 @@ public extension SynthPreset {
         p.filterDrive = f(p.filterDrive, 0, 1, 0)
         p.pan = f(p.pan, -1.0, 1.0, 0.0)
         p.fxOrder = Self.sanitizeFXOrder(p.fxOrder)
+        if !LFOMode.allCases.contains(p.lfoMode) { p.lfoMode = .free }
+        p.lfoStartPhase = f(p.lfoStartPhase, 0.0, 360.0, 0.0)
+        if !LFOMode.allCases.contains(p.lfo2Mode) { p.lfo2Mode = .free }
+        p.lfo2StartPhase = f(p.lfo2StartPhase, 0.0, 360.0, 0.0)
+        if !ArpeggiatorMode.allCases.contains(p.arpMode) { p.arpMode = .off }
         return p
     }
 

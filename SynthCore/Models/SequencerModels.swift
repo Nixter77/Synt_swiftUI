@@ -11,6 +11,7 @@ public enum ArpeggiatorMode: String, CaseIterable, Codable {
     case down = "Down"
     case upDown = "Up/Down"
     case random = "Random"
+    case asPlayed = "As Played"
 }
 
 public enum TimeDivision: String, CaseIterable, Codable {
@@ -20,26 +21,54 @@ public enum TimeDivision: String, CaseIterable, Codable {
     case eighth = "1/8"
     case sixteenth = "1/16"
     case thirtySecond = "1/32"
+    case wholeD = "1/1D"
+    case halfD = "1/2D"
+    case quarterD = "1/4D"
+    case eighthD = "1/8D"
+    case sixteenthD = "1/16D"
+    case thirtySecondD = "1/32D"
+    case wholeT = "1/1T"
+    case halfT = "1/2T"
+    case quarterT = "1/4T"
+    case eighthT = "1/8T"
+    case sixteenthT = "1/16T"
+    case thirtySecondT = "1/32T"
     
     public var denominator: Double {
         switch self {
-        case .whole: return 1.0
-        case .half: return 2.0
-        case .quarter: return 4.0
-        case .eighth: return 8.0
-        case .sixteenth: return 16.0
-        case .thirtySecond: return 32.0
+        case .whole, .wholeD, .wholeT: return 1.0
+        case .half, .halfD, .halfT: return 2.0
+        case .quarter, .quarterD, .quarterT: return 4.0
+        case .eighth, .eighthD, .eighthT: return 8.0
+        case .sixteenth, .sixteenthD, .sixteenthT: return 16.0
+        case .thirtySecond, .thirtySecondD, .thirtySecondT: return 32.0
+        }
+    }
+
+    public var multiplier: Double {
+        switch self {
+        case .whole, .half, .quarter, .eighth, .sixteenth, .thirtySecond:
+            return 1.0
+        case .wholeD, .halfD, .quarterD, .eighthD, .sixteenthD, .thirtySecondD:
+            return 1.5
+        case .wholeT, .halfT, .quarterT, .eighthT, .sixteenthT, .thirtySecondT:
+            return 2.0 / 3.0
         }
     }
 
     public func duration(bpm: Float) -> Float {
         let safeBpm = max(20.0, min(300.0, bpm))
-        return Float((60.0 / Double(safeBpm)) * (4.0 / denominator))
+        return Float((60.0 / Double(safeBpm)) * (4.0 / denominator) * multiplier)
     }
 
     public func frequency(bpm: Float) -> Float {
         let dur = duration(bpm: bpm)
         return dur > 0 ? 1.0 / dur : 1.0
+    }
+
+    public var cyclesPerBeat: Double {
+        let durationInBeats = (4.0 / denominator) * multiplier
+        return durationInBeats > 0 ? 1.0 / durationInBeats : 1.0
     }
 }
 

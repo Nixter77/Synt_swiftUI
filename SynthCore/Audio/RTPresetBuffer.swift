@@ -70,6 +70,8 @@ public struct RTPresetSnapshot: Sendable {
     public var lfoRowsFollowDepth: Bool = false
     public var lfoWaveform: WaveformType = .triangle
     public var lfoTarget: LFOTarget = .none
+    public var lfoMode: LFOMode = .free
+    public var lfoStartPhase: Float = 0.0
 
     // LFO 2
     public var lfo2Enabled: Bool = false
@@ -79,6 +81,8 @@ public struct RTPresetSnapshot: Sendable {
     public var lfo2Depth: Float = 0.5
     public var lfo2Waveform: WaveformType = .triangle
     public var lfo2Target: LFOTarget = .none
+    public var lfo2Mode: LFOMode = .free
+    public var lfo2StartPhase: Float = 0.0
 
     // Performance
     public var pitchBendRange: Float = 2.0
@@ -98,6 +102,7 @@ public struct RTPresetSnapshot: Sendable {
     public var arpOctaves: Int = 1
     public var arpGateLength: Float = 0.8
     public var arpSwing: Float = 0.0
+    public var arpLatch: Bool = false
     public var macro1: Float = 0.0
     public var macro2: Float = 0.0
     public var macro3: Float = 0.0
@@ -229,6 +234,11 @@ public struct RTPresetSnapshot: Sendable {
         arpOctaves = max(1, min(3, preset.arpOctaves))
         arpGateLength = max(0.1, min(1.0, preset.arpGateLength))
         arpSwing = max(0.0, min(0.75, preset.arpSwing))
+        arpLatch = preset.arpLatch
+        lfoMode = preset.lfoMode
+        lfoStartPhase = preset.lfoStartPhase
+        lfo2Mode = preset.lfo2Mode
+        lfo2StartPhase = preset.lfo2StartPhase
         macro1 = preset.macro1
         macro2 = preset.macro2
         macro3 = preset.macro3

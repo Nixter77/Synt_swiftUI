@@ -33,7 +33,8 @@ public struct MIDIKeySet: Equatable {
 public struct ArpeggiatorEngine {
     public var mode: ArpeggiatorMode = .off
     public var octaves: Int = 1
-    /// Always stored ascending (low → high). Mode only affects index motion.
+    public var latch: Bool = false
+    /// Always stored ascending (low → high), or as-played if mode == .asPlayed.
     /// Capacity reserved once (128) so refills on the audio thread never allocate.
     public var sortedNotes: [Int] = {
         var a: [Int] = []
@@ -48,22 +49,34 @@ public struct ArpeggiatorEngine {
     private var needsPriming: Bool = true
 
     /// Test / UI convenience. The render thread uses the MIDIKeySet overload.
-    public mutating func setHeldKeys(_ keys: Set<Int>) {
+    public mutating func setHeldKeys(_ keys: Set<Int>, playedOrder: [Int]? = nil) {
         var set = MIDIKeySet()
         for k in keys { set.insert(k) }
-        setHeldKeys(set)
+        setHeldKeys(set, playedOrder: playedOrder)
     }
 
-    /// Ascending by construction (bit order), no sort, no allocation.
-    public mutating func setHeldKeys(_ keys: MIDIKeySet) {
+    /// Ascending by construction (bit order), or playedOrder when mode == .asPlayed.
+    public mutating func setHeldKeys(_ keys: MIDIKeySet, playedOrder: [Int]? = nil) {
         sortedNotes.removeAll(keepingCapacity: true)
         let octCount = max(1, min(3, octaves))
-        for o in 0..<octCount {
-            let offset = o * 12
-            for n in 0..<128 where keys.contains(n) {
-                let note = n + offset
-                if note <= 127 {
-                    sortedNotes.append(note)
+        if mode == .asPlayed, let order = playedOrder, !order.isEmpty {
+            for o in 0..<octCount {
+                let offset = o * 12
+                for n in order where keys.contains(n) {
+                    let note = n + offset
+                    if note <= 127 {
+                        sortedNotes.append(note)
+                    }
+                }
+            }
+        } else {
+            for o in 0..<octCount {
+                let offset = o * 12
+                for n in 0..<128 where keys.contains(n) {
+                    let note = n + offset
+                    if note <= 127 {
+                        sortedNotes.append(note)
+                    }
                 }
             }
         }
@@ -82,7 +95,7 @@ public struct ArpeggiatorEngine {
             case .down:
                 noteIndex = sortedNotes.count - 1
                 direction = -1
-            case .up, .upDown, .random, .off:
+            case .up, .upDown, .asPlayed, .random, .off:
                 noteIndex = 0
                 direction = 1
             }
@@ -105,7 +118,7 @@ public struct ArpeggiatorEngine {
             case .random:
                 randomSource = randomSource &* 1664525 &+ 1013904223
                 noteIndex = Int(randomSource % UInt32(sortedNotes.count))
-            case .up, .upDown, .off:
+            case .up, .upDown, .asPlayed, .off:
                 noteIndex = min(noteIndex, sortedNotes.count - 1)
             }
             let note = sortedNotes[noteIndex]
@@ -118,7 +131,7 @@ public struct ArpeggiatorEngine {
             currentNote = nil
             return nil
 
-        case .up:
+        case .up, .asPlayed:
             noteIndex = (noteIndex + 1) % sortedNotes.count
 
         case .down:

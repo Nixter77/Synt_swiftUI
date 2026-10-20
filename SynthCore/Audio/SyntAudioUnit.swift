@@ -338,6 +338,7 @@ enum SyntParameterTree {
         let tables = ["Basic", "Analog", "Digital", "PWM", "Formant", "User"]
         let filters = ["Low Pass", "High Pass", "Band Pass", "Notch", "Ladder"]
         let lfoTargets = ["Pitch", "Filter", "Amplitude", "Pan", "None"]
+        let lfoModes = ["Free", "Retrigger", "One-Shot"]
         let noise = ["White", "Pink", "Brown"]
 
         let oscillators = AUParameterTree.createGroup(
@@ -397,11 +398,15 @@ enum SyntParameterTree {
             name: "LFO",
             children: [
                 toggleKnob(.lfoEnabled),
+                indexedKnob(.lfoMode, lfoModes),
+                knob(.lfoStartPhase),
                 knob(.lfoRate, unit: .hertz),
                 knob(.lfoDepth),
                 indexedKnob(.lfoWaveform, waveforms),
                 indexedKnob(.lfoTarget, lfoTargets),
                 toggleKnob(.lfo2Enabled),
+                indexedKnob(.lfo2Mode, lfoModes),
+                knob(.lfo2StartPhase),
                 knob(.lfo2Rate, unit: .hertz),
                 knob(.lfo2Depth),
                 indexedKnob(.lfo2Waveform, waveforms),
@@ -454,6 +459,7 @@ enum SyntParameterTree {
                 knob(.macro3),
                 knob(.macro4),
                 knob(.pan, unit: .pan),
+                toggleKnob(.arpLatch),
             ]
         )
         return AUParameterTree.createTree(withChildren: [
@@ -526,10 +532,13 @@ final class SyntRenderContext {
 
     private func pullHostTransport() {
         var tempo: Double?
+        var beatPosition: Double?
         if let musical = musicalContext {
             var bpm: Double = 0
-            if musical(&bpm, nil, nil, nil, nil, nil) {
+            var currentBeat: Double = 0
+            if musical(&bpm, nil, nil, &currentBeat, nil, nil) {
                 tempo = bpm
+                beatPosition = currentBeat
             }
         }
         var moving: Bool?
@@ -539,7 +548,7 @@ final class SyntRenderContext {
                 moving = flags.contains(.moving)
             }
         }
-        engine.adoptHostContext(tempo: tempo, transportMoving: moving)
+        engine.adoptHostContext(tempo: tempo, transportMoving: moving, beatPosition: beatPosition)
     }
 
     /// Audio thread. MIDI bytes are copied into the preallocated schedule.

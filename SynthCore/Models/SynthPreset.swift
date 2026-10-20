@@ -206,6 +206,12 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     /// Reorderable FX slots.
     public var fxOrder: [FXSlotID] = FXSlotID.defaultOrder
 
+    public var lfoMode: LFOMode = .free
+    public var lfoStartPhase: Float = 0.0
+    public var lfo2Mode: LFOMode = .free
+    public var lfo2StartPhase: Float = 0.0
+    public var arpLatch: Bool = false
+
     /// Safe neutral starting point (clean headroom).
     public static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -249,6 +255,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case filterDrive
         case pan
         case fxOrder
+        case lfoMode, lfoStartPhase, lfo2Mode, lfo2StartPhase, arpLatch
     }
 
     public init(
@@ -367,7 +374,12 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         syncSource: SyncSource = .`internal`,
         filterDrive: Float = 0,
         pan: Float = 0.0,
-        fxOrder: [FXSlotID] = FXSlotID.defaultOrder
+        fxOrder: [FXSlotID] = FXSlotID.defaultOrder,
+        lfoMode: LFOMode = .free,
+        lfoStartPhase: Float = 0.0,
+        lfo2Mode: LFOMode = .free,
+        lfo2StartPhase: Float = 0.0,
+        arpLatch: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -485,6 +497,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.filterDrive = filterDrive
         self.pan = pan
         self.fxOrder = fxOrder
+        self.lfoMode = lfoMode
+        self.lfoStartPhase = lfoStartPhase
+        self.lfo2Mode = lfo2Mode
+        self.lfo2StartPhase = lfo2StartPhase
+        self.arpLatch = arpLatch
     }
 
     public init(from decoder: Decoder) throws {
@@ -607,6 +624,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         filterDrive = try c.decodeIfPresent(Float.self, forKey: .filterDrive) ?? 0
         pan = try c.decodeIfPresent(Float.self, forKey: .pan) ?? 0.0
         fxOrder = try c.decodeIfPresent([FXSlotID].self, forKey: .fxOrder) ?? FXSlotID.defaultOrder
+        lfoMode = try c.decodeIfPresent(LFOMode.self, forKey: .lfoMode) ?? .free
+        lfoStartPhase = try c.decodeIfPresent(Float.self, forKey: .lfoStartPhase) ?? 0.0
+        lfo2Mode = try c.decodeIfPresent(LFOMode.self, forKey: .lfo2Mode) ?? .free
+        lfo2StartPhase = try c.decodeIfPresent(Float.self, forKey: .lfo2StartPhase) ?? 0.0
+        arpLatch = try c.decodeIfPresent(Bool.self, forKey: .arpLatch) ?? false
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

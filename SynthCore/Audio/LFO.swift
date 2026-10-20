@@ -5,20 +5,48 @@
 
 import Foundation
 
+public enum LFOMode: String, Codable, CaseIterable, Sendable {
+    case free
+    case retrigger
+    case oneShot
+}
+
 public class LFO {
     public var rate: Float = 5.0
     public var depth: Float = 0.5
     public var waveform: WaveformType = .sine
     public var target: LFOTarget = .pitch
     public var enabled: Bool = false
+    public var mode: LFOMode = .free
+    public var startPhaseDegrees: Float = 0.0
 
-    private var phase: Double = 0.0
+    public internal(set) var phase: Double = 0.0
+    public private(set) var isCompleted: Bool = false
+    private var cycleProgress: Double = 0.0
     private var lastRandomValue: Float = 0.0
     /// LCG for S&H. Float.random hits the system RNG (can lock) on the audio thread.
     private var randomState: UInt32 = 0x9E37_79B9
 
     public func reset() {
         phase = 0.0
+        cycleProgress = 0.0
+        isCompleted = false
+    }
+
+    public func trigger() {
+        let norm = Double(startPhaseDegrees.truncatingRemainder(dividingBy: 360.0) / 360.0)
+        let positiveNorm = norm < 0 ? norm + 1.0 : norm
+        phase = positiveNorm * AudioMath.twoPi
+        cycleProgress = 0.0
+        isCompleted = false
+    }
+
+    public func syncPhase(beat: Double, rateInCyclesPerBeat: Double) {
+        let normStart = Double(startPhaseDegrees.truncatingRemainder(dividingBy: 360.0) / 360.0)
+        let total = beat * rateInCyclesPerBeat + normStart
+        var norm = total.truncatingRemainder(dividingBy: 1.0)
+        if norm < 0 { norm += 1.0 }
+        phase = norm * AudioMath.twoPi
     }
 
     public func getValue(sampleRate: Double) -> Float {
@@ -34,9 +62,18 @@ public class LFO {
 
     /// Bipolar −1…1, before Depth. Matrix rows use this so their Amount is the depth.
     public func nextRawValue(sampleRate: Double, rateOverride: Float? = nil) -> Float {
+        if mode == .oneShot && isCompleted {
+            return 0.0
+        }
         let usedRate = rateOverride ?? rate
         let phaseIncrement = AudioMath.twoPi * Double(usedRate) / sampleRate
         phase += phaseIncrement
+        if mode == .oneShot {
+            cycleProgress += phaseIncrement
+            if cycleProgress >= AudioMath.twoPi {
+                isCompleted = true
+            }
+        }
 
         if phase >= AudioMath.twoPi {
             phase -= AudioMath.twoPi

@@ -326,6 +326,12 @@ public extension AudioEngine {
     }
 
     public func handleNoteOn(midiNote: Int, velocity: Float) {
+        if lfo.mode != .free {
+            lfo.trigger()
+        }
+        if lfo2.mode != .free {
+            lfo2.trigger()
+        }
         switch cachedVoiceMode {
         case .poly:
             createVoice(midiNote: midiNote, velocity: velocity)
@@ -515,10 +521,12 @@ public extension AudioEngine {
                 releaseHeldNote(voices[i].midiNote)
             }
         }
-        if !heldKeysForArp.isEmpty {
+        if !heldKeysForArp.isEmpty || !latchedKeysForArp.isEmpty {
             heldKeysForArp.removeAll()
+            latchedKeysForArp.removeAll()
+            playedKeysForArp.removeAll(keepingCapacity: true)
             arp.mode = cachedArpMode
-            arp.setHeldKeys(heldKeysForArp)
+            arp.setHeldKeys(heldKeysForArp, playedOrder: playedKeysForArp)
         }
     }
 

@@ -67,7 +67,8 @@ public extension AudioEngine {
             arp.reset()
             arp.mode = cachedArpMode
             arp.octaves = cachedArpOctaves
-            arp.setHeldKeys(heldKeysForArp)
+            arp.latch = cachedArpLatch
+            arp.setHeldKeys(cachedArpLatch ? latchedKeysForArp : heldKeysForArp, playedOrder: playedKeysForArp)
             releaseSequencerNote()
             seqMirror.stepIndex = 0
             seqMirror.phase = 0

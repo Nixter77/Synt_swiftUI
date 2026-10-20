@@ -958,6 +958,8 @@ public extension AudioEngine {
                 sustainedLo = 0
                 sustainedHi = 0
                 heldKeysForArp.removeAll()
+                latchedKeysForArp.removeAll()
+                playedKeysForArp.removeAll(keepingCapacity: true)
                 arp.reset()
                 arpGateSamplesLeft = 0
                 arpStepIndex = 0
@@ -967,15 +969,34 @@ public extension AudioEngine {
                 filterR.reset()
                 lfo.reset()
             case .arpKeyDown(let midiNote):
+                if cachedArpLatch && heldKeysForArp.isEmpty {
+                    latchedKeysForArp.removeAll()
+                    playedKeysForArp.removeAll(keepingCapacity: true)
+                }
                 heldKeysForArp.insert(midiNote)
+                if !playedKeysForArp.contains(midiNote) {
+                    playedKeysForArp.append(midiNote)
+                }
                 arp.mode = cachedArpMode
                 arp.octaves = cachedArpOctaves
-                arp.setHeldKeys(heldKeysForArp)
+                arp.latch = cachedArpLatch
+                if cachedArpLatch {
+                    latchedKeysForArp.insert(midiNote)
+                    arp.setHeldKeys(latchedKeysForArp, playedOrder: playedKeysForArp)
+                } else {
+                    arp.setHeldKeys(heldKeysForArp, playedOrder: playedKeysForArp)
+                }
             case .arpKeyUp(let midiNote):
                 heldKeysForArp.remove(midiNote)
                 arp.mode = cachedArpMode
                 arp.octaves = cachedArpOctaves
-                arp.setHeldKeys(heldKeysForArp)
+                arp.latch = cachedArpLatch
+                if !cachedArpLatch {
+                    playedKeysForArp.removeAll { $0 == midiNote }
+                    arp.setHeldKeys(heldKeysForArp, playedOrder: playedKeysForArp)
+                } else {
+                    arp.setHeldKeys(latchedKeysForArp, playedOrder: playedKeysForArp)
+                }
             }
     }
 

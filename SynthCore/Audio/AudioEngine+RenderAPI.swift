@@ -141,7 +141,7 @@ extension AudioEngine {
     /// Audio thread. Host tempo updates the render cache only. `preset.bpm` stays
     /// on the main thread. Apple Delay is a graph object and is left at the
     /// preset tempo; the DSP ping-pong delay follows the host.
-    func adoptHostContext(tempo: Double?, transportMoving: Bool?) {
+    func adoptHostContext(tempo: Double?, transportMoving: Bool?, beatPosition: Double? = nil) {
         if let tempo, tempo >= 20, tempo <= 400 {
             cachedBPM = Float(tempo)
             if cachedLfoTempoSync {
@@ -157,6 +157,15 @@ extension AudioEngine {
         }
         if let transportMoving {
             hostTransportMoving = transportMoving
+        }
+        if let beatPosition {
+            cachedHostBeatPosition = beatPosition
+            if cachedLfoTempoSync {
+                lfo.syncPhase(beat: beatPosition, rateInCyclesPerBeat: cachedLfoSyncDivision.cyclesPerBeat)
+            }
+            if cachedLfo2TempoSync {
+                lfo2.syncPhase(beat: beatPosition, rateInCyclesPerBeat: cachedLfo2SyncDivision.cyclesPerBeat)
+            }
         }
     }
 

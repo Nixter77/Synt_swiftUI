@@ -96,6 +96,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case macro4 = 113
 
     case pan = 120
+    case lfoMode = 121
+    case lfoStartPhase = 122
+    case lfo2Mode = 123
+    case lfo2StartPhase = 124
+    case arpLatch = 125
 
     public var identifier: String {
         switch self {
@@ -179,6 +184,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .macro3: return "macro3"
         case .macro4: return "macro4"
         case .pan: return "pan"
+        case .lfoMode: return "lfoMode"
+        case .lfoStartPhase: return "lfoStartPhase"
+        case .lfo2Mode: return "lfo2Mode"
+        case .lfo2StartPhase: return "lfo2StartPhase"
+        case .arpLatch: return "arpLatch"
         }
     }
 
@@ -264,6 +274,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .macro3: return "Macro 3"
         case .macro4: return "Macro 4"
         case .pan: return "Pan"
+        case .lfoMode: return "LFO Mode"
+        case .lfoStartPhase: return "LFO Phase"
+        case .lfo2Mode: return "LFO 2 Mode"
+        case .lfo2StartPhase: return "LFO 2 Phase"
+        case .arpLatch: return "Arp Latch"
         }
     }
 
@@ -298,6 +313,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .osc1PulseWidth, .osc2PulseWidth: return 0.95
         case .osc1Waveform, .osc2Waveform, .lfoWaveform, .lfo2Waveform, .osc1WavetableIndex, .osc2WavetableIndex: return 5
         case .noiseColor: return 2
+        case .lfoMode, .lfo2Mode: return 2
+        case .lfoStartPhase, .lfo2StartPhase: return 360
+        case .arpLatch: return 1
         case .filterType, .lfoTarget, .lfo2Target: return 4
         case .attack, .decay, .filterAttack, .filterDecay: return 2
         case .release, .filterRelease: return 3

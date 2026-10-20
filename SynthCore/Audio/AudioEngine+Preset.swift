@@ -88,6 +88,8 @@ public extension AudioEngine {
         filterR.resonance = snap.filterResonance
 
         lfo.enabled = snap.lfoEnabled
+        lfo.mode = snap.lfoMode
+        lfo.startPhaseDegrees = snap.lfoStartPhase
         cachedLfoTempoSync = snap.lfoTempoSync
         cachedLfoSyncDivision = snap.lfoSyncDivision
         lfo.rate = snap.lfoRate
@@ -97,6 +99,8 @@ public extension AudioEngine {
         lfo.target = snap.lfoTarget
 
         lfo2.enabled = snap.lfo2Enabled
+        lfo2.mode = snap.lfo2Mode
+        lfo2.startPhaseDegrees = snap.lfo2StartPhase
         cachedLfo2TempoSync = snap.lfo2TempoSync
         cachedLfo2SyncDivision = snap.lfo2SyncDivision
         lfo2.rate = snap.lfo2Rate
@@ -194,6 +198,10 @@ public extension AudioEngine {
         cachedArpOctaves = snap.arpOctaves
         cachedArpGateLength = snap.arpGateLength
         cachedArpSwing = snap.arpSwing
+        cachedArpLatch = snap.arpLatch
+        arp.mode = snap.arpMode
+        arp.octaves = snap.arpOctaves
+        arp.latch = snap.arpLatch
         cachedDelayPingPong = snap.delayPingPong || snap.rendersAllDelayInDSP
         cachedDelayTempoSync = snap.delayTempoSync
         cachedDelaySyncDivision = snap.delaySyncDivision

@@ -158,6 +158,13 @@ extension AudioEngine {
         case .pan:
             ccPanRT = v
             ccPanTarget = v
+        case .lfoMode: lfo.mode = Self.lfoMode(v)
+        case .lfoStartPhase: lfo.startPhaseDegrees = v
+        case .lfo2Mode: lfo2.mode = Self.lfoMode(v)
+        case .lfo2StartPhase: lfo2.startPhaseDegrees = v
+        case .arpLatch:
+            cachedArpLatch = v >= 0.5
+            arp.latch = cachedArpLatch
         }
     }
 
@@ -244,6 +251,11 @@ extension AudioEngine {
         case .macro3: return cachedMacro3
         case .macro4: return cachedMacro4
         case .pan: return ccPanRT
+        case .lfoMode: return Self.index(of: lfo.mode)
+        case .lfoStartPhase: return lfo.startPhaseDegrees
+        case .lfo2Mode: return Self.index(of: lfo2.mode)
+        case .lfo2StartPhase: return lfo2.startPhaseDegrees
+        case .arpLatch: return arp.latch ? 1 : 0
         }
     }
 
@@ -355,6 +367,11 @@ extension AudioEngine {
             case .macro3: preset.macro3 = v
             case .macro4: preset.macro4 = v
             case .pan: preset.pan = v
+            case .lfoMode: preset.lfoMode = Self.lfoMode(v)
+            case .lfoStartPhase: preset.lfoStartPhase = v
+            case .lfo2Mode: preset.lfo2Mode = Self.lfoMode(v)
+            case .lfo2StartPhase: preset.lfo2StartPhase = v
+            case .arpLatch: preset.arpLatch = v >= 0.5
             }
         }
         if pushToRender { setParameter(id: id, value: v) }
@@ -435,6 +452,22 @@ extension AudioEngine {
         case .white: return 0
         case .pink: return 1
         case .brown: return 2
+        }
+    }
+
+    static func lfoMode(_ value: Float) -> LFOMode {
+        switch Int(value.rounded()) {
+        case 1: return .retrigger
+        case 2: return .oneShot
+        default: return .free
+        }
+    }
+
+    private static func index(of mode: LFOMode) -> Float {
+        switch mode {
+        case .free: return 0
+        case .retrigger: return 1
+        case .oneShot: return 2
         }
     }
 }

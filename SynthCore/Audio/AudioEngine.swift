@@ -248,6 +248,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedArpOctaves: Int = 1
     public var cachedArpGateLength: Float = 0.8
     public var cachedArpSwing: Float = 0.0
+    public var cachedArpLatch: Bool = false
+    public var cachedHostBeatPosition: Double = 0.0
     public var cachedDelayPingPong: Bool = false
     /// Audio Unit: no device graph, so Apple Delay never runs. The DSP delay
     /// renders both modes (ping-pong off = plain stereo delay).
@@ -348,6 +350,12 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var arpGateSamplesLeft: Int = 0
     public var arp = ArpeggiatorEngine()
     public var heldKeysForArp = MIDIKeySet()
+    public var latchedKeysForArp = MIDIKeySet()
+    public var playedKeysForArp: [Int] = {
+        var a: [Int] = []
+        a.reserveCapacity(32)
+        return a
+    }()
 
     /// UI publishes a pattern snapshot; the audio thread owns the clock.
     public let sequencerTransport = SequencerTransport()

@@ -91,6 +91,11 @@ extension SynthPreset {
         case .macro3: return macro3
         case .macro4: return macro4
         case .pan: return pan
+        case .lfoMode: return lfoModeIndex(lfoMode)
+        case .lfoStartPhase: return lfoStartPhase
+        case .lfo2Mode: return lfoModeIndex(lfo2Mode)
+        case .lfo2StartPhase: return lfo2StartPhase
+        case .arpLatch: return arpLatch ? 1 : 0
         }
     }
 
@@ -177,6 +182,11 @@ extension SynthPreset {
         case .macro3: macro3 = value
         case .macro4: macro4 = value
         case .pan: pan = value
+        case .lfoMode: lfoMode = SynthCore.lfoModeFromFloat(value)
+        case .lfoStartPhase: lfoStartPhase = value
+        case .lfo2Mode: lfo2Mode = SynthCore.lfoModeFromFloat(value)
+        case .lfo2StartPhase: lfo2StartPhase = value
+        case .arpLatch: arpLatch = value >= 0.5
         }
     }
 
@@ -265,5 +275,21 @@ private func noise(_ value: Float) -> NoiseColor {
     case 1: return .pink
     case 2: return .brown
     default: return .white
+    }
+}
+
+private func lfoModeIndex(_ mode: LFOMode) -> Float {
+    switch mode {
+    case .free: return 0
+    case .retrigger: return 1
+    case .oneShot: return 2
+    }
+}
+
+func lfoModeFromFloat(_ value: Float) -> LFOMode {
+    switch Int(value.rounded()) {
+    case 1: return .retrigger
+    case 2: return .oneShot
+    default: return .free
     }
 }
