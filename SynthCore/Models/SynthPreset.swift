@@ -248,6 +248,15 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var perlinTempoSync: Bool = false
     public var perlinSyncDivision: TimeDivision = .quarter
 
+    /// Flanger sits on the chorus processor. Off keeps the chorus body.
+    public var chorusFlanger: Bool = false
+    public var chorusFeedback: Float = 0
+    public var chorusFlangerSync: Bool = false
+    public var chorusFlangerDivision: TimeDivision = .quarter
+
+    /// Filter output fed back into the filter input. 0 keeps the current filter call.
+    public var filterFeedback: Float = 0
+
     /// Safe neutral starting point (clean headroom).
     public static let defaultPreset = SynthPreset(name: "Init", category: .lead)
 
@@ -301,6 +310,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case polyphonyLimit
         case tranceGateEnabled, tranceGatePattern, tranceGateDepth, tranceGateSmooth, tranceGateDivision
         case perlinRate, perlinTempoSync, perlinSyncDivision
+        case chorusFlanger, chorusFeedback, chorusFlangerSync, chorusFlangerDivision
+        case filterFeedback
     }
 
     public init(
@@ -716,6 +727,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         perlinRate = try c.decodeIfPresent(Float.self, forKey: .perlinRate) ?? 1
         perlinTempoSync = try c.decodeIfPresent(Bool.self, forKey: .perlinTempoSync) ?? false
         perlinSyncDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .perlinSyncDivision) ?? .quarter
+        chorusFlanger = try c.decodeIfPresent(Bool.self, forKey: .chorusFlanger) ?? false
+        chorusFeedback = try c.decodeIfPresent(Float.self, forKey: .chorusFeedback) ?? 0
+        chorusFlangerSync = try c.decodeIfPresent(Bool.self, forKey: .chorusFlangerSync) ?? false
+        chorusFlangerDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .chorusFlangerDivision) ?? .quarter
+        filterFeedback = try c.decodeIfPresent(Float.self, forKey: .filterFeedback) ?? 0
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

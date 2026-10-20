@@ -312,6 +312,21 @@ struct FXChainView: View {
             menu: {
                 HStack(spacing: 4) {
                     Button {
+                        preset.chorusFlanger.toggle()
+                    } label: {
+                        Text("FLNG")
+                            .font(.system(size: 8, weight: .bold))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(preset.chorusFlanger ? theme.aFx : Color.clear)
+                            .foregroundColor(preset.chorusFlanger ? .black : theme.textDim)
+                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.aFx.opacity(0.6), lineWidth: 1))
+                            .cornerRadius(3)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("chorusFlanger")
+
+                    Button {
                         preset.chorusStereo.toggle()
                     } label: {
                         Text("WIDE")
@@ -329,10 +344,37 @@ struct FXChainView: View {
                 }
             }
         ) {
-            HStack(spacing: 8) {
-                KnobView(value: $preset.chorusRate, range: 0.1...5.0, label: "Rate", format: "%.1fHz")
-                KnobView(value: $preset.chorusDepth, range: 0...1, label: "Depth")
-                KnobView(value: $preset.chorusMix, range: 0...1, label: "Mix", target: .chorusMix)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    KnobView(value: $preset.chorusRate, range: 0.1...5.0, label: "Rate", format: "%.1fHz")
+                    KnobView(value: $preset.chorusDepth, range: 0...1, label: "Depth")
+                    KnobView(value: $preset.chorusMix, range: 0...1, label: "Mix", target: .chorusMix)
+                }
+                if preset.chorusFlanger {
+                    HStack(spacing: 8) {
+                        KnobView(value: $preset.chorusFeedback, range: -0.95...0.95, label: "Fdbk")
+                        Button {
+                            preset.chorusFlangerSync.toggle()
+                        } label: {
+                            Text(preset.chorusFlangerSync ? "SYNC" : "FREE")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(preset.chorusFlangerSync ? .black : theme.textDim)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(RoundedRectangle(cornerRadius: 3).fill(preset.chorusFlangerSync ? theme.aFx : theme.inset))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if preset.chorusFlangerSync {
+                        Picker("Division", selection: $preset.chorusFlangerDivision) {
+                            ForEach(TimeDivision.allCases, id: \.self) { division in
+                                Text(division.rawValue).tag(division)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                }
             }
         }
     }

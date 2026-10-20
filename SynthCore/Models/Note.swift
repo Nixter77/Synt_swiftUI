@@ -85,6 +85,8 @@ public struct ActiveNote {
     /// few samples; unused while both amounts are 0 (shared coeffs apply).
     public var voiceFilterCoeffs = BiquadCoeffs()
     public var filterControlTick: Int = 0
+    /// Previous filter output fed back into the next sample. Unread while feedback is 0.
+    public var filterFeedbackState: Float = 0
     public var polyAftertouch: Float = 0.0
     public var partial: Int = 0
     public var partialCount: Int = 1
@@ -188,6 +190,7 @@ public struct ActiveNote {
         self.brownState = 0.0
         self.filter.reset()
         self.ladder.reset()
+        self.filterFeedbackState = 0
         self.filterControlTick = 0
         self.polyAftertouch = 0.0
         self.partial = partial

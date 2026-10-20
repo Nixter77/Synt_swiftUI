@@ -28,6 +28,9 @@ public class DSPChorus {
         get { stereo }
         set { stereo = newValue }
     }
+    /// Off leaves `process` on the chorus body, including the mix early-out.
+    public var flanger: Bool = false
+    public var feedback: Float = 0
     
     // Internal LFO state
     private var phaseL: Double = 0.0
@@ -48,6 +51,7 @@ public class DSPChorus {
     }
 
     public func process(inputL: Float, inputR: Float) -> (Float, Float) {
+        if flanger { return processFlanger(inputL: inputL, inputR: inputR) }
         if mix <= 0.001 { return (inputL, inputR) }
         
         // Write to buffer
@@ -86,6 +90,33 @@ public class DSPChorus {
         // Advance write index
         writeIndex = (writeIndex + 1) % bufferSize
         
+        return (outL, outR)
+    }
+
+    private func processFlanger(inputL: Float, inputR: Float) -> (Float, Float) {
+        let fb = max(-0.95, min(0.95, feedback))
+        if mix <= 0.001 && abs(fb) <= 0.001 { return (inputL, inputR) }
+
+        let phaseIncrement = (2.0 * Double.pi * Double(rate)) / sampleRate
+        phaseL += phaseIncrement
+        if phaseL >= 2.0 * Double.pi { phaseL -= 2.0 * Double.pi }
+        if stereo {
+            phaseR += phaseIncrement
+            if phaseR >= 2.0 * Double.pi { phaseR -= 2.0 * Double.pi }
+        } else {
+            phaseR = phaseL
+        }
+
+        let delayL = max(0.0003, 0.003 + 0.002 * Double(depth) * sin(phaseL))
+        let delayR = max(0.0003, 0.003 + 0.002 * Double(depth) * sin(phaseR))
+        let delayedL = readBuffer(buffer: bufferL, delaySeconds: delayL)
+        let delayedR = readBuffer(buffer: bufferR, delaySeconds: delayR)
+        bufferL[writeIndex] = inputL + delayedL * fb
+        bufferR[writeIndex] = inputR + delayedR * fb
+        let wet = max(0, min(1, mix))
+        let outL = inputL * (1 - wet) + delayedL * wet
+        let outR = inputR * (1 - wet) + delayedR * wet
+        writeIndex = (writeIndex + 1) % bufferSize
         return (outL, outR)
     }
     

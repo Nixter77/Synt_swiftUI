@@ -306,6 +306,10 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedPerlinHz: Float = 1
     public var cachedPerlinTempoSync: Bool = false
     public var cachedPerlinDivision: TimeDivision = .quarter
+    public var cachedChorusFlanger: Bool = false
+    public var cachedChorusFlangerSync: Bool = false
+    public var cachedChorusFlangerDivision: TimeDivision = .quarter
+    public var cachedFilterFeedback: Float = 0
     public var randomSeed: UInt32 = 0x12345678
     /// Optional microtonal tuning table (128 notes). Nil = standard 12-TET.
     public var customTuningTable: [Double]? = nil

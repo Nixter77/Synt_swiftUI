@@ -185,6 +185,9 @@ public extension SynthPreset {
         if !TimeDivision.allCases.contains(p.tranceGateDivision) { p.tranceGateDivision = .sixteenth }
         p.perlinRate = f(p.perlinRate, 0.05, 40, 1)
         if !TimeDivision.allCases.contains(p.perlinSyncDivision) { p.perlinSyncDivision = .quarter }
+        p.chorusFeedback = f(p.chorusFeedback, -0.95, 0.95, 0)
+        if !TimeDivision.allCases.contains(p.chorusFlangerDivision) { p.chorusFlangerDivision = .quarter }
+        p.filterFeedback = f(p.filterFeedback, -1, 1, 0)
         return p
     }
 

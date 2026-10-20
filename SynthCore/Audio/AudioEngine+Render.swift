@@ -739,7 +739,44 @@ public extension AudioEngine {
                 v.filterControlTick &+= 1
                 voiceCoeffs = v.voiceFilterCoeffs
             }
-            if voiceFilterType == .ladder {
+            if cachedFilterFeedback != 0 {
+                let fed = amplitude + v.filterFeedbackState * cachedFilterFeedback
+                if voiceFilterType == .ladder {
+                    var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                    if perVoiceFilter {
+                        var envAmt = filterEnvAmt
+                        if velToEnvAmt != 0 {
+                            envAmt *= max(0.0, 1.0 + (v.velocity - 1.0) * velToEnvAmt)
+                        }
+                        if envAmt != 0 {
+                            c *= pow(2, envAmt * filterEnvVal * 4)
+                        }
+                        if filterKeyTrk != 0 {
+                            c *= pow(2, Float(v.midiNote - 60) / 12 * filterKeyTrk)
+                        }
+                        if velToCutoff > 0 {
+                            c *= pow(2, (v.velocity - 1.0) * velToCutoff * 3.0)
+                        }
+                        if cachedAnalogDrift > 0 {
+                            c *= v.driftCutoffMul
+                        }
+                        c = max(20, min(voiceFilterMaxCutoff, c))
+                    }
+                    amplitude = v.ladder.process(
+                        fed,
+                        cutoff: c,
+                        resonance: voiceFilterResonance,
+                        drive: cachedFilterDrive,
+                        sampleRate: Float(sampleRate)
+                    )
+                } else if cachedFilterDrive != 0 {
+                    let driven = AudioMath.fastTanh(fed * (1 + cachedFilterDrive * 8))
+                    amplitude = v.filter.process(driven, coeffs: voiceCoeffs)
+                } else {
+                    amplitude = v.filter.process(fed, coeffs: voiceCoeffs)
+                }
+                v.filterFeedbackState = amplitude
+            } else if voiceFilterType == .ladder {
                 var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
                 if perVoiceFilter {
                     var envAmt = filterEnvAmt

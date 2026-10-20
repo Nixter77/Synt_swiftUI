@@ -70,6 +70,10 @@ struct FilterView: View {
                 KnobView(value: $preset.filterKeyTracking, range: 0...1, label: "Key Trk")
                 KnobView(value: $preset.filterDrive, range: 0...1, label: "Drive")
             }
+            HStack(spacing: 5) {
+                KnobView(value: $preset.filterFeedback, range: -1...1, label: "Feedback")
+                Spacer(minLength: 0)
+            }
         }
         .padding(6)
         .appleCard(accent: theme.aFilter)

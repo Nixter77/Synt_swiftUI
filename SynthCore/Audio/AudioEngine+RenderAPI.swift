@@ -157,6 +157,9 @@ extension AudioEngine {
             if cachedPerlinTempoSync {
                 cachedPerlinHz = cachedPerlinDivision.frequency(bpm: cachedBPM)
             }
+            if cachedChorusFlanger && cachedChorusFlangerSync {
+                dspChorus.rate = cachedChorusFlangerDivision.frequency(bpm: cachedBPM)
+            }
         }
         if let transportMoving {
             hostTransportMoving = transportMoving

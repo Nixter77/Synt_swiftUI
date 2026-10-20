@@ -118,11 +118,21 @@ public extension AudioEngine {
         cachedRingModAmount = snap.ringModAmount
         cachedNoiseColor = snap.noiseColor
 
-        dspChorus.rate = snap.chorusRate
+        dspChorus.flanger = snap.chorusFlanger
+        dspChorus.feedback = snap.chorusFeedback
         dspChorus.depth = snap.chorusDepth
         dspChorus.mix = snap.chorusMix
         dspChorus.stereo = snap.chorusStereo
         cachedChorusStereo = snap.chorusStereo
+        cachedChorusFlanger = snap.chorusFlanger
+        cachedChorusFlangerSync = snap.chorusFlangerSync
+        cachedChorusFlangerDivision = snap.chorusFlangerDivision
+        if snap.chorusFlanger && snap.chorusFlangerSync {
+            dspChorus.rate = snap.flangerRateHz
+        } else {
+            dspChorus.rate = snap.chorusRate
+        }
+        cachedFilterFeedback = snap.filterFeedback
 
         cachedDelayPingPong = snap.delayPingPong || snap.rendersAllDelayInDSP || snap.rendersAllDelayInDSP
         if snap.delayPingPong || snap.rendersAllDelayInDSP {

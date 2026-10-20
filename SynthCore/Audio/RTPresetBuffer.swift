@@ -127,6 +127,12 @@ public struct RTPresetSnapshot: Sendable {
     public var perlinRate: Float = 1
     public var perlinTempoSync: Bool = false
     public var perlinSyncDivision: TimeDivision = .quarter
+    public var chorusFlanger: Bool = false
+    public var chorusFeedback: Float = 0
+    public var chorusFlangerSync: Bool = false
+    public var chorusFlangerDivision: TimeDivision = .quarter
+    public var flangerRateHz: Float = 1
+    public var filterFeedback: Float = 0
     public var macro1: Float = 0.0
     public var macro2: Float = 0.0
     public var macro3: Float = 0.0
@@ -286,6 +292,12 @@ public struct RTPresetSnapshot: Sendable {
         perlinRate = perlinTempoSync
             ? perlinSyncDivision.frequency(bpm: preset.bpm)
             : max(0.05, min(40, preset.perlinRate))
+        chorusFlanger = preset.chorusFlanger
+        chorusFeedback = max(-0.95, min(0.95, preset.chorusFeedback))
+        chorusFlangerSync = preset.chorusFlangerSync
+        chorusFlangerDivision = preset.chorusFlangerDivision
+        flangerRateHz = chorusFlangerDivision.frequency(bpm: preset.bpm)
+        filterFeedback = max(-1, min(1, preset.filterFeedback))
         lfoMode = preset.lfoMode
         lfoStartPhase = preset.lfoStartPhase
         lfo2Mode = preset.lfo2Mode
