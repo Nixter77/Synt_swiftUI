@@ -76,6 +76,16 @@ public struct ADSREnvelope {
                 }
             } else {
                 let a = Double(attackT)
+                if time == 0.0 && currentValue > 0.0001 {
+                    let clamped = min(0.999, max(0.0, currentValue))
+                    let p0: Float
+                    if attackCurve > 0 {
+                        p0 = pow(clamped, 1.0 / (1.0 + 3.0 * attackCurve))
+                    } else {
+                        p0 = pow(clamped, 1.0 - 3.0 * attackCurve)
+                    }
+                    time = Double(p0) * a
+                }
                 time += deltaTime
                 let p = Float(min(1.0, max(0.0, time / a)))
                 let shapedP: Float
@@ -165,7 +175,7 @@ public struct ADSREnvelope {
                     } else {
                         shapedP = pow(p, 1.0 / (1.0 - 3.0 * releaseCurve))
                     }
-                    let startVal = releaseStartValue > 0.0001 ? releaseStartValue : 1.0
+                    let startVal = max(0.0, releaseStartValue)
                     value = startVal * (1.0 - shapedP)
                     if time >= r || value < 0.0002 {
                         value = 0.0

@@ -869,10 +869,10 @@ public extension AudioEngine {
             var amplitude = sample * envelopeValue * effectiveVel
             amplitude *= max(0.0, 1.0 + ampMod)
             amplitude *= AudioMath.voiceGain * v.unisonScale
-            if lfoEnabled && lfoTarget == .amplitude {
+            if lfoEnabled && lfoTarget == .amplitude && lfo.stereoPhaseOffsetDegrees == 0 {
                 amplitude = lfo.modulateAmplitude(amplitude, lfoValue: lfoValue)
             }
-            if lfo2Enabled && lfo2Target == .amplitude {
+            if lfo2Enabled && lfo2Target == .amplitude && lfo2.stereoPhaseOffsetDegrees == 0 {
                 amplitude = lfo2.modulateAmplitude(amplitude, lfoValue: lfo2Value)
             }
             if !amplitude.isFinite { amplitude = 0 }
@@ -962,7 +962,12 @@ public extension AudioEngine {
                     let driven = AudioMath.fastTanh(fed * (1 + cachedFilterDrive * 8))
                     amplitude = v.filter.process(driven, coeffs: voiceCoeffs)
                 } else {
-                    amplitude = AudioMath.fastTanh(v.filter.process(fed, coeffs: voiceCoeffs))
+                    let filtered = v.filter.process(fed, coeffs: voiceCoeffs)
+                    if filtered.isFinite {
+                        amplitude = AudioMath.fastTanh(filtered)
+                    } else {
+                        amplitude = .nan
+                    }
                 }
                 if amplitude.isFinite {
                     v.filterFeedbackState = amplitude
