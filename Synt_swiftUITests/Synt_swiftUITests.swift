@@ -6,6 +6,7 @@
 //
 
 import Foundation
+@testable import SynthCore
 import Testing
 @testable import Synt_swiftUI
 
@@ -163,13 +164,9 @@ struct Synt_swiftUITests {
         }
 
         #expect(emitted2.contains(.clearAll))
-        // noteOn 52/53 were after clearAll in the ring — must not appear
-        let afterClear = Array(emitted2.drop(while: { $0 != .clearAll }).dropFirst())
-        #expect(afterClear.isEmpty)
-        #expect(emitted2.filter {
-            if case .noteOn(let n, _) = $0 { return n == 52 || n == 53 }
-            return false
-        }.isEmpty)
+        // noteOn 52/53 were pushed after clearAll — keep them (preset change then play)
+        #expect(emitted2.contains(.noteOn(midiNote: 52, velocity: 1.0)))
+        #expect(emitted2.contains(.noteOn(midiNote: 53, velocity: 1.0)))
 
         // Engine integration: full ring noteOns + clearAll must leave no active notes
         let engine = AudioEngine()
@@ -539,6 +536,1232 @@ struct Synt_swiftUITests {
         #expect(abs(metering.getPeakLevel() - 0.91) < 0.0001)
     }
 
+    // MARK: - Factory preset library
+
+    @Test func factoryLibraryCoversAllCategoriesNonEmpty() async throws {
+        let presets = SynthPreset.factoryPresets
+        #expect(!presets.isEmpty)
+        for category in PresetCategory.allCases {
+            let count = presets.filter { $0.category == category }.count
+            #expect(count >= 3, "Category \(category.rawValue) should have multiple presets, got \(count)")
+        }
+    }
+
+    @Test func factoryLibraryHasUniqueNames() async throws {
+        let names = SynthPreset.factoryPresets.map(\.name)
+        #expect(Set(names).count == names.count)
+        #expect(!names.contains("Sub Bass")) // old library marker gone
+    }
+
+    @Test func factoryLibraryUsesNewSoundFeatures() async throws {
+        let presets = SynthPreset.factoryPresets
+        #expect(presets.contains { $0.osc1Waveform == .wavetable || $0.osc2Waveform == .wavetable })
+        #expect(presets.contains { $0.unisonVoices > 1 })
+        #expect(presets.contains { !$0.modMatrix.isEmpty })
+        #expect(presets.contains { $0.lfoEnabled })
+        #expect(presets.contains { $0.arpMode != .off })
+        #expect(presets.contains { $0.reverbMix > 0.05 || $0.chorusMix > 0.05 || $0.delayMix > 0.05 })
+        #expect(presets.contains { $0.distortionEnabled || $0.eqEnabled || $0.phaserEnabled })
+    }
+
+    @Test func factoryLibraryStaysWithinCleanSoundRanges() async throws {
+        for p in SynthPreset.factoryPresets {
+            #expect(p.masterVolume.isFinite && p.masterVolume > 0 && p.masterVolume <= 0.75)
+            #expect(p.unisonVoices >= 1 && p.unisonVoices <= 5)
+            #expect(p.filterResonance.isFinite && p.filterResonance >= 0 && p.filterResonance <= 0.9)
+            #expect(p.filterCutoff.isFinite && p.filterCutoff > 20 && p.filterCutoff < 20000)
+            #expect(p.distortionDrive.isFinite && p.distortionDrive >= 0 && p.distortionDrive <= 0.7)
+            #expect(p.distortionMix.isFinite && p.distortionMix >= 0 && p.distortionMix <= 0.5)
+            #expect(p.phaserFeedback.isFinite && abs(p.phaserFeedback) <= 0.5)
+            #expect(p.phaserMix.isFinite && p.phaserMix <= 0.6)
+            #expect(p.osc1Volume.isFinite && p.osc1Volume <= 1.0)
+            #expect(p.attack.isFinite && p.attack >= 0)
+            #expect(p.release.isFinite && p.release >= 0)
+            #expect(p.reverbMix <= 0.24, "\(p.name) reverb \(p.reverbMix) too wet after the clipper")
+            #expect(p.reverbRoomSize <= 0.55, "\(p.name) room \(p.reverbRoomSize) too large for Apple IR")
+            #expect(p.delayMix <= 0.10, "\(p.name) delay mix \(p.delayMix)")
+            if p.delayMix > 0.001 {
+                #expect(p.delayFeedback <= 0.22, "\(p.name) delay feedback \(p.delayFeedback)")
+            }
+            #expect(p.chorusMix <= 0.14, "\(p.name) chorus \(p.chorusMix)")
+            #expect(p.filterEnvelopeAmount == 0, "\(p.name) Env Amt is not live — bake cutoff instead")
+        }
+        // Init remains safe neutral
+        let initP = SynthPreset.defaultPreset
+        #expect(initP.name == "Init")
+        #expect(initP.masterVolume <= 0.7)
+        #expect(initP.unisonVoices == 1)
+        #expect(!initP.distortionEnabled && !initP.eqEnabled && !initP.phaserEnabled)
+    }
+
+    @Test func applyingFactoryPresetUpdatesEngineAudioPath() async throws {
+        let engine = AudioEngine()
+
+        guard let bass = SynthPreset.factoryPresets.first(where: { $0.name == "Clean Sub" }) else {
+            Issue.record("Missing Clean Sub factory preset")
+            return
+        }
+        engine.loadPreset(bass)
+        engine.applyPresetForTesting()
+        let cached = engine.cachedAudioParamsForTesting()
+        #expect(abs(cached.masterVolume - bass.masterVolume) < 0.001)
+        #expect(abs(cached.filterCutoff - bass.filterCutoff) < 0.1)
+        #expect(engine.appliedAdvancedFXForTesting().eqEnabled == true)
+        #expect(engine.appliedAdvancedFXForTesting().eqLowGain == bass.eqLowGain)
+
+        guard let lead = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
+            Issue.record("Missing Crystal Lead factory preset")
+            return
+        }
+        engine.loadPreset(lead)
+        engine.applyPresetForTesting()
+        let adv = engine.appliedAdvancedFXForTesting()
+        #expect(adv.osc1Waveform == .wavetable)
+        #expect(abs(adv.osc1Morph - lead.osc1WavetableMorph) < 0.001)
+        #expect(adv.eqEnabled == true)
+
+        guard let pad = SynthPreset.factoryPresets.first(where: { $0.name == "Glass Horizon" }) else {
+            Issue.record("Missing Glass Horizon factory preset")
+            return
+        }
+        engine.loadPreset(pad)
+        engine.applyPresetForTesting()
+        let padAdv = engine.appliedAdvancedFXForTesting()
+        // feat/glass-horizon-safe: phaser OFF to cut hang@4 CPU; params kept for re-enable.
+        #expect(padAdv.phaserEnabled == false)
+        #expect(pad.phaserMode == .phaser2)
+        #expect(abs(padAdv.phaserMix - pad.phaserMix) < 0.001)
+        #expect(pad.unisonVoices >= 1)
+
+        guard let glitch = SynthPreset.factoryPresets.first(where: { $0.name == "Glitch Arp" }) else {
+            Issue.record("Missing Glitch Arp factory preset")
+            return
+        }
+        engine.loadPreset(glitch)
+        engine.applyPresetForTesting()
+        #expect(engine.cachedAudioParamsForTesting().arpMode == .random)
+        #expect(engine.appliedAdvancedFXForTesting().distortionEnabled == true)
+        #expect(abs(engine.appliedAdvancedFXForTesting().distortionDrive - glitch.distortionDrive) < 0.001)
+    }
+
+    @Test func updatePresetKeepsAdvancedFXWhenOtherFieldsChange() async throws {
+        let engine = AudioEngine()
+        // Simulate AdvancedEffectsView path: enable distortion via preset update
+        engine.updatePreset { p in
+            p.distortionEnabled = true
+            p.distortionDrive = 0.42
+            p.distortionMix = 0.3
+            p.eqEnabled = true
+            p.eqLowGain = 4
+            p.phaserEnabled = true
+            p.phaserMix = 0.33
+        }
+        #expect(engine.appliedAdvancedFXForTesting().distortionEnabled)
+        #expect(abs(engine.appliedAdvancedFXForTesting().distortionDrive - 0.42) < 0.001)
+        #expect(engine.appliedAdvancedFXForTesting().eqEnabled)
+        #expect(engine.appliedAdvancedFXForTesting().phaserEnabled)
+
+        // Simulate filter/ADSR edit (same as UI writing a core preset field)
+        engine.updatePreset { p in
+            p.filterCutoff = 1500
+            p.attack = 0.05
+            p.masterVolume = 0.5
+        }
+
+        let adv = engine.appliedAdvancedFXForTesting()
+        #expect(adv.distortionEnabled, "Distortion must survive filter/master edits")
+        #expect(abs(adv.distortionDrive - 0.42) < 0.001)
+        #expect(adv.eqEnabled)
+        #expect(abs(adv.eqLowGain - 4) < 0.001)
+        #expect(adv.phaserEnabled)
+        #expect(abs(adv.phaserMix - 0.33) < 0.001)
+        #expect(abs(engine.cachedAudioParamsForTesting().filterCutoff - 1500) < 0.1)
+    }
+
+    @Test func updatePresetKeepsWavetableMorphWhenOtherFieldsChange() async throws {
+        let engine = AudioEngine()
+        engine.updatePreset { p in
+            p.osc1Waveform = .wavetable
+            p.osc1WavetableMorph = 0.67
+            p.osc2Waveform = .wavetable
+            p.osc2WavetableMorph = 0.21
+        }
+        #expect(abs(engine.appliedAdvancedFXForTesting().osc1Morph - 0.67) < 0.001)
+        #expect(abs(engine.appliedAdvancedFXForTesting().osc2Morph - 0.21) < 0.001)
+
+        engine.updatePreset { p in
+            p.osc1Volume = 0.4
+            p.filterResonance = 0.3
+        }
+
+        let adv = engine.appliedAdvancedFXForTesting()
+        #expect(abs(adv.osc1Morph - 0.67) < 0.001, "Morph must survive volume/filter edits")
+        #expect(abs(adv.osc2Morph - 0.21) < 0.001)
+        #expect(adv.osc1Waveform == .wavetable)
+        #expect(abs(engine.preset.osc1WavetableMorph - 0.67) < 0.001)
+    }
+
+    @Test func factoryPresetJSONRoundTripPreservesAdvancedFields() async throws {
+        guard let sample = SynthPreset.factoryPresets.first(where: { $0.distortionEnabled && $0.eqEnabled })
+                ?? SynthPreset.factoryPresets.first(where: { $0.phaserEnabled }) else {
+            Issue.record("No advanced-FX factory preset found")
+            return
+        }
+        let data = try JSONEncoder().encode(sample)
+        let decoded = try JSONDecoder().decode(SynthPreset.self, from: data)
+        #expect(decoded.name == sample.name)
+        #expect(decoded.distortionEnabled == sample.distortionEnabled)
+        #expect(decoded.eqEnabled == sample.eqEnabled)
+        #expect(decoded.phaserEnabled == sample.phaserEnabled)
+        #expect(abs(decoded.osc1WavetableMorph - sample.osc1WavetableMorph) < 0.0001)
+    }
+
+    // MARK: - Advanced FX (Этап 4)
+
+    @Test func distortionAutoGainKeepsDriveFromExploding() async throws {
+        let d = Distortion()
+        d.enabled = true
+        d.type = .hardClip
+        d.mix = 1.0
+        d.tone = 0.5
+        d.drive = 0.0
+        let quiet = abs(d.process(0.5))
+
+        d.drive = 1.0
+        let hot = abs(d.process(0.5))
+
+        #expect(hot.isFinite)
+        #expect(hot < 1.2)
+        #expect(d.autoGainCompensation() < 1.0)
+        #expect(hot < quiet * 4 + 0.5)
+    }
+
+    @Test func distortionEnableResetsStateAntiPop() async throws {
+        let d = Distortion()
+        d.enabled = true
+        d.type = .softClip
+        d.mix = 1
+        d.tone = 0.2
+        _ = d.process(1.0)
+        _ = d.process(1.0)
+        d.enabled = false
+        d.enabled = true
+        d.tone = 0.5
+        d.drive = 0
+        let out = d.process(0.0)
+        #expect(abs(out) < 0.02)
+    }
+
+    @Test func distortionTypesStayCleanOnUnitSine() async throws {
+        for type in DistortionType.allCases {
+            let d = Distortion()
+            d.enabled = true
+            d.type = type
+            d.drive = 0.35
+            d.mix = 0.4
+            d.tone = 0.5
+            var peak: Float = 0
+            var phase: Float = 0
+            let dt = 2 * Float.pi * 220 / 44100
+            for _ in 0..<2048 {
+                let s = sin(phase) * 0.5
+                phase += dt
+                let (l, r) = d.processStereo(inputL: s, inputR: s)
+                #expect(l.isFinite && r.isFinite)
+                peak = max(peak, abs(l), abs(r))
+            }
+            #expect(peak < 1.5, "\(type.rawValue) peak \(peak)")
+        }
+    }
+
+    @Test func parametricEQDirtyFlagsAvoidPerSampleTrig() async throws {
+        let eq = ParametricEQ(sampleRate: 44100)
+        eq.enabled = true
+        eq.lowGain = 6
+        // First process computes coeffs; subsequent with no param change stay finite
+        var y: Float = 0
+        for i in 0..<128 {
+            y = eq.process(sin(Float(i) * 0.1))
+        }
+        #expect(y.isFinite)
+        #expect(abs(y) < 10)
+    }
+
+    @Test func parametricEQEnableResetsFilterState() async throws {
+        let eq = ParametricEQ(sampleRate: 44100)
+        eq.enabled = true
+        eq.midGain = 12
+        eq.midFreq = 1000
+        for _ in 0..<64 {
+            _ = eq.process(1.0)
+        }
+        eq.enabled = false
+        eq.enabled = true
+        let out = eq.process(0.0)
+        #expect(abs(out) < 0.05)
+    }
+
+    @Test func phaserLUTMatchesTanReference() async throws {
+        let p = Phaser(sampleRate: 44100)
+        for freq: Float in [200, 500, 1000, 2000, 4000] {
+            let lut = p.allpassCoeffFromLUT(frequency: freq)
+            let ref = p.calculateAllpassCoeffReference(frequency: freq)
+            #expect(abs(lut - ref) < 0.05)
+        }
+    }
+
+    @Test func phaserBypassPassesThroughAndResetOnEngage() async throws {
+        let p = Phaser(sampleRate: 44100)
+        p.bypass = true
+        let (a, b) = p.process(inputL: 0.3, inputR: -0.2)
+        #expect(abs(a - 0.3) < 0.0001)
+        #expect(abs(b + 0.2) < 0.0001)
+
+        p.bypass = false
+        p.mix = 0
+        // mix 0 → dry only after engage
+        let (c, d) = p.process(inputL: 0.25, inputR: 0.25)
+        #expect(abs(c - 0.25) < 0.0001)
+        #expect(abs(d - 0.25) < 0.0001)
+    }
+
+    @Test func phaserDoesNotExplodeOrSilenceOnSustainedInput() async throws {
+        let p = Phaser(sampleRate: 44100)
+        p.bypass = false
+        p.mix = 0.7
+        p.feedback = 0.7
+        p.depth = 0.8
+        p.rate = 1.0
+        p.mode = .phaser8
+
+        var phase: Float = 0
+        let dt: Float = 2 * Float.pi * 220 / 44100
+        for _ in 0..<8000 {
+            let s = sin(phase) * 0.5
+            phase += dt
+            let (l, r) = p.process(inputL: s, inputR: s * 0.9)
+            #expect(l.isFinite)
+            #expect(r.isFinite)
+            #expect(abs(l) < 3)
+            #expect(abs(r) < 3)
+        }
+        // Still produces energy after thousands of samples (not stuck at zero/NaN)
+        let (l, _) = p.process(inputL: 0.4, inputR: 0.4)
+        #expect(abs(l) > 0.001)
+    }
+
+    @Test func eqPresetsApplyFiniteGains() async throws {
+        let eq = ParametricEQ(sampleRate: 44100)
+        eq.enabled = true
+        for preset in EQPreset.allCases {
+            eq.applyPreset(preset)
+            var y: Float = 0
+            for i in 0..<64 {
+                y = eq.process(sin(Float(i) * 0.15) * 0.5)
+                #expect(y.isFinite)
+            }
+            #expect(abs(y) < 5)
+        }
+    }
+
+    @Test func eqZeroGainPassesASine() async throws {
+        let eq = ParametricEQ(sampleRate: 44100)
+        eq.enabled = true
+        eq.lowGain = 0
+        eq.midGain = 0
+        eq.highGain = 0
+        var phase: Float = 0
+        let dt = 2 * Float.pi * 440 / 44100
+        var worst: Float = 0
+        for i in 0..<4000 {
+            let x = sin(phase) * 0.4
+            phase += dt
+            let y = eq.process(x)
+            if i > 500 { worst = max(worst, abs(y - x)) }
+        }
+        #expect(worst < 0.002, "flat EQ altered the sine by \(worst)")
+    }
+
+    @Test func eqBoostShapesToneWithoutRaisingThePeak() async throws {
+        func steadyPeak(hz: Float, configure: (ParametricEQ) -> Void) -> Float {
+            let eq = ParametricEQ(sampleRate: 44100)
+            eq.enabled = true
+            configure(eq)
+            var phase: Float = 0
+            let dt = 2 * Float.pi * hz / 44100
+            var peak: Float = 0
+            for i in 0..<8000 {
+                let y = eq.process(sin(phase) * 0.5)
+                phase += dt
+                if i > 4000 { peak = max(peak, abs(y)) }
+            }
+            return peak
+        }
+
+        let low = steadyPeak(hz: 50) { eq in
+            eq.lowGain = 12
+            eq.lowFreq = 150
+            eq.midGain = 0
+            eq.highGain = 0
+        }
+        let high = steadyPeak(hz: 4000) { eq in
+            eq.lowGain = 12
+            eq.lowFreq = 150
+            eq.midGain = 0
+            eq.highGain = 0
+        }
+        #expect(low < 0.58, "low shelf raised the peak to \(low)")
+        #expect(low > high * 2, "shelf lost its curve, low \(low) high \(high)")
+    }
+
+    @Test func audioEngineAdvancedFXDisabledByDefault() async throws {
+        let engine = AudioEngine()
+        #expect(engine.distortion.enabled == false)
+        #expect(engine.parametricEQL.enabled == false)
+        #expect(engine.phaser.bypass == true)
+    }
+
+    // MARK: - Wavetable (Этап 3)
+
+    @Test func wavetableBandLimitPreservesSineNotSaw() async throws {
+        let n = 2048
+        var sine = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            sine[i] = sin(2.0 * Float.pi * Float(i) / Float(n))
+        }
+
+        let osc = WavetableOscillator()
+        let limited = osc.bandLimitForTesting(sine, maxHarmonic: 8)
+
+        // Correlation with pure sine should stay high (not replaced by saw 1/h series).
+        var corrSine: Float = 0
+        var corrSaw: Float = 0
+        var energyLim: Float = 0
+        var energySine: Float = 0
+        var energySaw: Float = 0
+        for i in 0..<n {
+            let s = sine[i]
+            let l = limited[i]
+            let saw = 2.0 * Float(i) / Float(n) - 1.0
+            corrSine += l * s
+            corrSaw += l * saw
+            energyLim += l * l
+            energySine += s * s
+            energySaw += saw * saw
+        }
+        let normSine = corrSine / sqrt(energyLim * energySine)
+        let normSaw = corrSaw / sqrt(energyLim * energySaw)
+        #expect(normSine > 0.95)
+        #expect(normSine > abs(normSaw))
+    }
+
+    @Test func wavetableBandLimitRemovesHighHarmonics() async throws {
+        let n = 2048
+        // Sum harmonics 1 + 40 (high partial)
+        var wave = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let ph = 2.0 * Float.pi * Float(i) / Float(n)
+            wave[i] = sin(ph) + 0.5 * sin(ph * 40.0)
+        }
+
+        let osc = WavetableOscillator()
+        let limited = osc.bandLimitForTesting(wave, maxHarmonic: 8)
+
+        // Full complex projection onto harmonics 1 and 40.
+        var re40: Float = 0, im40: Float = 0
+        var re1: Float = 0, im1: Float = 0
+        for i in 0..<n {
+            let a = 2.0 * Float.pi * Float(i) / Float(n)
+            re40 += limited[i] * cos(a * 40)
+            im40 += limited[i] * sin(a * 40)
+            re1 += limited[i] * cos(a)
+            im1 += limited[i] * sin(a)
+        }
+        let mag40 = sqrt(re40 * re40 + im40 * im40) / Float(n)
+        let mag1 = sqrt(re1 * re1 + im1 * im1) / Float(n)
+        #expect(mag1 > mag40 * 5)
+        #expect(mag40 < 0.05)
+    }
+
+    @Test func wavetableGenerateSampleDoesNotApplyInternalVolume() async throws {
+        let osc = WavetableOscillator()
+        osc.volume = 0.25
+        osc.targetFramePosition = 0
+        for _ in 0..<5000 { osc.advanceMorph() }
+
+        var peak: Float = 0
+        let twoPi = 2.0 * Double.pi
+        let dt = twoPi * 220.0 / 44100.0
+        var phase = 0.0
+        for _ in 0..<2048 {
+            let s = abs(osc.generateSample(phase: phase, phaseIncrement: dt))
+            peak = max(peak, s)
+            phase += dt
+            if phase >= twoPi { phase -= twoPi }
+        }
+        // Peak-normalized tables → peak near 1, not near 0.25
+        #expect(peak > 0.5)
+    }
+
+    @Test func wavetableMorphSmoothingAdvancesTowardTarget() async throws {
+        let osc = WavetableOscillator()
+        osc.morphSmoothingCoeff = 0.5
+        osc.targetFramePosition = 0.0
+        osc.advanceMorph()
+        #expect(abs(osc.framePosition) < 0.001)
+
+        osc.targetFramePosition = 1.0
+        osc.advanceMorph()
+        // One pole: 0 + (1-0)*0.5 = 0.5
+        #expect(abs(osc.framePosition - 0.5) < 0.001)
+
+        osc.advanceMorph()
+        // 0.5 + (1-0.5)*0.5 = 0.75
+        #expect(abs(osc.framePosition - 0.75) < 0.001)
+
+        osc.morphSmoothingCoeff = 1.0
+        osc.advanceMorph()
+        #expect(abs(osc.framePosition - 1.0) < 0.001)
+    }
+
+    @Test func wavetableHermiteAtIntegerPhaseEqualsTable() async throws {
+        let osc = WavetableOscillator()
+        let n = 16
+        var table = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            table[i] = sin(2.0 * Float.pi * Float(i) / Float(n))
+        }
+        for i in 0..<n {
+            let phase = Double(i) / Double(n) * AudioMath.twoPi
+            let y = osc.sampleFromTableForTesting(table, phase: phase)
+            #expect(abs(y - table[i]) < 0.0001, "index \(i): \(y) vs \(table[i])")
+        }
+    }
+
+    @Test func wavetableHermiteStaysBoundedOnSineTable() async throws {
+        let osc = WavetableOscillator()
+        osc.targetFramePosition = 0
+        for _ in 0..<4000 { osc.advanceMorph() }
+
+        var peak: Float = 0
+        let twoPi = AudioMath.twoPi
+        // High note so interpolation is stressed (large phase increment).
+        let dt = twoPi * 1760.0 / 44100.0
+        var phase = 0.0
+        for _ in 0..<4096 {
+            let s = osc.generateSample(phase: phase, phaseIncrement: dt)
+            #expect(s.isFinite)
+            peak = max(peak, abs(s))
+            phase += dt
+            if phase >= twoPi { phase -= twoPi }
+        }
+        #expect(peak > 0.4)
+        #expect(peak < 1.25, "Hermite overshoot too hot: \(peak)")
+    }
+
+    @Test func wavetableHermiteMidpointIsSmoothOnSine() async throws {
+        #expect(abs(WavetableOscillator.hermite4(ym1: 0, y0: 1, y1: 0, y2: -1, t: 0) - 1) < 0.0001)
+        let mid = WavetableOscillator.hermite4(ym1: 0, y0: 1, y1: 0, y2: -1, t: 0.5)
+        #expect(mid.isFinite)
+        #expect(mid > 0.2 && mid < 0.8)
+    }
+
+    @Test func wavetableMipsStayUnderNyquistAtOctaveTop() async throws {
+        let osc = WavetableOscillator()
+        let nyquist = 22050.0
+        for oct in 0..<osc.mipOctaveCountForTesting {
+            let fHigh = 20.0 * pow(2.0, Double(oct + 1))
+            let allowed = max(1, Int(floor(nyquist / fHigh)))
+            let kept = osc.mipMaxHarmonicForTesting(oct)
+            #expect(kept <= allowed, "mip \(oct) keeps \(kept) partials, Nyquist allows \(allowed) at \(fHigh) Hz")
+            #expect(kept >= 1)
+        }
+        // The old power-of-two schedule kept 32 partials at octave 5 (1280 Hz).
+        #expect(osc.mipMaxHarmonicForTesting(5) <= 17)
+        #expect(osc.mipMaxHarmonicForTesting(6) <= 8)
+    }
+
+    @Test func crystalLeadThreeVsFourNotesStayUnderClip() async throws {
+        let engine = AudioEngine()
+        guard var lead = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
+            Issue.record("Missing Crystal Lead factory preset")
+            return
+        }
+        lead.arpMode = .off
+        engine.preset = lead
+        engine.processCommandsForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        let one = engine.renderFramesDetailedForTesting(4096)
+        #expect(one.nanCount == 0)
+        #expect(one.peak > 0.03)
+
+        for note in [64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.heldPartialCountForTesting == 4)
+        let four = engine.renderFramesDetailedForTesting(8192)
+        #expect(four.nanCount == 0)
+        #expect(four.nearClipCount == 0, "4-note Crystal Lead hit ceiling, peak \(four.peak)")
+        #expect(four.peak < 0.95, "4-note Crystal Lead peak \(four.peak)")
+        #expect(four.peak > one.peak * 1.1, "chord \(four.peak) should be louder than one note \(one.peak)")
+        #expect(four.preClipPeak < 1.35, "Crystal Lead 4-note pre-clip \(four.preClipPeak)")
+    }
+
+    @Test func unisonScaleIsOneOverPartials() async throws {
+        #expect(abs(AudioMath.unisonScale(partials: 1) - 1) < 0.0001)
+        #expect(abs(AudioMath.unisonScale(partials: 3) - Float(1.0 / 3.0)) < 0.0001)
+        #expect(abs(AudioMath.voiceGain - 1) < 0.0001)
+    }
+
+    @Test func soloUnisonDoesNotTripleLevel() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        preset.eqEnabled = false
+        preset.chorusMix = 0
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(abs(engine.unisonScaleForTesting(60) - 1) < 0.001)
+        let one = engine.renderFramesDetailedForTesting(4096)
+        engine.clearAllNotes()
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(512)
+
+        var stacked = preset
+        stacked.unisonVoices = 3
+        stacked.unisonDetune = 8
+        engine.preset = stacked
+        engine.applyPresetForTesting()
+        engine.processCommandsForTesting()
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.heldPartialCountForTesting == 3)
+        #expect(abs(engine.unisonScaleForTesting(60) - Float(1.0 / 3.0)) < 0.001)
+        let three = engine.renderFramesDetailedForTesting(4096)
+        #expect(three.nanCount == 0)
+        #expect(three.peak < one.peak * 1.6, "unison 3 is \(three.peak) vs one \(one.peak)")
+        #expect(three.peak > one.peak * 0.45, "unison 3 disappeared: \(three.peak) vs \(one.peak)")
+    }
+
+    @Test func oscillatorWavetableAppliesVolumeOnce() async throws {
+        let engine = WavetableOscillator()
+        engine.targetFramePosition = 0
+        for _ in 0..<3000 { engine.advanceMorph() }
+
+        var osc = Oscillator()
+        osc.waveform = .wavetable
+        osc.wavetableEngine = engine
+        osc.volume = 0.5
+        osc.wavetableMorph = 0
+
+        let phase = 0.3
+        let dt = 0.02
+        let raw2 = abs(engine.generateSample(phase: phase, phaseIncrement: dt))
+        let out2 = abs(osc.generateSample(phase: phase, phaseIncrement: dt))
+        if raw2 > 0.01 {
+            #expect(abs(out2 / raw2 - 0.5) < 0.08)
+        }
+    }
+
+    // MARK: - Multi-note cleanliness
+
+    @Test func polyphonyScaleDropsForChords() async throws {
+        let one = AudioMath.polyphonyScale(activeVoices: 1)
+        let three = AudioMath.polyphonyScale(activeVoices: 3)
+        #expect(abs(one - 1) < 0.0001)
+        #expect(three < one)
+        #expect(abs(three - Float(1.0 / sqrt(3.0))) < 0.0001)
+        // 3 equal unit peaks after scale stay under ~2 (headroom for filter)
+        let peakAfter = 3.0 * three
+        #expect(peakAfter < 2.0)
+    }
+
+    @Test func busScaleKeepsLinearChordPeakConstant() async throws {
+        #expect(abs(AudioMath.busScale(activeVoices: 0) - 1) < 0.0001)
+        #expect(abs(AudioMath.busScale(activeVoices: 1) - 1) < 0.0001)
+        #expect(abs(AudioMath.busScale(activeVoices: 4) - 0.25) < 0.0001)
+        // 4 correlated unit voices stay at 1.0 after scale (1/√N would be 2.0)
+        #expect(abs(4.0 * AudioMath.busScale(activeVoices: 4) - 1.0) < 0.0001)
+        #expect(AudioMath.busScale(activeVoices: 4) < AudioMath.polyphonyScale(activeVoices: 4))
+    }
+
+    @Test func multiNoteOnOffDoesNotCorruptVoiceMap() async throws {
+        let engine = AudioEngine()
+        var p = SynthPreset.defaultPreset
+        p.arpMode = .off
+        p.unisonVoices = 1
+        engine.preset = p
+
+        // 4 simultaneous notes — previously mutated Dictionary during for-in
+        for n in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: n, velocity: 0.8)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+
+        // Render many samples without audio device (drains voices through private path via note off)
+        engine.noteOff(midiNote: 60)
+        engine.noteOff(midiNote: 64)
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteReleasingForTesting(60) || !engine.isNoteActiveForTesting(60) || engine.activeNoteCountForTesting >= 2)
+        #expect(engine.isNoteActiveForTesting(67))
+        #expect(engine.isNoteActiveForTesting(71))
+
+        engine.clearAllNotes()
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 0)
+    }
+
+    @Test func chordPolyphonyCollapsesUnisonToStayLight() async throws {
+        let engine = AudioEngine()
+        var p = SynthPreset.defaultPreset
+        p.arpMode = .off
+        p.unisonVoices = 5 // factory-style request
+        engine.preset = p
+        engine.applyPresetForTesting()
+
+        // One note may use limited unison (solo path)
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 1)
+
+        // Stack to 4 held notes — engine must keep unique notes and not explode partial count
+        for n in [64, 67, 71] {
+            engine.noteOn(midiNote: n, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+        #expect(engine.heldPartialCountForTesting == 4)
+
+        engine.clearAllNotes()
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 0)
+    }
+
+    @Test func fourNoteInitChordStaysBelowClip() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.chorusMix = 0
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        let single = engine.renderFramesDetailedForTesting(4096)
+        #expect(single.nanCount == 0)
+        #expect(single.peak > 0.04, "one Init note must still be audible, peak \(single.peak)")
+        #expect(single.peak < 0.95, "one Init note clipped, peak \(single.peak)")
+
+        for note in [64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+        #expect(engine.heldPartialCountForTesting == 4)
+
+        let chord = engine.renderFramesDetailedForTesting(8192)
+        #expect(chord.nanCount == 0)
+        #expect(chord.nearClipCount == 0, "4-note Init chord hit the ceiling \(chord.nearClipCount) times, peak \(chord.peak)")
+        #expect(chord.peak < 0.95, "4-note Init chord peak \(chord.peak)")
+        // Linear sum: a chord must be louder than one note, not ducked by 1/N.
+        #expect(chord.peak > single.peak * 1.15, "chord \(chord.peak) should be louder than one note \(single.peak)")
+        #expect(chord.preClipPeak < 1.25, "4-note Init slamming the clipper, pre-clip \(chord.preClipPeak)")
+    }
+
+    @Test func fourNoteReleaseActuallyEndsVoices() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.release = 0.05
+        engine.preset = preset
+        engine.processCommandsForTesting()
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteReleasingForTesting(60))
+
+        _ = engine.renderFramesForTesting(12_000)
+        #expect(engine.activeNoteCountForTesting == 0, "notes must finish after release, still \(engine.activeNoteCountForTesting)")
+    }
+
+    private func engineWithRelease(_ release: Float) -> AudioEngine {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.chorusMix = 0
+        preset.release = release
+        preset.attack = 0.005
+        preset.decay = 0.02
+        preset.sustain = 0.8
+        engine.preset = preset
+        engine.applyPresetForTesting()
+        return engine
+    }
+
+    @Test func abandonedTailsFadeWhenANewChordIsHeld() async throws {
+        let engine = engineWithRelease(0.90)
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(4_000)
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.noteOn(midiNote: 72, velocity: 1)
+        engine.noteOn(midiNote: 76, velocity: 1)
+        engine.processCommandsForTesting()
+
+        let flags = engine.voiceReleaseFlagsForTesting()
+        let held = flags.filter { !$0.isReleasing }
+        let musical = flags.filter { $0.isReleasing && !$0.fastRelease }
+        let faded = flags.filter { $0.fastRelease }
+        #expect(held.map(\.midiNote).sorted() == [72, 76])
+        #expect(musical.count == 2, "kept tails \(musical.map(\.midiNote))")
+        #expect(musical.map(\.midiNote).sorted() == [67, 71])
+        #expect(faded.map(\.midiNote).sorted() == [60, 64])
+
+        // 6 ms fade starts from the current level, it does not zero the sample.
+        _ = engine.renderFramesForTesting(1)
+        let justFaded = engine.voiceReleaseFlagsForTesting().filter { $0.fastRelease }
+        #expect(justFaded.allSatisfy { $0.envelopeValue > 0.2 }, "fade clicked to silence \(justFaded)")
+
+        _ = engine.renderFramesForTesting(4_000)
+        let later = engine.voiceReleaseFlagsForTesting()
+        #expect(later.filter { $0.fastRelease }.isEmpty, "fast tails still up \(later)")
+        #expect(later.filter { !$0.isReleasing }.map(\.midiNote).sorted() == [72, 76])
+        #expect(later.filter { $0.isReleasing && !$0.fastRelease }.count == 2)
+    }
+
+    @Test func releasingTheWholeChordKeepsEveryTail() async throws {
+        let engine = engineWithRelease(0.90)
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(2_000)
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.processCommandsForTesting()
+
+        let flags = engine.voiceReleaseFlagsForTesting()
+        #expect(flags.count == 4)
+        #expect(flags.allSatisfy { $0.isReleasing && !$0.fastRelease }, "full release was chopped \(flags)")
+    }
+
+    @Test func shortPluckReleaseIsNotTrimmed() async throws {
+        let engine = engineWithRelease(0.08)
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(2_000)
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.noteOn(midiNote: 72, velocity: 1)
+        engine.processCommandsForTesting()
+
+        let tails = engine.voiceReleaseFlagsForTesting().filter { $0.isReleasing }
+        #expect(tails.count == 4)
+        #expect(tails.allSatisfy { !$0.fastRelease }, "pluck tails were shortened \(tails)")
+    }
+
+    @Test func twoAbandonedTailsStayAtTheAuthoredRelease() async throws {
+        let engine = engineWithRelease(0.90)
+        for note in [60, 64] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(2_000)
+        for note in [60, 64] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.noteOn(midiNote: 72, velocity: 1)
+        engine.processCommandsForTesting()
+
+        let tails = engine.voiceReleaseFlagsForTesting().filter { $0.isReleasing }
+        #expect(tails.count == 2)
+        #expect(tails.allSatisfy { !$0.fastRelease })
+    }
+
+    @Test func delayEffectClampsFeedbackToUnit() async throws {
+        let fx = DelayEffect()
+        fx.feedback = 28 // old applyPreset wrote percent into the 0…1 wrapper
+        #expect(fx.feedback <= 1.0)
+        #expect(abs(fx.feedback - 1.0) < 0.0001)
+        fx.feedback = 0.28
+        #expect(abs(fx.feedback - 0.28) < 0.0001)
+    }
+
+    @Test func delayFeedbackStaysUnitScaleOnApply() async throws {
+        let engine = AudioEngine()
+        guard let lead = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
+            Issue.record("Missing Crystal Lead factory preset")
+            return
+        }
+        engine.loadPreset(lead)
+        engine.applyPresetForTesting()
+        #expect(abs(engine.delayFeedbackForTesting - lead.delayFeedback) < 0.001)
+        #expect(engine.delayFeedbackForTesting <= 1.0, "feedback \(engine.delayFeedbackForTesting) looks like percent — delay will never decay")
+        #expect(engine.delayWetPercentForTesting > 0)
+        #expect(engine.delayWetPercentForTesting < 40)
+    }
+
+    @Test func crystalLeadFourNoteReleaseEndsVoices() async throws {
+        let engine = AudioEngine()
+        guard var lead = SynthPreset.factoryPresets.first(where: { $0.name == "Crystal Lead" }) else {
+            Issue.record("Missing Crystal Lead factory preset")
+            return
+        }
+        lead.arpMode = .off
+        engine.preset = lead
+        engine.processCommandsForTesting()
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 4)
+        #expect(engine.heldPartialCountForTesting == 4)
+
+        let held = engine.renderFramesForTesting(8192)
+        #expect(held.nanCount == 0)
+        #expect(held.peak < 0.95, "Crystal Lead chord clipped, peak \(held.peak)")
+
+        for note in [60, 64, 67, 71] {
+            engine.noteOff(midiNote: note)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteReleasingForTesting(60))
+
+        // Authored release is 0.3s; envelope floor needs ~0.5s. 1s of samples is enough.
+        _ = engine.renderFramesForTesting(44_100)
+        #expect(engine.activeNoteCountForTesting == 0, "Crystal Lead voices still active after release: \(engine.activeNoteCountForTesting)")
+    }
+
+    @Test func computerKeyCodesMapStableOffsets() async throws {
+        #expect(KeyboardHandler.keyCodeToNoteOffset[0] == 0)   // A → C
+        #expect(KeyboardHandler.keyCodeToNoteOffset[13] == 1)  // W → C#
+        #expect(KeyboardHandler.keyCodeToNoteOffset[38] == 11) // J → B
+        #expect(KeyboardHandler.keyCodeToNoteOffset[41] == 16) // ; → E+
+        #expect(KeyboardHandler.keyCodeToNoteOffset[6] == nil) // Z is octave, not a note
+    }
+
+    @Test func factoryPresetsCapUnisonForChordSafety() async throws {
+        for preset in SynthPreset.factoryPresets {
+            #expect(preset.unisonVoices <= 2, "\(preset.name) unison \(preset.unisonVoices) too high for chords")
+        }
+    }
+
+    @Test func factoryPresetsOnlyUseLiveMatrixDestinations() async throws {
+        for preset in SynthPreset.factoryPresets {
+            for entry in preset.modMatrix {
+                #expect(
+                    PresetAuthoring.liveDestinations.contains(entry.destination),
+                    "\(preset.name) matrix → \(entry.destination.rawValue) is silent in the engine"
+                )
+            }
+        }
+    }
+
+    @Test func factoryPresetsAvoidDensityPilesTheEngineCannotCarry() async throws {
+        for preset in SynthPreset.factoryPresets {
+            let osc1WT = preset.osc1Waveform == .wavetable
+            let osc2WT = preset.osc2Enabled && preset.osc2Waveform == .wavetable
+            #expect(!(osc1WT && osc2WT), "\(preset.name) uses two wavetables — only Basic Shapes exists")
+
+            if preset.unisonVoices > 1 {
+                #expect(
+                    preset.category == .bass || preset.category == .lead || preset.category == .fx,
+                    "\(preset.name) unison on a chord category — second key collapses it"
+                )
+                #expect(!preset.phaserEnabled, "\(preset.name) unison + phaser")
+            }
+
+            if osc1WT || osc2WT {
+                let morphs = [preset.osc1WavetableMorph] + (osc2WT ? [preset.osc2WavetableMorph] : [])
+                for morph in morphs {
+                    #expect(morph <= 0.42, "\(preset.name) WT morph \(morph) is into saw/square sand")
+                }
+            }
+
+            let wetCount = (preset.reverbMix > 0.05 ? 1 : 0)
+                + (preset.chorusMix > 0.05 ? 1 : 0)
+                + (preset.delayMix > 0.05 ? 1 : 0)
+                + (preset.phaserEnabled ? 1 : 0)
+            #expect(wetCount <= 2, "\(preset.name) stacks \(wetCount) wet FX after the clipper")
+        }
+    }
+
+    @Test func softClipBoundsHotBus() async throws {
+        let hot = AudioMath.softClip(3.0, threshold: 1.25)
+        #expect(hot.isFinite)
+        #expect(abs(hot) <= 1.25 + 0.001)
+        #expect(abs(hot) > 1.0) // still passes loud content, but limited
+    }
+
+    @Test func filterStaysFiniteOnHotMultiNoteInput() async throws {
+        let f = CachedBiquadFilter()
+        f.type = .lowPass
+        f.cutoff = 1200
+        f.resonance = 0.75 // previously mapped to extreme Q
+        var y: Float = 0
+        // Simulate three summed saw-ish peaks into filter
+        for i in 0..<2048 {
+            let t = Float(i) / 44100.0
+            let s = sin(2 * Float.pi * 110 * t)
+                + sin(2 * Float.pi * 138.6 * t)
+                + sin(2 * Float.pi * 164.8 * t)
+            y = f.process(s * 0.9, sampleRate: 44100)
+            #expect(y.isFinite)
+            #expect(abs(y) < 4)
+        }
+    }
+
+    @Test func biquadMemoryMatchesClassFilterOnSine() async throws {
+        let f = CachedBiquadFilter()
+        f.type = .lowPass
+        f.cutoff = 1200
+        f.resonance = 0.3
+        var mem = BiquadMemory()
+        for i in 0..<256 {
+            let x = sin(2 * Float.pi * 220 * Float(i) / 44100)
+            let classY = f.process(x, sampleRate: 44100)
+            let coeffs = f.currentCoefficients(sampleRate: 44100)
+            let memY = mem.process(x, coeffs: coeffs)
+            #expect(classY.isFinite && memY.isFinite)
+        }
+    }
+
+    @Test func perVoiceFilterDoesNotShareState() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(2048)
+        let held = engine.voiceFilterEnergyForTesting(60)
+        #expect(held > 0.0001, "held note must accumulate filter state")
+
+        engine.noteOn(midiNote: 72, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.voiceFilterEnergyForTesting(72) == 0, "new voice must start with a clean filter")
+        #expect(engine.voiceFilterEnergyForTesting(60) > 0.0001, "old voice filter must not reset when another note starts")
+    }
+
+    // MARK: - Gain staging (Этап 1)
+
+    @Test func polyphonyScaleIsPowerPreserving() async throws {
+        #expect(abs(AudioMath.polyphonyScale(activeVoices: 0) - 1.0) < 0.0001)
+        #expect(abs(AudioMath.polyphonyScale(activeVoices: 1) - 1.0) < 0.0001)
+        #expect(abs(AudioMath.polyphonyScale(activeVoices: 4) - 0.5) < 0.0001)
+        // 1/√7 ≈ 0.37796
+        #expect(abs(AudioMath.polyphonyScale(activeVoices: 7) - Float(1.0 / sqrt(7.0))) < 0.0001)
+        // denser chords must be quieter per-voice scale
+        #expect(AudioMath.polyphonyScale(activeVoices: 16) < AudioMath.polyphonyScale(activeVoices: 4))
+    }
+
+    @Test func softClipSafetyNetNearFullScale() async throws {
+        // tanh curve itself. The live bus does not use it (CleanBus + cleanCeiling).
+        let ceiling: Float = 0.95
+        #expect(abs(AudioMath.softClip(0.0, threshold: ceiling)) < 0.0001)
+        let quiet = AudioMath.softClip(0.1, threshold: ceiling)
+        #expect(abs(quiet - 0.1) < 0.02)
+        let hot = AudioMath.softClip(10.0, threshold: ceiling)
+        #expect(abs(hot) <= ceiling + 0.0001)
+        #expect(hot > ceiling * 0.99)
+        #expect(abs(AudioMath.softClip(-10.0, threshold: ceiling) + hot) < 0.0001)
+    }
+
+    @Test func cleanCeilingIsIdentityBelowTheKnee() async throws {
+        #expect(AudioMath.cleanCeiling(0) == 0)
+        #expect(AudioMath.cleanCeiling(0.25) == 0.25)
+        #expect(AudioMath.cleanCeiling(-0.9) == -0.9)
+        #expect(abs(AudioMath.cleanCeiling(AudioMath.cleanCeilingKnee) - AudioMath.cleanCeilingKnee) < 0.00001)
+        let hot = AudioMath.cleanCeiling(6)
+        #expect(hot.isFinite)
+        #expect(hot > AudioMath.cleanCeilingKnee)
+        #expect(hot < AudioMath.cleanCeilingLimit + 0.0001)
+        #expect(abs(AudioMath.cleanCeiling(-6) + hot) < 0.0001)
+    }
+
+    @Test func voiceStartPhasesSpreadChordTonesButStayDeterministic() async throws {
+        let a = AudioMath.voiceStartPhases(midiNote: 60, partial: 0, partialCount: 1)
+        let b = AudioMath.voiceStartPhases(midiNote: 60, partial: 0, partialCount: 1)
+        let other = AudioMath.voiceStartPhases(midiNote: 64, partial: 0, partialCount: 1)
+        let partial = AudioMath.voiceStartPhases(midiNote: 60, partial: 1, partialCount: 3)
+        #expect(abs(a.0 - b.0) < 1.0e-12)
+        #expect(abs(a.1 - b.1) < 1.0e-12)
+        #expect(abs(a.0 - other.0) > 0.05, "chord tones still share a start phase")
+        #expect(abs(a.0 - partial.0) > 0.05, "unison partials still start together")
+        #expect(a.0 >= 0 && a.0 < AudioMath.twoPi)
+        #expect(a.1 >= 0 && a.1 < AudioMath.twoPi)
+    }
+
+    @Test func cleanBusTurnsDownAHotSineWithoutFlatteningIt() async throws {
+        let bus = CleanBus()
+        let sr: Float = 44100
+        let n = 44100
+        let warm = 12000
+        var peak: Float = 0
+        var sumSq = 0.0
+        var counted = 0
+        for i in 0..<n {
+            let x = sin(2 * Float.pi * 110 * Float(i) / sr) * 1.4
+            let (y, _) = bus.process(left: x, right: x, sampleRate: sr)
+            if i >= warm {
+                peak = max(peak, abs(y))
+                sumSq += Double(y) * Double(y)
+                counted += 1
+            }
+        }
+        let rms = Float(sqrt(sumSq / Double(counted)))
+        let crest = peak / max(rms, 1.0e-6)
+        #expect(peak < AudioMath.cleanBusThreshold + 0.08, "hot sine peak \(peak)")
+        #expect(peak > 0.35, "rider silenced the sine, peak \(peak)")
+        // A gain change keeps a sine's crest at √2. A waveshaper pulls it toward 1.
+        #expect(crest > 1.32 && crest < 1.52, "crest \(crest) peak \(peak) rms \(rms)")
+    }
+
+    @Test func cleanBusLeavesAQuietSineAlone() async throws {
+        let bus = CleanBus()
+        let sr: Float = 44100
+        var peak: Float = 0
+        for i in 0..<20000 {
+            let x = sin(2 * Float.pi * 220 * Float(i) / sr) * 0.20
+            let (y, _) = bus.process(left: x, right: x, sampleRate: sr)
+            if i >= 8000 { peak = max(peak, abs(y)) }
+        }
+        #expect(abs(peak - 0.20) < 0.02, "quiet sine peak \(peak)")
+    }
+
+    @Test func eightNoteDryChordStaysLinearAndLouderThanOneNote() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.lfoEnabled = false
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.chorusMix = 0
+        preset.reverbMix = 0
+        preset.delayMix = 0
+        preset.attack = 0.01
+        preset.decay = 0.05
+        preset.sustain = 0.85
+        preset.release = 0.2
+        preset.filterCutoff = 8000
+        preset.filterResonance = 0.2
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesDetailedForTesting(4000)
+        let single = engine.renderFramesDetailedForTesting(8192)
+        #expect(single.nanCount == 0)
+        #expect(single.peak > 0.04, "one note disappeared, peak \(single.peak)")
+        #expect(single.preClipPeak < AudioMath.cleanBusThreshold + 0.12,
+                "one note is already riding the bus, pre \(single.preClipPeak)")
+
+        for note in [63, 67, 70, 74, 48, 55, 79] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.heldPartialCountForTesting == 8)
+        _ = engine.renderFramesDetailedForTesting(8000)
+        let chord = engine.renderFramesDetailedForTesting(16384)
+        #expect(chord.nanCount == 0)
+        #expect(chord.nearClipCount == 0, "8-note near-clip \(chord.nearClipCount) peak \(chord.peak)")
+        #expect(chord.peak > single.peak * 1.15, "chord \(chord.peak) vs one \(single.peak)")
+        #expect(chord.preClipPeak < AudioMath.cleanCeilingKnee,
+                "8-note entered the ceiling, pre \(chord.preClipPeak) peak \(chord.peak)")
+    }
+
+    @Test func sixSineChordKeepsASineLikeCrest() async throws {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.osc1Waveform = .sine
+        preset.osc1Volume = 0.9
+        preset.osc2Enabled = false
+        preset.attack = 0.005
+        preset.decay = 0.02
+        preset.sustain = 1
+        preset.filterType = .lowPass
+        preset.filterCutoff = 12000
+        preset.filterResonance = 0
+        preset.masterVolume = 0.7
+        preset.lfoEnabled = false
+        preset.distortionEnabled = false
+        preset.eqEnabled = false
+        preset.phaserEnabled = false
+        preset.chorusMix = 0
+        preset.reverbMix = 0
+        preset.delayMix = 0
+        engine.preset = preset
+        engine.applyPresetForTesting()
+
+        engine.noteOn(midiNote: 69, velocity: 1)
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(20000)
+        let one = engine.renderFramesMetricsForTesting(8192)
+        let oneCrest = one.peak / max(one.rms, 1.0e-6)
+        #expect(one.nanCount == 0)
+        #expect(oneCrest > 1.30 && oneCrest < 1.55, "one sine crest \(oneCrest) peak \(one.peak) rms \(one.rms)")
+
+        for note in [60, 64, 67, 72, 76] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        _ = engine.renderFramesForTesting(20000)
+        let chord = engine.renderFramesMetricsForTesting(16384)
+        let chordCrest = chord.peak / max(chord.rms, 1.0e-6)
+        #expect(chord.nanCount == 0)
+        #expect(chord.nearClipCount == 0)
+        #expect(chord.preClipPeak < AudioMath.cleanCeilingKnee, "sine chord pre \(chord.preClipPeak)")
+        #expect(chord.peak > one.peak * 1.1, "chord \(chord.peak) vs one \(one.peak)")
+        // Flattened tops pull crest toward 1. Linear gain keeps the stack peaky.
+        #expect(chordCrest > 1.30, "sine chord crest \(chordCrest) peak \(chord.peak) rms \(chord.rms)")
+    }
+
     // MARK: - Existing DSP unit tests
 
     @Test func noteCalculatesFrequencyNameAndBlackKey() async throws {
@@ -564,6 +1787,24 @@ struct Synt_swiftUITests {
 
         #expect(abs(left) <= 1.0)
         #expect(abs(right) <= 1.0)
+    }
+
+    @Test func adsrMinimumAttackPreventsInstantClick() async throws {
+        var env = ADSREnvelope()
+        env.attack = 0.001 // would have been instant jump before
+        env.decay = 0.1
+        env.sustain = 0.7
+        env.release = 0.2
+        var phase = EnvelopePhase.attack
+        var time: Double = 0
+        var value: Float = 0
+        // First few samples must stay well below full scale (no hard click)
+        value = env.process(
+            currentValue: value, phase: &phase, time: &time,
+            releaseStartValue: 0, isReleasing: false, sampleRate: 44100
+        )
+        #expect(value < 0.5)
+        #expect(phase == .attack || phase == .decay)
     }
 
     @Test func adsrDecayUsesExponentialCurve() async throws {
@@ -629,4 +1870,169 @@ struct Synt_swiftUITests {
         #expect(sample.isFinite)
         #expect(sample >= -1.0 && sample <= 1.0)
     }
+
+    @Test func trianglePolyBLAMPLeavesMidSlopeUnchanged() async throws {
+        var oscillator = Oscillator()
+        oscillator.waveform = .triangle
+        oscillator.volume = 1.0
+        let dt = 0.01
+        // t = 0.25 is far from corners at 0 and 0.5
+        let phase = 0.25 * AudioMath.twoPi
+        let sample = oscillator.generateSample(
+            phase: phase,
+            phaseIncrement: dt * AudioMath.twoPi
+        )
+        let naive = Float(4.0 * abs(0.25 - 0.5) - 1.0)
+        #expect(abs(sample - naive) < 0.0001)
+    }
+
+    @Test func trianglePolyBLAMPRoundsPeaks() async throws {
+        var oscillator = Oscillator()
+        oscillator.waveform = .triangle
+        oscillator.volume = 1.0
+        let dt = 0.05
+        let peak = oscillator.generateSample(
+            phase: 0.0,
+            phaseIncrement: dt * AudioMath.twoPi
+        )
+        #expect(peak.isFinite)
+        #expect(peak > 0.7)
+        #expect(peak < 1.0, "peak should be rounded down from naive 1.0, got \(peak)")
+
+        let trough = oscillator.generateSample(
+            phase: 0.5 * AudioMath.twoPi,
+            phaseIncrement: dt * AudioMath.twoPi
+        )
+        #expect(trough.isFinite)
+        #expect(trough < -0.7)
+        #expect(trough > -1.0, "trough should be rounded up from naive -1.0, got \(trough)")
+    }
+
+    @Test func sawAndSquareUnchangedByTriangleBLAMP() async throws {
+        var saw = Oscillator()
+        saw.waveform = .sawtooth
+        saw.volume = 1.0
+        var square = Oscillator()
+        square.waveform = .square
+        square.volume = 1.0
+        square.pulseWidth = 0.5
+
+        let dt = 0.02 * AudioMath.twoPi
+        let mid = 0.3 * AudioMath.twoPi
+        let sawMid = saw.generateSample(phase: mid, phaseIncrement: dt)
+        let naiveSaw = Float(2.0 * 0.3 - 1.0)
+        #expect(abs(sawMid - naiveSaw) < 0.0001)
+
+        let squareMid = square.generateSample(phase: mid, phaseIncrement: dt)
+        #expect(abs(squareMid - 1.0) < 0.0001)
+    }
+
+    // MARK: - Sound quality Phase A
+
+    @Test func exponentialCutoffIsIdentityAtZeroModulation() async throws {
+        let base: Float = 800
+        let y = AudioMath.exponentialCutoff(base: base, modulation: 0, sampleRate: 44100)
+        #expect(abs(y - base) < 0.01)
+    }
+
+    @Test func exponentialCutoffOpensByConfiguredOctaves() async throws {
+        let base: Float = 500
+        let open = AudioMath.exponentialCutoff(base: base, modulation: 1, sampleRate: 44100)
+        let expected = min(Float(44100) * 0.45, base * pow(2, AudioMath.filterModOctaves))
+        #expect(abs(open - expected) < 1)
+        let closed = AudioMath.exponentialCutoff(base: base, modulation: -1, sampleRate: 44100)
+        #expect(closed < base)
+        #expect(closed >= 20)
+    }
+
+    @Test func reverbDoesNotReloadIRWhenRoomSlotUnchanged() async throws {
+        let engine = AudioEngine()
+        engine.applyPresetForTesting()
+        let afterInit = engine.reverbFactoryLoadCountForTesting
+
+        for _ in 0..<40 {
+            engine.updatePreset { p in
+                p.attack = 0.05
+                p.filterCutoff = 1800
+                p.reverbRoomSize = 0.5 // same slot as Init (medium hall)
+            }
+        }
+        #expect(engine.reverbFactoryLoadCountForTesting == afterInit)
+
+        engine.updatePreset { $0.reverbRoomSize = 0.9 } // largest slot (large hall, not cathedral)
+        #expect(engine.reverbFactoryLoadCountForTesting == afterInit + 1)
+        engine.updatePreset { $0.reverbRoomSize = 0.85 } // same top slot
+        #expect(engine.reverbFactoryLoadCountForTesting == afterInit + 1)
+    }
+
+    @Test func appleFXWetPercentKeepsInitMixAndCompressesPads() async throws {
+        #expect(abs(AudioMath.appleFXWetPercent(0.2) - 20) < 0.001)
+        #expect(AudioMath.appleFXWetPercent(0.5) < 36)
+        #expect(AudioMath.appleFXWetPercent(1.0) <= 40)
+        #expect(AudioMath.appleFXWetPercent(0.5) > AudioMath.appleFXWetPercent(0.2))
+    }
+
+    @Test func switchingPresetSilencesHeldNotesAndStaysQuiet() async throws {
+        let engine = AudioEngine()
+        var initPatch = SynthPreset.defaultPreset
+        initPatch.arpMode = .off
+        engine.preset = initPatch
+        engine.processCommandsForTesting()
+
+        engine.noteOn(midiNote: 60, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteActiveForTesting(60))
+        _ = engine.renderFramesForTesting(2048)
+
+        guard let pad = SynthPreset.factoryPresets.first(where: { $0.name == "Slow Motion" }) else {
+            Issue.record("Missing Slow Motion factory preset")
+            return
+        }
+        engine.loadPreset(pad)
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 0)
+        #expect(!engine.isNoteActiveForTesting(60))
+
+        let idle = engine.renderFramesForTesting(8192)
+        #expect(idle.nanCount == 0)
+        #expect(idle.peak < 0.02, "Slow Motion must be silent with no keys, peak \(idle.peak)")
+    }
+
+    @Test func knobEditDoesNotSilenceHeldNote() async throws {
+        let engine = AudioEngine()
+        var initPatch = SynthPreset.defaultPreset
+        initPatch.arpMode = .off
+        engine.preset = initPatch
+        engine.processCommandsForTesting()
+        engine.noteOn(midiNote: 64, velocity: 1)
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteActiveForTesting(64))
+
+        engine.updatePreset { $0.masterVolume = 0.4 }
+        engine.processCommandsForTesting()
+        #expect(engine.isNoteActiveForTesting(64), "editing a knob must not panic the voice")
+    }
+
+    @Test func slowMotionPadStaysBelowClip() async throws {
+        guard let pad = SynthPreset.factoryPresets.first(where: { $0.name == "Slow Motion" }) else {
+            Issue.record("Missing Slow Motion factory preset")
+            return
+        }
+        let engine = AudioEngine()
+        engine.preset = pad
+        engine.applyPresetForTesting()
+        engine.processCommandsForTesting() // drain preset-change panic before new notes
+        for note in [48, 52, 55] {
+            engine.noteOn(midiNote: note, velocity: 1)
+        }
+        engine.processCommandsForTesting()
+        #expect(engine.activeNoteCountForTesting == 3)
+        // Long attack: render ~1.2 s so the pad is nearly open.
+        let result = engine.renderFramesForTesting(53_000)
+        #expect(result.nanCount == 0)
+        #expect(result.nearClipCount == 0, "Slow Motion hit the ceiling, peak \(result.peak)")
+        #expect(result.peak < 0.95, "Slow Motion peak \(result.peak)")
+        #expect(result.peak > 0.02, "Slow Motion should still be audible, peak \(result.peak)")
+    }
+
 }

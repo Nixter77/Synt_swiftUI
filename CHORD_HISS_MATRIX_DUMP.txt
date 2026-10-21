@@ -1,0 +1,10 @@
+# Chord hiss matrix dump (offline DSP path only)
+# Apple Delay/Reverb AFTER clipper → post-FX rasp NOT visible here.
+# Blow rule: nearClip>=8 OR peak>=0.95 OR preClip>=1.15 OR nan>0
+#stimulus=synthetic Init dry vs wetBoost
+InitDry dry n=1 peak=0.24260281 rms=0.07996171 nearClip=0 preClip=0.24260281 held=1 rev=0.0 dly=0.0 cho=0.0
+InitDry dry n=3 peak=0.5075986 rms=0.1327009 nearClip=0 preClip=0.5075986 held=3 rev=0.0 dly=0.0 cho=0.0
+InitDry dry n=7 peak=0.507602 rms=0.14663227 nearClip=0 preClip=0.507602 held=7 rev=0.0 dly=0.0 cho=0.0
+InitWetBoost wetBoost n=1 peak=0.22542042 rms=0.06854192 nearClip=0 preClip=0.22542042 held=1 rev=0.24 dly=0.1 cho=0.14
+InitWetBoost wetBoost n=3 peak=0.43918464 rms=0.11479183 nearClip=0 preClip=0.43918464 held=3 rev=0.24 dly=0.1 cho=0.14
+InitWetBoost wetBoost n=7 peak=0.43919 rms=0.12626842 nearClip=0 preClip=0.43919 held=7 rev=0.24 dly=0.1 cho=0.14

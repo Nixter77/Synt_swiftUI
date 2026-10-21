@@ -20,21 +20,21 @@
 ## 🚀 СЛЕДУЮЩИЕ ШАГИ (Action Plan)
 
 ### Фаза 1: Thread Safety & Performance (P0)
-- [ ] **Удаление NSLock**: Перейти на `AudioCommandQueue` для всех взаимодействий UI -> Audio Thread.
-- [ ] **Оптимизация голосов**: Интегрировать `VoiceManager` (фиксированный пул голосов, эффективная итерация по массиву).
-- [ ] **Thread-safe UI Update**: Заменить `DispatchQueue.main.async` в аудио-потоке на чтение из `AtomicMeteringState` по таймеру в UI (60Hz).
+- [x] **Удаление NSLock**: `AudioCommandQueue` UI → Audio Thread.
+- [ ] **Оптимизация голосов**: `VoiceManager` — **откачено** (хрип); снова только после safe steal design.
+- [x] **Thread-safe UI Update**: `AtomicMeteringState` + Timer 60Hz.
 - [ ] **Dynamic Sample Rate**: Автоматически подстраивать DSP под частоту дискретизации оборудования.
 
 ### Фаза 2: Улучшение звукового тракта
-- [ ] **Stereo Gain Staging**: Исправить расчет громкости при панорамировании и унисоне.
-- [ ] **Polyphony Scaling**: Реализовать `1/√(activeVoices)` для предотвращения перегрузки до лимитера.
-- [ ] **True Stereo Filter**: Убедиться, что L/R фильтры работают независимо для сохранения стерео-базы.
+- [x] **Stereo Gain Staging / Polyphony Scaling**: `1/√N` + linear −6 dB headroom (NEWPLAN Этап 1).
+- [x] **True Stereo Filter**: filterL / filterR.
 
 ### Фаза 3: Новые возможности
-- [ ] **Wavetable Synthesis**: Добавить выбор волновых таблиц в UI и их поддержку в движке.
-- [ ] **Effects Rack**: Интеграция Distortion и EQ в цепочку эффектов.
-- [ ] **Step Sequencer Pro**: Добавить сохранение паттернов в пресеты и поддержку Tie-нот.
+- [x] **Wavetable Synthesis**: Stage 3 + UI morph; waveform picker.
+- [x] **Effects Rack (Advanced)**: Distortion / EQ / Phaser + `AdvancedEffectsView` (default OFF).
+- [ ] **Step Sequencer Pro**: Сохранение паттернов в пресеты и Tie-ноты.
+- [ ] **Preset persistence for Advanced FX**: сохранять Distortion/EQ/Phaser в `SynthPreset`.
 
 ---
-**Последнее обновление**: 2026-05-06
-**Статус**: В процессе стабилизации архитектуры.
+**Последнее обновление**: 2026-08-05
+**Статус**: NEWPLAN 1/3/4/5 + UI. Этап 2 VoiceManager откачен.

@@ -3,147 +3,320 @@
 //  Synt_swiftUI
 //
 
+import AppKit
+import SynthCore
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// One engine + one MIDI handler per app run, wired before any MIDI source connects.
+@MainActor
+final class SynthRuntime {
+    static let shared = SynthRuntime()
+    let engine: AudioEngine
+    let midi: MIDIHandler
+
+    private init() {
+        engine = AudioEngine()
+        midi = MIDIHandler(audioEngine: engine)
+    }
+}
 
 struct ContentView: View {
-    @StateObject private var audioEngine = AudioEngine()
+    @Environment(\.theme) private var theme
+    @StateObject private var audioEngine: AudioEngine
     @StateObject private var keyboardHandler = KeyboardHandler()
-    @StateObject private var midiHandler = MIDIHandler()
+    /// Built with the engine already in place, so the CoreMIDI thread never
+    /// sees the engine reference change.
+    @StateObject private var midiHandler: MIDIHandler
     @StateObject private var stepSequencer = StepSequencer()
     
     @State private var showSequencer: Bool = false
+    @State private var sessionSaveTask: Task<Void, Never>?
+
+    init() {
+        // StateObject evaluates these autoclosures once per view identity.
+        _audioEngine = StateObject(wrappedValue: SynthRuntime.shared.engine)
+        _midiHandler = StateObject(wrappedValue: SynthRuntime.shared.midi)
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                headerSection
-
-                controlsSection
-                
-                // Step Sequencer (collapsible)
-                if showSequencer {
-                    StepSequencerView(
-                        sequencer: stepSequencer,
-                        bpm: $audioEngine.preset.bpm,
-                        isPlaying: $stepSequencer.isPlaying
-                    )
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                KeyboardView(
-                    keyboardHandler: keyboardHandler,
-                    pressedKeys: audioEngine.pressedKeys,
-                    startNote: 36, // Fixed start note (C2)
-                    numberOfOctaves: 4
-                )
+        HStack(spacing: 0) {
+            if theme.chromeWidth > 0 {
+                WoodCheek().frame(width: theme.chromeWidth)
             }
-            .padding()
+            mainColumn
+                .frame(minWidth: theme.chromeWidth > 0 ? 1000 : nil)
+            if theme.chromeWidth > 0 {
+                WoodCheek().frame(width: theme.chromeWidth)
+            }
         }
-        .background(AppleTheme.windowBackground)
-        // Timer for sequencer (runs at ~1000Hz for accurate timing)
-        .onReceive(Timer.publish(every: 0.001, on: .main, in: .common).autoconnect()) { _ in
-            if stepSequencer.isPlaying {
-                // Call tick with ~44 samples per millisecond (44100 / 1000)
-                stepSequencer.tick(bpm: audioEngine.preset.bpm, sampleCount: 44)
+        .background(theme.bg)
+    }
+
+    private var mainColumn: some View {
+        VStack(spacing: 0) {
+            // The scroll view proposes an unbounded width. Pin the column to the
+            // window so tracked titles cannot shove the cards off the left edge.
+            GeometryReader { geo in
+                ScrollView {
+                    VStack(spacing: 16) {
+                        headerSection
+
+                        controlsSection
+
+                        if showSequencer {
+                            StepSequencerView(
+                                sequencer: stepSequencer,
+                                playhead: stepSequencer.playhead,
+                                bpm: $audioEngine.preset.bpm,
+                                isPlaying: $stepSequencer.isPlaying
+                            )
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                    }
+                    .padding()
+                    .frame(width: geo.size.width)
+                }
             }
+
+            // Keyboard stays outside ScrollView so a drag cannot cancel noteOff.
+            KeyboardView(
+                keyboardHandler: keyboardHandler,
+                keyDisplay: audioEngine.keyDisplay,
+                startNote: 36,
+                numberOfOctaves: 4
+            )
+            .padding(.bottom, 8)
+        }
+        // Playhead only. The clock itself runs on the audio thread.
+        .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { _ in
+            guard showSequencer, stepSequencer.isPlaying else { return }
+            stepSequencer.currentStep = audioEngine.sequencerDisplayStep
+        }
+        .onChange(of: stepSequencer.isPlaying) { _, _ in
+            publishSequencerSnapshot()
+        }
+        .onChange(of: stepSequencer.swing) { _, _ in
+            publishSequencerSnapshot()
+        }
+        .onChange(of: stepSequencer.rootNote) { _, _ in
+            publishSequencerSnapshot()
+        }
+        .onChange(of: stepSequencer.pattern) { _, pattern in
+            if audioEngine.preset.sequencerData != pattern.steps {
+                audioEngine.preset.sequencerData = pattern.steps
+            }
+            publishSequencerSnapshot()
+        }
+        .onChange(of: audioEngine.preset.bpm) { _, _ in
+            publishSequencerSnapshot()
+        }
+        .onChange(of: audioEngine.preset) { oldPreset, preset in
+            if (oldPreset.id != preset.id || oldPreset.name != preset.name),
+               preset.sequencerData.count == 16,
+               stepSequencer.pattern.steps != preset.sequencerData {
+                stepSequencer.pattern.steps = preset.sequencerData
+            }
+            scheduleSessionSave(preset)
         }
         .onAppear {
+            PatchHistoryManager.shared.registerPresetProvider { [weak audioEngine] in
+                audioEngine?.preset ?? .defaultPreset
+            }
+            if let saved = PresetManager.loadLastSession() {
+                audioEngine.preset = saved
+            }
+            if audioEngine.preset.sequencerData.count == 16 {
+                stepSequencer.pattern.steps = audioEngine.preset.sequencerData
+            }
             keyboardHandler.audioEngine = audioEngine
-            midiHandler.audioEngine = audioEngine
             keyboardHandler.startListening()
             audioEngine.start()
-            
-            // Connect step sequencer to audio engine
-            stepSequencer.onStep = { [weak audioEngine] note, velocity, _ in
-                audioEngine?.noteOn(midiNote: note, velocity: velocity)
-            }
-            stepSequencer.onNoteOff = { [weak audioEngine] note in
-                audioEngine?.noteOff(midiNote: note)
-            }
+            publishSequencerSnapshot()
         }
+        .background(
+            Group {
+                Button("Undo") {
+                    if let (restored, _) = PatchHistoryManager.shared.undo() {
+                        audioEngine.preset = restored
+                    }
+                }
+                .keyboardShortcut("z", modifiers: .command)
+
+                Button("Redo") {
+                    if let (restored, _) = PatchHistoryManager.shared.redo() {
+                        audioEngine.preset = restored
+                    }
+                }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+            }
+            .opacity(0)
+            .allowsHitTesting(false)
+        )
         .onDisappear {
+            sessionSaveTask?.cancel()
+            PresetManager.saveLastSession(audioEngine.preset)
             keyboardHandler.stopListening()
             audioEngine.stop()
             stepSequencer.stop()
+            publishSequencerSnapshot()
         }
+    }
+
+    /// Debounced off the audio thread. A burst of knob moves writes one file.
+    private func scheduleSessionSave(_ preset: SynthPreset) {
+        sessionSaveTask?.cancel()
+        sessionSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            PresetManager.saveLastSession(preset)
+        }
+    }
+
+    private func publishSequencerSnapshot() {
+        audioEngine.updateSequencerSnapshot(
+            playing: stepSequencer.isPlaying,
+            swing: stepSequencer.swing,
+            bpm: audioEngine.preset.bpm,
+            rootNote: stepSequencer.rootNote,
+            length: stepSequencer.pattern.length,
+            generation: stepSequencer.transportGeneration,
+            steps: stepSequencer.pattern.steps
+        )
+    }
+
+    private func toggleRecording() {
+        if audioEngine.isRecording {
+            guard let tempURL = audioEngine.stopRecording() else { return }
+            #if os(macOS)
+            let savePanel = NSSavePanel()
+            if let wavType = UTType(filenameExtension: "wav") {
+                savePanel.allowedContentTypes = [wavType]
+            }
+            savePanel.canCreateDirectories = true
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd_HHmmss"
+            savePanel.nameFieldStringValue = "Synt_Recording_\(formatter.string(from: Date())).wav"
+            savePanel.begin { response in
+                if response == .OK, let destination = savePanel.url {
+                    try? FileManager.default.removeItem(at: destination)
+                    try? FileManager.default.copyItem(at: tempURL, to: destination)
+                }
+            }
+            #endif
+        } else {
+            audioEngine.startRecording()
+        }
+    }
+
+    /// External clock shows the locked tempo. Internal clock shows the slider.
+    private var headerBPM: Int {
+        let bpm = audioEngine.preset.syncSource == .midiClock && audioEngine.externalTempo >= 20
+            ? audioEngine.externalTempo
+            : audioEngine.preset.bpm
+        return Int(bpm.rounded())
     }
 
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("SYNTH")
-                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .font(theme.titleFont)
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [AppleTheme.accentOscillator, AppleTheme.accentEffects],
+                            colors: [theme.logoA, theme.logoB],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
+                    .lineLimit(1)
 
                 Text("SwiftUI Synthesizer")
-                    .font(.system(size: 12, design: .rounded))
-                    .foregroundColor(AppleTheme.textSecondary)
-                
-                if !midiHandler.availableDevices.isEmpty {
-                    Menu {
-                        ForEach(midiHandler.availableDevices, id: \.self) { device in
-                            Button(device) {
-                                midiHandler.selectDevice(device)
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(AppleTheme.accentPositive)
-                                .frame(width: 6, height: 6)
-                            Text("MIDI: \(midiHandler.selectedDevice)")
-                                .font(.system(size: 10, design: .rounded))
-                                .foregroundColor(AppleTheme.accentPositive)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 8))
-                                .foregroundColor(AppleTheme.accentPositive)
-                        }
-                        .padding(4)
-                        .background(AppleTheme.accentPositive.opacity(0.1))
-                        .cornerRadius(6)
-                    }
-                    .menuStyle(.borderlessButton)
-                }
+                    .themeCaption(theme, size: 12, weight: .regular)
+                    .foregroundColor(theme.textDim)
+                    .lineLimit(1)
+
+                MIDIStatusView(midi: midiHandler, activity: midiHandler.activity)
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             Spacer()
 
             PresetView(currentPreset: $audioEngine.preset)
+            ThemePickerMenu()
+
+            Menu {
+                Toggle("Program Change", isOn: $audioEngine.respondsToProgramChange)
+            } label: {
+                Image(systemName: "gearshape")
+                    .foregroundColor(theme.textDim)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Settings")
+
+            // Audio Output Recorder (● REC)
+            Button {
+                toggleRecording()
+            } label: {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(audioEngine.isRecording ? Color.red : theme.textFaint)
+                        .frame(width: 7, height: 7)
+                    Text("REC")
+                        .font(theme.monoFont(size: 11, weight: .bold))
+                        .foregroundColor(audioEngine.isRecording ? Color.red : theme.textDim)
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(audioEngine.isRecording ? Color.red.opacity(0.18) : theme.panel)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(audioEngine.isRecording ? Color.red : theme.border, lineWidth: 0.5)
+                )
+            }
+            .buttonStyle(.plain)
+            .help(audioEngine.isRecording ? "Stop Recording & Save WAV" : "Record Output to WAV")
 
             Spacer()
 
             HStack(spacing: 16) {
-                // VU Meter
-                StereoVUMeterView(
-                    leftLevel: audioEngine.outputLevel,
-                    rightLevel: audioEngine.outputLevel,
-                    leftPeak: audioEngine.peakLevel,
-                    rightPeak: audioEngine.peakLevel
-                )
-                
-                // Oscilloscope
-                OscilloscopeView(data: audioEngine.scopeData)
-                    .frame(width: 160, height: 100)
+                // Meters observe AudioMeterModel, not AudioEngine, so knobs stay put.
+                EngineMetersView(meters: audioEngine.meters, scope: audioEngine.meteringState, isRunning: audioEngine.isPlaying)
                 
                 // Sequencer Controls
                 VStack(spacing: 4) {
                     HStack(spacing: 4) {
                         Text("BPM")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundColor(AppleTheme.textSecondary)
-                        Text("\(Int(audioEngine.preset.bpm))")
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
-                            .foregroundColor(AppleTheme.accentOscillator)
+                            .themeCaption(theme, size: 10)
+                            .foregroundColor(theme.textDim)
+                            .lineLimit(1)
+                        Text("\(headerBPM)")
+                            .font(theme.monoFont(size: 14, weight: .bold))
+                            .foregroundColor(theme.accent2)
+                            .lineLimit(1)
+                        Button {
+                            audioEngine.updatePreset { preset in
+                                preset.syncSource = preset.syncSource == .midiClock ? .`internal` : .midiClock
+                            }
+                        } label: {
+                            Text(audioEngine.preset.syncSource == .midiClock ? "EXT" : "INT")
+                                .font(theme.monoFont(size: 10, weight: .bold))
+                                .foregroundColor(audioEngine.preset.syncSource == .midiClock ? theme.accent : theme.textDim)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("syncSourceToggle")
+                        .help("INT uses the BPM slider. EXT follows MIDI clock from Logic.")
                     }
-                    Slider(value: $audioEngine.preset.bpm, in: 40...240, step: 1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    ThemeSlider(value: $audioEngine.preset.bpm, range: 40...240, step: 1)
                         .frame(width: 80)
-                        .tint(AppleTheme.accentOscillator)
+                        .disabled(audioEngine.preset.syncSource == .midiClock)
+                        .opacity(audioEngine.preset.syncSource == .midiClock ? 0.45 : 1.0)
+                        .help(audioEngine.preset.syncSource == .midiClock ? "BPM locked to external MIDI Clock" : "Tempo in BPM")
                 }
                 
                 // Sequencer Toggle & Play
@@ -155,24 +328,26 @@ struct ContentView: View {
                     } label: {
                         Image(systemName: showSequencer ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
                             .font(.caption)
-                            .foregroundColor(showSequencer ? AppleTheme.accentLFO : AppleTheme.textTertiary)
+                            .foregroundColor(showSequencer ? theme.aLFO : theme.textFaint)
                     }
                     .buttonStyle(.plain)
                     .help("Show/Hide Sequencer")
                     
                     Button {
+                        guard audioEngine.preset.syncSource != .midiClock else { return }
                         if stepSequencer.isPlaying {
                             stepSequencer.stop()
                         } else {
                             stepSequencer.start()
                         }
                     } label: {
-                        Image(systemName: stepSequencer.isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                        Image(systemName: audioEngine.preset.syncSource == .midiClock ? (stepSequencer.isPlaying ? "play.circle.fill" : "lock.circle") : (stepSequencer.isPlaying ? "stop.circle.fill" : "play.circle.fill"))
                             .font(.title3)
-                            .foregroundColor(stepSequencer.isPlaying ? AppleTheme.accentDestructive : AppleTheme.accentBlue)
+                            .foregroundColor(audioEngine.preset.syncSource == .midiClock ? (stepSequencer.isPlaying ? theme.positive : theme.textDim) : (stepSequencer.isPlaying ? theme.destructive : theme.accent))
                     }
                     .buttonStyle(.plain)
-                    .help("Play/Stop Sequencer")
+                    .disabled(audioEngine.preset.syncSource == .midiClock)
+                    .help(audioEngine.preset.syncSource == .midiClock ? "Sequencer clock external (Logic MIDI Clock)" : "Play/Stop Sequencer")
                 }
                 
                 LargeKnobView(
@@ -190,18 +365,17 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: audioEngine.isPlaying ? "stop.fill" : "play.fill")
                         .font(.title2)
-                        .foregroundColor(audioEngine.isPlaying ? AppleTheme.accentDestructive : AppleTheme.accentPositive)
+                        .foregroundColor(audioEngine.isPlaying ? theme.destructive : theme.positive)
                         .frame(width: 50, height: 50)
                         .background(
                             Circle()
-                                .fill(AppleTheme.surfaceSecondary)
-                                .shadow(color: AppleTheme.shadowDark, radius: 6, x: 3, y: 4)
-                                .shadow(color: AppleTheme.shadowLight, radius: 4, x: -2, y: -2)
+                                .fill(theme.panel)
+                                .shadow(color: theme.cardShadow.color, radius: theme.cardShadow.radius, x: 0, y: theme.cardShadow.y)
                         )
                         .overlay(
                             Circle()
                                 .stroke(
-                                    audioEngine.isPlaying ? AppleTheme.accentDestructive.opacity(0.3) : AppleTheme.accentPositive.opacity(0.3),
+                                    audioEngine.isPlaying ? theme.destructive.opacity(0.3) : theme.positive.opacity(0.3),
                                     lineWidth: 2
                                 )
                         )
@@ -210,35 +384,50 @@ struct ContentView: View {
             }
         }
         .padding()
-        .appleCard(cornerRadius: AppleTheme.radiusLarge)
+        .appleCard(cornerRadius: theme.rHeader)
     }
 
     private var controlsSection: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 12) {
-                OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 1)
-                OscillatorView(preset: $audioEngine.preset, oscillatorNumber: 2)
-            }
-            .frame(maxWidth: .infinity)
+        SynthControlGrid(audioEngine: audioEngine)
+    }
+}
 
-            VStack(spacing: 12) {
-                ADSRView(preset: $audioEngine.preset)
-                FilterView(preset: $audioEngine.preset)
-                UnisonView(preset: $audioEngine.preset)
-            }
-            .frame(maxWidth: .infinity)
+/// Header VU + scope. This is the only view that observes `AudioMeterModel`.
+struct EngineMetersView: View {
+    @ObservedObject var meters: AudioMeterModel
+    let scope: AtomicMeteringState
+    var isRunning: Bool = true
 
-            VStack(spacing: 12) {
-                LFOView(preset: $audioEngine.preset)
-                EffectsView(preset: $audioEngine.preset)
-                ModMatrixView(preset: $audioEngine.preset)
-            }
-            .frame(maxWidth: .infinity)
+    var body: some View {
+        HStack(spacing: 16) {
+            StereoVUMeterView(
+                leftLevel: meters.outputLevel,
+                rightLevel: meters.outputLevel,
+                leftPeak: meters.peakLevel,
+                rightPeak: meters.peakLevel
+            )
+            OscilloscopeView(metering: scope, isRunning: isRunning)
+                .frame(width: 160, height: 100)
         }
+    }
+}
+
+struct WoodCheek: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        LinearGradient(
+            colors: [theme.chrome, theme.bg, theme.chrome],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .accessibilityHidden(true)
     }
 }
 
 #Preview {
     ContentView()
         .frame(width: 1000, height: 700)
+        .environment(\.theme, Theme.baseline)
+        .environmentObject(ThemeStore())
 }

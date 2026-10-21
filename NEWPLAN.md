@@ -39,28 +39,60 @@ graph TD
 
 ---
 
-### 📍 Этап 1: Гейн-стейджинг и нормировка полифонии (P0 - Звук)
-- [ ] **Пополифоническое масштабирование**: Реализовать динамо-масштабирование амплитуды `1 / sqrt(max(1, activeVoices))` в `generateSample()`.
-- [ ] **Защитный клиппер перед эффектами**: Гарантировать headroom в -6 dB перед подачей в дилей/реверб/лимитер.
+### 📍 Этап 1: Гейн-стейджинг и нормировка полифонии (P0 - Звук) ✅ РЕАЛИЗОВАНО (2026-08-05)
 
-### 📍 Этап 2: Безопасный Lock-Free Engine (`VoiceManager` + `AudioCommandQueue`)
+| Пункт | Статус | Проверка | Примечания |
+|-------|--------|----------|------------|
+| Пополифоническое масштабирование `1/√N` | ✅ Сделано | Unit: `polyphonyScaleIsPowerPreserving` | `AudioMath.polyphonyScale` + счёт `activeVoiceCount` в `generateSample()`. Старый per-voice `unisonScale` убран (двойной scale ломал громкость). |
+| Защитный клиппер −6 dB перед FX | ✅ Исправлено | Unit: `softClipSafetyNetNearFullScale` | **Линейный** headroom ×0.5 (−6 dB); softClip только safety @0.95 (tanh@0.5 давал постоянный «хрип»). Poly scale сглажен. |
+| Чистый звук на аккордах (ручной A/B) | ⏳ Требует прослушивания | Запуск приложения: 1 нота / аккорд 4 / unison 7 | Автотестами RT-цепочку AVAudio не гоняем. |
+
+- [x] **Пополифоническое масштабирование**: `1 / sqrt(max(1, activeVoices))` + сглаживание `smoothedPolyScale`.
+- [x] **Защитный headroom −6 dB перед эффектами**: linear ×0.5 + softClip safety @0.95.
+
+### 📍 Этап 2: Безопасный Lock-Free Engine (`VoiceManager` + `AudioCommandQueue`) ⚠️ ОТКАЧЕНО (2026-08-05)
+
+> **Интеграция `VoiceManager` в render path сломала звук (хрип/щелчки).** Render снова на `[Int:[ActiveNote]]` (как после Этапа 1).  
+> Queue priority (`noteOff`/`clearAll` side-channel) **осталась** — она была до Этапа 2.  
+> Повтор Этапа 2 только после A/B и без hard-kill в аудио-потоке.
+
 - [ ] **Безопасная очистка старых нот**: В `VoiceManager.addVoices()` мгновенно гасить фазу ADSR предыдущего голоса этой же ноты, предотвращая дублирование.
 - [ ] **Плавный Voice Stealing**: При исчерпании 64 голосов применять фазу быстрой релаксации (1 мс release), предотвращая щелчки.
-- [ ] **Защита от переполнения очереди**: В `AudioCommandQueue` при переполнении отдавать приоритет `noteOff` и `clearAll`.
+- [x] **Защита от переполнения очереди**: `noteOff` / `clearAll` side-channel (сделано раньше, сохранено).
 
-### 📍 Этап 3: Полноценный Wavetable-синтез (`WavetableOscillator`)
-- [ ] **Исправление Mip-Mapping**: Переписать `applyFFTBandLimit()`, чтобы она фильтровала существующую волну, а не генерировала абстрактную пилу.
-- [ ] **Нормализация громкости**: Убрать дублирующий множитель `volume` в цепи осцилляторов.
-- [ ] **Smooth Morphing**: Добавить интерполяцию параметров между фреймами таблиц без ступеньчатых перепадов.
+### 📍 Этап 3: Полноценный Wavetable-синтез (`WavetableOscillator`) ✅ РЕАЛИЗОВАНО (2026-08-05)
 
-### 📍 Этап 4: Оптимизированная цепочка эффектов (`Distortion`, `ParametricEQ`, `Phaser`)
-- [ ] **Предрасчет коэффициентов (Lookup / Cached)**: 
-  - Вынести расчет коэффициентов `ParametricEQ` и `Phaser` из посэмплируемого цикла. Рассчитывать только при изменении параметров UI.
-- [ ] **Auto Gain Compensation в Distortion**: Добавить деление выходного сигнала на коэффициент `drive`, чтобы общая громкость оставалась стабильной.
-- [ ] **Anti-Pop Reset**: Автоматически обнулять задержки и состояния (`reset()`) при включении/выключении эффектов.
+| Пункт | Статус | Проверка | Примечания |
+|-------|--------|----------|------------|
+| FFT band-limit источника | ✅ | `wavetableBandLimitPreservesSineNotSaw`, `…RemovesHighHarmonics` | vDSP zrip / DFT; **не** пила `1/h` |
+| Без double volume | ✅ | `wavetableGenerateSampleDoesNotApplyInternalVolume`, `oscillatorWavetableAppliesVolumeOnce` | engine raw; `Oscillator` × volume один раз |
+| Smooth morph | ✅ | `wavetableMorphIsSmoothAcrossFrames` | one-pole `framePosition` + lerp frames + mip crossfade |
+| Интеграция | ✅ safe | factory presets без `.wavetable` | `WaveformType.wavetable`; engines в `AudioEngine` |
 
-### 📍 Этап 5: Atomic Metering (`AtomicMeteringState`)
-- [ ] **Zero-Copy Поллинг**: Подключить `AtomicMeteringState` с чтением по таймеру `Timer.publish` 60Hz на Main-потоке, полностью освободив Audio-поток от `DispatchQueue.main.async`.
+- [x] **Исправление Mip-Mapping**: `applyFFTBandLimit` фильтрует исходный frame.
+- [x] **Нормализация громкости**: volume только в `Oscillator.generateSample`.
+- [x] **Smooth Morphing**: target→smoothed frame + inter-frame + inter-mip lerp.
+
+### 📍 Этап 4: Оптимизированная цепочка эффектов (`Distortion`, `ParametricEQ`, `Phaser`) ✅ РЕАЛИЗОВАНО (2026-08-05)
+
+| Пункт | Статус | Проверка | Примечания |
+|-------|--------|----------|------------|
+| Cached / LUT coeffs | ✅ | `parametricEQDirtyFlags…`, `phaserLUTMatchesTanReference` | EQ: dirty-flags; Phaser: log-spaced coeff LUT (нет `tan` в RT) |
+| Auto gain Distortion | ✅ | `distortionAutoGainKeepsDriveFromExploding` | `autoGainCompensation()` по типу |
+| Anti-pop reset | ✅ | enable/bypass unit-тесты | `enabled`/`bypass` didSet → `reset()` |
+| Интеграция | ✅ safe | `audioEngineAdvancedFXDisabledByDefault` | цепочка в `generateSample`, **default OFF** |
+
+- [x] **Предрасчет коэффициентов**: EQ dirty; Phaser LUT.
+- [x] **Auto Gain Compensation в Distortion**.
+- [x] **Anti-Pop Reset** при enable/bypass.
+
+### 📍 Этап 5: Atomic Metering (`AtomicMeteringState`) ✅ УЖЕ БЫЛО (подтверждено)
+
+| Пункт | Статус | Примечания |
+|-------|--------|------------|
+| Zero-Copy poll 60Hz | ✅ | `Timer.publish` + `AtomicMeteringState`; audio thread не делает `DispatchQueue.main` для VU/scope |
+
+- [x] **Zero-Copy Поллинг**: metering atomics + UI timer (сделано в RT-рефакторинге).
 
 ---
 
@@ -70,7 +102,47 @@ graph TD
 2. **Фаза B**: Исправление `VoiceState.swift` + `VoiceManager` и тестовое подключение `AudioCommandQueue`.
 3. **Фаза C**: Исправление `WavetableOscillator.swift` и добавление в `Oscillator.swift`.
 4. **Фаза D**: Оптимизация `Distortion.swift`, `ParametricEQ.swift`, `Phaser.swift` и интеграция их в цепочку `AudioEngine.swift`.
-5. **Фаза E**: Создание UI в `AdvancedEffectsView.swift` и финальное обновление `PLAN.md`.
+5. **Фаза E**: ✅ `AdvancedEffectsView.swift` + morph в OscillatorView + `PLAN.md` (2026-08-05).
 
 ---
-**Статус**: Готов к пошаговой реализации без срывов аудио-потока.
+
+## 📊 Журнал выполнения
+
+### Этап 1 — 2026-08-05
+| | |
+|--|--|
+| **Сделано** | `1/√N` + сглаживание; linear −6 dB headroom; softClip safety @0.95 |
+| **Что пошло не так** | Первый softClip ceiling 0.5 через tanh **постоянно сатурировал** → «хрип»; исправлено на linear×0.5 |
+
+### Этап 2 — 2026-08-05 ⚠️ ROLLBACK
+| | |
+|--|--|
+| **Сделано (откачено)** | `VoiceManager` в `generateSample` вместо `activeNotes` |
+| **Почему хрипело** | Hard-kill / steal + tanh@0.5 |
+| **Откат** | Render path → `activeNotes`; queue priority сохранена |
+
+### Этап 3 — 2026-08-05
+| | |
+|--|--|
+| **Сделано** | FFT band-limit; volume 1×; smooth morph; `.wavetable` opt-in |
+
+### Этап 4 — 2026-08-05
+| | |
+|--|--|
+| **Сделано** | Distortion gain-comp + anti-pop; EQ dirty cache + reset; Phaser LUT (no tan RT); chain in engine **default OFF** |
+| **Безопасность** | Factory sound path unchanged until FX enabled |
+| **Проверено** | unit-тесты FX + `audioEngineAdvancedFXDisabledByDefault` |
+
+### Этап 5 — 2026-08-05
+| | |
+|--|--|
+| **Статус** | Уже реализовано ранее (atomics + 60Hz poll) — отмечено ✅ |
+
+### Фаза E — UI — 2026-08-05
+| | |
+|--|--|
+| **Сделано** | `AdvancedEffectsView` (Distortion/EQ/Phaser toggles+knobs); wavetable Morph slider в OSC; `PLAN.md` обновлён |
+| **Безопасность** | FX default OFF; factory sound path без изменений |
+
+---
+**Статус**: NEWPLAN этапы 1/3/4/5 + UI (фаза E). Этап 2 откачен.

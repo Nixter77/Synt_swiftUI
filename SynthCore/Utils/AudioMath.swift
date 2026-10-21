@@ -1,0 +1,143 @@
+//
+//  AudioMath.swift
+//  Synt_swiftUI
+//
+
+import Foundation
+
+public enum AudioMath {
+    public static let twoPi = 2.0 * Double.pi
+
+    public static func midiToFrequency(_ midiNote: Int) -> Double {
+        440.0 * pow(2.0, Double(midiNote - 69) / 12.0)
+    }
+
+    public static func frequencyToMidi(_ frequency: Double) -> Int {
+        Int(round(69.0 + 12.0 * log2(frequency / 440.0)))
+    }
+
+    public static func detuneFrequency(_ frequency: Double, cents: Float) -> Double {
+        frequency * pow(2.0, Double(cents) / 1200.0)
+    }
+
+    public static func linearToDecibels(_ linear: Float) -> Float {
+        guard linear > 0 else { return -Float.infinity }
+        return 20.0 * log10(linear)
+    }
+
+    public static func decibelsToLinear(_ decibels: Float) -> Float {
+        pow(10.0, decibels / 20.0)
+    }
+
+    /// Saturating tanh. Clamped so the rational stays inside ±1.
+    @inline(__always)
+    public static func fastTanh(_ x: Float) -> Float {
+        let x = min(3, max(-3, x))
+        let x2 = x * x
+        return x * (27 + x2) / (27 + 9 * x2)
+    }
+
+    public static func clamp(_ value: Float, min: Float, max: Float) -> Float {
+        Swift.min(Swift.max(value, min), max)
+    }
+
+    /// Power-preserving scale: `1 / sqrt(max(1, activeVoices))`.
+    /// Kept for tests / docs. Live path does **not** scale the mix bus.
+    public static func polyphonyScale(activeVoices: Int) -> Float {
+        Float(1.0 / sqrt(Double(max(1, activeVoices))))
+    }
+
+    /// Old mix-bus peak budget (`1/N`). Not used on the live path (phase 1.1).
+    public static func busScale(activeVoices: Int) -> Float {
+        1.0 / Float(max(1, activeVoices))
+    }
+
+    /// Static per-voice gain. `1` keeps a single Init note at the old level
+    /// (bus `1/N` was 1 for one voice). Chords sum linearly on top.
+    public static let voiceGain: Float = 1.0
+
+    /// Unison only: `1/U` inside one MIDI note, never across the mix bus.
+    public static func unisonScale(partials: Int) -> Float {
+        1.0 / Float(max(1, partials))
+    }
+
+    /// Apple Delay/Reverb sit *after* the synth clipper, so a 50% cathedral
+    /// pad (Slow Motion) piles tails into clip while Init (20% hall) stays clean.
+    /// 0…0.25 maps 1:1 (Init unchanged). Above that compresses toward 40% wet.
+    public static func appleFXWetPercent(_ mix: Float) -> Float {
+        let m = max(0, min(1, mix))
+        if m <= 0.25 { return m * 100 }
+        return 25 + (m - 0.25) / 0.75 * 15
+    }
+
+    /// Soft clip toward ±threshold via tanh. This is a waveshaper: it adds harmonics
+    /// as soon as the signal leaves zero. Do not put it on the mix bus — chord peaks
+    /// turn into rasp. Live path uses `CleanBus` + `cleanCeiling`.
+    /// Default threshold 0.5 ≈ −6 dB headroom before downstream FX.
+    public static func softClip(_ value: Float, threshold: Float = 0.5) -> Float {
+        guard threshold > 0 else { return 0 }
+        return threshold * tanh(value / threshold)
+    }
+
+    /// Linear peak the mix-bus rider holds (~−6 dBFS into Apple Delay/Reverb).
+    public static let cleanBusThreshold: Float = 0.50
+
+    /// `cleanCeiling` is bit-identical to its input at and below this.
+    public static let cleanCeilingKnee: Float = 0.90
+
+    /// Asymptote of `cleanCeiling`. Stays under the 0.98 near-clip probe.
+    public static let cleanCeilingLimit: Float = 0.985
+
+    /// Safety net after FX. Identity up to `knee`, then a C1 asymptote to `ceiling`.
+    /// Ordinary chords never reach the knee, so they pick up no extra harmonics.
+    public static func cleanCeiling(
+        _ value: Float,
+        knee: Float = cleanCeilingKnee,
+        ceiling: Float = cleanCeilingLimit
+    ) -> Float {
+        let ax = abs(value)
+        if ax <= knee || !(ceiling > knee) { return value }
+        let span = ceiling - knee
+        let over = ax - knee
+        let y = knee + span * over / (span + over)
+        return value < 0 ? -y : y
+    }
+
+    /// Deterministic oscillator start so a chord does not fire every saw/square
+    /// discontinuity on the same sample. Same note is always the same phase.
+    public static func voiceStartPhases(midiNote: Int, partial: Int, partialCount: Int) -> (Double, Double) {
+        let noteTurns = Double(midiNote) * 0.618033988749895
+        let noteFrac = noteTurns - floor(noteTurns)
+        let count = max(partialCount, 1)
+        let slot = count <= 1 ? 0 : Double(partial % count) / Double(count)
+        let p1Unit = noteFrac + slot * 0.5
+        let p2Unit = noteFrac * 0.5 + 0.27 + slot * 0.37
+        return ((p1Unit - floor(p1Unit)) * twoPi, (p2Unit - floor(p2Unit)) * twoPi)
+    }
+
+    /// Full Env Amt / matrix amount = this many octaves of cutoff travel.
+    public static let filterModOctaves: Float = 5.0
+
+    /// Musical cutoff: `base * 2^(modulation * octaves)`, clamped to 20 Hz … 0.45·Fs.
+    /// `modulation` is typically envelope×amount or a summed bipolar matrix (≈ −2…2).
+    public static func exponentialCutoff(
+        base: Float,
+        modulation: Float,
+        octaves: Float = filterModOctaves,
+        sampleRate: Double
+    ) -> Float {
+        let minC: Float = 20
+        let maxC = Float(sampleRate) * 0.45
+        let safeBase = max(minC, min(maxC, base))
+        let mod = max(-2, min(2, modulation))
+        let hz = safeBase * pow(2.0, mod * octaves)
+        return max(minC, min(maxC, hz))
+    }
+
+    /// Equal-power stereo gains for pan in −1…1. Center is ~0.707 / 0.707 (not a second bus pan).
+    public static func constantPowerGains(pan: Float) -> (left: Float, right: Float) {
+        let p = max(-1, min(1, pan))
+        let angle = (p + 1.0) * Float.pi / 4.0
+        return (cos(angle), sin(angle))
+    }
+}
