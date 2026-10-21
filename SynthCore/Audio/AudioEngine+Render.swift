@@ -909,12 +909,12 @@ public extension AudioEngine {
                 voiceCoeffs = v.voiceFilterCoeffs
             }
             if voiceFilterType == .formant {
-                let formant = voiceFormant[i]
+                let formant = voiceFormantPtr[i].takeUnretainedValue()
                 formant.vowel = vowelNow
                 let formed = formant.process(max(-6, min(6, amplitude)))
                 amplitude = formed.isFinite ? formed : 0
             } else if voiceFilterType == .comb {
-                let comb = voiceComb[i]
+                let comb = voiceCombPtr[i].takeUnretainedValue()
                 var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
                 if perVoiceFilter {
                     c = max(20, min(voiceFilterMaxCutoff, c))
@@ -1012,7 +1012,7 @@ public extension AudioEngine {
             }
             if !amplitude.isFinite { amplitude = 0 }
             if cachedFilter2Routing != .off {
-                let dual = voiceDual[i]
+                let dual = voiceDualPtr[i].takeUnretainedValue()
                 dual.routing = cachedFilter2Routing
                 dual.type2 = cachedFilter2Type
                 dual.cutoff2 = cachedFilter2Cutoff

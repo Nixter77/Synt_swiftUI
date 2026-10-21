@@ -138,8 +138,8 @@ public final class DSPFrequencyShifter: @unchecked Sendable {
         let shiftedL = iL * cosC + qL * sinC
         let shiftedR = iR * cosC + qR * sinC
 
-        feedbackL = shiftedL.isFinite ? AudioMath.cleanCeiling(shiftedL) : 0
-        feedbackR = shiftedR.isFinite ? AudioMath.cleanCeiling(shiftedR) : 0
+        feedbackL = shiftedL.isFinite ? Self.flushDenormal(AudioMath.cleanCeiling(shiftedL)) : 0
+        feedbackR = shiftedR.isFinite ? Self.flushDenormal(AudioMath.cleanCeiling(shiftedR)) : 0
 
         let deltaPhase = AudioMath.twoPi * Double(shiftHz) / Double(max(1.0, sampleRate))
         carrierPhase += deltaPhase
@@ -150,8 +150,8 @@ public final class DSPFrequencyShifter: @unchecked Sendable {
         }
 
         let m = min(1.0, max(0.0, mix))
-        let outL = inputL * (1.0 - m) + shiftedL * m
-        let outR = inputR * (1.0 - m) + shiftedR * m
+        let outL = Self.flushDenormal(inputL * (1.0 - m) + shiftedL * m)
+        let outR = Self.flushDenormal(inputR * (1.0 - m) + shiftedR * m)
 
         return (
             outL.isFinite ? outL : inputL,

@@ -9,8 +9,9 @@
 import Foundation
 
 public final class DSPCombFilter: @unchecked Sendable {
-    private static let bufferSize = 4096
-    private static let bufferMask = 4095
+    // 16384 samples allows down to 20 Hz at up to 192 kHz sample rate (192,000 / 20 = 9600 <= 16382)
+    private static let bufferSize = 16384
+    private static let bufferMask = 16383
 
     private var buffer = [Float](repeating: 0, count: bufferSize)
     private var writeIndex: Int = 0
@@ -22,6 +23,11 @@ public final class DSPCombFilter: @unchecked Sendable {
             buffer[i] = 0
         }
         writeIndex = 0
+    }
+
+    @inline(__always)
+    private static func flushDenormal(_ v: Float) -> Float {
+        abs(v) < 1.0e-15 ? 0.0 : v
     }
 
     @inline(__always)
@@ -46,7 +52,7 @@ public final class DSPCombFilter: @unchecked Sendable {
         let g = max(-0.98, min(0.98, resonance * 0.98))
         let y = input + delayed * g
 
-        let clamped = y.isFinite ? AudioMath.fastTanh(y) : 0.0
+        let clamped = y.isFinite ? Self.flushDenormal(AudioMath.fastTanh(y)) : 0.0
         buffer[writeIndex] = clamped
         writeIndex = (writeIndex + 1) & Self.bufferMask
 

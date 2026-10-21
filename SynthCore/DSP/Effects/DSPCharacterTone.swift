@@ -18,12 +18,16 @@ public final class DSPCharacterTone: @unchecked Sendable {
     // 1-pole low and high filters for shelving tone curves
     private var lowState: Float = 0.0
     private var highState: Float = 0.0
+    private var dcX: Float = 0.0
+    private var dcY: Float = 0.0
 
     public init() {}
 
     public func reset() {
         lowState = 0.0
         highState = 0.0
+        dcX = 0.0
+        dcY = 0.0
     }
 
     @inline(__always)
@@ -42,23 +46,31 @@ public final class DSPCharacterTone: @unchecked Sendable {
             let lowCutoff: Float = 250.0
             let lowAlpha = min(0.99, Float(2.0 * Double.pi) * lowCutoff * dt)
             lowState += lowAlpha * (input - lowState)
+            if abs(lowState) < 1.0e-15 { lowState = 0.0 }
 
             // High pole ~ 7000 Hz
             let highCutoff: Float = 7000.0
             let highAlpha = min(0.99, Float(2.0 * Double.pi) * highCutoff * dt)
             highState += highAlpha * (input - highState)
+            if abs(highState) < 1.0e-15 { highState = 0.0 }
 
             // Shape: add some low warmth, gentle high cut
             let shaped = highState + lowState * 0.2
-            // Subtle 2nd harmonic warmth
-            let warm = shaped + 0.08 * (shaped * shaped)
-            return AudioMath.fastTanh(warm)
+            // Subtle 2nd harmonic warmth with DC blocker to remove offset
+            let warmRaw = shaped + 0.08 * (shaped * shaped)
+            let dcPole = Float(exp(-2.0 * Double.pi * 10.0 / Double(max(22050.0, sampleRate))))
+            let y = warmRaw - dcX + dcPole * dcY
+            dcX = warmRaw
+            let yFlushed = abs(y) < 1.0e-15 ? 0.0 : (y.isFinite ? y : 0.0)
+            dcY = yFlushed
+            return AudioMath.fastTanh(yFlushed)
 
         case .bright:
             // Bright: high shelf boost (+2.5 dB above 4 kHz)
             let highCutoff: Float = 4000.0
             let highAlpha = min(0.99, Float(2.0 * Double.pi) * highCutoff * dt)
             highState += highAlpha * (input - highState)
+            if abs(highState) < 1.0e-15 { highState = 0.0 }
             let highs = input - highState
 
             let boosted = input + highs * 0.35

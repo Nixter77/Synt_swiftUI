@@ -447,7 +447,7 @@ enum SyntParameterTree {
 
         let waveforms = ["Sine", "Saw", "Square", "Triangle", "Noise", "Wavetable"]
         let tables = ["Basic", "Analog", "Digital", "PWM", "Formant", "User"]
-        let filters = ["Low Pass", "High Pass", "Band Pass", "Notch", "Ladder", "Formant"]
+        let filters = ["Low Pass", "High Pass", "Band Pass", "Notch", "Ladder", "Formant", "Comb"]
         let lfoTargets = ["Pitch", "Filter", "Amplitude", "Pan", "None"]
         let lfoModes = ["Free", "Retrigger", "One-Shot"]
         let noise = ["White", "Pink", "Brown"]

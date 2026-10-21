@@ -361,7 +361,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .lfoMode, .lfo2Mode: return 2
         case .lfoStartPhase, .lfo2StartPhase: return 360
         case .arpLatch: return 1
-        case .filterType, .filter2Type: return 5
+        case .filterType, .filter2Type: return 6
         case .lfoTarget, .lfo2Target: return 4
         case .filter2Routing: return 2
         case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay: return 2

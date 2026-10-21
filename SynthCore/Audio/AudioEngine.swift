@@ -152,6 +152,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let voiceFormant: [DSPFormantFilter] = (0..<AudioEngine.maxVoices).map { _ in DSPFormantFilter() }
     /// Filter 1 comb / resonator. Same lifetime rule as `voiceDual`.
     public let voiceComb: [DSPCombFilter] = (0..<AudioEngine.maxVoices).map { _ in DSPCombFilter() }
+    public let voiceDualPtr: UnsafeMutablePointer<Unmanaged<DSPDualFilter>>
+    public let voiceFormantPtr: UnsafeMutablePointer<Unmanaged<DSPFormantFilter>>
+    public let voiceCombPtr: UnsafeMutablePointer<Unmanaged<DSPCombFilter>>
     public var activeVoiceCountRT: Int = 0
     /// Audio-thread note-off counter. Newer releases have a higher serial.
     public var releaseSerialRT: Int = 1
@@ -473,6 +476,14 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         for i in 0..<128 { (ccLastRaw + i).initialize(to: Atomic<UInt8>(255)) }
         midiClockIntervals.initialize(repeating: 0, count: 24)
         midiSchedule.initialize(repeating: ScheduledMIDI(offset: 0, command: .clearAll), count: 512)
+        voiceDualPtr = .allocate(capacity: AudioEngine.maxVoices)
+        voiceFormantPtr = .allocate(capacity: AudioEngine.maxVoices)
+        voiceCombPtr = .allocate(capacity: AudioEngine.maxVoices)
+        for i in 0..<AudioEngine.maxVoices {
+            (voiceDualPtr + i).initialize(to: Unmanaged.passUnretained(voiceDual[i]))
+            (voiceFormantPtr + i).initialize(to: Unmanaged.passUnretained(voiceFormant[i]))
+            (voiceCombPtr + i).initialize(to: Unmanaged.passUnretained(voiceComb[i]))
+        }
         _ = MIDIControlTarget.from(rtIndex: 0) // warm the static table off the audio thread
 
         // Attach wavetable engines before first render (used only if waveform == .wavetable).
@@ -661,6 +672,12 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         midiClockIntervals.deallocate()
         midiSchedule.deinitialize(count: 512)
         midiSchedule.deallocate()
+        voiceDualPtr.deinitialize(count: AudioEngine.maxVoices)
+        voiceDualPtr.deallocate()
+        voiceFormantPtr.deinitialize(count: AudioEngine.maxVoices)
+        voiceFormantPtr.deallocate()
+        voiceCombPtr.deinitialize(count: AudioEngine.maxVoices)
+        voiceCombPtr.deallocate()
     }
 
     private static func makePeakLimiter() -> AVAudioUnitEffect {
@@ -678,15 +695,18 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     func applySampleRate(_ rate: Double, rebuildGraph: Bool) {
         guard !isApplyingSampleRate else { return }
         let rate = min(192_000, max(8_000, rate))
+        let needsRateChange = abs(rate - sampleRate) > 0.5
+        let needsGraph = rebuildGraph && abs(rate - graphSampleRate) > 0.5
+        guard needsRateChange || needsGraph else { return }
+
         isApplyingSampleRate = true
         defer { isApplyingSampleRate = false }
 
-        let needsGraph = rebuildGraph && abs(rate - graphSampleRate) > 0.5
         // Stop the render callback BEFORE touching DSP state it reads.
         let wasRunning = engine.isRunning
         if wasRunning { engine.stop() }
 
-        if abs(rate - sampleRate) > 0.5 {
+        if needsRateChange {
             sampleRate = rate
             pushSampleRateToDSP(rate)
         }

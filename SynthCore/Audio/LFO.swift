@@ -134,7 +134,13 @@ public class LFO {
 
     /// Returns (left, right) raw LFO values. When stereoPhaseOffsetDegrees == 0, left == right.
     public func nextStereoRawValue(sampleRate: Double, rateOverride: Float? = nil) -> (left: Float, right: Float) {
+        if mode == .oneShot && isCompleted {
+            return (0.0, 0.0)
+        }
         let leftVal = nextRawValue(sampleRate: sampleRate, rateOverride: rateOverride)
+        if mode == .oneShot && isCompleted {
+            return (leftVal, 0.0)
+        }
         if stereoPhaseOffsetDegrees == 0.0 {
             return (leftVal, leftVal)
         }

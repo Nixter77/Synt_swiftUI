@@ -10,6 +10,9 @@
 
 import Foundation
 import Synchronization
+#if canImport(Darwin)
+import Darwin
+#endif
 
 public struct DSPMSEGPoint: Codable, Equatable, Hashable, Sendable {
     public var time: Float   // Normalized time 0.0 ... 1.0 (or beat progress)
@@ -197,6 +200,7 @@ public final class DSPMSEG {
     private var bankA = PublishedBank()
     private var bankB = PublishedBank()
     private let activeBank = Atomic<Int>(0)
+    private let acknowledgedBank = Atomic<Int>(0)
 
     public private(set) var phase: Float = 0.0
     public private(set) var currentValue: Float = 0.0
@@ -233,7 +237,15 @@ public final class DSPMSEG {
 
     /// Main thread. Copies a finished model into the idle bank and swaps.
     public func publish(_ model: DSPMSEGModel) {
-        let idle = 1 - activeBank.load(ordering: .acquiring)
+        let currentActive = activeBank.load(ordering: .acquiring)
+        var spins = 0
+        while acknowledgedBank.load(ordering: .acquiring) != currentActive && spins < 1000 {
+            spins += 1
+            #if canImport(Darwin)
+            sched_yield()
+            #endif
+        }
+        let idle = 1 - currentActive
         let base = idle * DSPMSEGModel.maxPoints
         let count = min(DSPMSEGModel.maxPoints, model.points.count)
         for i in 0..<count {
@@ -257,7 +269,15 @@ public final class DSPMSEG {
 
     /// No points. The render thread skips the generator while nothing is routed.
     public func publishEmpty() {
-        let idle = 1 - activeBank.load(ordering: .acquiring)
+        let currentActive = activeBank.load(ordering: .acquiring)
+        var spins = 0
+        while acknowledgedBank.load(ordering: .acquiring) != currentActive && spins < 1000 {
+            spins += 1
+            #if canImport(Darwin)
+            sched_yield()
+            #endif
+        }
+        let idle = 1 - currentActive
         if idle == 0 {
             bankA.pointCount = 0
         } else {
@@ -296,6 +316,7 @@ public final class DSPMSEG {
     @inline(__always)
     public func tick(gate: Bool = true, bpm: Double = 120.0) -> Float {
         let bank = activeBank.load(ordering: .acquiring)
+        acknowledgedBank.store(bank, ordering: .releasing)
         let meta = bank == 0 ? bankA : bankB
         guard meta.pointCount > 0 else {
             currentValue = 0
