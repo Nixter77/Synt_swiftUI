@@ -138,9 +138,6 @@ public class LFO {
             return (0.0, 0.0)
         }
         let leftVal = nextRawValue(sampleRate: sampleRate, rateOverride: rateOverride)
-        if mode == .oneShot && isCompleted {
-            return (leftVal, 0.0)
-        }
         if stereoPhaseOffsetDegrees == 0.0 {
             return (leftVal, leftVal)
         }

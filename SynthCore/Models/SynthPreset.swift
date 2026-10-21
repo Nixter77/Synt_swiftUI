@@ -860,6 +860,8 @@ public enum OscPhaseMode: String, CaseIterable, Codable, Sendable {
     case reset = "Reset"
     case free = "Free"
     case random = "Random"
+    /// New seed on every trigger. Appended so stored "Random" stays the note hash.
+    case randomPerNote = "Random Per Note"
 }
 
 public enum NoiseColor: String, CaseIterable, Codable {

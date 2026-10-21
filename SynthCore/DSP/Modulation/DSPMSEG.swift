@@ -10,9 +10,6 @@
 
 import Foundation
 import Synchronization
-#if canImport(Darwin)
-import Darwin
-#endif
 
 public struct DSPMSEGPoint: Codable, Equatable, Hashable, Sendable {
     public var time: Float   // Normalized time 0.0 ... 1.0 (or beat progress)
@@ -193,14 +190,18 @@ public final class DSPMSEG {
 
     private var sampleRate: Double = 44100.0
 
-    /// Two banks. The writer fills the idle one, then release-stores the index.
+    /// Three banks. The writer fills a bank the reader is not in, then release-stores the index.
+    /// No acknowledgement and no wait: a stalled reader keeps its bank, and the latest publish wins.
+    private static let bankCount = 3
     private let times: UnsafeMutablePointer<Float>
     private let values: UnsafeMutablePointer<Float>
     private let curves: UnsafeMutablePointer<Float>
-    private var bankA = PublishedBank()
-    private var bankB = PublishedBank()
+    private var bankMeta0 = PublishedBank()
+    private var bankMeta1 = PublishedBank()
+    private var bankMeta2 = PublishedBank()
     private let activeBank = Atomic<Int>(0)
-    private let acknowledgedBank = Atomic<Int>(0)
+    /// Bank `tick` is reading, or -1 between ticks.
+    private let readingBank = Atomic<Int>(-1)
 
     public private(set) var phase: Float = 0.0
     public private(set) var currentValue: Float = 0.0
@@ -208,7 +209,7 @@ public final class DSPMSEG {
     public private(set) var isSustaining: Bool = false
 
     public init(model: DSPMSEGModel = DSPMSEGModel(), sampleRate: Double = 44100.0) {
-        let slots = DSPMSEGModel.maxPoints * 2
+        let slots = DSPMSEGModel.maxPoints * Self.bankCount
         times = .allocate(capacity: slots)
         values = .allocate(capacity: slots)
         curves = .allocate(capacity: slots)
@@ -222,7 +223,7 @@ public final class DSPMSEG {
     }
 
     deinit {
-        let slots = DSPMSEGModel.maxPoints * 2
+        let slots = DSPMSEGModel.maxPoints * Self.bankCount
         times.deinitialize(count: slots)
         values.deinitialize(count: slots)
         curves.deinitialize(count: slots)
@@ -235,17 +236,36 @@ public final class DSPMSEG {
         self.sampleRate = max(1.0, sampleRate)
     }
 
-    /// Main thread. Copies a finished model into the idle bank and swaps.
-    public func publish(_ model: DSPMSEGModel) {
-        let currentActive = activeBank.load(ordering: .acquiring)
-        var spins = 0
-        while acknowledgedBank.load(ordering: .acquiring) != currentActive && spins < 1000 {
-            spins += 1
-            #if canImport(Darwin)
-            sched_yield()
-            #endif
+    /// Bank that is neither the published index nor the one `tick` is reading.
+    private func claimIdleBank() -> Int {
+        let published = activeBank.load(ordering: .acquiring)
+        let inUse = readingBank.load(ordering: .acquiring)
+        var candidate = (published + 1) % Self.bankCount
+        if candidate == inUse {
+            candidate = (candidate + 1) % Self.bankCount
         }
-        let idle = 1 - currentActive
+        return candidate
+    }
+
+    private func meta(at bank: Int) -> PublishedBank {
+        switch bank {
+        case 0: return bankMeta0
+        case 1: return bankMeta1
+        default: return bankMeta2
+        }
+    }
+
+    private func setMeta(_ meta: PublishedBank, at bank: Int) {
+        switch bank {
+        case 0: bankMeta0 = meta
+        case 1: bankMeta1 = meta
+        default: bankMeta2 = meta
+        }
+    }
+
+    /// Main thread. Copies a finished model into an idle bank and publishes it. Does not wait.
+    public func publish(_ model: DSPMSEGModel) {
+        let idle = claimIdleBank()
         let base = idle * DSPMSEGModel.maxPoints
         let count = min(DSPMSEGModel.maxPoints, model.points.count)
         for i in 0..<count {
@@ -263,26 +283,17 @@ public final class DSPMSEG {
         meta.loopStart = model.loopStartIndex ?? -1
         meta.loopEnd = model.loopEndIndex ?? -1
         meta.sustain = model.sustainIndex ?? -1
-        if idle == 0 { bankA = meta } else { bankB = meta }
+        setMeta(meta, at: idle)
         activeBank.store(idle, ordering: .releasing)
     }
 
     /// No points. The render thread skips the generator while nothing is routed.
+    /// Does not rewrite `model`.
     public func publishEmpty() {
-        let currentActive = activeBank.load(ordering: .acquiring)
-        var spins = 0
-        while acknowledgedBank.load(ordering: .acquiring) != currentActive && spins < 1000 {
-            spins += 1
-            #if canImport(Darwin)
-            sched_yield()
-            #endif
-        }
-        let idle = 1 - currentActive
-        if idle == 0 {
-            bankA.pointCount = 0
-        } else {
-            bankB.pointCount = 0
-        }
+        let idle = claimIdleBank()
+        var meta = meta(at: idle)
+        meta.pointCount = 0
+        setMeta(meta, at: idle)
         activeBank.store(idle, ordering: .releasing)
     }
 
@@ -316,8 +327,15 @@ public final class DSPMSEG {
     @inline(__always)
     public func tick(gate: Bool = true, bpm: Double = 120.0) -> Float {
         let bank = activeBank.load(ordering: .acquiring)
-        acknowledgedBank.store(bank, ordering: .releasing)
-        let meta = bank == 0 ? bankA : bankB
+        readingBank.store(bank, ordering: .releasing)
+        let output = sampleTick(gate: gate, bpm: bpm, bank: bank)
+        readingBank.store(-1, ordering: .releasing)
+        return output
+    }
+
+    @inline(__always)
+    private func sampleTick(gate: Bool, bpm: Double, bank: Int) -> Float {
+        let meta = meta(at: bank)
         guard meta.pointCount > 0 else {
             currentValue = 0
             return 0
@@ -368,14 +386,18 @@ public final class DSPMSEG {
             phase = phase.truncatingRemainder(dividingBy: 1)
         }
 
-        currentValue = evaluate(at: phase)
+        currentValue = evaluate(at: phase, bank: bank)
         return currentValue
     }
 
     @inline(__always)
     public func evaluate(at t: Float) -> Float {
-        let bank = activeBank.load(ordering: .acquiring)
-        let count = (bank == 0 ? bankA : bankB).pointCount
+        evaluate(at: t, bank: activeBank.load(ordering: .acquiring))
+    }
+
+    @inline(__always)
+    private func evaluate(at t: Float, bank: Int) -> Float {
+        let count = meta(at: bank).pointCount
         guard count > 0 else { return 0 }
         let clampedT = max(0, min(1, t))
         if clampedT <= sampleTime(0, bank: bank) { return sample(0, bank: bank) }
@@ -406,8 +428,7 @@ public final class DSPMSEG {
 
     @inline(__always)
     private func currentMeta() -> PublishedBank {
-        let bank = activeBank.load(ordering: .acquiring)
-        return bank == 0 ? bankA : bankB
+        meta(at: activeBank.load(ordering: .acquiring))
     }
 
     @inline(__always)

@@ -398,7 +398,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         envFollowerAttCoeff = 1.0 - Float(exp(-1.0 / (sr * Double(max(0.0005, cachedEnvFollowerAttack)))))
         envFollowerRelCoeff = 1.0 - Float(exp(-1.0 / (sr * Double(max(0.0005, cachedEnvFollowerRelease)))))
     }
-    public let liveModulation = LiveModulationSnapshot.shared
+    public let liveModulation = LiveModulationSnapshot()
     public var lastRenderedSampleL: Float = 0.0
     public var lastRenderedSampleR: Float = 0.0
     public let frequencyShifter = DSPFrequencyShifter()

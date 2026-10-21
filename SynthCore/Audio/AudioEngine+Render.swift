@@ -542,6 +542,18 @@ public extension AudioEngine {
             advanceTranceGateRT()
         }
 
+        // Latest active slot wins. Stored once after the scan; zeros when the pool is idle.
+        var sawActiveVoice = false
+        var hlPitch1: Float = 0
+        var hlPitch2: Float = 0
+        var hlAmp: Float = 0
+        var hlPan: Float = 0
+        var hlPwm1: Float = 0
+        var hlPwm2: Float = 0
+        var hlMix: Float = 0
+        var hlFine: Float = 0
+        var hlFm: Float = 0
+
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
         for i in 0..<AudioEngine.maxVoices {
             guard voices[i].isActive else { continue }
@@ -659,17 +671,6 @@ public extension AudioEngine {
                     case .cutoff, .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel:
                         break
                     }
-                }
-                if i == 0 {
-                    liveModulation.store(pitchMod1, for: .pitch1)
-                    liveModulation.store(pitchMod2, for: .pitch2)
-                    liveModulation.store(ampMod, for: .amp)
-                    liveModulation.store(panMod, for: .pan)
-                    liveModulation.store(pwmMod1, for: .pwm1)
-                    liveModulation.store(pwmMod2, for: .pwm2)
-                    liveModulation.store(mixMod, for: .mix)
-                    liveModulation.store(fineMod, for: .finePitch)
-                    liveModulation.store(fmMod, for: .fm)
                 }
             }
 
@@ -1067,11 +1068,12 @@ public extension AudioEngine {
                (lfo2Enabled && lfo2Target == .amplitude && lfo2.stereoPhaseOffsetDegrees != 0) {
                 var aL = amplitude
                 var aR = amplitude
-                if lfoEnabled && lfoTarget == .amplitude {
+                // A zero-offset LFO was already applied once on the mono amplitude.
+                if lfoEnabled && lfoTarget == .amplitude && lfo.stereoPhaseOffsetDegrees != 0 {
                     aL = lfo.modulateAmplitude(aL, lfoValue: lfoValueL)
                     aR = lfo.modulateAmplitude(aR, lfoValue: lfoValueR)
                 }
-                if lfo2Enabled && lfo2Target == .amplitude {
+                if lfo2Enabled && lfo2Target == .amplitude && lfo2.stereoPhaseOffsetDegrees != 0 {
                     aL = lfo2.modulateAmplitude(aL, lfoValue: lfo2ValueL)
                     aR = lfo2.modulateAmplitude(aR, lfoValue: lfo2ValueR)
                 }
@@ -1115,8 +1117,41 @@ public extension AudioEngine {
                 v.deactivate()
                 resetVoiceToneBanks(at: i)
                 activeVoiceCountRT = max(0, activeVoiceCountRT - 1)
+            } else {
+                sawActiveVoice = true
+                hlPitch1 = pitchMod1
+                hlPitch2 = pitchMod2
+                hlAmp = ampMod
+                hlPan = panMod
+                hlPwm1 = pwmMod1
+                hlPwm2 = pwmMod2
+                hlMix = mixMod
+                hlFine = fineMod
+                hlFm = fmMod
             }
             voices[i] = v
+        }
+
+        if sawActiveVoice {
+            liveModulation.store(hlPitch1, for: .pitch1)
+            liveModulation.store(hlPitch2, for: .pitch2)
+            liveModulation.store(hlAmp, for: .amp)
+            liveModulation.store(hlPan, for: .pan)
+            liveModulation.store(hlPwm1, for: .pwm1)
+            liveModulation.store(hlPwm2, for: .pwm2)
+            liveModulation.store(hlMix, for: .mix)
+            liveModulation.store(hlFine, for: .finePitch)
+            liveModulation.store(hlFm, for: .fm)
+        } else {
+            liveModulation.store(0, for: .pitch1)
+            liveModulation.store(0, for: .pitch2)
+            liveModulation.store(0, for: .amp)
+            liveModulation.store(0, for: .pan)
+            liveModulation.store(0, for: .pwm1)
+            liveModulation.store(0, for: .pwm2)
+            liveModulation.store(0, for: .mix)
+            liveModulation.store(0, for: .finePitch)
+            liveModulation.store(0, for: .fm)
         }
 
         if !mixedSampleL.isFinite { mixedSampleL = 0 }

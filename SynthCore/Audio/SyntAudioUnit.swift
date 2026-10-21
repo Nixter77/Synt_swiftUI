@@ -15,6 +15,8 @@ import Synchronization
 
 public final class SyntAudioUnit: AUAudioUnit {
     let engine: AudioEngine
+    /// The engine's modulation snapshot. The plugin UI reads this instance, not a process singleton.
+    public var liveModulation: LiveModulationSnapshot { engine.liveModulation }
     /// Preset copy for the plugin view. Assign only from the main thread.
     /// Addressed knobs still go through the parameter tree.
     public var uiPreset: SynthPreset {

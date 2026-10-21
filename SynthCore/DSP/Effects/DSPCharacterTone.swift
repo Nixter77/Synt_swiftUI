@@ -21,6 +21,12 @@ public final class DSPCharacterTone: @unchecked Sendable {
     private var dcX: Float = 0.0
     private var dcY: Float = 0.0
 
+    private var coeffSampleRate: Float = -1
+    private var coeffMode: CharacterMode = .off
+    private var lowAlpha: Float = 0
+    private var highAlpha: Float = 0
+    private var dcPole: Float = 0
+
     public init() {}
 
     public func reset() {
@@ -30,35 +36,44 @@ public final class DSPCharacterTone: @unchecked Sendable {
         dcY = 0.0
     }
 
+    /// Poles and the warm DC coefficient. Recomputed when the rate or mode changes, not per sample.
+    private func refreshCoeffs(mode: CharacterMode, sampleRate: Float) {
+        let sr = max(22050.0, sampleRate)
+        if coeffSampleRate == sr && coeffMode == mode { return }
+        coeffSampleRate = sr
+        coeffMode = mode
+        let dt = 1.0 / sr
+        switch mode {
+        case .off:
+            break
+        case .warm:
+            lowAlpha = min(0.99, Float(2.0 * Double.pi) * 250.0 * dt)
+            highAlpha = min(0.99, Float(2.0 * Double.pi) * 7000.0 * dt)
+            dcPole = Float(exp(-2.0 * Double.pi * 10.0 / Double(sr)))
+        case .bright:
+            highAlpha = min(0.99, Float(2.0 * Double.pi) * 4000.0 * dt)
+        }
+    }
+
     @inline(__always)
     public func process(_ input: Float, mode: CharacterMode, sampleRate: Float) -> Float {
         guard mode != .off else { return input }
-
-        let dt = 1.0 / max(22050.0, sampleRate)
+        refreshCoeffs(mode: mode, sampleRate: sampleRate)
 
         switch mode {
         case .off:
             return input
 
         case .warm:
-            // Warm: low boost (+1.5 dB) and high rolloff (-2 dB) + soft saturation
-            // Low pole ~ 250 Hz
-            let lowCutoff: Float = 250.0
-            let lowAlpha = min(0.99, Float(2.0 * Double.pi) * lowCutoff * dt)
+            // Warm: low boost and high rolloff + soft saturation.
             lowState += lowAlpha * (input - lowState)
             if abs(lowState) < 1.0e-15 { lowState = 0.0 }
 
-            // High pole ~ 7000 Hz
-            let highCutoff: Float = 7000.0
-            let highAlpha = min(0.99, Float(2.0 * Double.pi) * highCutoff * dt)
             highState += highAlpha * (input - highState)
             if abs(highState) < 1.0e-15 { highState = 0.0 }
 
-            // Shape: add some low warmth, gentle high cut
             let shaped = highState + lowState * 0.2
-            // Subtle 2nd harmonic warmth with DC blocker to remove offset
             let warmRaw = shaped + 0.08 * (shaped * shaped)
-            let dcPole = Float(exp(-2.0 * Double.pi * 10.0 / Double(max(22050.0, sampleRate))))
             let y = warmRaw - dcX + dcPole * dcY
             dcX = warmRaw
             let yFlushed = abs(y) < 1.0e-15 ? 0.0 : (y.isFinite ? y : 0.0)
@@ -66,9 +81,6 @@ public final class DSPCharacterTone: @unchecked Sendable {
             return AudioMath.fastTanh(yFlushed)
 
         case .bright:
-            // Bright: high shelf boost (+2.5 dB above 4 kHz)
-            let highCutoff: Float = 4000.0
-            let highAlpha = min(0.99, Float(2.0 * Double.pi) * highCutoff * dt)
             highState += highAlpha * (input - highState)
             if abs(highState) < 1.0e-15 { highState = 0.0 }
             let highs = input - highState

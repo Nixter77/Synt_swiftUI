@@ -11,8 +11,6 @@ import Foundation
 import Synchronization
 
 public final class LiveModulationSnapshot: @unchecked Sendable {
-    public static let shared = LiveModulationSnapshot()
-    
     public static let slotCount = 32
     private let bits: UnsafeMutablePointer<Atomic<UInt32>>
 

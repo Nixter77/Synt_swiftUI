@@ -100,6 +100,7 @@ final class AUParameterSurface: ObservableObject {
     @Published private(set) var zoom: PluginZoom
     @Published private(set) var layout: PluginLayout
     private let audioUnit: SyntAudioUnit
+    let liveModulation: LiveModulationSnapshot
     private var observerToken: AUParameterObserverToken?
     private var stateObserver: NSObjectProtocol?
     private var chromeObserver: NSObjectProtocol?
@@ -116,6 +117,7 @@ final class AUParameterSurface: ObservableObject {
 
     init(audioUnit: SyntAudioUnit) {
         self.audioUnit = audioUnit
+        self.liveModulation = audioUnit.liveModulation
         self.preset = audioUnit.uiPreset
         self.zoom = audioUnit.uiZoom
         self.layout = audioUnit.uiLayout
@@ -220,6 +222,7 @@ private struct PluginScreen: View {
                     ),
                     layout: surface.layout
                 )
+                .environment(\.liveModulation, surface.liveModulation)
                 .frame(width: max(geo.size.width, 1), height: max(geo.size.height, 1), alignment: .top)
 
                 HStack(spacing: 4) {

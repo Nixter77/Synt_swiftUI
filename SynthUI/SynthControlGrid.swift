@@ -36,6 +36,10 @@ struct SynthControlGrid: View {
     }
 
     var body: some View {
+        injected(gridColumns)
+    }
+
+    private var gridColumns: some View {
         PluginColumnLayout(layout: layout, recorder: recorder) {
             panel("osc1") {
                 OscillatorView(preset: preset, oscillatorNumber: 1, audioEngine: audioEngine)
@@ -63,6 +67,15 @@ struct SynthControlGrid: View {
             }
         }
         .accessibilityIdentifier("controlsSection")
+    }
+
+    @ViewBuilder
+    private func injected<V: View>(_ grid: V) -> some View {
+        if let snapshot = audioEngine?.liveModulation {
+            grid.environment(\.liveModulation, snapshot)
+        } else {
+            grid
+        }
     }
 
     private func panel<V: View>(_ id: String, @ViewBuilder content: () -> V) -> some View {

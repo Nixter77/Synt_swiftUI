@@ -143,8 +143,10 @@ public struct ActiveNote {
             phase = keptPhase
             phase2 = keptPhase2
             subPhase = keptSubPhase
-        } else if phaseMode == .random {
-            var h = randomSeed != 0 ? randomSeed : UInt32(truncatingIfNeeded: midiNote &* 374761393)
+        } else if phaseMode == .random || phaseMode == .randomPerNote {
+            // `.random` ignores the per-trigger seed so the same note repeats.
+            let hashedNote = UInt32(truncatingIfNeeded: midiNote &* 374761393)
+            var h = phaseMode == .randomPerNote && randomSeed != 0 ? randomSeed : hashedNote
             h &+= UInt32(truncatingIfNeeded: partial &* 668265263)
             h &+= UInt32(truncatingIfNeeded: partialCount &* 1442695041)
             h ^= h >> 16

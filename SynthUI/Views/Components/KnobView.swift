@@ -7,6 +7,17 @@ import AppKit
 import SynthCore
 import SwiftUI
 
+private struct LiveModulationKey: EnvironmentKey {
+    static let defaultValue: LiveModulationSnapshot? = nil
+}
+
+extension EnvironmentValues {
+    var liveModulation: LiveModulationSnapshot? {
+        get { self[LiveModulationKey.self] }
+        set { self[LiveModulationKey.self] = newValue }
+    }
+}
+
 /// 150 pt of vertical drag sweeps the full range, linearly from the grab point.
 func knobDragValue(start: Float, translationY: CGFloat, range: ClosedRange<Float>) -> Float {
     let delta = Float(-translationY) / 150.0
@@ -83,6 +94,7 @@ struct KnobView: View {
 
 private struct KnobBody: View, Equatable {
     @Environment(\.theme) private var theme
+    @Environment(\.liveModulation) private var liveModulationSnapshot
     @Binding var value: Float
     let range: ClosedRange<Float>
     let label: String
@@ -123,7 +135,7 @@ private struct KnobBody: View, Equatable {
                             diameter: knobSize,
                             centeredFill: range.lowerBound < 0 && range.upperBound > 0,
                             modulationAmount: modulationAmount,
-                            liveModulation: LiveModulationSnapshot.shared.value(for: dest)
+                            liveModulation: liveModulationSnapshot?.value(for: dest) ?? 0
                         )
                     }
                 } else {
@@ -255,6 +267,7 @@ struct LargeKnobView: View {
 
 private struct LargeKnobBody: View, Equatable {
     @Environment(\.theme) private var theme
+    @Environment(\.liveModulation) private var liveModulationSnapshot
     @Binding var value: Float
     let range: ClosedRange<Float>
     let label: String
@@ -303,7 +316,7 @@ private struct LargeKnobBody: View, Equatable {
                             indicatorWidth: 4,
                             centeredFill: range.lowerBound < 0 && range.upperBound > 0,
                             modulationAmount: modulationAmount,
-                            liveModulation: LiveModulationSnapshot.shared.value(for: dest)
+                            liveModulation: liveModulationSnapshot?.value(for: dest) ?? 0
                         )
                     }
                 } else {

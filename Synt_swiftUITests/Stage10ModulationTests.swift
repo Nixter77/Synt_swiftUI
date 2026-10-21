@@ -82,28 +82,46 @@ final class Stage10ModulationTests: XCTestCase {
 
     // Test 4: Random phase mode produces different phases on successive note triggers
     func testRandomPhaseModeProducesDifferentPhases() {
-        XCTAssertEqual(OscPhaseMode.allCases.last, .random, "Random must be at the end of OscPhaseMode enum")
+        XCTAssertEqual(OscPhaseMode.allCases.last, .randomPerNote)
 
-        var note1 = ActiveNote()
-        var note2 = ActiveNote()
-
-        // Two notes with different seeds
-        note1.activate(
+        var stableA = ActiveNote()
+        var stableB = ActiveNote()
+        stableA.activate(
             midiNote: 60,
             velocity: 0.8,
             frequency: 261.63,
             phaseMode: .random,
             randomSeed: 0x12345678
         )
-        note2.activate(
+        stableB.activate(
             midiNote: 60,
             velocity: 0.8,
             frequency: 261.63,
             phaseMode: .random,
             randomSeed: 0x87654321
         )
+        XCTAssertEqual(stableA.phase, stableB.phase, "Stored Random ignores the per-trigger seed")
+        XCTAssertEqual(stableA.phase2, stableB.phase2)
+        XCTAssertEqual(stableA.subPhase, stableB.subPhase)
 
-        XCTAssertNotEqual(note1.phase, note2.phase, "Successive notes in random mode must have different phases")
+        var note1 = ActiveNote()
+        var note2 = ActiveNote()
+        note1.activate(
+            midiNote: 60,
+            velocity: 0.8,
+            frequency: 261.63,
+            phaseMode: .randomPerNote,
+            randomSeed: 0x12345678
+        )
+        note2.activate(
+            midiNote: 60,
+            velocity: 0.8,
+            frequency: 261.63,
+            phaseMode: .randomPerNote,
+            randomSeed: 0x87654321
+        )
+
+        XCTAssertNotEqual(note1.phase, note2.phase)
         XCTAssertNotEqual(note1.phase2, note2.phase2)
         XCTAssertNotEqual(note1.subPhase, note2.subPhase)
     }
