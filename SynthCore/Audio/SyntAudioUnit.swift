@@ -156,7 +156,10 @@ public final class SyntAudioUnit: AUAudioUnit {
         engine.prepare(sampleRate: safeRate, maxFrames: frames)
         engine.dspReverb.allocate(sampleRate: safeRate)
         engine.resetRenderStateForAllocation()
-        syncParameterTreeFromEngine()
+        // The store is the source of truth: host values set before Initialize
+        // (over XPC, off main) must survive it. Rewriting the store from the
+        // lagging engine.preset here made auval fail "did not retain set value".
+        refreshParameterTreeFromStore()
     }
 
     public override func deallocateRenderResources() {
@@ -379,6 +382,16 @@ public final class SyntAudioUnit: AUAudioUnit {
         }
         parameterTree = tree
         syncParameterTreeFromEngine()
+    }
+
+    /// Tree mirrors the store without rewriting it from `engine.preset`.
+    private func refreshParameterTreeFromStore() {
+        guard let tree = parameterTree else { return }
+        suppressParameterObserver.store(true, ordering: .releasing)
+        for address in SynthParameterAddress.allCases {
+            tree.parameter(withAddress: address.rawValue)?.value = parameters.value(address.rawValue)
+        }
+        suppressParameterObserver.store(false, ordering: .releasing)
     }
 
     private func syncParameterTreeFromEngine() {

@@ -56,4 +56,19 @@ struct AUParameterRangeTests {
         store.drain { id, _ in drained.insert(id) }
         #expect(drained == Set(SynthParameterAddress.allCases.map(\.rawValue)))
     }
+
+    @Test func offMainHostValuesSurviveInitialize() async throws {
+        let unit = try makeUnit()
+        let tree = try #require(unit.parameterTree)
+        let params = tree.allParameters
+        let targets = params.map { $0.minValue + ($0.maxValue - $0.minValue) * 0.37 }
+        await Task.detached {
+            for (p, v) in zip(params, targets) { p.value = v }
+        }.value
+        try unit.allocateRenderResources()
+        for (p, v) in zip(params, targets) {
+            #expect(abs(p.value - v) <= max(1e-4, abs(v) * 1e-5), "\(p.identifier) \(p.value) != \(v)")
+        }
+        unit.deallocateRenderResources()
+    }
 }

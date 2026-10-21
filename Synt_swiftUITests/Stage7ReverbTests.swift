@@ -68,7 +68,7 @@ import Testing
         preset.delayMix = 0
         preset.chorusMix = 0
         preset.release = 0.02
-        unit.engine.preset = preset
+        unit.uiPreset = preset // the AU path: store and tree follow the preset
         try unit.allocateRenderResources()
         defer { unit.deallocateRenderResources() }
         #expect(unit.engine.dspReverb.isAllocated)
