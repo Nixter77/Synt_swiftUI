@@ -11,6 +11,7 @@
 		A100000C2F30000100DD87F3 /* SynthCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; };
 		A10000102F30000100DD87F3 /* SynthCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; };
 		B200000B2F30000100DD87F3 /* SyntAUv3.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B20000012F30000100DD87F3 /* SyntAUv3.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D300000B2F30000100DD87F3 /* SyntArpAUv3.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D30000012F30000100DD87F3 /* SyntArpAUv3.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B200000C2F30000100DD87F3 /* SynthCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; };
 		B20000122F30000100DD87F3 /* SynthCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -58,6 +59,13 @@
 			remoteGlobalIDString = A10000032F30000100DD87F3;
 			remoteInfo = SynthCore;
 		};
+		D300000E2F30000100DD87F3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 959900182F2804DF00DD87F3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D30000032F30000100DD87F3;
+			remoteInfo = SyntArpAUv3;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -79,6 +87,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				B200000B2F30000100DD87F3 /* SyntAUv3.appex in Embed Foundation Extensions */,
+				D300000B2F30000100DD87F3 /* SyntArpAUv3.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -102,6 +111,7 @@
 		959900372F2804E100DD87F3 /* Synt_swiftUIUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Synt_swiftUIUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000012F30000100DD87F3 /* SynthCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SynthCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000012F30000100DD87F3 /* SyntAUv3.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SyntAUv3.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D30000012F30000100DD87F3 /* SyntArpAUv3.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SyntArpAUv3.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -111,6 +121,13 @@
 				Info.plist,
 			);
 			target = B20000032F30000100DD87F3 /* SyntAUv3 */;
+		};
+		D30000EX2F30000100DD87F3 /* Exceptions for "SyntArpAUv3" folder in "SyntArpAUv3" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D30000032F30000100DD87F3 /* SyntArpAUv3 */;
 		};
 		C10000EX2F30000100DD87F3 /* Exceptions for "SynthUI" folder in "SyntAUv3" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -149,6 +166,14 @@
 				B20000EX2F30000100DD87F3 /* Exceptions for "SyntAUv3" folder in "SyntAUv3" target */,
 			);
 			path = SyntAUv3;
+			sourceTree = "<group>";
+		};
+		D30000022F30000100DD87F3 /* SyntArpAUv3 */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D30000EX2F30000100DD87F3 /* Exceptions for "SyntArpAUv3" folder in "SyntArpAUv3" target */,
+			);
+			path = SyntArpAUv3;
 			sourceTree = "<group>";
 		};
 		C10000022F30000100DD87F3 /* SynthUI */ = {
@@ -200,6 +225,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D30000052F30000100DD87F3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -209,6 +241,7 @@
 				A10000022F30000100DD87F3 /* SynthCore */,
 				C10000022F30000100DD87F3 /* SynthUI */,
 				B20000022F30000100DD87F3 /* SyntAUv3 */,
+				D30000022F30000100DD87F3 /* SyntArpAUv3 */,
 				959900222F2804DF00DD87F3 /* Synt_swiftUI */,
 				959900302F2804E100DD87F3 /* Synt_swiftUITests */,
 				9599003A2F2804E100DD87F3 /* Synt_swiftUIUITests */,
@@ -221,6 +254,7 @@
 			children = (
 				A10000012F30000100DD87F3 /* SynthCore.framework */,
 				B20000012F30000100DD87F3 /* SyntAUv3.appex */,
+				D30000012F30000100DD87F3 /* SyntArpAUv3.appex */,
 				959900202F2804DF00DD87F3 /* Synt_swiftUI.app */,
 				9599002D2F2804E100DD87F3 /* Synt_swiftUITests.xctest */,
 				959900372F2804E100DD87F3 /* Synt_swiftUIUITests.xctest */,
@@ -246,6 +280,7 @@
 			dependencies = (
 				A100000D2F30000100DD87F3 /* PBXTargetDependency */,
 				B200000D2F30000100DD87F3 /* PBXTargetDependency */,
+				D300000D2F30000100DD87F3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				959900222F2804DF00DD87F3 /* Synt_swiftUI */,
@@ -352,6 +387,28 @@
 			productReference = B20000012F30000100DD87F3 /* SyntAUv3.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		D30000032F30000100DD87F3 /* SyntArpAUv3 */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D30000092F30000100DD87F3 /* Build configuration list for PBXNativeTarget "SyntArpAUv3" */;
+			buildPhases = (
+				D30000042F30000100DD87F3 /* Sources */,
+				D30000052F30000100DD87F3 /* Frameworks */,
+				D30000062F30000100DD87F3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D30000022F30000100DD87F3 /* SyntArpAUv3 */,
+			);
+			name = SyntArpAUv3;
+			packageProductDependencies = (
+			);
+			productName = SyntArpAUv3;
+			productReference = D30000012F30000100DD87F3 /* SyntArpAUv3.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -379,6 +436,9 @@
 					B20000032F30000100DD87F3 = {
 						CreatedOnToolsVersion = 26.2;
 					};
+					D30000032F30000100DD87F3 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = 9599001B2F2804DF00DD87F3 /* Build configuration list for PBXProject "Synt_swiftUI" */;
@@ -397,6 +457,7 @@
 			targets = (
 				A10000032F30000100DD87F3 /* SynthCore */,
 				B20000032F30000100DD87F3 /* SyntAUv3 */,
+				D30000032F30000100DD87F3 /* SyntArpAUv3 */,
 				9599001F2F2804DF00DD87F3 /* Synt_swiftUI */,
 				9599002C2F2804E100DD87F3 /* Synt_swiftUITests */,
 				959900362F2804E100DD87F3 /* Synt_swiftUIUITests */,
@@ -434,6 +495,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B20000062F30000100DD87F3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D30000062F30000100DD87F3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -478,6 +546,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D30000042F30000100DD87F3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -510,6 +585,11 @@
 			isa = PBXTargetDependency;
 			target = A10000032F30000100DD87F3 /* SynthCore */;
 			targetProxy = B20000102F30000100DD87F3 /* PBXContainerItemProxy */;
+		};
+		D300000D2F30000100DD87F3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D30000032F30000100DD87F3 /* SyntArpAUv3 */;
+			targetProxy = D300000E2F30000100DD87F3 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -911,6 +991,66 @@
 			};
 			name = Release;
 		};
+		D30000072F30000100DD87F3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = SyntArpAUv3/SyntArpAUv3.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NPWB26L9N6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SyntArpAUv3/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "Home.Synt-swiftUI.SyntArpAUv3";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D30000082F30000100DD87F3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = SyntArpAUv3/SyntArpAUv3.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NPWB26L9N6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SyntArpAUv3/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "Home.Synt-swiftUI.SyntArpAUv3";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -964,6 +1104,15 @@
 			buildConfigurations = (
 				B20000072F30000100DD87F3 /* Debug */,
 				B20000082F30000100DD87F3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D30000092F30000100DD87F3 /* Build configuration list for PBXNativeTarget "SyntArpAUv3" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D30000072F30000100DD87F3 /* Debug */,
+				D30000082F30000100DD87F3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
