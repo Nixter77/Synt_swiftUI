@@ -201,30 +201,34 @@ public extension SynthPreset {
         p.filter2Resonance = f(p.filter2Resonance, 0, 1, 0.2)
         p.filter2Balance = f(p.filter2Balance, 0, 1, 0.5)
         p.filterVowel = f(p.filterVowel, 0, 4, 0)
-        p.mseg.rateHz = f(p.mseg.rateHz, 0.01, 100, 1)
-        p.mseg.syncBeats = f(p.mseg.syncBeats, 0.0625, 32, 1)
-        if p.mseg.points.count > DSPMSEGModel.maxPoints {
-            p.mseg.points = Array(p.mseg.points.prefix(DSPMSEGModel.maxPoints))
+        func cleanMSEG(_ mseg: inout MSEGPreset) {
+            mseg.rateHz = f(mseg.rateHz, 0.01, 100, 1)
+            mseg.syncBeats = f(mseg.syncBeats, 0.0625, 32, 1)
+            if mseg.points.count > DSPMSEGModel.maxPoints {
+                mseg.points = Array(mseg.points.prefix(DSPMSEGModel.maxPoints))
+            }
+            mseg.points = mseg.points
+                .map { DSPMSEGPoint(time: $0.time, value: $0.value, curve: $0.curve) }
+                .sorted { $0.time < $1.time }
+            let lastPoint = mseg.points.count - 1
+            if lastPoint < 0 {
+                mseg.loopStartIndex = nil
+                mseg.loopEndIndex = nil
+                mseg.sustainIndex = nil
+            } else {
+                if let index = mseg.loopStartIndex {
+                    mseg.loopStartIndex = min(max(0, index), lastPoint)
+                }
+                if let index = mseg.loopEndIndex {
+                    mseg.loopEndIndex = min(max(0, index), lastPoint)
+                }
+                if let index = mseg.sustainIndex {
+                    mseg.sustainIndex = min(max(0, index), lastPoint)
+                }
+            }
         }
-        p.mseg.points = p.mseg.points
-            .map { DSPMSEGPoint(time: $0.time, value: $0.value, curve: $0.curve) }
-            .sorted { $0.time < $1.time }
-        let lastPoint = p.mseg.points.count - 1
-        if lastPoint < 0 {
-            p.mseg.loopStartIndex = nil
-            p.mseg.loopEndIndex = nil
-            p.mseg.sustainIndex = nil
-        } else {
-            if let index = p.mseg.loopStartIndex {
-                p.mseg.loopStartIndex = min(max(0, index), lastPoint)
-            }
-            if let index = p.mseg.loopEndIndex {
-                p.mseg.loopEndIndex = min(max(0, index), lastPoint)
-            }
-            if let index = p.mseg.sustainIndex {
-                p.mseg.sustainIndex = min(max(0, index), lastPoint)
-            }
-        }
+        cleanMSEG(&p.mseg)
+        cleanMSEG(&p.mseg2)
         p.attackCurve = f(p.attackCurve, -1, 1, 0)
         p.decayCurve = f(p.decayCurve, -1, 1, 0)
         p.releaseCurve = f(p.releaseCurve, -1, 1, 0)

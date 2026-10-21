@@ -17,6 +17,7 @@ public extension AudioEngine {
         // Bank first, then the row that reads it. A buffer must not see `.mseg`
         // against the previous curve.
         publishMSEG(preset.mseg)
+        publishMSEG2(preset.mseg2)
         rtModMatrix.publish(preset.modMatrix)
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP)
         rtPresetBuffer.publish(snap)
@@ -62,6 +63,25 @@ public extension AudioEngine {
             return
         }
         mseg.publish(DSPMSEGModel(
+            points: spec.points,
+            isOneShot: spec.isOneShot,
+            syncMode: spec.syncMode,
+            rateHz: spec.rateHz,
+            syncBeats: spec.syncBeats,
+            triggerMode: spec.triggerMode,
+            loopStartIndex: spec.loopStartIndex,
+            loopEndIndex: spec.loopEndIndex,
+            sustainIndex: spec.sustainIndex
+        ))
+    }
+
+    /// Main thread. An empty list publishes a zero-length bank for MSEG 2.
+    func publishMSEG2(_ spec: MSEGPreset) {
+        guard !spec.points.isEmpty else {
+            mseg2.publishEmpty()
+            return
+        }
+        mseg2.publish(DSPMSEGModel(
             points: spec.points,
             isOneShot: spec.isOneShot,
             syncMode: spec.syncMode,

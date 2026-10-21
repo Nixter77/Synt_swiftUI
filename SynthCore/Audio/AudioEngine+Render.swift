@@ -137,7 +137,8 @@ public extension AudioEngine {
         random: Float = 0,
         sampleAndHold: Float = 0,
         smoothRandom: Float = 0,
-        mseg: Float = 0
+        mseg: Float = 0,
+        mseg2: Float = 0
     ) -> Float {
         switch source {
         case .lfo1: return lfo
@@ -158,6 +159,7 @@ public extension AudioEngine {
         case .sampleAndHold: return sampleAndHold
         case .smoothRandom: return smoothRandom
         case .mseg: return mseg
+        case .mseg2: return mseg2
         case .envelopeFollower: return envelopeFollowerValue
         }
     }
@@ -300,24 +302,32 @@ public extension AudioEngine {
         let (modSlots, modCount) = rtModMatrix.snapshot()
         var smoothRandomValue: Float = 0
         var wantsMSEG = false
+        var wantsMSEG2 = false
         if modCount > 0 {
             var wantsSmooth = false
             for m in 0..<modCount {
                 if modSlots[m].source == .smoothRandom { wantsSmooth = true }
                 if modSlots[m].source == .mseg { wantsMSEG = true }
+                if modSlots[m].source == .mseg2 { wantsMSEG2 = true }
             }
             if wantsSmooth {
                 smoothRandomValue = smoothRandom.advance(hz: cachedPerlinHz, sampleRate: sampleRate)
             }
         }
         var msegValue: Float = 0
-        if wantsMSEG || mseg.hasPoints {
+        var mseg2Value: Float = 0
+        if wantsMSEG || mseg.hasPoints || wantsMSEG2 || mseg2.hasPoints {
             var gate = false
             for i in 0..<AudioEngine.maxVoices where voices[i].isActive && !voices[i].isReleasing {
                 gate = true
                 break
             }
-            msegValue = mseg.tick(gate: gate, bpm: Double(cachedBPM))
+            if wantsMSEG || mseg.hasPoints {
+                msegValue = mseg.tick(gate: gate, bpm: Double(cachedBPM))
+            }
+            if wantsMSEG2 || mseg2.hasPoints {
+                mseg2Value = mseg2.tick(gate: gate, bpm: Double(cachedBPM))
+            }
         }
 
         // Global destinations (cutoff, resonance, LFO rate/depth) share one source
@@ -358,7 +368,8 @@ public extension AudioEngine {
                     keyTrack: globalKeyTrack,
                     aftertouch: currentAftertouch,
                     smoothRandom: smoothRandomValue,
-                    mseg: msegValue
+                    mseg: msegValue,
+                    mseg2: mseg2Value
                 )
                 let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
@@ -446,7 +457,8 @@ public extension AudioEngine {
                     keyTrack: globalKeyTrack,
                     aftertouch: currentAftertouch,
                     smoothRandom: smoothRandomValue,
-                    mseg: msegValue
+                    mseg: msegValue,
+                    mseg2: mseg2Value
                 )
                 let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
@@ -630,7 +642,8 @@ public extension AudioEngine {
                         random: v.randomValue,
                         sampleAndHold: lfo.lastRandomValue,
                         smoothRandom: smoothRandomValue,
-                        mseg: msegValue
+                        mseg: msegValue,
+                        mseg2: mseg2Value
                     )
                     let modVal = modulatedAmount(entry, slot: m, source: sourceVal)
                     switch entry.destination {
@@ -1266,7 +1279,9 @@ public extension AudioEngine {
             scopeIndex += 1
             if scopeIndex >= scopeBuffer.count {
                 scopeIndex = 0
-                meteringState.writeScopeBuffer(scopeBuffer)
+                scopeBuffer.withUnsafeBufferPointer { ptr in
+                    meteringState.writeScopeBuffer(ptr)
+                }
             }
         }
 

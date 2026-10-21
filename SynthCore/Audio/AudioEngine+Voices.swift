@@ -392,6 +392,7 @@ public extension AudioEngine {
 
     public func handleNoteOn(midiNote: Int, velocity: Float) {
         mseg.trigger()
+        mseg2.trigger()
         if lfo.mode != .free {
             lfo.trigger()
         }

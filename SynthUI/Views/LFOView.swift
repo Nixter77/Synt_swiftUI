@@ -184,40 +184,82 @@ struct LFOView: View {
     }
 }
 
-/// Writes `preset.mseg` only. The engine publishes that struct off the render thread.
+enum MSEGSnapMode: String, CaseIterable, Sendable {
+    case off = "OFF"
+    case div16 = "1/16"
+    case div8 = "1/8"
+    case div4 = "1/4"
+    case step10 = "0.1"
+
+    var step: Float? {
+        switch self {
+        case .off: return nil
+        case .div16: return 0.0625
+        case .div8: return 0.125
+        case .div4: return 0.25
+        case .step10: return 0.1
+        }
+    }
+}
+
+/// Writes `preset.mseg` and `preset.mseg2`. The engine publishes those off the render thread.
 private struct MSEGPointEditor: View {
     @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
-    @State private var selected = 0
+    @State private var selectedMSEG = 1
+    @State private var selectedPoint = 0
+    @State private var snapMode: MSEGSnapMode = .off
+
+    private func getSpec() -> MSEGPreset {
+        selectedMSEG == 1 ? preset.mseg : preset.mseg2
+    }
+
+    private func updateSpec(_ transform: (inout MSEGPreset) -> Void) {
+        var spec = getSpec()
+        transform(&spec)
+        if selectedMSEG == 1 {
+            preset.mseg = spec
+        } else {
+            preset.mseg2 = spec
+        }
+    }
 
     var body: some View {
+        let spec = getSpec()
         VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 3) {
+                chip(selectedMSEG == 1 ? "[1]" : " 1 ", id: "msegSelect1") { selectedMSEG = 1 }
+                chip(selectedMSEG == 2 ? "[2]" : " 2 ", id: "msegSelect2") { selectedMSEG = 2 }
+                chip(selectedMSEG == 1 ? "1→2" : "2→1", id: "msegCopy") { copyMSEG() }
+                chip("SNAP:\(snapMode.rawValue)", id: "msegSnap") { cycleSnap() }
+            }
             HStack(spacing: 3) {
                 chip("ADD", id: "msegAdd", action: addPoint)
                 chip("DEL", id: "msegDelete", action: deletePoint)
-                chip(preset.mseg.syncMode == .beats ? "BEAT" : "HZ", id: "msegSync", action: toggleSync)
-                chip(preset.mseg.sustainIndex == nil ? "SUS" : "SUS*", id: "msegSustain", action: toggleSustain)
-                chip(preset.mseg.loopStartIndex == nil ? "LOOP" : "LOOP*", id: "msegLoop", action: toggleLoop)
+                chip(spec.syncMode == .beats ? "BEAT" : "HZ", id: "msegSync", action: toggleSync)
+                chip(spec.sustainIndex == nil ? "SUS" : "SUS*", id: "msegSustain", action: toggleSustain)
+                chip(spec.loopStartIndex == nil ? "LOOP" : "LOOP*", id: "msegLoop", action: toggleLoop)
             }
-            if preset.mseg.points.isEmpty {
+            miniCurve(spec: spec)
+            if spec.points.isEmpty {
                 Text("No points")
                     .themeCaption(theme, size: 9)
                     .foregroundColor(theme.textDim)
             } else {
-                Text("\(min(selected, preset.mseg.points.count - 1) + 1)/\(preset.mseg.points.count)")
+                Text("\(min(selectedPoint, spec.points.count - 1) + 1)/\(spec.points.count)")
                     .themeCaption(theme, size: 9)
                     .foregroundColor(theme.textDim)
                 HStack(spacing: 4) {
-                    if preset.mseg.syncMode == .beats {
+                    if spec.syncMode == .beats {
                         KnobView(
-                            value: $preset.mseg.syncBeats,
+                            value: syncBeatsBinding(),
                             range: 0.0625...32,
                             label: "Beats",
                             format: "%.2f"
                         )
                     } else {
                         KnobView(
-                            value: $preset.mseg.rateHz,
+                            value: rateHzBinding(),
                             range: 0.05...20,
                             label: "Hz",
                             format: "%.2f"
@@ -229,6 +271,63 @@ private struct MSEGPointEditor: View {
                 }
             }
         }
+    }
+
+    private func syncBeatsBinding() -> Binding<Float> {
+        Binding(
+            get: { getSpec().syncBeats },
+            set: { val in updateSpec { $0.syncBeats = val } }
+        )
+    }
+
+    private func rateHzBinding() -> Binding<Float> {
+        Binding(
+            get: { getSpec().rateHz },
+            set: { val in updateSpec { $0.rateHz = val } }
+        )
+    }
+
+    private func miniCurve(spec: MSEGPreset) -> some View {
+        Canvas { context, size in
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(theme.scopeBg))
+
+            let step = snapMode.step ?? 0.25
+            var t: Float = step
+            while t < 0.999 {
+                let x = CGFloat(t) * size.width
+                var line = Path()
+                line.move(to: CGPoint(x: x, y: 0))
+                line.addLine(to: CGPoint(x: x, y: size.height))
+                context.stroke(line, with: .color(theme.border.opacity(0.3)), lineWidth: 0.5)
+                t += step
+            }
+
+            let pts = spec.points
+            guard pts.count >= 2 else { return }
+            let midY = size.height / 2.0
+            var path = Path()
+            let first = pts[0]
+            let startY = midY - CGFloat(first.value) * (midY - 2)
+            path.move(to: CGPoint(x: CGFloat(first.time) * size.width, y: startY))
+            for i in 1..<pts.count {
+                let pt = pts[i]
+                let px = CGFloat(pt.time) * size.width
+                let py = midY - CGFloat(pt.value) * (midY - 2)
+                path.addLine(to: CGPoint(x: px, y: py))
+            }
+            context.stroke(path, with: .color(theme.aLFO), lineWidth: 1.5)
+
+            for (idx, pt) in pts.enumerated() {
+                let px = CGFloat(pt.time) * size.width
+                let py = midY - CGFloat(pt.value) * (midY - 2)
+                let rect = CGRect(x: px - 2, y: py - 2, width: 4, height: 4)
+                let color = idx == selectedPoint ? Color.white : theme.aLFO
+                context.fill(Path(ellipseIn: rect), with: .color(color))
+            }
+        }
+        .frame(height: 24)
+        .cornerRadius(3)
+        .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border, lineWidth: 0.5))
     }
 
     private func chip(_ title: String, id: String, action: @escaping () -> Void) -> some View {
@@ -245,37 +344,59 @@ private struct MSEGPointEditor: View {
         .accessibilityIdentifier(id)
     }
 
+    private func copyMSEG() {
+        if selectedMSEG == 1 {
+            preset.mseg2 = preset.mseg
+        } else {
+            preset.mseg = preset.mseg2
+        }
+    }
+
+    private func cycleSnap() {
+        let all = MSEGSnapMode.allCases
+        if let idx = all.firstIndex(of: snapMode) {
+            snapMode = all[(idx + 1) % all.count]
+        }
+    }
+
+    private func snappedTime(_ time: Float) -> Float {
+        guard let step = snapMode.step else { return max(0, min(1, time)) }
+        let snapped = (time / step).rounded() * step
+        return max(0, min(1, snapped))
+    }
+
     private func pointField(_ keyPath: WritableKeyPath<DSPMSEGPoint, Float>) -> Binding<Float> {
         Binding(
             get: {
-                let points = preset.mseg.points
+                let points = getSpec().points
                 guard !points.isEmpty else { return 0 }
-                return points[min(selected, points.count - 1)][keyPath: keyPath]
+                return points[min(selectedPoint, points.count - 1)][keyPath: keyPath]
             },
             set: { newValue in
-                guard !preset.mseg.points.isEmpty else { return }
-                let index = min(selected, preset.mseg.points.count - 1)
+                guard !getSpec().points.isEmpty else { return }
+                let index = min(selectedPoint, getSpec().points.count - 1)
                 if keyPath == \DSPMSEGPoint.time {
                     commitTime(index, newValue)
                 } else {
-                    preset.mseg.points[index][keyPath: keyPath] = newValue
+                    updateSpec { $0.points[index][keyPath: keyPath] = newValue }
                 }
             }
         )
     }
 
     private func commitTime(_ index: Int, _ time: Float) {
-        var spec = preset.mseg
-        guard spec.points.indices.contains(index) else { return }
-        spec.points[index].time = max(0, min(1, time))
-        let order = spec.points.indices.sorted { spec.points[$0].time < spec.points[$1].time }
-        spec.points = order.map { spec.points[$0] }
-        spec.loopStartIndex = remap(spec.loopStartIndex, order: order)
-        spec.loopEndIndex = remap(spec.loopEndIndex, order: order)
-        spec.sustainIndex = remap(spec.sustainIndex, order: order)
-        preset.mseg = spec
-        if let newIndex = order.firstIndex(of: index) {
-            selected = newIndex
+        let t = snappedTime(time)
+        updateSpec { spec in
+            guard spec.points.indices.contains(index) else { return }
+            spec.points[index].time = t
+            let order = spec.points.indices.sorted { spec.points[$0].time < spec.points[$1].time }
+            spec.points = order.map { spec.points[$0] }
+            spec.loopStartIndex = remap(spec.loopStartIndex, order: order)
+            spec.loopEndIndex = remap(spec.loopEndIndex, order: order)
+            spec.sustainIndex = remap(spec.sustainIndex, order: order)
+            if let newIndex = order.firstIndex(of: index) {
+                selectedPoint = newIndex
+            }
         }
     }
 
@@ -285,38 +406,40 @@ private struct MSEGPointEditor: View {
     }
 
     private func addPoint() {
-        var spec = preset.mseg
-        guard spec.points.count < DSPMSEGModel.maxPoints else { return }
-        if spec.points.isEmpty {
-            spec.points = [
-                DSPMSEGPoint(time: 0, value: 0),
-                DSPMSEGPoint(time: 1, value: 0)
-            ]
-            selected = 0
-        } else {
-            let time = min(1, (spec.points.last?.time ?? 0) + 0.1)
-            spec.points.append(DSPMSEGPoint(time: time, value: 0))
-            spec.points.sort { $0.time < $1.time }
-            selected = spec.points.count - 1
+        updateSpec { spec in
+            guard spec.points.count < DSPMSEGModel.maxPoints else { return }
+            if spec.points.isEmpty {
+                spec.points = [
+                    DSPMSEGPoint(time: 0, value: 0),
+                    DSPMSEGPoint(time: 1, value: 0)
+                ]
+                selectedPoint = 0
+            } else {
+                let lastTime = spec.points.last?.time ?? 0
+                let rawTime = min(1, lastTime + 0.1)
+                let time = snappedTime(rawTime)
+                spec.points.append(DSPMSEGPoint(time: time, value: 0))
+                spec.points.sort { $0.time < $1.time }
+                selectedPoint = spec.points.count - 1
+            }
         }
-        preset.mseg = spec
     }
 
     private func deletePoint() {
-        var spec = preset.mseg
-        guard !spec.points.isEmpty else { return }
-        let index = min(selected, spec.points.count - 1)
-        spec.points.remove(at: index)
-        spec.loopStartIndex = shift(spec.loopStartIndex, deleted: index)
-        spec.loopEndIndex = shift(spec.loopEndIndex, deleted: index)
-        spec.sustainIndex = shift(spec.sustainIndex, deleted: index)
-        if spec.points.isEmpty {
-            spec.loopStartIndex = nil
-            spec.loopEndIndex = nil
-            spec.sustainIndex = nil
+        updateSpec { spec in
+            guard !spec.points.isEmpty else { return }
+            let index = min(selectedPoint, spec.points.count - 1)
+            spec.points.remove(at: index)
+            spec.loopStartIndex = shift(spec.loopStartIndex, deleted: index)
+            spec.loopEndIndex = shift(spec.loopEndIndex, deleted: index)
+            spec.sustainIndex = shift(spec.sustainIndex, deleted: index)
+            if spec.points.isEmpty {
+                spec.loopStartIndex = nil
+                spec.loopEndIndex = nil
+                spec.sustainIndex = nil
+            }
+            selectedPoint = min(selectedPoint, max(0, spec.points.count - 1))
         }
-        preset.mseg = spec
-        selected = min(selected, max(0, spec.points.count - 1))
     }
 
     private func shift(_ index: Int?, deleted: Int) -> Int? {
@@ -326,29 +449,31 @@ private struct MSEGPointEditor: View {
     }
 
     private func toggleSync() {
-        preset.mseg.syncMode = preset.mseg.syncMode == .hz ? .beats : .hz
+        updateSpec { spec in
+            spec.syncMode = spec.syncMode == .hz ? .beats : .hz
+        }
     }
 
     private func toggleSustain() {
-        var spec = preset.mseg
-        if spec.sustainIndex == nil, spec.points.count >= 2 {
-            spec.sustainIndex = spec.points.count / 2
-        } else {
-            spec.sustainIndex = nil
+        updateSpec { spec in
+            if spec.sustainIndex == nil, spec.points.count >= 2 {
+                spec.sustainIndex = spec.points.count / 2
+            } else {
+                spec.sustainIndex = nil
+            }
         }
-        preset.mseg = spec
     }
 
     private func toggleLoop() {
-        var spec = preset.mseg
-        if spec.loopStartIndex == nil, spec.points.count >= 2 {
-            spec.loopStartIndex = 0
-            spec.loopEndIndex = spec.points.count - 1
-        } else {
-            spec.loopStartIndex = nil
-            spec.loopEndIndex = nil
+        updateSpec { spec in
+            if spec.loopStartIndex == nil, spec.points.count >= 2 {
+                spec.loopStartIndex = 0
+                spec.loopEndIndex = spec.points.count - 1
+            } else {
+                spec.loopStartIndex = nil
+                spec.loopEndIndex = nil
+            }
         }
-        preset.mseg = spec
     }
 }
 

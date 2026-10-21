@@ -206,6 +206,7 @@ struct ModMatrixView: View {
         case .smoothRandom: polarity = "Smooth Random is continuous noise."
         case .mseg: polarity = "MSEG 1 is the multi-stage envelope."
         case .envelopeFollower: polarity = "Env Follower tracks audio amplitude."
+        case .mseg2: polarity = "MSEG 2 is the multi-stage envelope."
         }
         let action: String
         switch row.destination {

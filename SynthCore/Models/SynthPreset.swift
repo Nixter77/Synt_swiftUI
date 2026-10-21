@@ -288,6 +288,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var filterVowel: Float = 0
     /// MSEG 1. Empty points leave the generator idle.
     public var mseg = MSEGPreset()
+    /// MSEG 2. Empty points leave the generator idle.
+    public var mseg2 = MSEGPreset()
 
     /// ADSR curves (curve per segment, −1…1, default 0: classic logarithmic/exponential).
     public var attackCurve: Float = 0
@@ -374,6 +376,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case filter2Routing, filter2Type, filter2Cutoff, filter2Resonance, filter2Balance
         case filterVowel
         case mseg
+        case mseg2
         case attackCurve, decayCurve, releaseCurve
         case lfoStereoPhase, lfo2StereoPhase
         case frequencyShifterEnabled, frequencyShifterShiftHz, frequencyShifterMix, frequencyShifterFeedback
@@ -817,6 +820,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         filter2Balance = try c.decodeIfPresent(Float.self, forKey: .filter2Balance) ?? 0.5
         filterVowel = try c.decodeIfPresent(Float.self, forKey: .filterVowel) ?? 0
         mseg = try c.decodeIfPresent(MSEGPreset.self, forKey: .mseg) ?? MSEGPreset()
+        mseg2 = try c.decodeIfPresent(MSEGPreset.self, forKey: .mseg2) ?? MSEGPreset()
         attackCurve = try c.decodeIfPresent(Float.self, forKey: .attackCurve) ?? 0
         decayCurve = try c.decodeIfPresent(Float.self, forKey: .decayCurve) ?? 0
         releaseCurve = try c.decodeIfPresent(Float.self, forKey: .releaseCurve) ?? 0
@@ -1019,6 +1023,8 @@ public enum ModSource: String, CaseIterable, Codable {
     case mseg = "MSEG 1"
     /// Envelope Follower (tracks audio signal amplitude). Appended so earlier sources keep order.
     case envelopeFollower = "Env Follower"
+    /// MSEG 2 (second multi-stage envelope).
+    case mseg2 = "MSEG 2"
 }
 
 public enum VelocityCurve: String, CaseIterable, Codable, Sendable {

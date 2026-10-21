@@ -331,6 +331,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         // Same synchronous block as the matrix. `apply()` on main publishes again;
         // the buffer that runs before that hop must already see this curve.
         engine.publishMSEG(preset.mseg)
+        engine.publishMSEG2(preset.mseg2)
         engine.rtModMatrix.publish(preset.modMatrix)
 
         let apply: () -> Void = { [weak self] in

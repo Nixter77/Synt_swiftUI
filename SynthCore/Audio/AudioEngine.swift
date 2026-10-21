@@ -328,6 +328,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         unit.publishEmpty()
         return unit
     }()
+    public let mseg2: DSPMSEG = {
+        let unit = DSPMSEG(sampleRate: 44_100)
+        unit.publishEmpty()
+        return unit
+    }()
     public var cachedPerlinHz: Float = 1
     public var cachedPerlinTempoSync: Bool = false
     public var cachedPerlinDivision: TimeDivision = .quarter
@@ -746,6 +751,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         dspReverb.allocate(sampleRate: rate)
         prepareVoiceFilters(sampleRate: rate, maxFrames: 512)
         mseg.prepare(sampleRate: rate)
+        mseg2.prepare(sampleRate: rate)
         wavetableEngine1.setSampleRate(rate)
         wavetableEngine2.setSampleRate(rate)
         oscillator1.wavetableSampleRate = rate

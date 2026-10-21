@@ -14,23 +14,27 @@ public final class AtomicMeteringState: @unchecked Sendable {
     private let outputLevelBits = Atomic<UInt32>(0)
     private let peakLevelBits = Atomic<UInt32>(0)
 
-    // Triple buffer for scope data
-    private let scopeBufferSize = 512
-    private var scopeBuffers: [[Float]]
+    // Lock-free ring buffer for scope / spectrum output data
+    public static let defaultScopeBufferSize = 512
+    private let scopeBufferSize: Int
+    private let ringSlotCount: Int = 4
+    private let rawStorage: UnsafeMutablePointer<Float>
     private let writeIndex = Atomic<Int>(0)
-    // Must not equal (writeIndex+1)%3 or the first scope write is dropped.
-    private let readIndex = Atomic<Int>(2)
+    private let readIndex = Atomic<Int>(3)
 
-    public init() {
-        scopeBuffers = [
-            Array(repeating: 0.0, count: scopeBufferSize),
-            Array(repeating: 0.0, count: scopeBufferSize),
-            Array(repeating: 0.0, count: scopeBufferSize)
-        ]
-        // writeIndex starts at 0; readIndex must not equal (writeIndex+1)%3
-        // or the first write is dropped as a collision with the "reader" slot.
+    public init(bufferSize: Int = defaultScopeBufferSize) {
+        self.scopeBufferSize = bufferSize
+        let total = ringSlotCount * bufferSize
+        rawStorage = .allocate(capacity: total)
+        rawStorage.initialize(repeating: 0.0, count: total)
         writeIndex.store(0, ordering: .relaxed)
-        readIndex.store(2, ordering: .relaxed)
+        readIndex.store(ringSlotCount - 1, ordering: .relaxed)
+    }
+
+    deinit {
+        let total = ringSlotCount * scopeBufferSize
+        rawStorage.deinitialize(count: total)
+        rawStorage.deallocate()
     }
 
     // MARK: - Audio Thread (Writer)
@@ -47,17 +51,19 @@ public final class AtomicMeteringState: @unchecked Sendable {
 
     public func writeScopeBuffer(_ data: UnsafeBufferPointer<Float>) {
         let currentWrite = writeIndex.load(ordering: .relaxed)
-        let nextWrite = (currentWrite + 1) % 3
+        let nextWrite = (currentWrite + 1) % ringSlotCount
 
         // Don't overwrite the buffer currently being read
         let currentRead = readIndex.load(ordering: .acquiring)
         if nextWrite == currentRead {
-            return // Drop this frame
+            return // Drop this frame (render does not wait)
         }
 
-        // Copy data to write buffer
-        for i in 0..<min(data.count, scopeBufferSize) {
-            scopeBuffers[currentWrite][i] = data[i]
+        // Copy data to write buffer (raw memory copy, zero allocations / zero locks)
+        let dest = rawStorage + currentWrite * scopeBufferSize
+        let count = min(data.count, scopeBufferSize)
+        if let base = data.baseAddress {
+            dest.update(from: base, count: count)
         }
 
         // Publish the new buffer
@@ -84,11 +90,12 @@ public final class AtomicMeteringState: @unchecked Sendable {
 
     public func readScopeBuffer() -> [Float] {
         // Find the latest completed buffer
-        let latestWrite = (writeIndex.load(ordering: .acquiring) + 2) % 3
+        let latestWrite = (writeIndex.load(ordering: .acquiring) + ringSlotCount - 1) % ringSlotCount
 
         // Update read index
         readIndex.store(latestWrite, ordering: .releasing)
 
-        return scopeBuffers[latestWrite]
+        let src = rawStorage + latestWrite * scopeBufferSize
+        return Array(UnsafeBufferPointer(start: src, count: scopeBufferSize))
     }
 }
