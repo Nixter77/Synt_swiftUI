@@ -156,7 +156,9 @@ import Testing
 
 @MainActor
 struct Stage8FilterUITests {
-    @Test func filter2GroupIsLastInTheParameterTree() throws {
+    /// Group order is not a contract (SYNT_10 appended modFollower after filter2).
+    /// Addresses and identifiers are: hosts save automation by address.
+    @Test func filter2GroupIsPublishedWithStableAddresses() throws {
         let description = AudioComponentDescription(
             componentType: kAudioUnitType_MusicDevice,
             componentSubType: 0x5379_6E74,
@@ -166,7 +168,17 @@ struct Stage8FilterUITests {
         )
         let unit = try SyntAudioUnit(componentDescription: description)
         let tree = try #require(unit.parameterTree)
-        #expect(tree.children.last?.identifier == "filter2")
+        let group = try #require(tree.children.first { $0.identifier == "filter2" } as? AUParameterGroup)
+        let expected: [(UInt64, String)] = [
+            (135, "filter2Cutoff"), (136, "filter2Resonance"), (137, "filter2Type"),
+            (138, "filter2Balance"), (139, "filter2Routing"),
+        ]
+        #expect(group.children.compactMap { ($0 as? AUParameter)?.address }.sorted() == expected.map(\.0))
+        for (address, identifier) in expected {
+            let parameter = try #require(tree.parameter(withAddress: address))
+            #expect(parameter.identifier == identifier)
+            #expect(SynthParameterAddress(rawValue: address)?.identifier == identifier)
+        }
         let routing = try #require(tree.parameter(withAddress: SynthParameterAddress.filter2Routing.rawValue))
         #expect(routing.maxValue == 2)
         let cutoff = try #require(tree.parameter(withAddress: SynthParameterAddress.filter2Cutoff.rawValue))
