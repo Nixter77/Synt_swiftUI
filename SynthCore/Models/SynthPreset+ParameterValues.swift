@@ -110,6 +110,8 @@ extension SynthPreset {
         case .filter2Type: return filterIndex(filter2Type)
         case .filter2Balance: return filter2Balance
         case .filter2Routing: return filter2RoutingIndex(filter2Routing)
+        case .envFollowerAttack: return envFollowerAttack
+        case .envFollowerRelease: return envFollowerRelease
         }
     }
 
@@ -215,6 +217,8 @@ extension SynthPreset {
         case .filter2Type: filter2Type = filterKind(value)
         case .filter2Balance: filter2Balance = value
         case .filter2Routing: filter2Routing = filter2RoutingValue(value)
+        case .envFollowerAttack: envFollowerAttack = value
+        case .envFollowerRelease: envFollowerRelease = value
         }
     }
 

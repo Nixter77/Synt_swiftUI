@@ -597,8 +597,16 @@ enum SyntParameterTree {
                 knob(.filter2Balance),
             ]
         )
+        let modFollower = AUParameterTree.createGroup(
+            withIdentifier: "modFollower",
+            name: "Envelope Follower",
+            children: [
+                knob(.envFollowerAttack, unit: .seconds),
+                knob(.envFollowerRelease, unit: .seconds),
+            ]
+        )
         return AUParameterTree.createTree(withChildren: [
-            oscillators, envelopes, filter, lfo, effects, performance, filter2,
+            oscillators, envelopes, filter, lfo, effects, performance, filter2, modFollower,
         ])
     }
 }

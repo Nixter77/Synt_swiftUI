@@ -284,12 +284,10 @@ public extension AudioEngine {
         }
 
         let envIn = max(abs(lastRenderedSampleL), abs(lastRenderedSampleR))
-        let envAttCoeff: Float = 0.05
-        let envRelCoeff: Float = 0.001
         if envIn > envelopeFollowerRT {
-            envelopeFollowerRT += envAttCoeff * (envIn - envelopeFollowerRT)
+            envelopeFollowerRT += envFollowerAttCoeff * (envIn - envelopeFollowerRT)
         } else {
-            envelopeFollowerRT += envRelCoeff * (envIn - envelopeFollowerRT)
+            envelopeFollowerRT += envFollowerRelCoeff * (envIn - envelopeFollowerRT)
         }
         envelopeFollowerValue = AudioMath.clamp(envelopeFollowerRT, min: 0.0, max: 1.0)
 
@@ -464,6 +462,14 @@ public extension AudioEngine {
                     break
                 }
             }
+            liveModulation.store(cutoffMod, for: .cutoff)
+            liveModulation.store(resonanceMod, for: .resonance)
+            liveModulation.store(wtMorphMod1, for: .wtMorph1)
+            liveModulation.store(wtMorphMod2, for: .wtMorph2)
+            liveModulation.store(chorusMixMod, for: .chorusMix)
+            liveModulation.store(delayMixMod, for: .delayMix)
+            liveModulation.store(reverbMixMod, for: .reverbMix)
+            liveModulation.store(vowelMod, for: .vowel)
         }
         if oscillator1.waveform == .wavetable {
             wavetableEngine1.targetFramePosition = max(0, min(1, oscillator1.wavetableMorph + wtMorphMod1))
@@ -640,6 +646,17 @@ public extension AudioEngine {
                     case .cutoff, .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel:
                         break
                     }
+                }
+                if i == 0 {
+                    liveModulation.store(pitchMod1, for: .pitch1)
+                    liveModulation.store(pitchMod2, for: .pitch2)
+                    liveModulation.store(ampMod, for: .amp)
+                    liveModulation.store(panMod, for: .pan)
+                    liveModulation.store(pwmMod1, for: .pwm1)
+                    liveModulation.store(pwmMod2, for: .pwm2)
+                    liveModulation.store(mixMod, for: .mix)
+                    liveModulation.store(fineMod, for: .finePitch)
+                    liveModulation.store(fmMod, for: .fm)
                 }
             }
 

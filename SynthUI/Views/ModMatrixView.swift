@@ -57,6 +57,28 @@ struct ModMatrixView: View {
 
     private var entryList: some View {
         let list = VStack(spacing: 4) {
+            if preset.modMatrix.contains(where: { $0.source == .envelopeFollower }) {
+                HStack(spacing: 6) {
+                    Text("Env Follower")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.aMod)
+                    Spacer()
+                    KnobView(
+                        value: $preset.envFollowerAttack,
+                        range: 0.001...1.0,
+                        label: "Att",
+                        format: "%.3f s"
+                    )
+                    KnobView(
+                        value: $preset.envFollowerRelease,
+                        range: 0.005...2.0,
+                        label: "Rel",
+                        format: "%.3f s"
+                    )
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+            }
             ForEach($preset.modMatrix) { $entry in
                 matrixRow($entry)
             }

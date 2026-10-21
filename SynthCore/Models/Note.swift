@@ -122,7 +122,8 @@ public struct ActiveNote {
         unisonScale: Float = 1.0,
         partial: Int = 0,
         partialCount: Int = 1,
-        phaseMode: OscPhaseMode = .reset
+        phaseMode: OscPhaseMode = .reset,
+        randomSeed: UInt32 = 0
     ) {
         self.isActive = true
         self.midiNote = midiNote
@@ -143,7 +144,7 @@ public struct ActiveNote {
             phase2 = keptPhase2
             subPhase = keptSubPhase
         } else if phaseMode == .random {
-            var h = UInt32(truncatingIfNeeded: midiNote &* 374761393)
+            var h = randomSeed != 0 ? randomSeed : UInt32(truncatingIfNeeded: midiNote &* 374761393)
             h &+= UInt32(truncatingIfNeeded: partial &* 668265263)
             h &+= UInt32(truncatingIfNeeded: partialCount &* 1442695041)
             h ^= h >> 16

@@ -379,6 +379,21 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedLfo2StereoPhase: Float = 0.0
     public var envelopeFollowerRT: Float = 0.0
     public var envelopeFollowerValue: Float = 0.0
+    public var cachedEnvFollowerAttack: Float = 0.01 {
+        didSet { updateEnvFollowerCoeffs() }
+    }
+    public var cachedEnvFollowerRelease: Float = 0.05 {
+        didSet { updateEnvFollowerCoeffs() }
+    }
+    public var envFollowerAttCoeff: Float = 0.002
+    public var envFollowerRelCoeff: Float = 0.0005
+
+    public func updateEnvFollowerCoeffs(rate: Double? = nil) {
+        let sr = max(8000.0, rate ?? sampleRate)
+        envFollowerAttCoeff = 1.0 - Float(exp(-1.0 / (sr * Double(max(0.0005, cachedEnvFollowerAttack)))))
+        envFollowerRelCoeff = 1.0 - Float(exp(-1.0 / (sr * Double(max(0.0005, cachedEnvFollowerRelease)))))
+    }
+    public let liveModulation = LiveModulationSnapshot.shared
     public var lastRenderedSampleL: Float = 0.0
     public var lastRenderedSampleR: Float = 0.0
     public let frequencyShifter = DSPFrequencyShifter()
@@ -738,6 +753,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         cleanBus.setSampleRate(rateF)
         filterL.setSampleRate(rateF)
         filterR.setSampleRate(rateF)
+        updateEnvFollowerCoeffs(rate: rate)
     }
 
     private func reconnectGraph(sampleRate: Double) {

@@ -234,6 +234,8 @@ public extension SynthPreset {
         p.frequencyShifterMix = f(p.frequencyShifterMix, 0, 1, 0.5)
         p.frequencyShifterFeedback = f(p.frequencyShifterFeedback, -0.95, 0.95, 0)
         if !CharacterMode.allCases.contains(p.character) { p.character = .off }
+        p.envFollowerAttack = f(p.envFollowerAttack, 0.001, 2.0, 0.01)
+        p.envFollowerRelease = f(p.envFollowerRelease, 0.001, 2.0, 0.05)
         return p
     }
 

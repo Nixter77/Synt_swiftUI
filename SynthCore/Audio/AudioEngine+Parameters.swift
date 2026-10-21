@@ -184,6 +184,8 @@ extension AudioEngine {
         case .filter2Type: cachedFilter2Type = Self.filterType(v)
         case .filter2Balance: cachedFilter2Balance = v
         case .filter2Routing: cachedFilter2Routing = Self.filter2Routing(v)
+        case .envFollowerAttack: cachedEnvFollowerAttack = v
+        case .envFollowerRelease: cachedEnvFollowerRelease = v
         }
     }
 
@@ -299,6 +301,8 @@ extension AudioEngine {
         case .filter2Type: return Self.index(of: cachedFilter2Type)
         case .filter2Balance: return cachedFilter2Balance
         case .filter2Routing: return Self.index(of: cachedFilter2Routing)
+        case .envFollowerAttack: return cachedEnvFollowerAttack
+        case .envFollowerRelease: return cachedEnvFollowerRelease
         }
     }
 
@@ -435,6 +439,8 @@ extension AudioEngine {
             case .filter2Type: preset.filter2Type = Self.filterType(v)
             case .filter2Balance: preset.filter2Balance = v
             case .filter2Routing: preset.filter2Routing = Self.filter2Routing(v)
+            case .envFollowerAttack: preset.envFollowerAttack = v
+            case .envFollowerRelease: preset.envFollowerRelease = v
             }
         }
         if pushToRender { setParameter(id: id, value: v) }

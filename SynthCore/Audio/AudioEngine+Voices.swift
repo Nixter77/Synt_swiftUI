@@ -221,6 +221,13 @@ public extension AudioEngine {
                 pan = panPos * spreadAmount
             }
 
+            var seed = randomSeed
+            if seed == 0 { seed = 0x12345678 }
+            seed ^= seed << 13
+            seed ^= seed >> 17
+            seed ^= seed << 5
+            randomSeed = seed
+
             voices[slot].activate(
                 midiNote: midiNote,
                 velocity: velocity,
@@ -229,19 +236,14 @@ public extension AudioEngine {
                 unisonScale: partialScale,
                 partial: u,
                 partialCount: unisonCount,
-                phaseMode: cachedOscPhaseMode
+                phaseMode: cachedOscPhaseMode,
+                randomSeed: seed
             )
             voices[slot].targetFrequency = targetFreq
             voices[slot].currentFrequency = curFreq
             voices[slot].glideIntervalSemitones = semitoneInterval
             resetVoiceToneBanks(at: slot)
 
-            var seed = randomSeed
-            if seed == 0 { seed = 0x12345678 }
-            seed ^= seed << 13
-            seed ^= seed >> 17
-            seed ^= seed << 5
-            randomSeed = seed
             let randVal = Float(seed) / Float(UInt32.max) * 2.0 - 1.0
             voices[slot].randomValue = randVal
 

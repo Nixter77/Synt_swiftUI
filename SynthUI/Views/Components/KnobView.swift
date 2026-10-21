@@ -115,13 +115,26 @@ private struct KnobBody: View, Equatable {
                 KnobDiscShadow(diameter: knobSize + 4, themeID: theme.id)
                 .equatable()
 
-                KnobChrome(
-                    fraction: fraction,
-                    angle: rotationAngle,
-                    diameter: knobSize,
-                    centeredFill: range.lowerBound < 0 && range.upperBound > 0,
-                    modulationAmount: modulationAmount
-                )
+                if modulationAmount != 0, let dest = resolvedDestination {
+                    TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { _ in
+                        KnobChrome(
+                            fraction: fraction,
+                            angle: rotationAngle,
+                            diameter: knobSize,
+                            centeredFill: range.lowerBound < 0 && range.upperBound > 0,
+                            modulationAmount: modulationAmount,
+                            liveModulation: LiveModulationSnapshot.shared.value(for: dest)
+                        )
+                    }
+                } else {
+                    KnobChrome(
+                        fraction: fraction,
+                        angle: rotationAngle,
+                        diameter: knobSize,
+                        centeredFill: range.lowerBound < 0 && range.upperBound > 0,
+                        modulationAmount: modulationAmount
+                    )
+                }
                 if !modulated.isEmpty {
                     Circle()
                         .fill(theme.aMod)
@@ -179,6 +192,32 @@ private struct KnobBody: View, Equatable {
 
     private var rotationAngle: Double {
         -135 + Double(fraction) * 270
+    }
+
+    private var resolvedDestination: ModDestination? {
+        if let target, let d = ModDestination(rawValue: target.rawValue) { return d }
+        switch label.lowercased() {
+        case "cutoff": return .cutoff
+        case "reso", "resonance": return .resonance
+        case "morph", "morph 1": return .wtMorph1
+        case "morph 2": return .wtMorph2
+        case "pw", "pw 1": return .pwm1
+        case "pw 2": return .pwm2
+        case "detune", "detune 1": return .pitch1
+        case "detune 2": return .pitch2
+        case "mix": return .mix
+        case "rate": return .lfoRate
+        case "depth": return .lfoDepth
+        case "vowel": return .vowel
+        case "chorus": return .chorusMix
+        case "delay", "time": return .delayMix
+        case "reverb": return .reverbMix
+        case "fine": return .finePitch
+        case "fm": return .fm
+        case "amp": return .amp
+        case "pan": return .pan
+        default: return nil
+        }
     }
 }
 
@@ -255,14 +294,28 @@ private struct LargeKnobBody: View, Equatable {
                         .rotationEffect(Angle(degrees: angle))
                 }
 
-                KnobChrome(
-                    fraction: fraction,
-                    angle: rotationAngle,
-                    diameter: knobSize,
-                    indicatorWidth: 4,
-                    centeredFill: range.lowerBound < 0 && range.upperBound > 0,
-                    modulationAmount: modulationAmount
-                )
+                if modulationAmount != 0, let dest = resolvedDestination {
+                    TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { _ in
+                        KnobChrome(
+                            fraction: fraction,
+                            angle: rotationAngle,
+                            diameter: knobSize,
+                            indicatorWidth: 4,
+                            centeredFill: range.lowerBound < 0 && range.upperBound > 0,
+                            modulationAmount: modulationAmount,
+                            liveModulation: LiveModulationSnapshot.shared.value(for: dest)
+                        )
+                    }
+                } else {
+                    KnobChrome(
+                        fraction: fraction,
+                        angle: rotationAngle,
+                        diameter: knobSize,
+                        indicatorWidth: 4,
+                        centeredFill: range.lowerBound < 0 && range.upperBound > 0,
+                        modulationAmount: modulationAmount
+                    )
+                }
                 if !modulated.isEmpty {
                     Circle()
                         .fill(theme.aMod)
@@ -320,6 +373,32 @@ private struct LargeKnobBody: View, Equatable {
     private var rotationAngle: Double {
         -135 + Double(fraction) * 270
     }
+
+    private var resolvedDestination: ModDestination? {
+        if let target, let d = ModDestination(rawValue: target.rawValue) { return d }
+        switch label.lowercased() {
+        case "cutoff": return .cutoff
+        case "reso", "resonance": return .resonance
+        case "morph", "morph 1": return .wtMorph1
+        case "morph 2": return .wtMorph2
+        case "pw", "pw 1": return .pwm1
+        case "pw 2": return .pwm2
+        case "detune", "detune 1": return .pitch1
+        case "detune 2": return .pitch2
+        case "mix": return .mix
+        case "rate": return .lfoRate
+        case "depth": return .lfoDepth
+        case "vowel": return .vowel
+        case "chorus": return .chorusMix
+        case "delay", "time": return .delayMix
+        case "reverb": return .reverbMix
+        case "fine": return .finePitch
+        case "fm": return .fm
+        case "amp": return .amp
+        case "pan": return .pan
+        default: return nil
+        }
+    }
 }
 
 struct KnobChrome: View {
@@ -330,6 +409,7 @@ struct KnobChrome: View {
     /// Bipolar ranges draw the value arc out from the center of the sweep.
     var centeredFill: Bool = false
     var modulationAmount: Float = 0.0
+    var liveModulation: Float = 0.0
     @Environment(\.theme) private var theme
 
     private var fillStart: CGFloat {
@@ -382,6 +462,14 @@ struct KnobChrome: View {
                     .stroke(theme.aMod, style: StrokeStyle(lineWidth: 3.0, lineCap: .round))
                     .rotationEffect(.degrees(135))
                     .frame(width: diameter - 6, height: diameter - 6)
+
+                let liveFrac = max(0, min(1, fraction + CGFloat(liveModulation) / 2.0))
+                let liveAng = -135 + Double(liveFrac) * 270
+                Circle()
+                    .fill(theme.accent)
+                    .frame(width: 4, height: 4)
+                    .offset(y: -(diameter - 6) / 2)
+                    .rotationEffect(.degrees(liveAng))
             }
 
             Rectangle()

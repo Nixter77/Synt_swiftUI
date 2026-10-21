@@ -117,6 +117,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case filter2Type = 137
     case filter2Balance = 138
     case filter2Routing = 139
+    case envFollowerAttack = 140
+    case envFollowerRelease = 141
 
     public var identifier: String {
         switch self {
@@ -219,6 +221,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .filter2Type: return "filter2Type"
         case .filter2Balance: return "filter2Balance"
         case .filter2Routing: return "filter2Routing"
+        case .envFollowerAttack: return "envFollowerAttack"
+        case .envFollowerRelease: return "envFollowerRelease"
         }
     }
 
@@ -323,6 +327,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .filter2Type: return "Filter 2 Type"
         case .filter2Balance: return "Filter 2 Balance"
         case .filter2Routing: return "Filter 2 Routing"
+        case .envFollowerAttack: return "Env Follower Attack"
+        case .envFollowerRelease: return "Env Follower Release"
         }
     }
 
@@ -332,7 +338,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .osc1Detune, .osc2Detune: return -50
         case .osc1Octave, .osc2Octave: return -2
         case .osc1PulseWidth, .osc2PulseWidth: return 0.05
-        case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay: return 0.001
+        case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay, .envFollowerAttack, .envFollowerRelease: return 0.001
         case .release, .filterRelease, .modEnvRelease: return 0.001
         case .filterCutoff, .filter2Cutoff: return 20
         case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4: return -1
@@ -364,7 +370,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .filterType, .filter2Type: return 6
         case .lfoTarget, .lfo2Target: return 4
         case .filter2Routing: return 2
-        case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay: return 2
+        case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay, .envFollowerAttack, .envFollowerRelease: return 2
         case .release, .filterRelease, .modEnvRelease: return 3
         case .filterCutoff, .filter2Cutoff: return 20000
         case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4: return 1

@@ -288,6 +288,8 @@ public extension AudioEngine {
         if stereoWasOn && !cachedStereoEnabled {
             stereoTool.reset()
         }
+        cachedEnvFollowerAttack = snap.envFollowerAttack
+        cachedEnvFollowerRelease = snap.envFollowerRelease
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
         cachedTranceEnabled = snap.tranceGateEnabled

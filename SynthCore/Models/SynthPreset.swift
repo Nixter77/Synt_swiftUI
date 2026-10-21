@@ -298,6 +298,10 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var lfoStereoPhase: Float = 0
     public var lfo2StereoPhase: Float = 0
 
+    /// Envelope Follower settings (attack / release in seconds).
+    public var envFollowerAttack: Float = 0.01
+    public var envFollowerRelease: Float = 0.05
+
     /// Frequency shifter in FX (Bode single-sideband frequency shifter). Off by default.
     public var frequencyShifterEnabled: Bool = false
     public var frequencyShifterShiftHz: Float = 0.0
@@ -374,6 +378,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case lfoStereoPhase, lfo2StereoPhase
         case frequencyShifterEnabled, frequencyShifterShiftHz, frequencyShifterMix, frequencyShifterFeedback
         case character
+        case envFollowerAttack, envFollowerRelease
     }
 
     public init(
@@ -822,6 +827,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         frequencyShifterMix = try c.decodeIfPresent(Float.self, forKey: .frequencyShifterMix) ?? 0.5
         frequencyShifterFeedback = try c.decodeIfPresent(Float.self, forKey: .frequencyShifterFeedback) ?? 0.0
         character = try c.decodeIfPresent(CharacterMode.self, forKey: .character) ?? .off
+        envFollowerAttack = try c.decodeIfPresent(Float.self, forKey: .envFollowerAttack) ?? 0.01
+        envFollowerRelease = try c.decodeIfPresent(Float.self, forKey: .envFollowerRelease) ?? 0.05
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
