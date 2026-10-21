@@ -156,6 +156,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         engine.prepare(sampleRate: safeRate, maxFrames: frames)
         engine.dspReverb.allocate(sampleRate: safeRate)
         engine.resetRenderStateForAllocation()
+        syncParameterTreeFromEngine()
     }
 
     public override func deallocateRenderResources() {

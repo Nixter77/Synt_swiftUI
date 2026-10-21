@@ -192,6 +192,18 @@ public extension AudioEngine {
             }
             tranceHostBeat += bpm / (60.0 * max(sampleRate, 1))
         } else {
+            if tranceHostLocked {
+                let bpm = Double(max(20, min(300, cachedBPM)))
+                let beatsPerStep = max(1e-6, Double(cachedTranceDivision.duration(bpm: Float(bpm))) * bpm / 60.0)
+                let stepPos = tranceHostBeat / beatsPerStep
+                if stepPos.isFinite && tranceCursor == 0 {
+                    let wrapped = stepPos - floor(stepPos / 16.0) * 16.0
+                    var step = Int(wrapped)
+                    if step < 0 { step = 0 }
+                    if step > 15 { step = 15 }
+                    tranceStep = step
+                }
+            }
             let dur = Double(cachedTranceDivision.duration(bpm: cachedBPM))
             let stepSamples = max(1, dur * sampleRate)
             tranceCursor += 1
