@@ -114,6 +114,15 @@ extension SynthPreset {
         case .envFollowerRelease: return envFollowerRelease
         case .sendA: return sendA
         case .sendB: return sendB
+        case .rotaryEnabled: return rotaryEnabled ? 1 : 0
+        case .rotaryFast: return rotaryFast
+        case .rotaryHornSlow: return rotaryHornSlow
+        case .rotaryHornFast: return rotaryHornFast
+        case .rotaryDrumSlow: return rotaryDrumSlow
+        case .rotaryDrumFast: return rotaryDrumFast
+        case .rotaryDrive: return rotaryDrive
+        case .rotaryMix: return rotaryMix
+        case .rotaryAccel: return rotaryAccel
         }
     }
 
@@ -223,6 +232,15 @@ extension SynthPreset {
         case .envFollowerRelease: envFollowerRelease = value
         case .sendA: sendA = value
         case .sendB: sendB = value
+        case .rotaryEnabled: rotaryEnabled = value >= 0.5
+        case .rotaryFast: rotaryFast = value
+        case .rotaryHornSlow: rotaryHornSlow = value
+        case .rotaryHornFast: rotaryHornFast = value
+        case .rotaryDrumSlow: rotaryDrumSlow = value
+        case .rotaryDrumFast: rotaryDrumFast = value
+        case .rotaryDrive: rotaryDrive = value
+        case .rotaryMix: rotaryMix = value
+        case .rotaryAccel: rotaryAccel = value
         }
     }
 

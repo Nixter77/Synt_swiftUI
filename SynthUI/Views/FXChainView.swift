@@ -21,6 +21,7 @@ struct FXChainView: View {
         VStack(spacing: 10) {
             sceneHPFCard
             sendsCard
+            rotaryCard
             stereoCard
             tranceCard
             smoothCard
@@ -113,6 +114,38 @@ struct FXChainView: View {
             HStack(spacing: 6) {
                 KnobView(value: $preset.sendA, range: 0...1, label: "Send A", format: "%.2f")
                 KnobView(value: $preset.sendB, range: 0...1, label: "Send B", format: "%.2f")
+            }
+        }
+    }
+
+    private var rotaryCard: some View {
+        FXSlotCard(
+            title: "Rotary",
+            enabled: $preset.rotaryEnabled,
+            accent: theme.aFx,
+            storageName: "rotary",
+            startsExpanded: preset.rotaryEnabled
+        ) {
+            EmptyView()
+        } content: {
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Fast", isOn: Binding(
+                    get: { preset.rotaryFast >= 0.5 },
+                    set: { preset.rotaryFast = $0 ? 1 : 0 }
+                ))
+                .font(.system(size: 11, weight: .semibold))
+                .toggleStyle(.switch)
+                HStack(spacing: 6) {
+                    KnobView(value: $preset.rotaryHornSlow, range: 0.2...3, label: "Horn Slow", format: "%.2f")
+                    KnobView(value: $preset.rotaryHornFast, range: 1...12, label: "Horn Fast", format: "%.2f")
+                    KnobView(value: $preset.rotaryDrumSlow, range: 0.15...2.5, label: "Drum Slow", format: "%.2f")
+                    KnobView(value: $preset.rotaryDrumFast, range: 1...10, label: "Drum Fast", format: "%.2f")
+                }
+                HStack(spacing: 6) {
+                    KnobView(value: $preset.rotaryDrive, range: 0...1, label: "Drive", format: "%.2f")
+                    KnobView(value: $preset.rotaryMix, range: 0...1, label: "Mix", format: "%.2f")
+                    KnobView(value: $preset.rotaryAccel, range: 0.2...20, label: "Accel", format: "%.1f")
+                }
             }
         }
     }

@@ -309,6 +309,18 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var sendA: Float = 0
     public var sendB: Float = 0
 
+    /// Leslie rotor beside the insert chain. Off is bit-exact. Not an FX slot.
+    public var rotaryEnabled: Bool = false
+    /// 0 slow, 1 fast. Automated from the AU speed switch.
+    public var rotaryFast: Float = 0
+    public var rotaryHornSlow: Float = 0.7
+    public var rotaryHornFast: Float = 6.8
+    public var rotaryDrumSlow: Float = 0.55
+    public var rotaryDrumFast: Float = 5.2
+    public var rotaryDrive: Float = 0
+    public var rotaryMix: Float = 1
+    public var rotaryAccel: Float = 2
+
     /// Frequency shifter in FX (Bode single-sideband frequency shifter). Off by default.
     public var frequencyShifterEnabled: Bool = false
     public var frequencyShifterShiftHz: Float = 0.0
@@ -388,6 +400,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case character
         case envFollowerAttack, envFollowerRelease
         case sendA, sendB
+        case rotaryEnabled, rotaryFast, rotaryHornSlow, rotaryHornFast
+        case rotaryDrumSlow, rotaryDrumFast, rotaryDrive, rotaryMix, rotaryAccel
     }
 
     public init(
@@ -841,6 +855,15 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         envFollowerRelease = try c.decodeIfPresent(Float.self, forKey: .envFollowerRelease) ?? 0.05
         sendA = try c.decodeIfPresent(Float.self, forKey: .sendA) ?? 0
         sendB = try c.decodeIfPresent(Float.self, forKey: .sendB) ?? 0
+        rotaryEnabled = try c.decodeIfPresent(Bool.self, forKey: .rotaryEnabled) ?? false
+        rotaryFast = try c.decodeIfPresent(Float.self, forKey: .rotaryFast) ?? 0
+        rotaryHornSlow = try c.decodeIfPresent(Float.self, forKey: .rotaryHornSlow) ?? 0.7
+        rotaryHornFast = try c.decodeIfPresent(Float.self, forKey: .rotaryHornFast) ?? 6.8
+        rotaryDrumSlow = try c.decodeIfPresent(Float.self, forKey: .rotaryDrumSlow) ?? 0.55
+        rotaryDrumFast = try c.decodeIfPresent(Float.self, forKey: .rotaryDrumFast) ?? 5.2
+        rotaryDrive = try c.decodeIfPresent(Float.self, forKey: .rotaryDrive) ?? 0
+        rotaryMix = try c.decodeIfPresent(Float.self, forKey: .rotaryMix) ?? 1
+        rotaryAccel = try c.decodeIfPresent(Float.self, forKey: .rotaryAccel) ?? 2
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

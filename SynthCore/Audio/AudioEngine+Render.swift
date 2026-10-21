@@ -1276,6 +1276,23 @@ public extension AudioEngine {
             outR += wet.1 * cachedSendB
         }
 
+        if cachedRotaryEnabled {
+            let spun = rotary.process(
+                inputL: outL,
+                inputR: outR,
+                hornSlow: cachedRotaryHornSlow,
+                hornFast: cachedRotaryHornFast,
+                drumSlow: cachedRotaryDrumSlow,
+                drumFast: cachedRotaryDrumFast,
+                fast: cachedRotaryFast,
+                drive: cachedRotaryDrive,
+                mix: cachedRotaryMix,
+                accelHz: cachedRotaryAccel
+            )
+            outL = spun.0
+            outR = spun.1
+        }
+
         if cachedFrequencyShifterEnabled {
             let shifted = frequencyShifter.process(
                 inputL: outL,

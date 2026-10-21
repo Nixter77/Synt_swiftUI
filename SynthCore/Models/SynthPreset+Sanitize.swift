@@ -242,6 +242,14 @@ public extension SynthPreset {
         p.envFollowerRelease = f(p.envFollowerRelease, 0.001, 2.0, 0.05)
         p.sendA = f(p.sendA, 0, 1, 0)
         p.sendB = f(p.sendB, 0, 1, 0)
+        p.rotaryFast = f(p.rotaryFast, 0, 1, 0)
+        p.rotaryHornSlow = f(p.rotaryHornSlow, 0.2, 3, 0.7)
+        p.rotaryHornFast = f(p.rotaryHornFast, 1, 12, 6.8)
+        p.rotaryDrumSlow = f(p.rotaryDrumSlow, 0.15, 2.5, 0.55)
+        p.rotaryDrumFast = f(p.rotaryDrumFast, 1, 10, 5.2)
+        p.rotaryDrive = f(p.rotaryDrive, 0, 1, 0)
+        p.rotaryMix = f(p.rotaryMix, 0, 1, 1)
+        p.rotaryAccel = f(p.rotaryAccel, 0.2, 20, 2)
         return p
     }
 

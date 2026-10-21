@@ -188,6 +188,15 @@ extension AudioEngine {
         case .envFollowerRelease: cachedEnvFollowerRelease = v
         case .sendA: cachedSendA = v
         case .sendB: cachedSendB = v
+        case .rotaryEnabled: cachedRotaryEnabled = v >= 0.5
+        case .rotaryFast: cachedRotaryFast = v
+        case .rotaryHornSlow: cachedRotaryHornSlow = v
+        case .rotaryHornFast: cachedRotaryHornFast = v
+        case .rotaryDrumSlow: cachedRotaryDrumSlow = v
+        case .rotaryDrumFast: cachedRotaryDrumFast = v
+        case .rotaryDrive: cachedRotaryDrive = v
+        case .rotaryMix: cachedRotaryMix = v
+        case .rotaryAccel: cachedRotaryAccel = v
         }
     }
 
@@ -307,6 +316,15 @@ extension AudioEngine {
         case .envFollowerRelease: return cachedEnvFollowerRelease
         case .sendA: return cachedSendA
         case .sendB: return cachedSendB
+        case .rotaryEnabled: return cachedRotaryEnabled ? 1 : 0
+        case .rotaryFast: return cachedRotaryFast
+        case .rotaryHornSlow: return cachedRotaryHornSlow
+        case .rotaryHornFast: return cachedRotaryHornFast
+        case .rotaryDrumSlow: return cachedRotaryDrumSlow
+        case .rotaryDrumFast: return cachedRotaryDrumFast
+        case .rotaryDrive: return cachedRotaryDrive
+        case .rotaryMix: return cachedRotaryMix
+        case .rotaryAccel: return cachedRotaryAccel
         }
     }
 
@@ -447,6 +465,15 @@ extension AudioEngine {
             case .envFollowerRelease: preset.envFollowerRelease = v
             case .sendA: preset.sendA = v
             case .sendB: preset.sendB = v
+            case .rotaryEnabled: preset.rotaryEnabled = v >= 0.5
+            case .rotaryFast: preset.rotaryFast = v
+            case .rotaryHornSlow: preset.rotaryHornSlow = v
+            case .rotaryHornFast: preset.rotaryHornFast = v
+            case .rotaryDrumSlow: preset.rotaryDrumSlow = v
+            case .rotaryDrumFast: preset.rotaryDrumFast = v
+            case .rotaryDrive: preset.rotaryDrive = v
+            case .rotaryMix: preset.rotaryMix = v
+            case .rotaryAccel: preset.rotaryAccel = v
             }
         }
         if pushToRender { setParameter(id: id, value: v) }

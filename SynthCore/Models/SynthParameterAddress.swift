@@ -123,6 +123,17 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case sendA = 142
     /// Parallel send into the delay bus.
     case sendB = 143
+    /// Leslie rotor. Off leaves the insert chain bit-exact. Not an FX slot.
+    case rotaryEnabled = 144
+    /// 0 is slow, 1 is fast. The host automates this switch.
+    case rotaryFast = 145
+    case rotaryHornSlow = 146
+    case rotaryHornFast = 147
+    case rotaryDrumSlow = 148
+    case rotaryDrumFast = 149
+    case rotaryDrive = 150
+    case rotaryMix = 151
+    case rotaryAccel = 152
 
     public var identifier: String {
         switch self {
@@ -229,6 +240,15 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .envFollowerRelease: return "envFollowerRelease"
         case .sendA: return "sendA"
         case .sendB: return "sendB"
+        case .rotaryEnabled: return "rotaryEnabled"
+        case .rotaryFast: return "rotaryFast"
+        case .rotaryHornSlow: return "rotaryHornSlow"
+        case .rotaryHornFast: return "rotaryHornFast"
+        case .rotaryDrumSlow: return "rotaryDrumSlow"
+        case .rotaryDrumFast: return "rotaryDrumFast"
+        case .rotaryDrive: return "rotaryDrive"
+        case .rotaryMix: return "rotaryMix"
+        case .rotaryAccel: return "rotaryAccel"
         }
     }
 
@@ -337,6 +357,15 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .envFollowerRelease: return "Env Follower Release"
         case .sendA: return "Send A"
         case .sendB: return "Send B"
+        case .rotaryEnabled: return "Rotary"
+        case .rotaryFast: return "Rotary Speed"
+        case .rotaryHornSlow: return "Horn Slow"
+        case .rotaryHornFast: return "Horn Fast"
+        case .rotaryDrumSlow: return "Drum Slow"
+        case .rotaryDrumFast: return "Drum Fast"
+        case .rotaryDrive: return "Rotary Drive"
+        case .rotaryMix: return "Rotary Mix"
+        case .rotaryAccel: return "Rotary Accel"
         }
     }
 
@@ -360,6 +389,10 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .eqLowFreq: return 40
         case .eqMidFreq: return 200
         case .eqHighFreq: return 2000
+        case .rotaryHornSlow: return 0.2
+        case .rotaryHornFast, .rotaryDrumFast: return 1
+        case .rotaryDrumSlow: return 0.15
+        case .rotaryAccel: return 0.2
         default: return 0
         }
     }
@@ -393,6 +426,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .eqLowFreq: return 400
         case .eqMidFreq: return 5000
         case .eqHighFreq: return 16000
+        case .rotaryHornSlow: return 3
+        case .rotaryHornFast: return 12
+        case .rotaryDrumSlow: return 2.5
+        case .rotaryDrumFast: return 10
+        case .rotaryAccel: return 20
         default: return 1
         }
     }

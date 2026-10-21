@@ -77,6 +77,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Parallel send buses. Idle while the send levels are 0, so the insert chain stays bit-exact.
     public let sendReverb = DSPReverb()
     public let sendDelay = PingPongDelay(sampleRate: 44100)
+    /// Leslie rotor. Skipped while `cachedRotaryEnabled` is false.
+    public let rotary = DSPRotary(sampleRate: 44100)
     public let sceneHPF = SceneHPF()
 
     @Published public var isPlaying = false
@@ -357,6 +359,15 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedSendB: Float = 0
     public var cachedSendDelayTime: Float = 0.3
     public var cachedSendDelayFeedback: Float = 0.4
+    public var cachedRotaryEnabled: Bool = false
+    public var cachedRotaryFast: Float = 0
+    public var cachedRotaryHornSlow: Float = 0.7
+    public var cachedRotaryHornFast: Float = 6.8
+    public var cachedRotaryDrumSlow: Float = 0.55
+    public var cachedRotaryDrumFast: Float = 5.2
+    public var cachedRotaryDrive: Float = 0
+    public var cachedRotaryMix: Float = 1
+    public var cachedRotaryAccel: Float = 2
     public var cachedOsc2Fixed: Bool = false
     public var cachedOsc2Hz: Float = 440
     public var cachedSceneHPF: Bool = false
@@ -760,6 +771,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         sendDelay.setSampleRate(rate)
         sendDelay.enabled = true
         sendDelay.mix = 1
+        rotary.setSampleRate(rate)
         shimmer.setSampleRate(rate)
         dspReverb.allocate(sampleRate: rate)
         sendReverb.allocate(sampleRate: rate)

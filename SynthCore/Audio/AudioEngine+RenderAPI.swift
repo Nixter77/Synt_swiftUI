@@ -59,6 +59,7 @@ extension AudioEngine {
         dspReverb.reset()
         sendReverb.reset()
         sendDelay.reset()
+        rotary.reset()
         phaser.reset()
         distortion.reset()
         parametricEQL.reset()

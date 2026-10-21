@@ -314,6 +314,22 @@ public extension AudioEngine {
         cachedSendB = snap.sendB
         cachedSendDelayTime = snap.delayEffectiveTime
         cachedSendDelayFeedback = snap.delayFeedback
+        cachedRotaryEnabled = snap.rotaryEnabled
+        cachedRotaryFast = snap.rotaryFast
+        cachedRotaryHornSlow = snap.rotaryHornSlow
+        cachedRotaryHornFast = snap.rotaryHornFast
+        cachedRotaryDrumSlow = snap.rotaryDrumSlow
+        cachedRotaryDrumFast = snap.rotaryDrumFast
+        cachedRotaryDrive = snap.rotaryDrive
+        cachedRotaryMix = snap.rotaryMix
+        cachedRotaryAccel = snap.rotaryAccel
+        rotary.snapSpeeds(
+            hornSlow: snap.rotaryHornSlow,
+            hornFast: snap.rotaryHornFast,
+            drumSlow: snap.rotaryDrumSlow,
+            drumFast: snap.rotaryDrumFast,
+            fast: snap.rotaryFast
+        )
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
         cachedTranceEnabled = snap.tranceGateEnabled
