@@ -25,6 +25,7 @@ extension AudioEngine {
     public func prepare(sampleRate: Double, maxFrames: Int) {
         applySampleRate(sampleRate, rebuildGraph: false)
         dspReverb.allocate(sampleRate: sampleRate)
+        sendReverb.allocate(sampleRate: sampleRate)
         prepareVoiceFilters(sampleRate: sampleRate, maxFrames: maxFrames)
     }
 
@@ -56,6 +57,8 @@ extension AudioEngine {
         dspChorus.reset()
         shimmer.reset()
         dspReverb.reset()
+        sendReverb.reset()
+        sendDelay.reset()
         phaser.reset()
         distortion.reset()
         parametricEQL.reset()

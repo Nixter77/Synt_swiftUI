@@ -74,6 +74,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let shimmer = ShimmerProcessor(sampleRate: 44100)
     /// Used only while `cachedDSPReverb` is on. Allocate from `prepare` / the AU.
     public let dspReverb = DSPReverb()
+    /// Parallel send buses. Idle while the send levels are 0, so the insert chain stays bit-exact.
+    public let sendReverb = DSPReverb()
+    public let sendDelay = PingPongDelay(sampleRate: 44100)
     public let sceneHPF = SceneHPF()
 
     @Published public var isPlaying = false
@@ -350,6 +353,10 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedReverbMix: Float = 0
     public var cachedReverbRoom: Float = 0.5
     public var cachedReverbDamping: Float = 0.4
+    public var cachedSendA: Float = 0
+    public var cachedSendB: Float = 0
+    public var cachedSendDelayTime: Float = 0.3
+    public var cachedSendDelayFeedback: Float = 0.4
     public var cachedOsc2Fixed: Bool = false
     public var cachedOsc2Hz: Float = 440
     public var cachedSceneHPF: Bool = false
@@ -517,6 +524,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         parametricEQL.enabled = false
         parametricEQR.enabled = false
         phaser.bypass = true
+        sendDelay.enabled = true
+        sendDelay.mix = 1
+        sendDelay.crossFeed = true
 
         if !coreOnly {
             setupAudioSession()
@@ -747,8 +757,12 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         phaser.setSampleRate(rateF)
         dspChorus.setSampleRate(rate)
         pingPongDelay.setSampleRate(rate)
+        sendDelay.setSampleRate(rate)
+        sendDelay.enabled = true
+        sendDelay.mix = 1
         shimmer.setSampleRate(rate)
         dspReverb.allocate(sampleRate: rate)
+        sendReverb.allocate(sampleRate: rate)
         prepareVoiceFilters(sampleRate: rate, maxFrames: 512)
         mseg.prepare(sampleRate: rate)
         mseg2.prepare(sampleRate: rate)

@@ -186,6 +186,8 @@ extension AudioEngine {
         case .filter2Routing: cachedFilter2Routing = Self.filter2Routing(v)
         case .envFollowerAttack: cachedEnvFollowerAttack = v
         case .envFollowerRelease: cachedEnvFollowerRelease = v
+        case .sendA: cachedSendA = v
+        case .sendB: cachedSendB = v
         }
     }
 
@@ -303,6 +305,8 @@ extension AudioEngine {
         case .filter2Routing: return Self.index(of: cachedFilter2Routing)
         case .envFollowerAttack: return cachedEnvFollowerAttack
         case .envFollowerRelease: return cachedEnvFollowerRelease
+        case .sendA: return cachedSendA
+        case .sendB: return cachedSendB
         }
     }
 
@@ -441,6 +445,8 @@ extension AudioEngine {
             case .filter2Routing: preset.filter2Routing = Self.filter2Routing(v)
             case .envFollowerAttack: preset.envFollowerAttack = v
             case .envFollowerRelease: preset.envFollowerRelease = v
+            case .sendA: preset.sendA = v
+            case .sendB: preset.sendB = v
             }
         }
         if pushToRender { setParameter(id: id, value: v) }

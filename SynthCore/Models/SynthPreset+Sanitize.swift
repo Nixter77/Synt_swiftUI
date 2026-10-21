@@ -240,6 +240,8 @@ public extension SynthPreset {
         if !CharacterMode.allCases.contains(p.character) { p.character = .off }
         p.envFollowerAttack = f(p.envFollowerAttack, 0.001, 2.0, 0.01)
         p.envFollowerRelease = f(p.envFollowerRelease, 0.001, 2.0, 0.05)
+        p.sendA = f(p.sendA, 0, 1, 0)
+        p.sendB = f(p.sendB, 0, 1, 0)
         return p
     }
 

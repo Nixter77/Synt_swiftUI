@@ -1183,6 +1183,10 @@ public extension AudioEngine {
             ? cachedReverbMix
             : max(0, min(1, cachedReverbMix + reverbMixMod))
 
+        // Parallel sends tap the post-HPF dry signal. Level 0 skips the buses.
+        let sendSourceL = outL
+        let sendSourceR = outR
+
         // EQ before the rider. A boost after it walked straight into the ceiling
         // and rasped; the rider now holds that extra level with one linear gain.
         var processedCleanBus = false
@@ -1252,6 +1256,24 @@ public extension AudioEngine {
                 right: outR,
                 sampleRate: Float(sampleRate)
             )
+        }
+
+        if cachedSendA > 0 {
+            let wet = sendReverb.process(
+                inputL: sendSourceL,
+                inputR: sendSourceR,
+                room: cachedReverbRoom,
+                damp: cachedReverbDamping
+            )
+            outL += wet.0 * cachedSendA
+            outR += wet.1 * cachedSendA
+        }
+        if cachedSendB > 0 {
+            sendDelay.delayTime = cachedSendDelayTime
+            sendDelay.feedback = cachedSendDelayFeedback
+            let wet = sendDelay.process(inputL: sendSourceL, inputR: sendSourceR, mix: 1)
+            outL += wet.0 * cachedSendB
+            outR += wet.1 * cachedSendB
         }
 
         if cachedFrequencyShifterEnabled {

@@ -157,6 +157,8 @@ public struct RTPresetSnapshot: Sendable {
     public var filterVowel: Float = 0
     public var envFollowerAttack: Float = 0.01
     public var envFollowerRelease: Float = 0.05
+    public var sendA: Float = 0
+    public var sendB: Float = 0
     public var macro1: Float = 0.0
     public var macro2: Float = 0.0
     public var macro3: Float = 0.0
@@ -354,6 +356,8 @@ public struct RTPresetSnapshot: Sendable {
         filterVowel = max(0, min(4, preset.filterVowel))
         envFollowerAttack = max(0.001, min(2, preset.envFollowerAttack))
         envFollowerRelease = max(0.001, min(2, preset.envFollowerRelease))
+        sendA = max(0, min(1, preset.sendA))
+        sendB = max(0, min(1, preset.sendB))
         lfoMode = preset.lfoMode
         lfoStartPhase = preset.lfoStartPhase
         lfo2Mode = preset.lfo2Mode

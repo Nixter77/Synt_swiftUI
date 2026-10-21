@@ -112,6 +112,8 @@ extension SynthPreset {
         case .filter2Routing: return filter2RoutingIndex(filter2Routing)
         case .envFollowerAttack: return envFollowerAttack
         case .envFollowerRelease: return envFollowerRelease
+        case .sendA: return sendA
+        case .sendB: return sendB
         }
     }
 
@@ -219,6 +221,8 @@ extension SynthPreset {
         case .filter2Routing: filter2Routing = filter2RoutingValue(value)
         case .envFollowerAttack: envFollowerAttack = value
         case .envFollowerRelease: envFollowerRelease = value
+        case .sendA: sendA = value
+        case .sendB: sendB = value
         }
     }
 

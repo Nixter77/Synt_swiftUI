@@ -157,6 +157,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         let safeRate = rate > 0 ? rate : 44_100
         engine.prepare(sampleRate: safeRate, maxFrames: frames)
         engine.dspReverb.allocate(sampleRate: safeRate)
+        engine.sendReverb.allocate(sampleRate: safeRate)
         engine.resetRenderStateForAllocation()
         // The store is the source of truth: host values set before Initialize
         // (over XPC, off main) must survive it. Rewriting the store from the
@@ -566,6 +567,8 @@ enum SyntParameterTree {
                 knob(.eqLowFreq, unit: .hertz, flags: [continuous, logarithmic]),
                 knob(.eqMidFreq, unit: .hertz, flags: [continuous, logarithmic]),
                 knob(.eqHighFreq, unit: .hertz, flags: [continuous, logarithmic]),
+                knob(.sendA),
+                knob(.sendB),
             ]
         )
         let performance = AUParameterTree.createGroup(

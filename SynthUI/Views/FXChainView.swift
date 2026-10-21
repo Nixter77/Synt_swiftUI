@@ -20,6 +20,7 @@ struct FXChainView: View {
     var body: some View {
         VStack(spacing: 10) {
             sceneHPFCard
+            sendsCard
             stereoCard
             tranceCard
             smoothCard
@@ -97,6 +98,22 @@ struct FXChainView: View {
             EmptyView()
         } content: {
             KnobView(value: $preset.sceneHPFFrequency, range: 20...2000, label: "Freq", format: "%.0f")
+        }
+    }
+
+    private var sendsCard: some View {
+        FXSlotCard(
+            title: "Sends",
+            accent: theme.aFx,
+            storageName: "sends",
+            startsExpanded: preset.sendA > 0.001 || preset.sendB > 0.001
+        ) {
+            EmptyView()
+        } content: {
+            HStack(spacing: 6) {
+                KnobView(value: $preset.sendA, range: 0...1, label: "Send A", format: "%.2f")
+                KnobView(value: $preset.sendB, range: 0...1, label: "Send B", format: "%.2f")
+            }
         }
     }
 

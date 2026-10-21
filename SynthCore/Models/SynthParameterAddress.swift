@@ -119,6 +119,10 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case filter2Routing = 139
     case envFollowerAttack = 140
     case envFollowerRelease = 141
+    /// Parallel send into the reverb bus. 0 leaves the insert chain bit-exact.
+    case sendA = 142
+    /// Parallel send into the delay bus.
+    case sendB = 143
 
     public var identifier: String {
         switch self {
@@ -223,6 +227,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .filter2Routing: return "filter2Routing"
         case .envFollowerAttack: return "envFollowerAttack"
         case .envFollowerRelease: return "envFollowerRelease"
+        case .sendA: return "sendA"
+        case .sendB: return "sendB"
         }
     }
 
@@ -329,6 +335,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .filter2Routing: return "Filter 2 Routing"
         case .envFollowerAttack: return "Env Follower Attack"
         case .envFollowerRelease: return "Env Follower Release"
+        case .sendA: return "Send A"
+        case .sendB: return "Send B"
         }
     }
 

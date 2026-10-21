@@ -310,6 +310,10 @@ public extension AudioEngine {
         }
         cachedEnvFollowerAttack = snap.envFollowerAttack
         cachedEnvFollowerRelease = snap.envFollowerRelease
+        cachedSendA = snap.sendA
+        cachedSendB = snap.sendB
+        cachedSendDelayTime = snap.delayEffectiveTime
+        cachedSendDelayFeedback = snap.delayFeedback
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
         cachedTranceEnabled = snap.tranceGateEnabled
