@@ -93,9 +93,12 @@ public struct Wavetable {
 public final class CompiledMipData: @unchecked Sendable {
     public let wavetable: Wavetable
     public let mipMaps: [[[Float]]]
-    public init(wavetable: Wavetable, mipMaps: [[[Float]]]) {
+    /// Harmonics kept per mip octave (Nyquist at the top of that octave).
+    public let maxHarmonics: [Int]
+    public init(wavetable: Wavetable, mipMaps: [[[Float]]], maxHarmonics: [Int] = []) {
         self.wavetable = wavetable
         self.mipMaps = mipMaps
+        self.maxHarmonics = maxHarmonics
     }
 }
 
@@ -228,7 +231,20 @@ public final class WavetableOscillator {
     /// Compiles a wavetable with all band-limited mipmaps outside of the render thread.
     public static func compile(wavetable: Wavetable, sampleRate: Double = 44100.0) -> CompiledMipData {
         let maps = buildMipMaps(from: wavetable, sampleRate: sampleRate)
-        return CompiledMipData(wavetable: wavetable, mipMaps: maps)
+        return CompiledMipData(
+            wavetable: wavetable,
+            mipMaps: maps,
+            maxHarmonics: mipMaxHarmonics(count: maps.count, sampleRate: sampleRate)
+        )
+    }
+
+    /// Partials kept per mip octave: Nyquist at the TOP of octave i
+    /// (f in [20·2^i, 20·2^{i+1})), so a note at the bright end cannot alias.
+    public static func mipMaxHarmonics(count: Int = 11, sampleRate: Double = 44100.0) -> [Int] {
+        let nyquist = sampleRate * 0.5
+        return (0..<count).map { octave in
+            max(1, Int(floor(nyquist / (20.0 * pow(2.0, Double(octave + 1))))))
+        }
     }
 
     /// Precomputes mipmap tables for all 11 octave ranges.
@@ -268,6 +284,7 @@ public final class WavetableOscillator {
     public func loadCompiledWavetable(_ compiled: CompiledMipData) {
         currentWavetable = compiled.wavetable
         mipMaps = compiled.mipMaps
+        mipMaxHarmonics = compiled.maxHarmonics
         activeCompiled = compiled
         framePosition = targetFramePosition
     }
@@ -311,30 +328,6 @@ public final class WavetableOscillator {
         }
     }
 
-
-    private func generateMipMaps(from wavetable: Wavetable) {
-        mipMaps = []
-        mipMaxHarmonics = []
-
-        let nyquist = mipSampleRate * 0.5
-        for octave in 0..<numOctaves {
-            // Octave i is used for f in [20·2^i, 20·2^{i+1}). Limit to the TOP
-            // of that range so a note at the bright end cannot alias.
-            // Old `1 << (10 - i)` allowed ~2× too many partials — 4 stacked
-            // Crystal Lead notes turned that leftover alias into crunch.
-            let fHigh = 20.0 * pow(2.0, Double(octave + 1))
-            let maxHarmonic = max(1, Int(floor(nyquist / fHigh)))
-            mipMaxHarmonics.append(maxHarmonic)
-
-            var octaveFrames: [[Float]] = []
-            for frame in wavetable.frames {
-                octaveFrames.append(applyFFTBandLimit(frame, maxHarmonic: maxHarmonic))
-            }
-            mipMaps.append(octaveFrames)
-        }
-    }
-
-    // MARK: - FFT band-limit (source-preserving)
 
     public func applyFFTBandLimit(_ source: [Float], maxHarmonic: Int) -> [Float] {
         Self.applyFFTBandLimitStatic(source, maxHarmonic: maxHarmonic)
