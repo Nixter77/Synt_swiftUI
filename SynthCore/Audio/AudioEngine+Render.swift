@@ -1319,6 +1319,19 @@ public extension AudioEngine {
             outR = spun.1
         }
 
+        if cachedTransientEnabled {
+            let shaped = transientShaper.process(
+                left: outL,
+                right: outR,
+                attack: cachedTransientAttack,
+                sustain: cachedTransientSustain,
+                output: cachedTransientOutput,
+                mix: cachedTransientMix
+            )
+            outL = shaped.0
+            outR = shaped.1
+        }
+
         if cachedFrequencyShifterEnabled {
             let shifted = frequencyShifter.process(
                 inputL: outL,

@@ -22,6 +22,7 @@ struct FXChainView: View {
             sceneHPFCard
             sendsCard
             rotaryCard
+            transientCard
             stereoCard
             tranceCard
             smoothCard
@@ -143,6 +144,25 @@ struct FXChainView: View {
                     KnobView(value: $preset.rotaryMix, range: 0...1, label: "Mix", format: "%.2f")
                     KnobView(value: $preset.rotaryAccel, range: 0.2...20, label: "Accel", format: "%.1f")
                 }
+            }
+        }
+    }
+
+    private var transientCard: some View {
+        FXSlotCard(
+            title: "Transient",
+            enabled: $preset.transientEnabled,
+            accent: theme.aFx,
+            storageName: "transient",
+            startsExpanded: preset.transientEnabled
+        ) {
+            EmptyView()
+        } content: {
+            HStack(spacing: 6) {
+                KnobView(value: $preset.transientAttack, range: -1...1, label: "Attack", format: "%+.2f")
+                KnobView(value: $preset.transientSustain, range: -1...1, label: "Sustain", format: "%+.2f")
+                KnobView(value: $preset.transientOutput, range: 0...2, label: "Output", format: "%.2f")
+                KnobView(value: $preset.transientMix, range: 0...1, label: "Mix", format: "%.2f")
             }
         }
     }

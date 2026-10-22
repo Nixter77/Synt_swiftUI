@@ -331,6 +331,11 @@ public extension AudioEngine {
         cachedRotaryDrive = snap.rotaryDrive
         cachedRotaryMix = snap.rotaryMix
         cachedRotaryAccel = snap.rotaryAccel
+        cachedTransientEnabled = snap.transientEnabled
+        cachedTransientAttack = snap.transientAttack
+        cachedTransientSustain = snap.transientSustain
+        cachedTransientOutput = snap.transientOutput
+        cachedTransientMix = snap.transientMix
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
         cachedTranceEnabled = snap.tranceGateEnabled
@@ -413,6 +418,7 @@ public extension AudioEngine {
         parametricEQL.reset()
         parametricEQR.reset()
         phaser.reset()
+        transientShaper.reset()
         lfo.reset()
         lfo2.reset()
         rotary.snapSpeeds(

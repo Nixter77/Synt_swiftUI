@@ -79,6 +79,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let sendDelay = PingPongDelay(sampleRate: 44100)
     /// Leslie rotor. Skipped while `cachedRotaryEnabled` is false.
     public let rotary = DSPRotary(sampleRate: 44100)
+    public let transientShaper = DSPTransientShaper(sampleRate: 44100)
     public let sceneHPF = SceneHPF()
 
     @Published public var isPlaying = false
@@ -371,6 +372,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedRotaryDrive: Float = 0
     public var cachedRotaryMix: Float = 1
     public var cachedRotaryAccel: Float = 2
+    public var cachedTransientEnabled: Bool = false
+    public var cachedTransientAttack: Float = 0.0
+    public var cachedTransientSustain: Float = 0.0
+    public var cachedTransientOutput: Float = 1.0
+    public var cachedTransientMix: Float = 1.0
     public var cachedOsc2Fixed: Bool = false
     public var cachedOsc2Hz: Float = 440
     public var cachedSceneHPF: Bool = false
@@ -781,6 +787,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         sendDelay.enabled = true
         sendDelay.mix = 1
         rotary.setSampleRate(rate)
+        transientShaper.setSampleRate(rateF)
         shimmer.setSampleRate(rate)
         dspReverb.allocate(sampleRate: rate)
         sendReverb.allocate(sampleRate: rate)

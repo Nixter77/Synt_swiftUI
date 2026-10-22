@@ -178,6 +178,11 @@ public struct RTPresetSnapshot: Sendable {
     public var macro7: Float = 0.0
     public var macro8: Float = 0.0
     public var randomSeed: UInt32? = nil
+    public var transientEnabled: Bool = false
+    public var transientAttack: Float = 0.0
+    public var transientSustain: Float = 0.0
+    public var transientOutput: Float = 1.0
+    public var transientMix: Float = 1.0
 
     // Effects
     public var reverbMix: Float = 0.0
@@ -396,6 +401,11 @@ public struct RTPresetSnapshot: Sendable {
         macro7 = preset.macro7
         macro8 = preset.macro8
         randomSeed = preset.randomSeed
+        transientEnabled = preset.transientEnabled
+        transientAttack = max(-1, min(1, preset.transientAttack))
+        transientSustain = max(-1, min(1, preset.transientSustain))
+        transientOutput = max(0, min(2, preset.transientOutput))
+        transientMix = max(0, min(1, preset.transientMix))
 
         reverbMix = preset.reverbMix
         reverbRoomSize = preset.reverbRoomSize

@@ -128,6 +128,11 @@ extension SynthPreset {
         case .rotaryDrive: return rotaryDrive
         case .rotaryMix: return rotaryMix
         case .rotaryAccel: return rotaryAccel
+        case .transientEnabled: return transientEnabled ? 1 : 0
+        case .transientAttack: return transientAttack
+        case .transientSustain: return transientSustain
+        case .transientOutput: return transientOutput
+        case .transientMix: return transientMix
         }
     }
 
@@ -251,6 +256,11 @@ extension SynthPreset {
         case .rotaryDrive: rotaryDrive = value
         case .rotaryMix: rotaryMix = value
         case .rotaryAccel: rotaryAccel = value
+        case .transientEnabled: transientEnabled = value >= 0.5
+        case .transientAttack: transientAttack = value
+        case .transientSustain: transientSustain = value
+        case .transientOutput: transientOutput = value
+        case .transientMix: transientMix = value
         }
     }
 

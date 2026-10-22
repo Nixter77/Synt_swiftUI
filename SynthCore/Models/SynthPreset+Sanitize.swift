@@ -253,6 +253,10 @@ public extension SynthPreset {
         p.rotaryDrive = f(p.rotaryDrive, 0, 1, 0)
         p.rotaryMix = f(p.rotaryMix, 0, 1, 1)
         p.rotaryAccel = f(p.rotaryAccel, 0.2, 20, 2)
+        p.transientAttack = f(p.transientAttack, -1, 1, 0)
+        p.transientSustain = f(p.transientSustain, -1, 1, 0)
+        p.transientOutput = f(p.transientOutput, 0, 2, 1)
+        p.transientMix = f(p.transientMix, 0, 1, 1)
         return p
     }
 

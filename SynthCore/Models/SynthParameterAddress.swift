@@ -140,6 +140,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case macro6 = 155
     case macro7 = 156
     case macro8 = 157
+    case transientEnabled = 158
+    case transientAttack = 159
+    case transientSustain = 160
+    case transientOutput = 161
+    case transientMix = 162
 
     public var identifier: String {
         switch self {
@@ -260,6 +265,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .macro6: return "macro6"
         case .macro7: return "macro7"
         case .macro8: return "macro8"
+        case .transientEnabled: return "transientEnabled"
+        case .transientAttack: return "transientAttack"
+        case .transientSustain: return "transientSustain"
+        case .transientOutput: return "transientOutput"
+        case .transientMix: return "transientMix"
         }
     }
 
@@ -382,6 +392,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .macro6: return "Macro 6"
         case .macro7: return "Macro 7"
         case .macro8: return "Macro 8"
+        case .transientEnabled: return "Transient Shaper"
+        case .transientAttack: return "Transient Attack"
+        case .transientSustain: return "Transient Sustain"
+        case .transientOutput: return "Transient Output"
+        case .transientMix: return "Transient Mix"
         }
     }
 
@@ -394,7 +409,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay, .envFollowerAttack, .envFollowerRelease: return 0.001
         case .release, .filterRelease, .modEnvRelease: return 0.001
         case .filterCutoff, .filter2Cutoff: return 20
-        case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4, .macro5, .macro6, .macro7, .macro8: return -1
+        case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4, .macro5, .macro6, .macro7, .macro8, .transientAttack, .transientSustain: return -1
         case .lfoRate, .lfo2Rate: return 0.1
         case .chorusRate: return 0.1
         case .delayTime: return 0.01
@@ -419,7 +434,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .osc1Octave, .osc2Octave: return 2
         case .osc1PulseWidth, .osc2PulseWidth: return 0.95
         case .osc1Waveform, .osc2Waveform, .lfoWaveform, .lfo2Waveform, .osc1WavetableIndex, .osc2WavetableIndex: return 5
-        case .noiseColor, .velocityCurve, .monoPriority: return 2
+        case .noiseColor, .velocityCurve, .monoPriority, .transientOutput: return 2
         case .glideMode, .glideLegatoOnly: return 1
         case .lfoMode, .lfo2Mode: return 2
         case .lfoStartPhase, .lfo2StartPhase: return 360

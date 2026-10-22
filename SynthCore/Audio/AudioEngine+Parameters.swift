@@ -204,6 +204,11 @@ extension AudioEngine {
         case .rotaryDrive: cachedRotaryDrive = v
         case .rotaryMix: cachedRotaryMix = v
         case .rotaryAccel: cachedRotaryAccel = v
+        case .transientEnabled: cachedTransientEnabled = v >= 0.5
+        case .transientAttack: cachedTransientAttack = v
+        case .transientSustain: cachedTransientSustain = v
+        case .transientOutput: cachedTransientOutput = v
+        case .transientMix: cachedTransientMix = v
         }
     }
 
@@ -337,6 +342,11 @@ extension AudioEngine {
         case .rotaryDrive: return cachedRotaryDrive
         case .rotaryMix: return cachedRotaryMix
         case .rotaryAccel: return cachedRotaryAccel
+        case .transientEnabled: return cachedTransientEnabled ? 1 : 0
+        case .transientAttack: return cachedTransientAttack
+        case .transientSustain: return cachedTransientSustain
+        case .transientOutput: return cachedTransientOutput
+        case .transientMix: return cachedTransientMix
         }
     }
 
@@ -491,6 +501,11 @@ extension AudioEngine {
             case .rotaryDrive: preset.rotaryDrive = v
             case .rotaryMix: preset.rotaryMix = v
             case .rotaryAccel: preset.rotaryAccel = v
+            case .transientEnabled: preset.transientEnabled = v >= 0.5
+            case .transientAttack: preset.transientAttack = v
+            case .transientSustain: preset.transientSustain = v
+            case .transientOutput: preset.transientOutput = v
+            case .transientMix: preset.transientMix = v
             }
         }
         if pushToRender { setParameter(id: id, value: v) }

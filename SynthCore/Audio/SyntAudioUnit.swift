@@ -579,6 +579,11 @@ enum SyntParameterTree {
                 knob(.rotaryDrive),
                 knob(.rotaryMix),
                 knob(.rotaryAccel, unit: .hertz),
+                toggleKnob(.transientEnabled),
+                knob(.transientAttack),
+                knob(.transientSustain),
+                knob(.transientOutput),
+                knob(.transientMix),
             ]
         )
         let performance = AUParameterTree.createGroup(

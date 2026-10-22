@@ -330,6 +330,13 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var rotaryMix: Float = 1
     public var rotaryAccel: Float = 2
 
+    /// Transient shaper in the insert chain. Off by default, bit-exact when off.
+    public var transientEnabled: Bool = false
+    public var transientAttack: Float = 0.0
+    public var transientSustain: Float = 0.0
+    public var transientOutput: Float = 1.0
+    public var transientMix: Float = 1.0
+
     /// Frequency shifter in FX (Bode single-sideband frequency shifter). Off by default.
     public var frequencyShifterEnabled: Bool = false
     public var frequencyShifterShiftHz: Float = 0.0
@@ -413,6 +420,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case rotaryDrumSlow, rotaryDrumFast, rotaryDrive, rotaryMix, rotaryAccel
         case macro5, macro6, macro7, macro8
         case randomSeed
+        case transientEnabled, transientAttack, transientSustain, transientOutput, transientMix
     }
 
     public init(
@@ -897,6 +905,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         rotaryDrive = try c.decodeIfPresent(Float.self, forKey: .rotaryDrive) ?? 0
         rotaryMix = try c.decodeIfPresent(Float.self, forKey: .rotaryMix) ?? 1
         rotaryAccel = try c.decodeIfPresent(Float.self, forKey: .rotaryAccel) ?? 2
+        transientEnabled = try c.decodeIfPresent(Bool.self, forKey: .transientEnabled) ?? false
+        transientAttack = try c.decodeIfPresent(Float.self, forKey: .transientAttack) ?? 0.0
+        transientSustain = try c.decodeIfPresent(Float.self, forKey: .transientSustain) ?? 0.0
+        transientOutput = try c.decodeIfPresent(Float.self, forKey: .transientOutput) ?? 1.0
+        transientMix = try c.decodeIfPresent(Float.self, forKey: .transientMix) ?? 1.0
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

@@ -11,9 +11,9 @@
 		A100000C2F30000100DD87F3 /* SynthCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; };
 		A10000102F30000100DD87F3 /* SynthCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; };
 		B200000B2F30000100DD87F3 /* SyntAUv3.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B20000012F30000100DD87F3 /* SyntAUv3.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		D300000B2F30000100DD87F3 /* SyntArpAUv3.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D30000012F30000100DD87F3 /* SyntArpAUv3.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B200000C2F30000100DD87F3 /* SynthCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; };
 		B20000122F30000100DD87F3 /* SynthCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A10000012F30000100DD87F3 /* SynthCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D300000B2F30000100DD87F3 /* SyntArpAUv3.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D30000012F30000100DD87F3 /* SyntArpAUv3.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -122,13 +122,6 @@
 			);
 			target = B20000032F30000100DD87F3 /* SyntAUv3 */;
 		};
-		D30000EX2F30000100DD87F3 /* Exceptions for "SyntArpAUv3" folder in "SyntArpAUv3" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = D30000032F30000100DD87F3 /* SyntArpAUv3 */;
-		};
 		C10000EX2F30000100DD87F3 /* Exceptions for "SynthUI" folder in "SyntAUv3" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -136,6 +129,13 @@
 				Views/KeyboardView.swift,
 			);
 			target = B20000032F30000100DD87F3 /* SyntAUv3 */;
+		};
+		D30000EX2F30000100DD87F3 /* Exceptions for "SyntArpAUv3" folder in "SyntArpAUv3" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D30000032F30000100DD87F3 /* SyntArpAUv3 */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -168,20 +168,20 @@
 			path = SyntAUv3;
 			sourceTree = "<group>";
 		};
-		D30000022F30000100DD87F3 /* SyntArpAUv3 */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				D30000EX2F30000100DD87F3 /* Exceptions for "SyntArpAUv3" folder in "SyntArpAUv3" target */,
-			);
-			path = SyntArpAUv3;
-			sourceTree = "<group>";
-		};
 		C10000022F30000100DD87F3 /* SynthUI */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				C10000EX2F30000100DD87F3 /* Exceptions for "SynthUI" folder in "SyntAUv3" target */,
 			);
 			path = SynthUI;
+			sourceTree = "<group>";
+		};
+		D30000022F30000100DD87F3 /* SyntArpAUv3 */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D30000EX2F30000100DD87F3 /* Exceptions for "SyntArpAUv3" folder in "SyntArpAUv3" target */,
+			);
+			path = SyntArpAUv3;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
