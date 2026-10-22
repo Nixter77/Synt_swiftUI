@@ -198,6 +198,10 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     /// When set, random phase, S&H, and random LFO are reproducible from note to note on load.
     public var randomSeed: UInt32? = nil
 
+    /// User wavetable data embedded in preset (preserves custom samples across environments).
+    public var userWavetableName: String? = nil
+    public var userWavetableData: Data? = nil
+
     // MARK: - Voice Mode (Poly / Mono / Legato)
     public var voiceMode: VoiceMode = .poly
 
@@ -421,6 +425,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case macro5, macro6, macro7, macro8
         case randomSeed
         case transientEnabled, transientAttack, transientSustain, transientOutput, transientMix
+        case userWavetableName, userWavetableData
     }
 
     public init(
@@ -540,6 +545,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         macro7: Float = 0.0,
         macro8: Float = 0.0,
         randomSeed: UInt32? = nil,
+        userWavetableName: String? = nil,
+        userWavetableData: Data? = nil,
         voiceMode: VoiceMode = .poly,
         syncSource: SyncSource = .`internal`,
         filterDrive: Float = 0,
@@ -676,6 +683,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.macro7 = macro7
         self.macro8 = macro8
         self.randomSeed = randomSeed
+        self.userWavetableName = userWavetableName
+        self.userWavetableData = userWavetableData
         self.voiceMode = voiceMode
         self.syncSource = syncSource
         self.filterDrive = filterDrive
@@ -817,6 +826,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         macro7 = try c.decodeIfPresent(Float.self, forKey: .macro7) ?? 0.0
         macro8 = try c.decodeIfPresent(Float.self, forKey: .macro8) ?? 0.0
         randomSeed = try c.decodeIfPresent(UInt32.self, forKey: .randomSeed)
+        userWavetableName = try c.decodeIfPresent(String.self, forKey: .userWavetableName)
+        userWavetableData = try c.decodeIfPresent(Data.self, forKey: .userWavetableData)
         voiceMode = try c.decodeIfPresent(VoiceMode.self, forKey: .voiceMode) ?? .poly
         syncSource = try c.decodeIfPresent(SyncSource.self, forKey: .syncSource) ?? .`internal`
         filterDrive = try c.decodeIfPresent(Float.self, forKey: .filterDrive) ?? 0

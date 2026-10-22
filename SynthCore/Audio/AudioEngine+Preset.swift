@@ -14,6 +14,17 @@ public extension AudioEngine {
 
     public func applyPreset() {
         applyPresetCallCountForTesting += 1
+        if let data = preset.userWavetableData, let table = Wavetable.deserialize(from: data, name: preset.userWavetableName ?? "User") {
+            WavetableOscillator.userWavetable = table
+            let compiled = WavetableOscillator.compile(wavetable: table, sampleRate: sampleRate)
+            WavetableOscillator.userCompiledWavetable = compiled
+            if preset.osc1WavetableIndex == 5 {
+                wavetableEngine1.loadCompiledWavetable(compiled)
+            }
+            if preset.osc2WavetableIndex == 5 {
+                wavetableEngine2.loadCompiledWavetable(compiled)
+            }
+        }
         // Bank first, then the row that reads it. A buffer must not see `.mseg`
         // against the previous curve.
         publishMSEG(preset.mseg)
@@ -473,15 +484,48 @@ public extension AudioEngine {
     public func loadUserWavetable(url: URL, forOscillator oscNumber: Int = 1) throws {
         let table = try WavetableOscillator.parseAudioFile(url: url)
         WavetableOscillator.userWavetable = table
+        let compiled = WavetableOscillator.compile(wavetable: table, sampleRate: sampleRate)
+        WavetableOscillator.userCompiledWavetable = compiled
         if oscNumber == 1 || preset.osc1WavetableIndex == 5 {
             loadedWTIndex1 = 5
-            wavetableEngine1.loadWavetable(table)
+            wavetableEngine1.loadCompiledWavetable(compiled)
         }
         if oscNumber == 2 || preset.osc2WavetableIndex == 5 {
             loadedWTIndex2 = 5
-            wavetableEngine2.loadWavetable(table)
+            wavetableEngine2.loadCompiledWavetable(compiled)
         }
+        let serialized = table.serializedData()
         updatePreset { p in
+            p.userWavetableName = table.name
+            p.userWavetableData = serialized
+            if oscNumber == 1 {
+                p.osc1Waveform = .wavetable
+                p.osc1WavetableIndex = 5
+            } else {
+                p.osc2Waveform = .wavetable
+                p.osc2WavetableIndex = 5
+            }
+        }
+    }
+
+    /// Loads user wavetable from raw float samples.
+    public func loadUserWavetable(samples: [Float], name: String = "Imported", forOscillator oscNumber: Int = 1) throws {
+        let table = try WavetableOscillator.importAudioBuffer(samples: samples, name: name)
+        WavetableOscillator.userWavetable = table
+        let compiled = WavetableOscillator.compile(wavetable: table, sampleRate: sampleRate)
+        WavetableOscillator.userCompiledWavetable = compiled
+        if oscNumber == 1 || preset.osc1WavetableIndex == 5 {
+            loadedWTIndex1 = 5
+            wavetableEngine1.loadCompiledWavetable(compiled)
+        }
+        if oscNumber == 2 || preset.osc2WavetableIndex == 5 {
+            loadedWTIndex2 = 5
+            wavetableEngine2.loadCompiledWavetable(compiled)
+        }
+        let serialized = table.serializedData()
+        updatePreset { p in
+            p.userWavetableName = table.name
+            p.userWavetableData = serialized
             if oscNumber == 1 {
                 p.osc1Waveform = .wavetable
                 p.osc1WavetableIndex = 5

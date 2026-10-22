@@ -291,15 +291,19 @@ struct OscillatorView: View {
                             Button {
                                 openUserWavetable()
                             } label: {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(theme.textDim)
-                                    .frame(width: 22, height: 22)
-                                    .background(theme.inset)
-                                    .clipShape(RoundedRectangle(cornerRadius: max(theme.rSmall - 1, 2)))
+                                HStack(spacing: 2) {
+                                    Image(systemName: "square.and.arrow.down")
+                                    Text("Import…")
+                                }
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(theme.textDim)
+                                .padding(.horizontal, 5)
+                                .frame(height: 22)
+                                .background(theme.inset)
+                                .clipShape(RoundedRectangle(cornerRadius: max(theme.rSmall - 1, 2)))
                             }
                             .buttonStyle(.plain)
-                            .help("Load custom 2048-sample WAV wavetable")
+                            .help("Import WAV/AIFF sample into wavetable")
                         }
                         .padding(.top, 4)
 
@@ -317,6 +321,14 @@ struct OscillatorView: View {
                             ThemeSlider(value: wavetableMorph, range: 0...1)
                         }
                         .padding(.top, 4)
+
+                        WavetableFramePreview(
+                            frames: activeFrames,
+                            morph: wavetableMorph.wrappedValue,
+                            accent: theme.aOsc
+                        )
+                        .frame(height: 24)
+                        .padding(.top, 2)
                     }
                 }
             }
@@ -393,10 +405,25 @@ struct OscillatorView: View {
         )
     }
 
+    private var activeFrames: [[Float]] {
+        let idx = oscillatorNumber == 1 ? preset.osc1WavetableIndex : preset.osc2WavetableIndex
+        if idx == 5 {
+            return WavetableOscillator.userWavetable?.frames ?? WavetableOscillator.basicWavetables[0].frames
+        }
+        let safeIdx = max(0, min(WavetableOscillator.basicWavetables.count - 1, idx))
+        return WavetableOscillator.basicWavetables[safeIdx].frames
+    }
+
     private func openUserWavetable() {
         let panel = NSOpenPanel()
-        panel.title = "Select Wavetable (.wav)"
-        panel.allowedContentTypes = [UTType.audio, UTType.wav]
+        panel.title = "Select Sample or Wavetable (.wav, .aif)"
+        panel.allowedContentTypes = [
+            UTType.audio,
+            UTType.wav,
+            UTType.aiff,
+            UTType(filenameExtension: "aif") ?? .audio,
+            UTType(filenameExtension: "aiff") ?? .audio
+        ]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -408,6 +435,66 @@ struct OscillatorView: View {
             alert.messageText = "Couldn't load wavetable"
             alert.informativeText = error.localizedDescription
             alert.runModal()
+        }
+    }
+}
+
+struct WavetableFramePreview: View {
+    @Environment(\.theme) private var theme
+    let frames: [[Float]]
+    let morph: Float
+    let accent: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            let frameCount = frames.count
+            if frameCount > 0 {
+                let framePos = max(0, min(Float(frameCount - 1), morph * Float(max(1, frameCount - 1))))
+                let idx1 = max(0, min(frameCount - 1, Int(framePos)))
+                let idx2 = min(idx1 + 1, frameCount - 1)
+                let frac = framePos - Float(idx1)
+                let f1 = frames[idx1]
+                let f2 = frames[idx2]
+                let sampleCount = min(f1.count, f2.count)
+
+                ZStack(alignment: .topTrailing) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(theme.inset)
+
+                    Path { path in
+                        guard sampleCount > 1, w > 0, h > 0 else { return }
+                        let midY = h * 0.5
+                        let amp = h * 0.42
+                        let step = max(1, sampleCount / max(1, Int(w)))
+                        var first = true
+
+                        for i in stride(from: 0, to: sampleCount, by: step) {
+                            let s1 = f1[i]
+                            let s2 = f2[i]
+                            let val = s1 + (s2 - s1) * frac
+                            let x = (CGFloat(i) / CGFloat(sampleCount - 1)) * w
+                            let y = midY - CGFloat(val) * amp
+                            if first {
+                                path.move(to: CGPoint(x: x, y: y))
+                                first = false
+                            } else {
+                                path.addLine(to: CGPoint(x: x, y: y))
+                            }
+                        }
+                    }
+                    .stroke(accent, lineWidth: 1.2)
+
+                    Text("F \(idx1 + 1)/\(frameCount)")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundColor(theme.textDim)
+                        .padding(2)
+                }
+            } else {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(theme.inset)
+            }
         }
     }
 }

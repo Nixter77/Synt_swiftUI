@@ -45,6 +45,58 @@ public struct Wavetable {
         self.frameCount = frames.count
         self.samplesPerFrame = frames.first?.count ?? 2048
     }
+
+    public func serializedData() -> Data {
+        var data = Data()
+        var fCount = Int32(frameCount)
+        var sCount = Int32(samplesPerFrame)
+        data.append(Data(bytes: &fCount, count: MemoryLayout<Int32>.size))
+        data.append(Data(bytes: &sCount, count: MemoryLayout<Int32>.size))
+        for frame in frames {
+            frame.withUnsafeBufferPointer { ptr in
+                if let base = ptr.baseAddress {
+                    data.append(Data(bytes: base, count: ptr.count * MemoryLayout<Float>.size))
+                }
+            }
+        }
+        return data
+    }
+
+    public static func deserialize(from data: Data, name: String = "User") -> Wavetable? {
+        guard data.count >= 8 else { return nil }
+        var fCount: Int32 = 0
+        var sCount: Int32 = 0
+        _ = withUnsafeMutableBytes(of: &fCount) { data.copyBytes(to: $0, from: 0..<4) }
+        _ = withUnsafeMutableBytes(of: &sCount) { data.copyBytes(to: $0, from: 4..<8) }
+        guard fCount > 0, sCount > 0, fCount <= 256, sCount <= 4096 else { return nil }
+        let totalFloats = Int(fCount * sCount)
+        guard data.count >= 8 + totalFloats * MemoryLayout<Float>.size else { return nil }
+
+        var frames: [[Float]] = []
+        frames.reserveCapacity(Int(fCount))
+        var offset = 8
+        for _ in 0..<fCount {
+            var frame = [Float](repeating: 0, count: Int(sCount))
+            frame.withUnsafeMutableBufferPointer { ptr in
+                if let base = ptr.baseAddress {
+                    _ = data.copyBytes(to: UnsafeMutableBufferPointer(start: base, count: Int(sCount)), from: offset..<(offset + Int(sCount) * 4))
+                }
+            }
+            frames.append(frame)
+            offset += Int(sCount) * 4
+        }
+        return Wavetable(name: name, frames: frames)
+    }
+}
+
+/// Pre-compiled mipmapped wavetable ready for allocation-free render
+public final class CompiledMipData: @unchecked Sendable {
+    public let wavetable: Wavetable
+    public let mipMaps: [[[Float]]]
+    public init(wavetable: Wavetable, mipMaps: [[[Float]]]) {
+        self.wavetable = wavetable
+        self.mipMaps = mipMaps
+    }
 }
 
 /// Band-limited wavetable oscillator with mip-mapping
@@ -70,7 +122,8 @@ public final class WavetableOscillator {
     /// One-pole toward targetFramePosition per sample (~5 ms @ 44.1 kHz).
     public var morphSmoothingCoeff: Float = 0.002
 
-    private var currentWavetable: Wavetable?
+    public private(set) var currentWavetable: Wavetable?
+    private var activeCompiled: CompiledMipData?
     private var mipMaps: [[[Float]]] = []  // [octave][frame][sample]
     /// Harmonics kept per mip octave (Nyquist at the top of that octave).
     private var mipMaxHarmonics: [Int] = []
@@ -83,6 +136,8 @@ public final class WavetableOscillator {
     // MARK: - Built-in Wavetables
 
     public static var userWavetable: Wavetable?
+    public static var userCompiledWavetable: CompiledMipData?
+    public static var precompiledBuiltins: [Int: CompiledMipData] = [:]
 
     public static let basicWavetables: [Wavetable] = {
         var tables: [Wavetable] = []
@@ -96,7 +151,7 @@ public final class WavetableOscillator {
 
     // MARK: - Audio File Parsing & User Wavetables
 
-    /// Parses a standard PCM / Float32 WAV file (Serum format: 2048 samples per frame, up to maxFrames).
+    /// Parses a standard PCM / Float32 WAV or AIFF file (Serum format: 2048 samples per frame, up to maxFrames).
     public static func parseAudioFile(url: URL, samplesPerFrame: Int = 2048, maxFrames: Int = 64) throws -> Wavetable {
         let file = try AVAudioFile(forReading: url)
         let processingFormat = file.processingFormat
@@ -112,7 +167,7 @@ public final class WavetableOscillator {
         guard let channelData = buffer.floatChannelData else {
             throw WavetableError.unsupportedAudioFormat
         }
-        let channel0 = channelData[0]
+        let channelCount = Int(processingFormat.channelCount)
         let totalRead = Int(buffer.frameLength)
         let numFrames = min(maxFrames, totalRead / samplesPerFrame)
         guard numFrames > 0 else {
@@ -124,8 +179,17 @@ public final class WavetableOscillator {
         for f in 0..<numFrames {
             let offset = f * samplesPerFrame
             var frame = [Float](repeating: 0, count: samplesPerFrame)
-            for i in 0..<samplesPerFrame {
-                frame[i] = channel0[offset + i]
+            if channelCount > 1 {
+                let ch0 = channelData[0]
+                let ch1 = channelData[1]
+                for i in 0..<samplesPerFrame {
+                    frame[i] = (ch0[offset + i] + ch1[offset + i]) * 0.5
+                }
+            } else {
+                let ch0 = channelData[0]
+                for i in 0..<samplesPerFrame {
+                    frame[i] = ch0[offset + i]
+                }
             }
             frames.append(normalizePeak(frame))
         }
@@ -133,25 +197,84 @@ public final class WavetableOscillator {
         return Wavetable(name: baseName.isEmpty ? "User" : baseName, frames: frames)
     }
 
-    /// Loads wavetable frames from an audio file and sets it as the active user table.
+    /// Slices raw PCM buffer into N frames (default 2048 samples per frame, up to maxFrames), and normalizes each frame.
+    public static func importAudioBuffer(
+        samples: [Float],
+        samplesPerFrame: Int = 2048,
+        maxFrames: Int = 64,
+        name: String = "Imported"
+    ) throws -> Wavetable {
+        let totalSamples = samples.count
+        guard totalSamples >= samplesPerFrame else {
+            throw WavetableError.insufficientSamples(found: totalSamples, required: samplesPerFrame)
+        }
+        let numFrames = min(maxFrames, totalSamples / samplesPerFrame)
+        guard numFrames > 0 else {
+            throw WavetableError.insufficientSamples(found: totalSamples, required: samplesPerFrame)
+        }
+        var frames: [[Float]] = []
+        frames.reserveCapacity(numFrames)
+        for f in 0..<numFrames {
+            let offset = f * samplesPerFrame
+            var frame = [Float](repeating: 0, count: samplesPerFrame)
+            for i in 0..<samplesPerFrame {
+                frame[i] = samples[offset + i]
+            }
+            frames.append(normalizePeak(frame))
+        }
+        return Wavetable(name: name, frames: frames)
+    }
+
+    /// Compiles a wavetable with all band-limited mipmaps outside of the render thread.
+    public static func compile(wavetable: Wavetable, sampleRate: Double = 44100.0) -> CompiledMipData {
+        let maps = buildMipMaps(from: wavetable, sampleRate: sampleRate)
+        return CompiledMipData(wavetable: wavetable, mipMaps: maps)
+    }
+
+    /// Precomputes mipmap tables for all 11 octave ranges.
+    public static func buildMipMaps(from wavetable: Wavetable, sampleRate: Double = 44100.0) -> [[[Float]]] {
+        var maps: [[[Float]]] = []
+        let numOctaves = 11
+        let nyquist = sampleRate * 0.5
+        for octave in 0..<numOctaves {
+            let fHigh = 20.0 * pow(2.0, Double(octave + 1))
+            let maxHarmonic = max(1, Int(floor(nyquist / fHigh)))
+            var octaveFrames: [[Float]] = []
+            for frame in wavetable.frames {
+                octaveFrames.append(applyFFTBandLimitStatic(frame, maxHarmonic: maxHarmonic))
+            }
+            maps.append(octaveFrames)
+        }
+        return maps
+    }
+
+    /// Loads wavetable frames from an audio file, compiles mipmaps, and sets it as the active user table.
     public func loadFromAudioFile(url: URL) throws {
         let table = try Self.parseAudioFile(url: url)
         Self.userWavetable = table
-        loadWavetable(table)
+        let compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
+        Self.userCompiledWavetable = compiled
+        loadCompiledWavetable(compiled)
     }
 
     // MARK: - Initialization
 
     public init() {
-        loadWavetable(Self.basicWavetables[0])
+        loadBuiltin(index: 0)
     }
 
     // MARK: - Wavetable Loading
 
-    public func loadWavetable(_ wavetable: Wavetable) {
-        currentWavetable = wavetable
-        generateMipMaps(from: wavetable)
+    public func loadCompiledWavetable(_ compiled: CompiledMipData) {
+        currentWavetable = compiled.wavetable
+        mipMaps = compiled.mipMaps
+        activeCompiled = compiled
         framePosition = targetFramePosition
+    }
+
+    public func loadWavetable(_ wavetable: Wavetable) {
+        let compiled = Self.compile(wavetable: wavetable, sampleRate: mipSampleRate)
+        loadCompiledWavetable(compiled)
     }
 
     /// Rebuild mip tables for a new Nyquist. Not safe on the render thread.
@@ -159,25 +282,33 @@ public final class WavetableOscillator {
         let rate = max(8_000, rate)
         let changed = abs(rate - mipSampleRate) > 0.5
         mipSampleRate = rate
-        // Keep the ~11 ms morph time that 0.002 has at 44.1 kHz.
         morphSmoothingCoeff = Float(88.2 / rate)
         guard changed, let currentWavetable else { return }
-        generateMipMaps(from: currentWavetable)
+        loadWavetable(currentWavetable)
     }
 
     public func loadBuiltin(index: Int) {
         if index == 5 {
-            if let userTable = Self.userWavetable {
-                loadWavetable(userTable)
+            if let userCompiled = Self.userCompiledWavetable {
+                loadCompiledWavetable(userCompiled)
+            } else if let userTable = Self.userWavetable {
+                let compiled = Self.compile(wavetable: userTable, sampleRate: mipSampleRate)
+                Self.userCompiledWavetable = compiled
+                loadCompiledWavetable(compiled)
             } else {
-                loadWavetable(Self.basicWavetables[0])
+                loadBuiltin(index: 0)
             }
             return
         }
-        let tables = Self.basicWavetables
-        guard !tables.isEmpty else { return }
-        let i = max(0, min(tables.count - 1, index))
-        loadWavetable(tables[i])
+        let i = max(0, min(Self.basicWavetables.count - 1, index))
+        if let compiled = Self.precompiledBuiltins[i] {
+            loadCompiledWavetable(compiled)
+        } else {
+            let table = Self.basicWavetables[i]
+            let compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
+            Self.precompiledBuiltins[i] = compiled
+            loadCompiledWavetable(compiled)
+        }
     }
 
 
@@ -205,9 +336,13 @@ public final class WavetableOscillator {
 
     // MARK: - FFT band-limit (source-preserving)
 
+    public func applyFFTBandLimit(_ source: [Float], maxHarmonic: Int) -> [Float] {
+        Self.applyFFTBandLimitStatic(source, maxHarmonic: maxHarmonic)
+    }
+
     /// Zero spectral bins above `maxHarmonic` on the **existing** frame, then IFFT.
     /// Does **not** resynthesize a generic saw series.
-    public func applyFFTBandLimit(_ source: [Float], maxHarmonic: Int) -> [Float] {
+    public static func applyFFTBandLimitStatic(_ source: [Float], maxHarmonic: Int) -> [Float] {
         let n = source.count
         guard n > 2 else { return source }
 
@@ -221,18 +356,18 @@ public final class WavetableOscillator {
 
         // Power-of-two complex FFT (clear bin layout, load-time only).
         if n > 0 && (n & (n - 1)) == 0 {
-            return bandLimitWithComplexFFT(source, maxHarmonic: maxH)
+            return bandLimitWithComplexFFTStatic(source, maxHarmonic: maxH)
         }
 
-        return bandLimitWithDFT(source, maxHarmonic: maxH)
+        return bandLimitWithDFTStatic(source, maxHarmonic: maxH)
     }
 
     /// Full complex FFT band-limit: keep bins 0...maxH and conjugate mirrors, zero the rest.
-    private func bandLimitWithComplexFFT(_ source: [Float], maxHarmonic: Int) -> [Float] {
+    private static func bandLimitWithComplexFFTStatic(_ source: [Float], maxHarmonic: Int) -> [Float] {
         let n = source.count
         let log2n = vDSP_Length(log2(Double(n)))
         guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else {
-            return bandLimitWithDFT(source, maxHarmonic: maxHarmonic)
+            return bandLimitWithDFTStatic(source, maxHarmonic: maxHarmonic)
         }
         defer { vDSP_destroy_fftsetup(setup) }
 
@@ -264,7 +399,7 @@ public final class WavetableOscillator {
     }
 
     /// Portable DFT band-limit (non power-of-two fallback).
-    private func bandLimitWithDFT(_ source: [Float], maxHarmonic: Int) -> [Float] {
+    private static func bandLimitWithDFTStatic(_ source: [Float], maxHarmonic: Int) -> [Float] {
         let n = source.count
         let maxH = max(1, min(maxHarmonic, n / 2 - 1))
         let twoPiOverN = 2.0 * Double.pi / Double(n)
