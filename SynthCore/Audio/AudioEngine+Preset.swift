@@ -312,6 +312,7 @@ public extension AudioEngine {
         cachedEnvFollowerRelease = snap.envFollowerRelease
         cachedSendA = snap.sendA
         cachedSendB = snap.sendB
+        cachedSendPostInsert = snap.sendPostInsert
         cachedSendDelayTime = snap.delayEffectiveTime
         cachedSendDelayFeedback = snap.delayFeedback
         cachedRotaryEnabled = snap.rotaryEnabled
@@ -323,13 +324,6 @@ public extension AudioEngine {
         cachedRotaryDrive = snap.rotaryDrive
         cachedRotaryMix = snap.rotaryMix
         cachedRotaryAccel = snap.rotaryAccel
-        rotary.snapSpeeds(
-            hornSlow: snap.rotaryHornSlow,
-            hornFast: snap.rotaryHornFast,
-            drumSlow: snap.rotaryDrumSlow,
-            drumFast: snap.rotaryDrumFast,
-            fast: snap.rotaryFast
-        )
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
         cachedTranceEnabled = snap.tranceGateEnabled
@@ -409,6 +403,13 @@ public extension AudioEngine {
         phaser.reset()
         lfo.reset()
         lfo2.reset()
+        rotary.snapSpeeds(
+            hornSlow: cachedRotaryHornSlow,
+            hornFast: cachedRotaryHornFast,
+            drumSlow: cachedRotaryDrumSlow,
+            drumFast: cachedRotaryDrumFast,
+            fast: cachedRotaryFast
+        )
         lastMatrixLFO = 0
         lastMatrixLFO2 = 0
         smoothedFilterCutoff = cachedFilterCutoff

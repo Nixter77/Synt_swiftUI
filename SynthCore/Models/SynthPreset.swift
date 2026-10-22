@@ -308,11 +308,13 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     /// Send A feeds reverb. Send B feeds delay.
     public var sendA: Float = 0
     public var sendB: Float = 0
+    /// Pre/post-insert switch for sends (default false = pre-insert).
+    public var sendPostInsert: Bool = false
 
     /// Leslie rotor beside the insert chain. Off is bit-exact. Not an FX slot.
     public var rotaryEnabled: Bool = false
-    /// 0 slow, 1 fast. Automated from the AU speed switch.
-    public var rotaryFast: Float = 0
+    /// false is slow, true is fast. Discrete switch matching AU indexed parameter.
+    public var rotaryFast: Bool = false
     public var rotaryHornSlow: Float = 0.7
     public var rotaryHornFast: Float = 6.8
     public var rotaryDrumSlow: Float = 0.55
@@ -399,7 +401,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case frequencyShifterEnabled, frequencyShifterShiftHz, frequencyShifterMix, frequencyShifterFeedback
         case character
         case envFollowerAttack, envFollowerRelease
-        case sendA, sendB
+        case sendA, sendB, sendPostInsert
         case rotaryEnabled, rotaryFast, rotaryHornSlow, rotaryHornFast
         case rotaryDrumSlow, rotaryDrumFast, rotaryDrive, rotaryMix, rotaryAccel
     }
@@ -855,8 +857,15 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         envFollowerRelease = try c.decodeIfPresent(Float.self, forKey: .envFollowerRelease) ?? 0.05
         sendA = try c.decodeIfPresent(Float.self, forKey: .sendA) ?? 0
         sendB = try c.decodeIfPresent(Float.self, forKey: .sendB) ?? 0
+        sendPostInsert = try c.decodeIfPresent(Bool.self, forKey: .sendPostInsert) ?? false
         rotaryEnabled = try c.decodeIfPresent(Bool.self, forKey: .rotaryEnabled) ?? false
-        rotaryFast = try c.decodeIfPresent(Float.self, forKey: .rotaryFast) ?? 0
+        if let b = try? c.decodeIfPresent(Bool.self, forKey: .rotaryFast) {
+            rotaryFast = b
+        } else if let f = try? c.decodeIfPresent(Float.self, forKey: .rotaryFast) {
+            rotaryFast = f >= 0.5
+        } else {
+            rotaryFast = false
+        }
         rotaryHornSlow = try c.decodeIfPresent(Float.self, forKey: .rotaryHornSlow) ?? 0.7
         rotaryHornFast = try c.decodeIfPresent(Float.self, forKey: .rotaryHornFast) ?? 6.8
         rotaryDrumSlow = try c.decodeIfPresent(Float.self, forKey: .rotaryDrumSlow) ?? 0.55

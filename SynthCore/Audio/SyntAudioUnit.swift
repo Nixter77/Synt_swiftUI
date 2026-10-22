@@ -569,6 +569,7 @@ enum SyntParameterTree {
                 knob(.eqHighFreq, unit: .hertz, flags: [continuous, logarithmic]),
                 knob(.sendA),
                 knob(.sendB),
+                indexedKnob(.sendPostInsert, ["Pre", "Post"]),
                 toggleKnob(.rotaryEnabled),
                 indexedKnob(.rotaryFast, ["Slow", "Fast"]),
                 knob(.rotaryHornSlow, unit: .hertz),

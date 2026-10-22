@@ -114,9 +114,11 @@ extension AudioEngine {
         case .delayTime:
             parameterDelayTime = v
             pingPongDelay.delayTime = v
+            cachedSendDelayTime = v
         case .delayFeedback:
             parameterDelayFeedback = v
             pingPongDelay.feedback = v
+            cachedSendDelayFeedback = v
         case .delayMix:
             parameterDelayMix = v
             pingPongDelay.mix = v
@@ -188,8 +190,9 @@ extension AudioEngine {
         case .envFollowerRelease: cachedEnvFollowerRelease = v
         case .sendA: cachedSendA = v
         case .sendB: cachedSendB = v
+        case .sendPostInsert: cachedSendPostInsert = v >= 0.5
         case .rotaryEnabled: cachedRotaryEnabled = v >= 0.5
-        case .rotaryFast: cachedRotaryFast = v
+        case .rotaryFast: cachedRotaryFast = v >= 0.5
         case .rotaryHornSlow: cachedRotaryHornSlow = v
         case .rotaryHornFast: cachedRotaryHornFast = v
         case .rotaryDrumSlow: cachedRotaryDrumSlow = v
@@ -316,8 +319,9 @@ extension AudioEngine {
         case .envFollowerRelease: return cachedEnvFollowerRelease
         case .sendA: return cachedSendA
         case .sendB: return cachedSendB
+        case .sendPostInsert: return cachedSendPostInsert ? 1 : 0
         case .rotaryEnabled: return cachedRotaryEnabled ? 1 : 0
-        case .rotaryFast: return cachedRotaryFast
+        case .rotaryFast: return cachedRotaryFast ? 1 : 0
         case .rotaryHornSlow: return cachedRotaryHornSlow
         case .rotaryHornFast: return cachedRotaryHornFast
         case .rotaryDrumSlow: return cachedRotaryDrumSlow
@@ -465,8 +469,9 @@ extension AudioEngine {
             case .envFollowerRelease: preset.envFollowerRelease = v
             case .sendA: preset.sendA = v
             case .sendB: preset.sendB = v
+            case .sendPostInsert: preset.sendPostInsert = v >= 0.5
             case .rotaryEnabled: preset.rotaryEnabled = v >= 0.5
-            case .rotaryFast: preset.rotaryFast = v
+            case .rotaryFast: preset.rotaryFast = v >= 0.5
             case .rotaryHornSlow: preset.rotaryHornSlow = v
             case .rotaryHornFast: preset.rotaryHornFast = v
             case .rotaryDrumSlow: preset.rotaryDrumSlow = v

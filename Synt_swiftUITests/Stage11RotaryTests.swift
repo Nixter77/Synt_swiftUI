@@ -7,7 +7,7 @@ import Testing
     @Test func rotaryOffKeepsTheInitHashAndOldPresetsStayOff() throws {
         let decoded = try JSONDecoder().decode(SynthPreset.self, from: Data(#"{"name":"Old"}"#.utf8))
         #expect(decoded.rotaryEnabled == false)
-        #expect(decoded.rotaryFast == 0)
+        #expect(decoded.rotaryFast == false)
         #expect(decoded.rotaryMix == 1)
         #expect(SynthPreset.defaultPreset.rotaryEnabled == false)
         #expect(InitGoldenTests.renderHash(.defaultPreset) == 0xd1b3635203a4799e)
@@ -19,7 +19,7 @@ import Testing
     @Test func rotaryOnStaysFiniteAndSeparatesTheSides() {
         var preset = SynthPreset.defaultPreset
         preset.rotaryEnabled = true
-        preset.rotaryFast = 1
+        preset.rotaryFast = true
         preset.rotaryMix = 1
         preset.rotaryDrive = 0.4
         preset.reverbMix = 0

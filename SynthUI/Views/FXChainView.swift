@@ -129,10 +129,7 @@ struct FXChainView: View {
             EmptyView()
         } content: {
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Fast", isOn: Binding(
-                    get: { preset.rotaryFast >= 0.5 },
-                    set: { preset.rotaryFast = $0 ? 1 : 0 }
-                ))
+                Toggle("Fast", isOn: $preset.rotaryFast)
                 .font(.system(size: 11, weight: .semibold))
                 .toggleStyle(.switch)
                 HStack(spacing: 6) {

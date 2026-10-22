@@ -482,6 +482,17 @@ public extension AudioEngine {
             liveModulation.store(delayMixMod, for: .delayMix)
             liveModulation.store(reverbMixMod, for: .reverbMix)
             liveModulation.store(vowelMod, for: .vowel)
+        } else {
+            liveModulation.store(0, for: .cutoff)
+            liveModulation.store(0, for: .resonance)
+            liveModulation.store(0, for: .wtMorph1)
+            liveModulation.store(0, for: .wtMorph2)
+            liveModulation.store(0, for: .chorusMix)
+            liveModulation.store(0, for: .delayMix)
+            liveModulation.store(0, for: .reverbMix)
+            liveModulation.store(0, for: .vowel)
+            liveModulation.store(0, for: .lfoRate)
+            liveModulation.store(0, for: .lfoDepth)
         }
         if oscillator1.waveform == .wavetable {
             wavetableEngine1.targetFramePosition = max(0, min(1, oscillator1.wavetableMorph + wtMorphMod1))
@@ -1183,9 +1194,9 @@ public extension AudioEngine {
             ? cachedReverbMix
             : max(0, min(1, cachedReverbMix + reverbMixMod))
 
-        // Parallel sends tap the post-HPF dry signal. Level 0 skips the buses.
-        let sendSourceL = outL
-        let sendSourceR = outR
+        // Parallel sends tap pre-insert (post-HPF dry) or post-insert. Level 0 skips the buses.
+        let preInsertL = outL
+        let preInsertR = outR
 
         // EQ before the rider. A boost after it walked straight into the ceiling
         // and rasped; the rider now holds that extra level with one linear gain.
@@ -1258,7 +1269,11 @@ public extension AudioEngine {
             )
         }
 
+        let sendSourceL = cachedSendPostInsert ? outL : preInsertL
+        let sendSourceR = cachedSendPostInsert ? outR : preInsertR
+
         if cachedSendA > 0 {
+            lastSendA = cachedSendA
             let wet = sendReverb.process(
                 inputL: sendSourceL,
                 inputR: sendSourceR,
@@ -1267,13 +1282,20 @@ public extension AudioEngine {
             )
             outL += wet.0 * cachedSendA
             outR += wet.1 * cachedSendA
+        } else if lastSendA > 0 {
+            sendReverb.reset()
+            lastSendA = 0
         }
         if cachedSendB > 0 {
+            lastSendB = cachedSendB
             sendDelay.delayTime = cachedSendDelayTime
             sendDelay.feedback = cachedSendDelayFeedback
             let wet = sendDelay.process(inputL: sendSourceL, inputR: sendSourceR, mix: 1)
             outL += wet.0 * cachedSendB
             outR += wet.1 * cachedSendB
+        } else if lastSendB > 0 {
+            sendDelay.reset()
+            lastSendB = 0
         }
 
         if cachedRotaryEnabled {

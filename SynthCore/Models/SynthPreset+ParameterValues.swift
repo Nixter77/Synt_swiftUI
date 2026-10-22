@@ -114,8 +114,9 @@ extension SynthPreset {
         case .envFollowerRelease: return envFollowerRelease
         case .sendA: return sendA
         case .sendB: return sendB
+        case .sendPostInsert: return sendPostInsert ? 1 : 0
         case .rotaryEnabled: return rotaryEnabled ? 1 : 0
-        case .rotaryFast: return rotaryFast
+        case .rotaryFast: return rotaryFast ? 1 : 0
         case .rotaryHornSlow: return rotaryHornSlow
         case .rotaryHornFast: return rotaryHornFast
         case .rotaryDrumSlow: return rotaryDrumSlow
@@ -232,8 +233,9 @@ extension SynthPreset {
         case .envFollowerRelease: envFollowerRelease = value
         case .sendA: sendA = value
         case .sendB: sendB = value
+        case .sendPostInsert: sendPostInsert = value >= 0.5
         case .rotaryEnabled: rotaryEnabled = value >= 0.5
-        case .rotaryFast: rotaryFast = value
+        case .rotaryFast: rotaryFast = value >= 0.5
         case .rotaryHornSlow: rotaryHornSlow = value
         case .rotaryHornFast: rotaryHornFast = value
         case .rotaryDrumSlow: rotaryDrumSlow = value

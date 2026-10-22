@@ -20,8 +20,8 @@ public final class DSPRotary {
 
     private static let bufferSize = 4096
 
-    private var bufferL: [Float]
-    private var bufferR: [Float]
+    private let bufferL: UnsafeMutablePointer<Float>
+    private let bufferR: UnsafeMutablePointer<Float>
     private var writeIndex = 0
     private var sampleRate: Float = 44_100
     private var lpCoeff: Float = 0.1
@@ -32,9 +32,18 @@ public final class DSPRotary {
     private var drumHz: Float = 0
 
     public init(sampleRate: Double = 44_100) {
-        bufferL = [Float](repeating: 0, count: Self.bufferSize)
-        bufferR = [Float](repeating: 0, count: Self.bufferSize)
+        // Eagerly evaluate static sine table on init so render thread never creates it.
+        _ = Self.sine[0]
+        bufferL = .allocate(capacity: Self.bufferSize)
+        bufferL.initialize(repeating: 0, count: Self.bufferSize)
+        bufferR = .allocate(capacity: Self.bufferSize)
+        bufferR.initialize(repeating: 0, count: Self.bufferSize)
         setSampleRate(sampleRate)
+    }
+
+    deinit {
+        bufferL.deallocate()
+        bufferR.deallocate()
     }
 
     /// Main thread or sample-rate change only. Does not grow the delay buffer.
@@ -60,11 +69,10 @@ public final class DSPRotary {
         drumHz = 0
     }
 
-    /// Place the rotors on their targets. Call from the preset apply, not per sample.
-    public func snapSpeeds(hornSlow: Float, hornFast: Float, drumSlow: Float, drumFast: Float, fast: Float) {
-        let amount = Self.clamp01(fast)
-        hornHz = Self.blend(hornSlow, hornFast, amount)
-        drumHz = Self.blend(drumSlow, drumFast, amount)
+    /// Place the rotors on their targets. Call from preset load/switch, not per sample.
+    public func snapSpeeds(hornSlow: Float, hornFast: Float, drumSlow: Float, drumFast: Float, fast: Bool) {
+        hornHz = fast ? hornFast : hornSlow
+        drumHz = fast ? drumFast : drumSlow
     }
 
     public func process(
@@ -74,7 +82,7 @@ public final class DSPRotary {
         hornFast: Float,
         drumSlow: Float,
         drumFast: Float,
-        fast: Float,
+        fast: Bool,
         drive: Float,
         mix: Float,
         accelHz: Float
@@ -85,9 +93,8 @@ public final class DSPRotary {
         let sr = sampleRate
         if sr < 2 { return (inputL, inputR) }
 
-        let amount = Self.clamp01(fast)
-        let hornTarget = Self.blend(hornSlow, hornFast, amount)
-        let drumTarget = Self.blend(drumSlow, drumFast, amount)
+        let hornTarget = fast ? hornFast : hornSlow
+        let drumTarget = fast ? drumFast : drumSlow
         let step = max(0, accelHz) / sr
         hornHz = Self.slew(hornHz, hornTarget, step)
         drumHz = Self.slew(drumHz, drumTarget, step)
@@ -105,10 +112,10 @@ public final class DSPRotary {
         let base = sr * 0.002
         let hornDelay = base + sr * 0.0011 * Self.sineSample(hornPhase)
         let drumDelay = base + sr * 0.00055 * Self.sineSample(drumPhase)
-        let hornL = read(bufferL, delay: hornDelay)
-        let hornR = read(bufferR, delay: hornDelay)
-        let drumL = read(bufferL, delay: drumDelay)
-        let drumR = read(bufferR, delay: drumDelay)
+        let hornL = read(from: bufferL, delay: hornDelay)
+        let hornR = read(from: bufferR, delay: hornDelay)
+        let drumL = read(from: bufferL, delay: drumDelay)
+        let drumR = read(from: bufferR, delay: drumDelay)
 
         let hornGainL = 0.55 + 0.45 * Self.sineSample(hornPhase)
         let hornGainR = 0.55 + 0.45 * Self.sineSample(Self.wrap(hornPhase + 0.37))
@@ -133,7 +140,7 @@ public final class DSPRotary {
         )
     }
 
-    private func read(_ buffer: [Float], delay: Float) -> Float {
+    private func read(from buffer: UnsafeMutablePointer<Float>, delay: Float) -> Float {
         let clamped = min(max(delay, 1), Float(Self.bufferSize - 2))
         let pos = Float(writeIndex) - clamped
         var base = pos

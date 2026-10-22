@@ -159,8 +159,9 @@ public struct RTPresetSnapshot: Sendable {
     public var envFollowerRelease: Float = 0.05
     public var sendA: Float = 0
     public var sendB: Float = 0
+    public var sendPostInsert: Bool = false
     public var rotaryEnabled: Bool = false
-    public var rotaryFast: Float = 0
+    public var rotaryFast: Bool = false
     public var rotaryHornSlow: Float = 0.7
     public var rotaryHornFast: Float = 6.8
     public var rotaryDrumSlow: Float = 0.55
@@ -367,8 +368,9 @@ public struct RTPresetSnapshot: Sendable {
         envFollowerRelease = max(0.001, min(2, preset.envFollowerRelease))
         sendA = max(0, min(1, preset.sendA))
         sendB = max(0, min(1, preset.sendB))
+        sendPostInsert = preset.sendPostInsert
         rotaryEnabled = preset.rotaryEnabled
-        rotaryFast = max(0, min(1, preset.rotaryFast))
+        rotaryFast = preset.rotaryFast
         rotaryHornSlow = max(0.2, min(3, preset.rotaryHornSlow))
         rotaryHornFast = max(1, min(12, preset.rotaryHornFast))
         rotaryDrumSlow = max(0.15, min(2.5, preset.rotaryDrumSlow))

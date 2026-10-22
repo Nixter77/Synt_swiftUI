@@ -134,6 +134,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case rotaryDrive = 150
     case rotaryMix = 151
     case rotaryAccel = 152
+    /// Pre/post-insert switch for FX send buses (0 = Pre, 1 = Post).
+    case sendPostInsert = 153
 
     public var identifier: String {
         switch self {
@@ -249,6 +251,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryDrive: return "rotaryDrive"
         case .rotaryMix: return "rotaryMix"
         case .rotaryAccel: return "rotaryAccel"
+        case .sendPostInsert: return "sendPostInsert"
         }
     }
 
@@ -366,6 +369,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryDrive: return "Rotary Drive"
         case .rotaryMix: return "Rotary Mix"
         case .rotaryAccel: return "Rotary Accel"
+        case .sendPostInsert: return "Send Post-Insert"
         }
     }
 

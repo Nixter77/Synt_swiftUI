@@ -190,18 +190,20 @@ public final class DSPMSEG {
 
     private var sampleRate: Double = 44100.0
 
-    /// Three banks. The writer fills a bank the reader is not in, then release-stores the index.
-    /// No acknowledgement and no wait: a stalled reader keeps its bank, and the latest publish wins.
+    /// Three banks in a lock-free asymmetric triple buffer.
+    /// Writer holds private writeBank, reader holds private readBank.
+    /// They exchange banks via sharedBank using atomic exchange.
     private static let bankCount = 3
+    private static let hasNewDataFlag = 0x80
     private let times: UnsafeMutablePointer<Float>
     private let values: UnsafeMutablePointer<Float>
     private let curves: UnsafeMutablePointer<Float>
     private var bankMeta0 = PublishedBank()
     private var bankMeta1 = PublishedBank()
     private var bankMeta2 = PublishedBank()
-    private let activeBank = Atomic<Int>(0)
-    /// Bank `tick` is reading, or -1 between ticks.
-    private let readingBank = Atomic<Int>(-1)
+    private var writeBank: Int = 0
+    private var readBank: Int = 1
+    private let sharedBank = Atomic<Int>(2)
 
     public private(set) var phase: Float = 0.0
     public private(set) var currentValue: Float = 0.0
@@ -219,7 +221,11 @@ public final class DSPMSEG {
         self.model = model
         self.sampleRate = max(1.0, sampleRate)
         publish(model)
-        currentValue = sample(0, bank: activeBank.load(ordering: .acquiring))
+        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
+            let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
+            readBank = previousShared & 0x03
+        }
+        currentValue = sample(0, bank: readBank)
     }
 
     deinit {
@@ -234,17 +240,6 @@ public final class DSPMSEG {
 
     public func prepare(sampleRate: Double, maxFrames: Int = 512) {
         self.sampleRate = max(1.0, sampleRate)
-    }
-
-    /// Bank that is neither the published index nor the one `tick` is reading.
-    private func claimIdleBank() -> Int {
-        let published = activeBank.load(ordering: .acquiring)
-        let inUse = readingBank.load(ordering: .acquiring)
-        var candidate = (published + 1) % Self.bankCount
-        if candidate == inUse {
-            candidate = (candidate + 1) % Self.bankCount
-        }
-        return candidate
     }
 
     private func meta(at bank: Int) -> PublishedBank {
@@ -263,10 +258,9 @@ public final class DSPMSEG {
         }
     }
 
-    /// Main thread. Copies a finished model into an idle bank and publishes it. Does not wait.
+    /// Main thread. Copies a finished model into writeBank and publishes it via atomic exchange.
     public func publish(_ model: DSPMSEGModel) {
-        let idle = claimIdleBank()
-        let base = idle * DSPMSEGModel.maxPoints
+        let base = writeBank * DSPMSEGModel.maxPoints
         let count = min(DSPMSEGModel.maxPoints, model.points.count)
         for i in 0..<count {
             times[base + i] = model.points[i].time
@@ -283,18 +277,19 @@ public final class DSPMSEG {
         meta.loopStart = model.loopStartIndex ?? -1
         meta.loopEnd = model.loopEndIndex ?? -1
         meta.sustain = model.sustainIndex ?? -1
-        setMeta(meta, at: idle)
-        activeBank.store(idle, ordering: .releasing)
+        setMeta(meta, at: writeBank)
+        let previousShared = sharedBank.exchange(writeBank | Self.hasNewDataFlag, ordering: .acquiringAndReleasing)
+        writeBank = previousShared & 0x03
     }
 
     /// No points. The render thread skips the generator while nothing is routed.
     /// Does not rewrite `model`.
     public func publishEmpty() {
-        let idle = claimIdleBank()
-        var meta = meta(at: idle)
+        var meta = meta(at: writeBank)
         meta.pointCount = 0
-        setMeta(meta, at: idle)
-        activeBank.store(idle, ordering: .releasing)
+        setMeta(meta, at: writeBank)
+        let previousShared = sharedBank.exchange(writeBank | Self.hasNewDataFlag, ordering: .acquiringAndReleasing)
+        writeBank = previousShared & 0x03
     }
 
     public var hasPoints: Bool {
@@ -303,9 +298,8 @@ public final class DSPMSEG {
 
     public func reset() {
         let meta = currentMeta()
-        let bank = activeBank.load(ordering: .acquiring)
         phase = 0
-        currentValue = meta.pointCount > 0 ? sample(0, bank: bank) : 0
+        currentValue = meta.pointCount > 0 ? sample(0, bank: readBank) : 0
         isRunning = false
         isSustaining = false
     }
@@ -323,14 +317,14 @@ public final class DSPMSEG {
         isSustaining = false
     }
 
-    /// Real-time sample. Reads the published bank only.
+    /// Real-time sample. Reads the reader's bank, exchanging with sharedBank if a new publish arrived.
     @inline(__always)
     public func tick(gate: Bool = true, bpm: Double = 120.0) -> Float {
-        let bank = activeBank.load(ordering: .acquiring)
-        readingBank.store(bank, ordering: .releasing)
-        let output = sampleTick(gate: gate, bpm: bpm, bank: bank)
-        readingBank.store(-1, ordering: .releasing)
-        return output
+        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
+            let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
+            readBank = previousShared & 0x03
+        }
+        return sampleTick(gate: gate, bpm: bpm, bank: readBank)
     }
 
     @inline(__always)
@@ -392,7 +386,11 @@ public final class DSPMSEG {
 
     @inline(__always)
     public func evaluate(at t: Float) -> Float {
-        evaluate(at: t, bank: activeBank.load(ordering: .acquiring))
+        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
+            let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
+            readBank = previousShared & 0x03
+        }
+        return evaluate(at: t, bank: readBank)
     }
 
     @inline(__always)
@@ -428,7 +426,11 @@ public final class DSPMSEG {
 
     @inline(__always)
     private func currentMeta() -> PublishedBank {
-        meta(at: activeBank.load(ordering: .acquiring))
+        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
+            let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
+            readBank = previousShared & 0x03
+        }
+        return meta(at: readBank)
     }
 
     @inline(__always)
