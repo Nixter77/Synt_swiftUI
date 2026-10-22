@@ -136,6 +136,10 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case rotaryAccel = 152
     /// Pre/post-insert switch for FX send buses (0 = Pre, 1 = Post).
     case sendPostInsert = 153
+    case macro5 = 154
+    case macro6 = 155
+    case macro7 = 156
+    case macro8 = 157
 
     public var identifier: String {
         switch self {
@@ -252,6 +256,10 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryMix: return "rotaryMix"
         case .rotaryAccel: return "rotaryAccel"
         case .sendPostInsert: return "sendPostInsert"
+        case .macro5: return "macro5"
+        case .macro6: return "macro6"
+        case .macro7: return "macro7"
+        case .macro8: return "macro8"
         }
     }
 
@@ -370,6 +378,10 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryMix: return "Rotary Mix"
         case .rotaryAccel: return "Rotary Accel"
         case .sendPostInsert: return "Send Post-Insert"
+        case .macro5: return "Macro 5"
+        case .macro6: return "Macro 6"
+        case .macro7: return "Macro 7"
+        case .macro8: return "Macro 8"
         }
     }
 
@@ -382,7 +394,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay, .envFollowerAttack, .envFollowerRelease: return 0.001
         case .release, .filterRelease, .modEnvRelease: return 0.001
         case .filterCutoff, .filter2Cutoff: return 20
-        case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4: return -1
+        case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4, .macro5, .macro6, .macro7, .macro8: return -1
         case .lfoRate, .lfo2Rate: return 0.1
         case .chorusRate: return 0.1
         case .delayTime: return 0.01
@@ -418,7 +430,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .attack, .decay, .filterAttack, .filterDecay, .modEnvAttack, .modEnvDecay, .envFollowerAttack, .envFollowerRelease: return 2
         case .release, .filterRelease, .modEnvRelease: return 3
         case .filterCutoff, .filter2Cutoff: return 20000
-        case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4: return 1
+        case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4, .macro5, .macro6, .macro7, .macro8: return 1
         case .lfoRate, .lfo2Rate: return 20
         case .chorusRate: return 5
         case .delayTime: return 1

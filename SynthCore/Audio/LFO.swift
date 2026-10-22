@@ -28,6 +28,11 @@ public class LFO {
     /// LCG for S&H. Float.random hits the system RNG (can lock) on the audio thread.
     private var randomState: UInt32 = 0x9E37_79B9
 
+    public func setRandomSeed(_ seed: UInt32) {
+        randomState = seed == 0 ? 0x9E37_79B9 : seed
+        lastRandomValue = Float(randomState) / Float(UInt32.max) * 2 - 1
+    }
+
     public func reset() {
         phase = 0.0
         cycleProgress = 0.0

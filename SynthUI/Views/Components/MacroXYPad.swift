@@ -18,6 +18,8 @@ struct MacroXYPad: View {
     @Environment(\.theme) private var theme
     @Binding var macro1: Float
     @Binding var macro2: Float
+    var labelX: String = "M1"
+    var labelY: String = "M2"
 
     var body: some View {
         Color.clear
@@ -35,11 +37,11 @@ struct MacroXYPad: View {
                                 RoundedRectangle(cornerRadius: 6)
                                     .stroke(theme.border, lineWidth: 0.5)
                             )
-                        Text("M1")
+                        Text(labelX)
                             .themeCaption(theme, size: 8)
                             .foregroundColor(theme.textFaint)
                             .padding(4)
-                        Text("M2")
+                        Text(labelY)
                             .themeCaption(theme, size: 8)
                             .foregroundColor(theme.textFaint)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

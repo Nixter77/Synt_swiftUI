@@ -173,6 +173,11 @@ public struct RTPresetSnapshot: Sendable {
     public var macro2: Float = 0.0
     public var macro3: Float = 0.0
     public var macro4: Float = 0.0
+    public var macro5: Float = 0.0
+    public var macro6: Float = 0.0
+    public var macro7: Float = 0.0
+    public var macro8: Float = 0.0
+    public var randomSeed: UInt32? = nil
 
     // Effects
     public var reverbMix: Float = 0.0
@@ -386,6 +391,11 @@ public struct RTPresetSnapshot: Sendable {
         macro2 = preset.macro2
         macro3 = preset.macro3
         macro4 = preset.macro4
+        macro5 = preset.macro5
+        macro6 = preset.macro6
+        macro7 = preset.macro7
+        macro8 = preset.macro8
+        randomSeed = preset.randomSeed
 
         reverbMix = preset.reverbMix
         reverbRoomSize = preset.reverbRoomSize

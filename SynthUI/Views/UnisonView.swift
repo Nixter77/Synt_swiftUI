@@ -9,6 +9,7 @@ import SynthCore
 struct UnisonView: View {
     @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
+    @State private var macroBank: Int = 0
 
     var body: some View {
         VStack(spacing: 4) {
@@ -130,9 +131,27 @@ struct UnisonView: View {
                         .lineLimit(1)
                     StepperField(value: $preset.polyphonyLimit, range: 1...AudioEngine.maxVoices)
                         .accessibilityIdentifier("polyphonyLimit")
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 4)
+                    Picker("Macro Bank", selection: $macroBank) {
+                        Text("1-2").tag(0)
+                        Text("3-4").tag(1)
+                        Text("5-6").tag(2)
+                        Text("7-8").tag(3)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 130)
+                    .accessibilityIdentifier("macroBankPicker")
                 }
-                MacroXYPad(macro1: $preset.macro1, macro2: $preset.macro2)
+                switch macroBank {
+                case 1:
+                    MacroXYPad(macro1: $preset.macro3, macro2: $preset.macro4, labelX: "M3", labelY: "M4")
+                case 2:
+                    MacroXYPad(macro1: $preset.macro5, macro2: $preset.macro6, labelX: "M5", labelY: "M6")
+                case 3:
+                    MacroXYPad(macro1: $preset.macro7, macro2: $preset.macro8, labelX: "M7", labelY: "M8")
+                default:
+                    MacroXYPad(macro1: $preset.macro1, macro2: $preset.macro2, labelX: "M1", labelY: "M2")
+                }
             }
             .padding(4)
             .appleInset(cornerRadius: 10)

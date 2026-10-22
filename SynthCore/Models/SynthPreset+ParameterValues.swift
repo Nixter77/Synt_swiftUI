@@ -90,6 +90,10 @@ extension SynthPreset {
         case .macro2: return macro2
         case .macro3: return macro3
         case .macro4: return macro4
+        case .macro5: return macro5
+        case .macro6: return macro6
+        case .macro7: return macro7
+        case .macro8: return macro8
         case .pan: return pan
         case .lfoMode: return lfoModeIndex(lfoMode)
         case .lfoStartPhase: return lfoStartPhase
@@ -209,6 +213,10 @@ extension SynthPreset {
         case .macro2: macro2 = value
         case .macro3: macro3 = value
         case .macro4: macro4 = value
+        case .macro5: macro5 = value
+        case .macro6: macro6 = value
+        case .macro7: macro7 = value
+        case .macro8: macro8 = value
         case .pan: pan = value
         case .lfoMode: lfoMode = SynthCore.lfoModeFromFloat(value)
         case .lfoStartPhase: lfoStartPhase = value

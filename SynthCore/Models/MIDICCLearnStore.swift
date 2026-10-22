@@ -67,6 +67,10 @@ public enum MIDIControlTarget: String, CaseIterable, Codable, Hashable {
     case macro3 = "Macro 3"
     case macro4 = "Macro 4"
     case finePitch = "Fine Pitch"
+    case macro5 = "Macro 5"
+    case macro6 = "Macro 6"
+    case macro7 = "Macro 7"
+    case macro8 = "Macro 8"
 
     public init(_ destination: ModDestination) {
         switch destination {
@@ -391,6 +395,14 @@ public final class MIDICCLearnStore: ObservableObject {
             preset.macro3 = (norm - 0.5) * 2.0
         case .macro4:
             preset.macro4 = (norm - 0.5) * 2.0
+        case .macro5:
+            preset.macro5 = (norm - 0.5) * 2.0
+        case .macro6:
+            preset.macro6 = (norm - 0.5) * 2.0
+        case .macro7:
+            preset.macro7 = (norm - 0.5) * 2.0
+        case .macro8:
+            preset.macro8 = (norm - 0.5) * 2.0
         }
     }
 

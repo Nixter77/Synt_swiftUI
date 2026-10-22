@@ -35,8 +35,12 @@ public final class SmoothRandom {
         perm = base + base
     }
 
-    public func reset() {
-        phase = 0
+    public func reset(seed: UInt32? = nil) {
+        if let s = seed {
+            phase = Double(s & 255)
+        } else {
+            phase = 0
+        }
     }
 
     public func advance(hz: Float, sampleRate: Double) -> Float {

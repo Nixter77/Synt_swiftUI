@@ -43,7 +43,7 @@ public extension MIDIControlTarget {
             return (unit - 0.001) / 1.999
         case .release, .filterRelease:
             return (unit - 0.001) / 2.999
-        case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4:
+        case .filterEnvelopeAmount, .macro1, .macro2, .macro3, .macro4, .macro5, .macro6, .macro7, .macro8:
             return unit / 2 + 0.5
         case .delayTime:
             return (unit - 0.01) / 0.99
@@ -116,6 +116,10 @@ public extension MIDIControlTarget {
         case .macro2: return preset.macro2
         case .macro3: return preset.macro3
         case .macro4: return preset.macro4
+        case .macro5: return preset.macro5
+        case .macro6: return preset.macro6
+        case .macro7: return preset.macro7
+        case .macro8: return preset.macro8
         }
     }
 }
@@ -284,6 +288,10 @@ public extension AudioEngine {
         case .macro2: return cachedMacro2
         case .macro3: return cachedMacro3
         case .macro4: return cachedMacro4
+        case .macro5: return cachedMacro5
+        case .macro6: return cachedMacro6
+        case .macro7: return cachedMacro7
+        case .macro8: return cachedMacro8
         }
     }
 }

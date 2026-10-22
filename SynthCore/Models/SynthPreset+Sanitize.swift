@@ -152,6 +152,10 @@ public extension SynthPreset {
         p.macro2 = f(p.macro2, -1, 1, 0.0)
         p.macro3 = f(p.macro3, -1, 1, 0.0)
         p.macro4 = f(p.macro4, -1, 1, 0.0)
+        p.macro5 = f(p.macro5, -1, 1, 0.0)
+        p.macro6 = f(p.macro6, -1, 1, 0.0)
+        p.macro7 = f(p.macro7, -1, 1, 0.0)
+        p.macro8 = f(p.macro8, -1, 1, 0.0)
         if !VoiceMode.allCases.contains(p.voiceMode) {
             p.voiceMode = .poly
         }

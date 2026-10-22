@@ -398,6 +398,12 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedMacro2: Float = 0.0
     public var cachedMacro3: Float = 0.0
     public var cachedMacro4: Float = 0.0
+    public var cachedMacro5: Float = 0.0
+    public var cachedMacro6: Float = 0.0
+    public var cachedMacro7: Float = 0.0
+    public var cachedMacro8: Float = 0.0
+    public var cachedRandomSeed: UInt32? = nil
+    public var lastAppliedSeed: UInt32? = nil
     public var cachedAttackCurve: Float = 0.0
     public var cachedDecayCurve: Float = 0.0
     public var cachedReleaseCurve: Float = 0.0

@@ -48,6 +48,13 @@ public extension AudioEngine {
 
         let switchedPatch = lastAppliedPresetID != nil
             && (lastAppliedPresetID != preset.id || lastAppliedPresetName != preset.name)
+        if let seed = preset.randomSeed {
+            let effectiveSeed = seed == 0 ? 0x12345678 : seed
+            randomSeed = effectiveSeed
+            lfo.setRandomSeed(effectiveSeed)
+            lfo2.setRandomSeed(effectiveSeed ^ 0x5555_5555)
+            smoothRandom.reset(seed: effectiveSeed)
+        }
         lastAppliedPresetID = preset.id
         lastAppliedPresetName = preset.name
         if switchedPatch {
@@ -351,6 +358,11 @@ public extension AudioEngine {
         cachedMacro2 = snap.macro2
         cachedMacro3 = snap.macro3
         cachedMacro4 = snap.macro4
+        cachedMacro5 = snap.macro5
+        cachedMacro6 = snap.macro6
+        cachedMacro7 = snap.macro7
+        cachedMacro8 = snap.macro8
+        cachedRandomSeed = snap.randomSeed
         cachedAttackCurve = snap.attackCurve
         cachedDecayCurve = snap.decayCurve
         cachedReleaseCurve = snap.releaseCurve
@@ -416,6 +428,13 @@ public extension AudioEngine {
         smoothedMasterVolume = cachedMasterVolume
         lastPlayedFrequency = nil
         snapCCTargetsFromLive()
+        if let seed = cachedRandomSeed {
+            let effectiveSeed = seed == 0 ? 0x12345678 : seed
+            randomSeed = effectiveSeed
+            lfo.setRandomSeed(effectiveSeed)
+            lfo2.setRandomSeed(effectiveSeed ^ 0x5555_5555)
+            smoothRandom.reset(seed: effectiveSeed)
+        }
     }
 
     /// Mutate the published preset as a whole so `didSet` → `applyPreset()` always runs.

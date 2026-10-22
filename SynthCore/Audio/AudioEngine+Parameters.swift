@@ -162,6 +162,10 @@ extension AudioEngine {
         case .macro2: cachedMacro2 = v
         case .macro3: cachedMacro3 = v
         case .macro4: cachedMacro4 = v
+        case .macro5: cachedMacro5 = v
+        case .macro6: cachedMacro6 = v
+        case .macro7: cachedMacro7 = v
+        case .macro8: cachedMacro8 = v
         case .pan:
             ccPanRT = v
             ccPanTarget = v
@@ -285,6 +289,10 @@ extension AudioEngine {
         case .macro2: return cachedMacro2
         case .macro3: return cachedMacro3
         case .macro4: return cachedMacro4
+        case .macro5: return cachedMacro5
+        case .macro6: return cachedMacro6
+        case .macro7: return cachedMacro7
+        case .macro8: return cachedMacro8
         case .pan: return ccPanRT
         case .lfoMode: return Self.index(of: lfo.mode)
         case .lfoStartPhase: return lfo.startPhaseDegrees
@@ -445,6 +453,10 @@ extension AudioEngine {
             case .macro2: preset.macro2 = v
             case .macro3: preset.macro3 = v
             case .macro4: preset.macro4 = v
+            case .macro5: preset.macro5 = v
+            case .macro6: preset.macro6 = v
+            case .macro7: preset.macro7 = v
+            case .macro8: preset.macro8 = v
             case .pan: preset.pan = v
             case .lfoMode: preset.lfoMode = Self.lfoMode(v)
             case .lfoStartPhase: preset.lfoStartPhase = v

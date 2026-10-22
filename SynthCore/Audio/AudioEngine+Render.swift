@@ -153,6 +153,10 @@ public extension AudioEngine {
         case .macro2: return cachedMacro2
         case .macro3: return cachedMacro3
         case .macro4: return cachedMacro4
+        case .macro5: return cachedMacro5
+        case .macro6: return cachedMacro6
+        case .macro7: return cachedMacro7
+        case .macro8: return cachedMacro8
         case .modEnv: return modEnv
         case .pitchBend: return pitchBend
         case .random: return random
@@ -1868,6 +1872,14 @@ public extension AudioEngine {
             cachedMacro3 = (norm - 0.5) * 2.0
         case .macro4:
             cachedMacro4 = (norm - 0.5) * 2.0
+        case .macro5:
+            cachedMacro5 = (norm - 0.5) * 2.0
+        case .macro6:
+            cachedMacro6 = (norm - 0.5) * 2.0
+        case .macro7:
+            cachedMacro7 = (norm - 0.5) * 2.0
+        case .macro8:
+            cachedMacro8 = (norm - 0.5) * 2.0
         }
     }
 }

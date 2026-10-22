@@ -190,6 +190,13 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var macro2: Float = 0.0
     public var macro3: Float = 0.0
     public var macro4: Float = 0.0
+    public var macro5: Float = 0.0
+    public var macro6: Float = 0.0
+    public var macro7: Float = 0.0
+    public var macro8: Float = 0.0
+
+    /// When set, random phase, S&H, and random LFO are reproducible from note to note on load.
+    public var randomSeed: UInt32? = nil
 
     // MARK: - Voice Mode (Poly / Mono / Legato)
     public var voiceMode: VoiceMode = .poly
@@ -404,6 +411,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case sendA, sendB, sendPostInsert
         case rotaryEnabled, rotaryFast, rotaryHornSlow, rotaryHornFast
         case rotaryDrumSlow, rotaryDrumFast, rotaryDrive, rotaryMix, rotaryAccel
+        case macro5, macro6, macro7, macro8
+        case randomSeed
     }
 
     public init(
@@ -518,6 +527,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         macro2: Float = 0.0,
         macro3: Float = 0.0,
         macro4: Float = 0.0,
+        macro5: Float = 0.0,
+        macro6: Float = 0.0,
+        macro7: Float = 0.0,
+        macro8: Float = 0.0,
+        randomSeed: UInt32? = nil,
         voiceMode: VoiceMode = .poly,
         syncSource: SyncSource = .`internal`,
         filterDrive: Float = 0,
@@ -649,6 +663,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.macro2 = macro2
         self.macro3 = macro3
         self.macro4 = macro4
+        self.macro5 = macro5
+        self.macro6 = macro6
+        self.macro7 = macro7
+        self.macro8 = macro8
+        self.randomSeed = randomSeed
         self.voiceMode = voiceMode
         self.syncSource = syncSource
         self.filterDrive = filterDrive
@@ -785,6 +804,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         macro2 = try c.decodeIfPresent(Float.self, forKey: .macro2) ?? 0.0
         macro3 = try c.decodeIfPresent(Float.self, forKey: .macro3) ?? 0.0
         macro4 = try c.decodeIfPresent(Float.self, forKey: .macro4) ?? 0.0
+        macro5 = try c.decodeIfPresent(Float.self, forKey: .macro5) ?? 0.0
+        macro6 = try c.decodeIfPresent(Float.self, forKey: .macro6) ?? 0.0
+        macro7 = try c.decodeIfPresent(Float.self, forKey: .macro7) ?? 0.0
+        macro8 = try c.decodeIfPresent(Float.self, forKey: .macro8) ?? 0.0
+        randomSeed = try c.decodeIfPresent(UInt32.self, forKey: .randomSeed)
         voiceMode = try c.decodeIfPresent(VoiceMode.self, forKey: .voiceMode) ?? .poly
         syncSource = try c.decodeIfPresent(SyncSource.self, forKey: .syncSource) ?? .`internal`
         filterDrive = try c.decodeIfPresent(Float.self, forKey: .filterDrive) ?? 0
@@ -1067,6 +1091,10 @@ public enum ModSource: String, CaseIterable, Codable {
     case envelopeFollower = "Env Follower"
     /// MSEG 2 (second multi-stage envelope).
     case mseg2 = "MSEG 2"
+    case macro5 = "Macro 5"
+    case macro6 = "Macro 6"
+    case macro7 = "Macro 7"
+    case macro8 = "Macro 8"
 }
 
 public enum VelocityCurve: String, CaseIterable, Codable, Sendable {
