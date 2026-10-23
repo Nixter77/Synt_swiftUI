@@ -55,7 +55,6 @@ public final class SyntAudioUnit: AUAudioUnit {
         engine.rendersAllDelayInDSP = true
         engine.applyPreset()
         installParameterTree()
-        engine.controllerMPEConfigDidChange = { [weak self] in self?.storeControllerMPEConfig() }
         startProgramChangePoll()
     }
 
@@ -78,26 +77,12 @@ public final class SyntAudioUnit: AUAudioUnit {
         programChangeTimer = timer
     }
 
-    /// SYNT_16 R13-1: main thread. The AU engine is `coreOnly` (no metering poll), so the AU
-    /// drains the render's RPN/MCM mailbox itself and writes the MPE parameters (163–166) into
-    /// the store and tree. They are then part of `fullState` (saved with the project) and every
-    /// later snapshot repeats them instead of restoring the old preset values.
+    /// SYNT_16 R13-1 / SYNT_17 R14-1: main thread. The AU engine is `coreOnly` (no metering poll),
+    /// so the AU drains the render's RPN/MCM mailbox itself — for display only. Controller MPE
+    /// state is runtime: it is NOT written into params 163–166, the tree or `fullState`
+    /// (no dirty project, no recorded automation). Render keeps it in `mpeCtl` across snapshots.
     func drainControllerMPEConfig() {
         engine.pollMPEConfigMailbox()
-    }
-
-    private func storeControllerMPEConfig() {
-        let p = engine.preset
-        let values: [(SynthParameterAddress, Float)] = [
-            (.mpeEnabled, p.mpeEnabled ? 1 : 0),
-            (.mpePitchBendRange, p.mpePitchBendRange),
-            (.mpeZone, p.mpeZone == .upper ? 1 : 0),
-            (.mpeMemberChannelCount, Float(p.mpeMemberChannelCount)),
-        ]
-        for (address, value) in values where parameters.value(address.rawValue) != value {
-            parameters.set(address.rawValue, value)
-        }
-        refreshParameterTreeFromStore()
     }
 
     /// Off by default. Logic re-sends a Program Change on every play ("Send used

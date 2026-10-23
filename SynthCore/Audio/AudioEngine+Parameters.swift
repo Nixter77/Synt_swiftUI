@@ -212,15 +212,10 @@ extension AudioEngine {
         case .mpeEnabled: adoptHostMPEEnabled(v >= 0.5)
         case .mpePitchBendRange:
             adoptHostMPEMemberRange(v)
-            mpePitchBendRange = v
         case .mpeZone:
-            let z: MPEZone = v >= 0.5 ? .upper : .lower
-            adoptHostMPEZone(z)
-            mpeZone = z
+            adoptHostMPEZone(v >= 0.5 ? .upper : .lower)
         case .mpeMemberChannelCount:
-            let count = Int(v.rounded())
-            adoptHostMPEMemberCount(count)
-            mpeMemberChannelCount = count
+            adoptHostMPEMemberCount(Int(v.rounded()))
         }
     }
 
@@ -524,18 +519,18 @@ extension AudioEngine {
             case .transientMix: preset.transientMix = v
             case .mpeEnabled:
                 preset.mpeEnabled = v >= 0.5
-                mpeEnabled = v >= 0.5
+                mpeEnabled = controllerMPEMain.adoptEnabled(v >= 0.5)
             case .mpePitchBendRange:
                 preset.mpePitchBendRange = v
-                mpePitchBendRange = v
+                mpePitchBendRange = controllerMPEMain.adoptMemberRange(v)
             case .mpeZone:
                 let z: MPEZone = v >= 0.5 ? .upper : .lower
                 preset.mpeZone = z
-                mpeZone = z
+                mpeZone = controllerMPEMain.adoptZone(z)
             case .mpeMemberChannelCount:
                 let count = Int(v.rounded())
                 preset.mpeMemberChannelCount = count
-                mpeMemberChannelCount = count
+                mpeMemberChannelCount = controllerMPEMain.adoptMemberCount(count)
             }
         }
         if pushToRender { setParameter(id: id, value: v) }

@@ -41,10 +41,15 @@ final class Stage15Stage1Tests: XCTestCase {
         XCTAssertEqual(engine.cachedMpeMemberChannelCount, 10)
 
         engine.pollMPEConfigMailbox()   // main
-        XCTAssertEqual(engine.preset.mpePitchBendRange, 24)
-        XCTAssertEqual(engine.preset.mpeMemberChannelCount, 10)
-        XCTAssertTrue(engine.preset.mpeEnabled)
+        // SYNT_17 R14-1 (design change): controller values are runtime only — main mirrors them
+        // in `controllerMPEMain` / the routing mirror, the preset (user settings) stays unchanged.
+        XCTAssertEqual(engine.preset.mpePitchBendRange, presetRangeBefore)
+        XCTAssertEqual(engine.preset.mpeMemberChannelCount, presetCountBefore)
+        XCTAssertEqual(engine.controllerMPEMain.memberRange, 24)
+        XCTAssertEqual(engine.controllerMPEMain.memberCount, 10)
+        XCTAssertEqual(engine.controllerMPEMain.enabled, true)
         XCTAssertEqual(engine.mpePitchBendRange, 24)
+        XCTAssertEqual(engine.mpeMemberChannelCount, 10)
         XCTAssertEqual(engine.applyPresetCallCountForTesting, before, "main publish must be display-only")
 
         // Mailbox is drained: a second poll is a no-op.

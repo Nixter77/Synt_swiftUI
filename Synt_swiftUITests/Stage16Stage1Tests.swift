@@ -77,31 +77,38 @@ struct Stage16Stage1Tests {
         #expect(unit.engine.cachedMpePitchBendRange == 24, "preset snapshot must not reset the controller range")
     }
 
-    /// R13-1: saved with the project. fullState carries the controller range.
-    @Test func testR13_1_AUControllerRangeIsSavedInFullState() throws {
+    /// SYNT_17 R14-1 (replaces the SYNT_16 "saved in fullState" test by nixter's decision):
+    /// the controller range is runtime only — fullState keeps the user's value; a restored
+    /// project starts from the user's settings.
+    @Test func testR14_1_AUControllerRangeIsNotSavedInFullState() throws {
         let unit = try Self.makeMPEUnit()
         Self.render(unit, midi: Self.rpn(channel: 1, rpn: 0, value: 30))
+        #expect(unit.engine.cachedMpePitchBendRange == 30, "controller value is live at runtime")
+        unit.drainControllerMPEConfig()
         let state = try #require(unit.fullState)
         let data = try #require(state[SyntAudioUnit.statePresetKey] as? Data)
         let saved = try JSONDecoder().decode(SynthPreset.self, from: data)
-        #expect(saved.mpePitchBendRange == 30)
+        #expect(saved.mpePitchBendRange == 48)
 
         let restored = try SyntAudioUnit(componentDescription: Self.desc)
         try restored.allocateRenderResources()
         restored.fullState = state
         Self.render(restored)
-        #expect(restored.engine.cachedMpePitchBendRange == 30)
+        #expect(restored.engine.cachedMpePitchBendRange == 48)
     }
 
-    /// R13-1: the AU's own main-thread timer drains the mailbox (no manual poll) into the tree.
-    @Test func testR13_1_AUTimerDrainsMailboxIntoParameterTree() async throws {
+    /// SYNT_17 R14-1: the AU's own timer drains the mailbox for display only; the parameter
+    /// tree (host-visible, automatable) keeps the user's values, render keeps the controller's.
+    @Test func testR14_1_AUTimerDrainDoesNotTouchParameterTree() async throws {
         let unit = try Self.makeMPEUnit()
         Self.render(unit, midi: Self.rpn(channel: 0, rpn: 6, value: 9))
         Self.render(unit, midi: Self.rpn(channel: 1, rpn: 0, value: 36))
         try await Task.sleep(for: .milliseconds(450))   // main queue free: the AU's own timer fires
         let tree = try #require(unit.parameterTree)
-        #expect(tree.parameter(withAddress: SynthParameterAddress.mpePitchBendRange.rawValue)?.value == 36)
-        #expect(tree.parameter(withAddress: SynthParameterAddress.mpeMemberChannelCount.rawValue)?.value == 9)
+        #expect(tree.parameter(withAddress: SynthParameterAddress.mpePitchBendRange.rawValue)?.value == 48)
+        #expect(tree.parameter(withAddress: SynthParameterAddress.mpeMemberChannelCount.rawValue)?.value == 15)
+        #expect(unit.engine.controllerMPEMain.memberRange == 36, "timer mirrored it for display")
+        #expect(unit.engine.controllerMPEMain.memberCount == 9)
         Self.render(unit)
         #expect(unit.engine.cachedMpePitchBendRange == 36)
         #expect(unit.engine.cachedMpeMemberChannelCount == 9)
@@ -126,7 +133,7 @@ struct Stage16Stage1Tests {
         }
         engine.preset.filterCutoff = 700     // knob move → applyPreset → snapshot
         #expect(engine.cachedMpePitchBendRange == 20)
-        #expect(engine.preset.mpePitchBendRange == 20)
+        #expect(engine.preset.mpePitchBendRange == 48, "SYNT_17 R14-1: preset keeps the user's value")
         #expect(engine.mpePitchBendRange == 20)
     }
 }

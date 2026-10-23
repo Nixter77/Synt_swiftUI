@@ -2056,6 +2056,9 @@ public extension AudioEngine {
             // SYNT_16 R13-2: accepted whatever the current zone is, so the controller can switch zones.
             guard channel & 15 == 0 || channel & 15 == 15 else { return }
             let memberCount = min(Int(value), 15)
+            // SYNT_17 R14-1: N = 0 ("zone off", e.g. controller disconnect) turns MPE off at RUNTIME only
+            // (MPE 1.0). It is an override in `mpeCtl`, never written into params 163–166 / preset /
+            // fullState, so the user's saved MPE setting is untouched and comes back on reload.
             cachedMpeMemberChannelCount = memberCount
             mpeCtl.memberCount = memberCount
             if channel == 0 {
@@ -2104,7 +2107,8 @@ public extension AudioEngine {
             zone: cachedMpeZone,
             memberCount: cachedMpeMemberChannelCount,
             memberRange: cachedMpePitchBendRange,
-            masterRange: cachedPitchBendRange
+            masterRange: cachedPitchBendRange,
+            overrides: mpeCtl
         )
         if masterRangeChanged { packed |= AudioEngine.mpeMailboxMasterFlag }
         // Keep a not-yet-polled master-range change sticky (lock-free CAS, bounded by main's exchange).
@@ -2122,8 +2126,15 @@ public extension AudioEngine {
     static let mpeMailboxFlag: UInt64 = 1 << 63
     static let mpeMailboxMasterFlag: UInt64 = 1 << 62
 
-    static func packMPEConfig(enabled: Bool, zone: MPEZone, memberCount: Int, memberRange: Float, masterRange: Float) -> UInt64 {
+    /// Bits 38–42: which values are controller overrides (SYNT_17 R14-1: main mirrors them, runtime only).
+    static func packMPEConfig(enabled: Bool, zone: MPEZone, memberCount: Int, memberRange: Float, masterRange: Float,
+                              overrides: MPEControllerOverride = MPEControllerOverride()) -> UInt64 {
         var v: UInt64 = mpeMailboxFlag
+        if overrides.enabled != nil { v |= 1 << 38 }
+        if overrides.zone != nil { v |= 1 << 39 }
+        if overrides.memberCount != nil { v |= 1 << 40 }
+        if overrides.memberRange != nil { v |= 1 << 41 }
+        if overrides.masterRange != nil { v |= 1 << 42 }
         if enabled { v |= 1 }
         if zone == .upper { v |= 2 }
         v |= UInt64(max(0, min(15, memberCount)) & 0x1F) << 2
@@ -2144,19 +2155,19 @@ public extension AudioEngine {
         let count = Int((v >> 2) & 0x1F)
         let memberRange = Float((v >> 8) & 0x3FFF) / 100
         let masterRange = Float((v >> 24) & 0x3FFF) / 100
+        // SYNT_17 R14-1: runtime only. The preset, AU params 163–166 and fullState are NOT touched;
+        // the controller values live in `controllerMPEMain` and the routing mirror.
+        controllerMPEMain.enabled = v & (1 << 38) != 0 ? enabled : nil
+        controllerMPEMain.zone = v & (1 << 39) != 0 ? zone : nil
+        controllerMPEMain.memberCount = v & (1 << 40) != 0 ? count : nil
+        controllerMPEMain.memberRange = v & (1 << 41) != 0 ? memberRange : nil
+        controllerMPEMain.masterRange = v & (1 << 42) != 0 ? masterRange : nil
         mpeEnabled = enabled
         mpeZone = zone
         mpeMemberChannelCount = count
         mpePitchBendRange = memberRange
-        let masterChanged = v & AudioEngine.mpeMailboxMasterFlag != 0
-        updatePresetDisplayOnly {
-            $0.mpeEnabled = enabled
-            $0.mpeZone = zone
-            $0.mpeMemberChannelCount = count
-            $0.mpePitchBendRange = memberRange
-        }
         // SYNT_16 R13-9: the controller's master range is runtime state, never written into the preset.
-        if masterChanged { controllerMasterPitchBendRange = masterRange }
+        if v & AudioEngine.mpeMailboxMasterFlag != 0 { controllerMasterPitchBendRange = controllerMPEMain.masterRange }
         controllerMPEConfigDidChange?()
         return true
     }

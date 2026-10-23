@@ -500,6 +500,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Render thread only. A snapshot or parameter write that repeats the previous host
     /// value keeps the controller value; a different host value replaces it.
     public var mpeCtl = MPEControllerOverride()
+    /// SYNT_17 R14-1: main-thread mirror of the controller overrides (runtime only, never saved).
+    /// UI reads it to show controller values next to the user's settings.
+    public var controllerMPEMain = MPEControllerOverride()
     /// SYNT_16 R13-9: master-channel RPN 0 range seen by main. Runtime only, never saved in a preset.
     public var controllerMasterPitchBendRange: Float? = nil
     /// Main thread. Called after `pollMPEConfigMailbox` mirrored a controller change

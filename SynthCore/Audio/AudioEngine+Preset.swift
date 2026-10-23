@@ -91,10 +91,11 @@ public extension AudioEngine {
         publishMSEG2(preset.mseg2)
         rtModMatrix.publish(preset.modMatrix)
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP)
-        mpeEnabled = preset.mpeEnabled
-        mpePitchBendRange = preset.mpePitchBendRange
-        mpeZone = preset.mpeZone
-        mpeMemberChannelCount = preset.mpeMemberChannelCount
+        // SYNT_17 R14-1: main-side routing mirror = controller override ?? user value (last change wins).
+        mpeEnabled = controllerMPEMain.adoptEnabled(preset.mpeEnabled)
+        mpePitchBendRange = controllerMPEMain.adoptMemberRange(preset.mpePitchBendRange)
+        mpeZone = controllerMPEMain.adoptZone(preset.mpeZone)
+        mpeMemberChannelCount = controllerMPEMain.adoptMemberCount(preset.mpeMemberChannelCount)
         rtPresetBuffer.publish(snap)
         if !isRenderingActive.load(ordering: .acquiring) {
             cachedFXOrder = snap.fxOrder
