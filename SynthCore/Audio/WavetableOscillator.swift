@@ -293,8 +293,28 @@ public struct LFOShapeTable {
     }
 }
 
+/// SYNT_18 R15-2: plain-old-data view of a compiled table's mips, laid out
+/// `[octave][frame][sample]` in one raw buffer. Read on the render thread with no ARC.
+public struct FlatMipView {
+    public let base: UnsafePointer<Float>
+    public let octaves: Int
+    public let frames: Int
+    public let samplesPerFrame: Int
+
+    @inline(__always)
+    public func frame(octave: Int, index: Int) -> UnsafePointer<Float> {
+        base + (octave &* frames &+ index) &* samplesPerFrame
+    }
+}
+
 /// Pre-compiled mipmapped wavetable ready for allocation-free render
 public final class CompiledMipData: @unchecked Sendable {
+    /// SYNT_18 R15-2: owned raw copy of `mipMaps` (+ its POD view). Allocated off render in init,
+    /// freed in deinit; valid as long as this object is retained (the triple-buffer slot holds a retain).
+    public let flatView: UnsafeMutablePointer<FlatMipView>
+    private let flatData: UnsafeMutablePointer<Float>
+    /// Test hook: counts deinit (proves a table is not freed on the render thread).
+    public static let deinitCountForTesting = Atomic<Int>(0)
     /// SYNT_16 R13-4: shape the wavetable LFO reads when this table is the oscillator's table.
     public let lfoShape: UnsafePointer<LFOShapeTable>
     public let wavetable: Wavetable
@@ -309,7 +329,38 @@ public final class CompiledMipData: @unchecked Sendable {
         self.mipMaps = mipMaps
         self.maxHarmonics = maxHarmonics
         self.lfoShape = LFOShapeTable.makeImmortal(LFOShapeTable.middleFrame(of: wavetable))
+        let octs = mipMaps.count
+        let frms = mipMaps.first?.count ?? 0
+        let spf = mipMaps.first?.first?.count ?? 0
+        let total = max(1, octs * frms * spf)
+        let d = UnsafeMutablePointer<Float>.allocate(capacity: total)
+        d.initialize(repeating: 0, count: total)
+        for o in 0..<octs {
+            for f in 0..<min(frms, mipMaps[o].count) {
+                let src = mipMaps[o][f]
+                let n = min(spf, src.count)
+                src.withUnsafeBufferPointer { b in
+                    if let a = b.baseAddress { (d + (o * frms + f) * spf).update(from: a, count: n) }
+                }
+            }
+        }
+        self.flatData = d
+        let v = UnsafeMutablePointer<FlatMipView>.allocate(capacity: 1)
+        v.initialize(to: FlatMipView(base: UnsafePointer(d), octaves: (frms > 0 && spf > 0) ? octs : 0,
+                                     frames: frms, samplesPerFrame: spf))
+        self.flatView = v
     }
+
+    deinit {
+        Self.deinitCountForTesting.wrappingAdd(1, ordering: .relaxed)
+        if let hook = CompiledMipData.onDeinitForTesting { hook() }
+        flatView.deinitialize(count: 1)
+        flatView.deallocate()
+        flatData.deallocate()
+    }
+
+    /// Test hook run inside deinit (e.g. records whether it ran on the simulated render thread).
+    nonisolated(unsafe) public static var onDeinitForTesting: (() -> Void)?
 }
 
 /// Band-limited wavetable oscillator with mip-mapping
@@ -353,6 +404,8 @@ public final class WavetableOscillator {
     private var writeBank: Int = 1
     private var readBank: Int = 2
     private let slots: UnsafeMutablePointer<Unmanaged<CompiledMipData>?>
+    /// SYNT_18 R15-2: POD view per slot (same index as `slots`); the render path reads only this.
+    private let viewSlots: UnsafeMutablePointer<UnsafePointer<FlatMipView>?>
     private let writeLock: os_unfair_lock_t
 
     private let tableSize: Int = 2048
@@ -699,6 +752,8 @@ public final class WavetableOscillator {
         writeLock.initialize(to: os_unfair_lock())
         slots = .allocate(capacity: 3)
         slots.initialize(repeating: nil, count: 3)
+        viewSlots = .allocate(capacity: 3)
+        viewSlots.initialize(repeating: nil, count: 3)
         builtinSetBits.store(Int(bitPattern: Self.builtinSet(for: mipSampleRate)), ordering: .releasing)
         loadBuiltin(index: 0)
     }
@@ -709,6 +764,8 @@ public final class WavetableOscillator {
         }
         slots.deinitialize(count: 3)
         slots.deallocate()
+        viewSlots.deinitialize(count: 3)
+        viewSlots.deallocate()
         writeLock.deinitialize(count: 1)
         writeLock.deallocate()
     }
@@ -728,6 +785,7 @@ public final class WavetableOscillator {
         let newRef = Unmanaged.passRetained(compiled)
         let oldRef = slots[writeBank]
         slots[writeBank] = newRef
+        viewSlots[writeBank] = UnsafePointer(compiled.flatView)
         let previousShared = sharedBank.exchange(writeBank | Self.hasNewDataFlag, ordering: .acquiringAndReleasing)
         writeBank = previousShared & 0x03
         os_unfair_lock_unlock(writeLock)
@@ -937,17 +995,60 @@ public final class WavetableOscillator {
     @inline(__always)
     public func generateSample(phase: Double, phaseIncrement: Double, sampleRate: Double = 44100.0) -> Float {
         pullNewWavetableRT()
-        guard let unmanaged = slots[readBank] else {
+        // SYNT_18 R15-2: POD view only (no class, no Swift array → no retain/release per sample).
+        guard let view = viewSlots[readBank] else {
             return 0.0
         }
-        let compiled = unmanaged.takeUnretainedValue()
-        let maps = compiled.mipMaps
-        guard !maps.isEmpty else { return 0.0 }
+        guard view.pointee.octaves > 0 else { return 0.0 }
 
         let frequency = phaseIncrement * sampleRate / (2.0 * Double.pi)
         // One mip, the table built for this octave range. Crossfading two
         // mips doubled Hermite work per voice and still used the hotter
         // (under-limited) table — 4 notes of that was the crunch.
+        let oct = max(0, min(numOctaves - 1, Self.mipOctave(forFrequency: frequency)))
+        return sampleMorphedFlat(view, mipOctave: oct, phase: phase)
+    }
+
+    /// SYNT_18 R15-2: `Int(log2(max(20, f) / 20))` without `log2`: for x ≥ 1 the binary exponent
+    /// is floor(log2 x). (Non-finite x keeps the old clamp behaviour via the caller's min/max.)
+    @inline(__always)
+    public static func mipOctave(forFrequency frequency: Double) -> Int {
+        let x = max(20.0, frequency) / 20.0
+        guard x.isFinite else { return Int.max }
+        // libm log2 rounds up to the next integer when the significand is within a few ulps of 2;
+        // that edge (practically never hit) keeps the exact old result via log2 itself.
+        if x.significand >= 1.999_999_999 { return Int(log2(x)) }
+        return Int(x.exponent)
+    }
+
+    @inline(__always)
+    private func sampleMorphedFlat(_ viewPtr: UnsafePointer<FlatMipView>, mipOctave: Int, phase: Double) -> Float {
+        let view = viewPtr.pointee
+        guard mipOctave >= 0, mipOctave < view.octaves else { return 0 }
+        let frameCount = view.frames
+        guard frameCount > 0 else { return 0 }
+
+        let framePos = framePosition * Float(max(0, frameCount - 1))
+        let frameIndex1 = max(0, min(frameCount - 1, Int(framePos)))
+        let frameIndex2 = min(frameIndex1 + 1, frameCount - 1)
+        let frameFrac = framePos - Float(frameIndex1)
+
+        let n = view.samplesPerFrame
+        let sample1 = sampleFromRaw(view.frame(octave: mipOctave, index: frameIndex1), count: n, phase: phase)
+        if frameIndex1 == frameIndex2 || frameFrac < 0.0001 {
+            return sample1
+        }
+        let sample2 = sampleFromRaw(view.frame(octave: mipOctave, index: frameIndex2), count: n, phase: phase)
+        return sample1 + (sample2 - sample1) * frameFrac
+    }
+
+    /// SYNT_18 R15-2 test hook: the pre-SYNT_18 array path (class + nested Swift arrays + log2),
+    /// kept only to prove the flat path is bit-identical.
+    public func generateSampleArrayPathForTesting(phase: Double, phaseIncrement: Double, sampleRate: Double = 44100.0) -> Float {
+        guard let compiled = activeCompiled else { return 0 }
+        let maps = compiled.mipMaps
+        guard !maps.isEmpty else { return 0.0 }
+        let frequency = phaseIncrement * sampleRate / (2.0 * Double.pi)
         let exactOctave = log2(max(20.0, frequency) / 20.0)
         let oct = max(0, min(numOctaves - 1, Int(exactOctave)))
         return sampleMorphed(compiled: compiled, mipOctave: oct, phase: phase)
@@ -977,7 +1078,14 @@ public final class WavetableOscillator {
 
     @inline(__always)
     private func sampleFromTable(_ table: [Float], phase: Double) -> Float {
-        let tableSize = table.count
+        table.withUnsafeBufferPointer { b in
+            guard let a = b.baseAddress else { return 0.0 }
+            return sampleFromRaw(a, count: b.count, phase: phase)
+        }
+    }
+
+    @inline(__always)
+    private func sampleFromRaw(_ table: UnsafePointer<Float>, count tableSize: Int, phase: Double) -> Float {
         guard tableSize > 0 else { return 0.0 }
 
         var normalizedPhase = phase * (1.0 / (2.0 * Double.pi))
