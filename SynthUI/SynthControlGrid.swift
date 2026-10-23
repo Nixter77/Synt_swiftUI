@@ -54,7 +54,9 @@ struct SynthControlGrid: View {
                 FilterView(preset: preset)
             }
             panel("unison") {
-                UnisonView(preset: preset, controllerMasterBendRange: audioEngine?.controllerMasterPitchBendRange)
+                UnisonView(preset: preset, controllerMasterBendRange: audioEngine?.controllerMasterPitchBendRange,
+                           controllerOverrideSummary: audioEngine?.controllerMPEOverrideSummary,
+                           onResetControllerOverrides: audioEngine.map { e in { e.resetControllerMPEOverrides() } })
             }
             panel("lfo") {
                 LFOView(preset: preset)

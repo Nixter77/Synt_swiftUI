@@ -516,7 +516,15 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var mpeCtl = MPEControllerOverride()
     /// SYNT_17 R14-1: main-thread mirror of the controller overrides (runtime only, never saved).
     /// UI reads it to show controller values next to the user's settings.
-    public var controllerMPEMain = MPEControllerOverride()
+    public var controllerMPEMain = MPEControllerOverride() {
+        didSet {
+            // SYNT_18 R15-8: UI line for the controller override (nil = none).
+            let s = controllerMPEMain.overrideSummary
+            if s != controllerMPEOverrideSummary { controllerMPEOverrideSummary = s }
+        }
+    }
+    /// SYNT_18 R15-8: published summary of the controller MPE override (runtime only).
+    @Published public var controllerMPEOverrideSummary: String? = nil
     /// SYNT_18 R15-5: render-owned LFO gate (written only by applyPresetDSP / applyAddressedParameterRT).
     public var rtOsc1IsWavetable = false
     public var rtOsc2IsWavetable = false

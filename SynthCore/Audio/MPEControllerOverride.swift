@@ -69,6 +69,17 @@ public struct MPEControllerOverride: Sendable {
 }
 
 public extension AudioEngine {
+    /// SYNT_18 R15-8: "Reset to my settings". Main mirror now, render via the command queue.
+    func resetControllerMPEOverrides() {
+        controllerMPEMain.clearOverrides()
+        mpeEnabled = controllerMPEMain.baseEnabled
+        mpeZone = controllerMPEMain.baseZone
+        mpeMemberChannelCount = controllerMPEMain.baseMemberCount
+        mpePitchBendRange = controllerMPEMain.baseMemberRange
+        controllerMasterPitchBendRange = nil
+        _ = commandQueue.push(.clearMPEControllerOverrides)
+    }
+
     // SYNT_18 R15-3: when a host value drops a controller override on render, tell main
     // through the existing lock-free mailbox (main used to keep showing the stale controller value).
     @inline(__always) func adoptHostMPEEnabled(_ v: Bool) {
@@ -100,6 +111,20 @@ public extension AudioEngine {
 
 public extension MPEControllerOverride {
     /// SYNT_17 R14-8: UI label for the controller's master bend range (runtime only).
+    /// SYNT_18 R15-8: one-line UI summary of the controller values; nil when there is no override.
+    var overrideSummary: String? {
+        guard hasOverride else { return nil }
+        func st(_ r: Float) -> String { r == r.rounded() ? String(Int(r)) : String(format: "%.2f", r) }
+        var parts: [String] = []
+        if let e = enabled, !e { parts.append("MPE off") }
+        if let z = zone { parts.append(z == .lower ? "Lower zone" : "Upper zone") }
+        if let c = memberCount { parts.append("\(c) members") }
+        if let r = memberRange { parts.append("±\(st(r)) st") }
+        if let m = masterRange { parts.append("master ±\(st(m)) st") }
+        if parts.isEmpty, enabled == true { parts.append("MPE on") }
+        return "Controller: " + parts.joined(separator: ", ")
+    }
+
     static func masterBendLabel(_ range: Float?) -> String? {
         guard let r = range else { return nil }
         let txt = r == r.rounded() ? String(Int(r)) : String(format: "%.2f", r)

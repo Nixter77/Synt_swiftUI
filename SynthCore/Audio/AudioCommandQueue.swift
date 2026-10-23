@@ -35,6 +35,8 @@ public enum AudioCommand: Equatable {
     /// down, voices stay pedal-held until it lifts. Unlike `clearAll` it keeps
     /// tails, filters, bend and LFO.
     case allNotesOff
+    /// SYNT_18 R15-8: drop every controller MPE override on render (back to the user's settings).
+    case clearMPEControllerOverrides
     /// MIDI Control Change 0…127 (controller, value 0…127)
     case controlChange(cc: UInt8, value: UInt8)
     /// Aftertouch (Channel Pressure 0…1)
@@ -68,7 +70,7 @@ public enum AudioCommand: Equatable {
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
              .midiClock, .setAddressedParameter, .setFXOrder,
-             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre, .mpeControlChange:
+             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre, .mpeControlChange, .clearMPEControllerOverrides:
             return false
         }
     }
@@ -182,7 +184,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
              .midiClock, .setAddressedParameter, .setFXOrder,
-             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre, .mpeControlChange:
+             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre, .mpeControlChange, .clearMPEControllerOverrides:
             return false
         }
     }

@@ -1561,6 +1561,8 @@ public extension AudioEngine {
                 resetPatchStateRT()
             case .allNotesOff:
                 releaseAllHeldNotesRT()
+            case .clearMPEControllerOverrides:
+                clearMPEControllerOverridesRT()
             case .keyDown(let midiNote, let velocity):
                 if cachedArpMode != .off {
                     handleCommand(.arpKeyDown(midiNote: midiNote))
@@ -2003,7 +2005,11 @@ public extension AudioEngine {
             switch cc {
             case 100, 101:
                 handleRPNSelectRT(ch: ch, cc: cc, value: value)
-                applyPlainCCRT(cc: cc, value: value)
+                // SYNT_18 R15-9: the MCM selection (CC101 = 0, CC100 = 6) is consumed as RPN only,
+                // so a learned CC 100/101 does not also move a parameter during MCM. Any other
+                // value stays a plain CC (CC learn / device NRPN).
+                let isMCMSelect = (cc == 101 && value == 0) || (cc == 100 && value == 6 && rpnStates[ch].rpnMSB == 0)
+                if !isMCMSelect { applyPlainCCRT(cc: cc, value: value) }
             case 6 where rpnStates[ch].rpnMSB == 0 && rpnStates[ch].rpnLSB == 6:
                 rpnStates[ch].dataMSB = value
                 handleRPN(channel: channel, rpn: 6, value: value)
@@ -2121,6 +2127,18 @@ public extension AudioEngine {
         default:
             break
         }
+    }
+
+    /// SYNT_18 R15-8: render side of "Reset to my settings".
+    func clearMPEControllerOverridesRT() {
+        mpeCtl.clearOverrides()
+        cachedMpeEnabled = mpeCtl.baseEnabled
+        cachedMpeZone = mpeCtl.baseZone
+        cachedMpeMemberChannelCount = mpeCtl.baseMemberCount
+        cachedMpePitchBendRange = mpeCtl.baseMemberRange
+        cachedPitchBendRange = mpeCtl.baseMasterRange
+        recomputeMPEBendMultipliersRT()
+        publishMPEConfigRT(masterRangeChanged: true)
     }
 
     /// Render thread. Per event (RPN), not per sample.

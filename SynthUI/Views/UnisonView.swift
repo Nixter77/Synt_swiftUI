@@ -12,6 +12,9 @@ struct UnisonView: View {
     @State private var macroBank: Int = 0
     /// SYNT_17 R14-8: controller's master (ch1/ch16) bend range, runtime only. nil = none received.
     var controllerMasterBendRange: Float? = nil
+    /// SYNT_18 R15-8: controller override summary + reset (standalone; the AU view has no engine).
+    var controllerOverrideSummary: String? = nil
+    var onResetControllerOverrides: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 4) {
@@ -128,6 +131,12 @@ struct UnisonView: View {
                     }
                     if let label = MPEControllerOverride.masterBendLabel(controllerMasterBendRange) {
                         Text(label)
+                    }
+                    if let summary = controllerOverrideSummary {
+                        Text(summary)
+                        if let reset = onResetControllerOverrides {
+                            Button("Reset to My Settings") { reset() }
+                        }
                     }
                     Divider()
                     Menu("MPE Presets") {
