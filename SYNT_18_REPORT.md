@@ -12,7 +12,7 @@
 Golden hash 0xd1b3635203a4799e unchanged (golden test green at every stage).
 
 ## Test counts (final, Stage 4)
-717 tests / 822 runs: 712 tests (817 runs) passed, 0 failed, 4 skipped (perf, SYNT_RUN_PERF-gated), 1 expected failure.
+717 tests total: 712 passed (817 runs passed), 0 failed, 4 skipped (perf, SYNT_RUN_PERF-gated).
 UI tests (Synt_swiftUIUITests) were **excluded** (`-skip-testing`) in all runs — not run.
 
 ## Per item
