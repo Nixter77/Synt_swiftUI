@@ -146,6 +146,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case transientOutput = 161
     case transientMix = 162
     case mpeEnabled = 163
+    case mpePitchBendRange = 164
+    case mpeZone = 165
+    case mpeMemberChannelCount = 166
 
     public var identifier: String {
         switch self {
@@ -272,6 +275,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .transientOutput: return "transientOutput"
         case .transientMix: return "transientMix"
         case .mpeEnabled: return "mpeEnabled"
+        case .mpePitchBendRange: return "mpePitchBendRange"
+        case .mpeZone: return "mpeZone"
+        case .mpeMemberChannelCount: return "mpeMemberChannelCount"
         }
     }
 
@@ -400,6 +406,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .transientOutput: return "Transient Output"
         case .transientMix: return "Transient Mix"
         case .mpeEnabled: return "MPE Enabled"
+        case .mpePitchBendRange: return "MPE Bend Range"
+        case .mpeZone: return "MPE Zone"
+        case .mpeMemberChannelCount: return "MPE Member Channels"
         }
     }
 
@@ -465,6 +474,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryDrumSlow: return 2.5
         case .rotaryDrumFast: return 10
         case .rotaryAccel: return 20
+        case .mpePitchBendRange: return 96
+        case .mpeZone: return 1
+        case .mpeMemberChannelCount: return 15
         default: return 1
         }
     }

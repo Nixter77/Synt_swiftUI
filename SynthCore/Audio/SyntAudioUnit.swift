@@ -610,6 +610,9 @@ enum SyntParameterTree {
                 toggleKnob(.glideLegatoOnly),
                 indexedKnob(.monoPriority, monoPriorities),
                 toggleKnob(.mpeEnabled),
+                knob(.mpePitchBendRange, unit: .midiNoteNumber),
+                indexedKnob(.mpeZone, ["Lower", "Upper"]),
+                knob(.mpeMemberChannelCount, unit: .indexed),
             ]
         )
         let filter2 = AUParameterTree.createGroup(

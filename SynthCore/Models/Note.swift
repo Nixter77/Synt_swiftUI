@@ -93,6 +93,9 @@ public struct ActiveNote {
     public var mpePitchBendMultiplier: Double = 1.0
     public var mpePressure: Float = 0
     public var mpeTimbre: Float = 0
+    public var smoothedMpePitchBend: Float = 0
+    public var smoothedMpePressure: Float = 0
+    public var smoothedMpeTimbre: Float = 0
     public var partial: Int = 0
     public var partialCount: Int = 1
 

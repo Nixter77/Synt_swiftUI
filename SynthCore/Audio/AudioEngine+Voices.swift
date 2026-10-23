@@ -250,6 +250,9 @@ public extension AudioEngine {
                 voices[slot].mpePitchBendMultiplier = mpeChannelStates[ch].pitchBendMultiplier
                 voices[slot].mpePressure = mpeChannelStates[ch].pressure
                 voices[slot].mpeTimbre = mpeChannelStates[ch].timbre
+                voices[slot].smoothedMpePitchBend = mpeChannelStates[ch].pitchBend
+                voices[slot].smoothedMpePressure = mpeChannelStates[ch].pressure
+                voices[slot].smoothedMpeTimbre = mpeChannelStates[ch].timbre
             }
             resetVoiceToneBanks(at: slot)
 

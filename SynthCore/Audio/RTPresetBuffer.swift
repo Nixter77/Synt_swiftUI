@@ -184,6 +184,9 @@ public struct RTPresetSnapshot: Sendable {
     public var transientOutput: Float = 1.0
     public var transientMix: Float = 1.0
     public var mpeEnabled: Bool = false
+    public var mpePitchBendRange: Float = 48.0
+    public var mpeZone: MPEZone = .lower
+    public var mpeMemberChannelCount: Int = 15
 
     // Effects
     public var reverbMix: Float = 0.0
@@ -408,6 +411,9 @@ public struct RTPresetSnapshot: Sendable {
         transientOutput = max(0, min(2, preset.transientOutput))
         transientMix = max(0, min(1, preset.transientMix))
         mpeEnabled = preset.mpeEnabled
+        mpePitchBendRange = preset.mpePitchBendRange
+        mpeZone = preset.mpeZone
+        mpeMemberChannelCount = preset.mpeMemberChannelCount
 
         reverbMix = preset.reverbMix
         reverbRoomSize = preset.reverbRoomSize

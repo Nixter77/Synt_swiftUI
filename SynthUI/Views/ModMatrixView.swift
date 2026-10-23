@@ -207,6 +207,9 @@ struct ModMatrixView: View {
         case .mseg: polarity = "MSEG 1 is the multi-stage envelope."
         case .envelopeFollower: polarity = "Env Follower tracks audio amplitude."
         case .mseg2: polarity = "MSEG 2 is the multi-stage envelope."
+        case .mpePitchBend: polarity = "MPE Pitch Bend is per-voice bipolar."
+        case .mpePressure: polarity = "MPE Pressure is per-voice 0…1."
+        case .mpeTimbre: polarity = "MPE Timbre (CC74) is per-voice 0…1."
         }
         let action: String
         switch row.destination {

@@ -343,6 +343,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
 
     /// MPE (MIDI Polyphonic Expression) input mode. Off by default, bit-exact when off.
     public var mpeEnabled: Bool = false
+    public var mpePitchBendRange: Float = 48.0
+    public var mpeZone: MPEZone = .lower
+    public var mpeMemberChannelCount: Int = 15
 
     /// Frequency shifter in FX (Bode single-sideband frequency shifter). Off by default.
     public var frequencyShifterEnabled: Bool = false
@@ -429,7 +432,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case randomSeed
         case transientEnabled, transientAttack, transientSustain, transientOutput, transientMix
         case userWavetableName, userWavetableData
-        case mpeEnabled
+        case mpeEnabled, mpePitchBendRange, mpeZone, mpeMemberChannelCount
     }
 
     public init(
@@ -570,7 +573,10 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         glideMode: GlideMode = .time,
         glideLegatoOnly: Bool = false,
         monoPriority: MonoPriority = .last,
-        mpeEnabled: Bool = false
+        mpeEnabled: Bool = false,
+        mpePitchBendRange: Float = 48.0,
+        mpeZone: MPEZone = .lower,
+        mpeMemberChannelCount: Int = 15
     ) {
         self.id = id
         self.name = name
@@ -710,6 +716,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.glideLegatoOnly = glideLegatoOnly
         self.monoPriority = monoPriority
         self.mpeEnabled = mpeEnabled
+        self.mpePitchBendRange = mpePitchBendRange
+        self.mpeZone = mpeZone
+        self.mpeMemberChannelCount = mpeMemberChannelCount
     }
 
     public init(from decoder: Decoder) throws {
@@ -928,6 +937,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         transientOutput = try c.decodeIfPresent(Float.self, forKey: .transientOutput) ?? 1.0
         transientMix = try c.decodeIfPresent(Float.self, forKey: .transientMix) ?? 1.0
         mpeEnabled = try c.decodeIfPresent(Bool.self, forKey: .mpeEnabled) ?? false
+        mpePitchBendRange = try c.decodeIfPresent(Float.self, forKey: .mpePitchBendRange) ?? 48.0
+        mpeZone = try c.decodeIfPresent(MPEZone.self, forKey: .mpeZone) ?? .lower
+        mpeMemberChannelCount = try c.decodeIfPresent(Int.self, forKey: .mpeMemberChannelCount) ?? 15
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -1126,6 +1138,15 @@ public enum ModSource: String, CaseIterable, Codable {
     case macro6 = "Macro 6"
     case macro7 = "Macro 7"
     case macro8 = "Macro 8"
+    /// Per-voice MPE modulation sources
+    case mpePitchBend = "MPE Pitch Bend"
+    case mpePressure = "MPE Pressure"
+    case mpeTimbre = "MPE Timbre"
+}
+
+public enum MPEZone: String, CaseIterable, Codable, Sendable {
+    case lower = "Lower"
+    case upper = "Upper"
 }
 
 public enum VelocityCurve: String, CaseIterable, Codable, Sendable {

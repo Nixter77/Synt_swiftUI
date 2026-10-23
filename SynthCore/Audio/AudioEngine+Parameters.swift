@@ -210,6 +210,17 @@ extension AudioEngine {
         case .transientOutput: cachedTransientOutput = v
         case .transientMix: cachedTransientMix = v
         case .mpeEnabled: cachedMpeEnabled = v >= 0.5
+        case .mpePitchBendRange:
+            cachedMpePitchBendRange = v
+            mpePitchBendRange = v
+        case .mpeZone:
+            let z: MPEZone = v >= 0.5 ? .upper : .lower
+            cachedMpeZone = z
+            mpeZone = z
+        case .mpeMemberChannelCount:
+            let count = Int(v.rounded())
+            cachedMpeMemberChannelCount = count
+            mpeMemberChannelCount = count
         }
     }
 
@@ -349,6 +360,9 @@ extension AudioEngine {
         case .transientOutput: return cachedTransientOutput
         case .transientMix: return cachedTransientMix
         case .mpeEnabled: return cachedMpeEnabled ? 1 : 0
+        case .mpePitchBendRange: return cachedMpePitchBendRange
+        case .mpeZone: return cachedMpeZone == .upper ? 1 : 0
+        case .mpeMemberChannelCount: return Float(cachedMpeMemberChannelCount)
         }
     }
 
@@ -511,6 +525,17 @@ extension AudioEngine {
             case .mpeEnabled:
                 preset.mpeEnabled = v >= 0.5
                 mpeEnabled = v >= 0.5
+            case .mpePitchBendRange:
+                preset.mpePitchBendRange = v
+                mpePitchBendRange = v
+            case .mpeZone:
+                let z: MPEZone = v >= 0.5 ? .upper : .lower
+                preset.mpeZone = z
+                mpeZone = z
+            case .mpeMemberChannelCount:
+                let count = Int(v.rounded())
+                preset.mpeMemberChannelCount = count
+                mpeMemberChannelCount = count
             }
         }
         if pushToRender { setParameter(id: id, value: v) }

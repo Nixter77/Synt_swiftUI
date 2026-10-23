@@ -59,6 +59,7 @@ public enum AudioCommand: Equatable {
     case mpePitchBend(channel: UInt8, value: Float)
     case mpePressure(channel: UInt8, value: Float)
     case mpeTimbre(channel: UInt8, value: Float)
+    case mpeControlChange(channel: UInt8, cc: UInt8, value: UInt8)
 
     public var isCritical: Bool {
         switch self {
@@ -67,7 +68,7 @@ public enum AudioCommand: Equatable {
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
              .midiClock, .setAddressedParameter, .setFXOrder,
-             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre:
+             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre, .mpeControlChange:
             return false
         }
     }
@@ -181,7 +182,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
              .midiClock, .setAddressedParameter, .setFXOrder,
-             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre:
+             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre, .mpeControlChange:
             return false
         }
     }

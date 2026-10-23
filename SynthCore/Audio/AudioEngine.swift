@@ -492,7 +492,18 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedMpeEnabled: Bool = false
     public var mpePitchBendRange: Float = 48.0
     public var cachedMpePitchBendRange: Float = 48.0
+    public var mpeZone: MPEZone = .lower
+    public var cachedMpeZone: MPEZone = .lower
+    public var mpeMemberChannelCount: Int = 15
+    public var cachedMpeMemberChannelCount: Int = 15
     public var mpeChannelStates: [MPEChannelState] = Array(repeating: MPEChannelState(), count: 16)
+
+    public struct RPNChannelState {
+        public var rpnMSB: UInt8? = nil
+        public var rpnLSB: UInt8? = nil
+        public init() {}
+    }
+    public var rpnStates: [RPNChannelState] = Array(repeating: RPNChannelState(), count: 16)
 
     // Level metering (audio-thread accumulators → AtomicMeteringState)
     public var currentLevel: Float = 0.0

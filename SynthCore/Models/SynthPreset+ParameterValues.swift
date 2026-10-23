@@ -134,6 +134,9 @@ extension SynthPreset {
         case .transientOutput: return transientOutput
         case .transientMix: return transientMix
         case .mpeEnabled: return mpeEnabled ? 1 : 0
+        case .mpePitchBendRange: return mpePitchBendRange
+        case .mpeZone: return mpeZone == .upper ? 1 : 0
+        case .mpeMemberChannelCount: return Float(mpeMemberChannelCount)
         }
     }
 
@@ -263,6 +266,9 @@ extension SynthPreset {
         case .transientOutput: transientOutput = value
         case .transientMix: transientMix = value
         case .mpeEnabled: mpeEnabled = value >= 0.5
+        case .mpePitchBendRange: mpePitchBendRange = value
+        case .mpeZone: mpeZone = value >= 0.5 ? .upper : .lower
+        case .mpeMemberChannelCount: mpeMemberChannelCount = Int(value.rounded())
         }
     }
 

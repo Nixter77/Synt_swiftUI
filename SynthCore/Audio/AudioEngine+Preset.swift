@@ -72,6 +72,9 @@ public extension AudioEngine {
         rtModMatrix.publish(preset.modMatrix)
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP)
         mpeEnabled = preset.mpeEnabled
+        mpePitchBendRange = preset.mpePitchBendRange
+        mpeZone = preset.mpeZone
+        mpeMemberChannelCount = preset.mpeMemberChannelCount
         rtPresetBuffer.publish(snap)
         if !isRenderingActive.load(ordering: .acquiring) {
             cachedFXOrder = snap.fxOrder
@@ -382,6 +385,9 @@ public extension AudioEngine {
         cachedTransientOutput = snap.transientOutput
         cachedTransientMix = snap.transientMix
         cachedMpeEnabled = snap.mpeEnabled
+        cachedMpePitchBendRange = snap.mpePitchBendRange
+        cachedMpeZone = snap.mpeZone
+        cachedMpeMemberChannelCount = snap.mpeMemberChannelCount
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
         cachedTranceEnabled = snap.tranceGateEnabled

@@ -255,6 +255,9 @@ extension AudioEngine {
                 let norm = Float(value) / 127.0
                 return .mpeTimbre(channel: channel, value: norm)
             }
+            if controller == 100 || controller == 101 || controller == 6 || controller == 38 {
+                return .mpeControlChange(channel: channel, cc: controller, value: value)
+            }
             return .controlChange(cc: controller, value: value)
         case .clock:
             return .midiClock

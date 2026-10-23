@@ -138,7 +138,10 @@ public extension AudioEngine {
         sampleAndHold: Float = 0,
         smoothRandom: Float = 0,
         mseg: Float = 0,
-        mseg2: Float = 0
+        mseg2: Float = 0,
+        mpePitchBend: Float = 0,
+        mpePressure: Float = 0,
+        mpeTimbre: Float = 0
     ) -> Float {
         switch source {
         case .lfo1: return lfo
@@ -165,6 +168,9 @@ public extension AudioEngine {
         case .mseg: return mseg
         case .mseg2: return mseg2
         case .envelopeFollower: return envelopeFollowerValue
+        case .mpePitchBend: return mpePitchBend
+        case .mpePressure: return mpePressure
+        case .mpeTimbre: return mpeTimbre
         }
     }
 
@@ -342,6 +348,9 @@ public extension AudioEngine {
         var globalEnv: Float = 0
         var globalVel: Float = 0
         var globalKeyTrack: Float = 0
+        var globalMpeBend: Float = 0
+        var globalMpePres: Float = 0
+        var globalMpeTimb: Float = 0
         var rateMod: Float = 0
         var depthMod: Float = 0
         var chorusMixMod: Float = 0
@@ -356,6 +365,9 @@ public extension AudioEngine {
                     globalEnv = env
                     globalVel = voices[i].velocity
                     globalKeyTrack = Float(voices[i].midiNote - 60) / 12.0
+                    globalMpeBend = voices[i].smoothedMpePitchBend
+                    globalMpePres = voices[i].smoothedMpePressure
+                    globalMpeTimb = voices[i].smoothedMpeTimbre
                 }
             }
             for m in 0..<modCount {
@@ -373,7 +385,10 @@ public extension AudioEngine {
                     aftertouch: currentAftertouch,
                     smoothRandom: smoothRandomValue,
                     mseg: msegValue,
-                    mseg2: mseg2Value
+                    mseg2: mseg2Value,
+                    mpePitchBend: globalMpeBend,
+                    mpePressure: globalMpePres,
+                    mpeTimbre: globalMpeTimb
                 )
                 let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
@@ -462,7 +477,10 @@ public extension AudioEngine {
                     aftertouch: currentAftertouch,
                     smoothRandom: smoothRandomValue,
                     mseg: msegValue,
-                    mseg2: mseg2Value
+                    mseg2: mseg2Value,
+                    mpePitchBend: globalMpeBend,
+                    mpePressure: globalMpePres,
+                    mpeTimbre: globalMpeTimb
                 )
                 let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
@@ -650,6 +668,10 @@ public extension AudioEngine {
             var fineMod: Float = 0
             var fmMod: Float = 0
 
+            v.smoothedMpePitchBend += (v.mpePitchBend - v.smoothedMpePitchBend) * 0.05
+            v.smoothedMpePressure += (v.mpePressure - v.smoothedMpePressure) * 0.05
+            v.smoothedMpeTimbre += (v.mpeTimbre - v.smoothedMpeTimbre) * 0.05
+
             let keyTrackVal = Float(v.midiNote - 60) / 12.0
             if modCount > 0 {
                 for m in 0..<modCount {
@@ -670,7 +692,10 @@ public extension AudioEngine {
                         sampleAndHold: lfo.lastRandomValue,
                         smoothRandom: smoothRandomValue,
                         mseg: msegValue,
-                        mseg2: mseg2Value
+                        mseg2: mseg2Value,
+                        mpePitchBend: v.smoothedMpePitchBend,
+                        mpePressure: v.smoothedMpePressure,
+                        mpeTimbre: v.smoothedMpeTimbre
                     )
                     let modVal = modulatedAmount(entry, slot: m, source: sourceVal)
                     switch entry.destination {
@@ -1606,6 +1631,8 @@ public extension AudioEngine {
                         applySingleParameterRT(target: target, rawValue: value)
                     }
                 }
+            case .mpeControlChange(let channel, let cc, let value):
+                handleRPNCC(channel: channel, cc: cc, value: value)
             case .midiClock:
                 receiveMIDIClockRT()
             case .midiStart:
@@ -1966,6 +1993,76 @@ public extension AudioEngine {
             cachedMacro7 = (norm - 0.5) * 2.0
         case .macro8:
             cachedMacro8 = (norm - 0.5) * 2.0
+        }
+    }
+
+    // MARK: - MPE RPN Handling (RPN 0 and RPN 6)
+
+    public func handleRPNCC(channel: UInt8, cc: UInt8, value: UInt8) {
+        let ch = Int(channel & 0x0F)
+        switch cc {
+        case 101:
+            if value == 127 {
+                rpnStates[ch].rpnMSB = nil
+            } else {
+                rpnStates[ch].rpnMSB = value
+            }
+        case 100:
+            if value == 127 {
+                rpnStates[ch].rpnLSB = nil
+            } else {
+                rpnStates[ch].rpnLSB = value
+            }
+        case 6:
+            if let msb = rpnStates[ch].rpnMSB, let lsb = rpnStates[ch].rpnLSB {
+                let rpn = (UInt16(msb) << 7) | UInt16(lsb)
+                handleRPN(channel: channel, rpn: rpn, value: value)
+            }
+        default:
+            break
+        }
+    }
+
+    public func handleRPN(channel: UInt8, rpn: UInt16, value: UInt8) {
+        switch rpn {
+        case 0:
+            // RPN 0: Pitch Bend Sensitivity / Range (in semitones)
+            let range = Float(value)
+            mpePitchBendRange = range
+            cachedMpePitchBendRange = range
+            preset.mpePitchBendRange = range
+            let rangeD = Double(range)
+            for i in 0..<AudioEngine.maxVoices {
+                if voices[i].isActive {
+                    voices[i].mpePitchBendMultiplier = exp2(Double(voices[i].mpePitchBend) * rangeD / 12.0)
+                }
+            }
+        case 6:
+            // RPN 6: MPE Configuration Message (MCM)
+            let memberCount = Int(value)
+            mpeMemberChannelCount = memberCount
+            cachedMpeMemberChannelCount = memberCount
+            preset.mpeMemberChannelCount = memberCount
+            if channel == 0 {
+                mpeZone = .lower
+                cachedMpeZone = .lower
+                preset.mpeZone = .lower
+            } else if channel == 15 {
+                mpeZone = .upper
+                cachedMpeZone = .upper
+                preset.mpeZone = .upper
+            }
+            if memberCount > 0 {
+                mpeEnabled = true
+                cachedMpeEnabled = true
+                preset.mpeEnabled = true
+            } else {
+                mpeEnabled = false
+                cachedMpeEnabled = false
+                preset.mpeEnabled = false
+            }
+        default:
+            break
         }
     }
 }
