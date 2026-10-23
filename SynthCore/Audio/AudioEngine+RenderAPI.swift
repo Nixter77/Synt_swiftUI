@@ -255,7 +255,9 @@ extension AudioEngine {
                 let norm = Float(value) / 127.0
                 return .mpeTimbre(channel: channel, value: norm)
             }
-            if controller == 100 || controller == 101 || controller == 6 || controller == 38 {
+            // R12-2: RPN CCs belong to the MPE path only while MPE is on; otherwise they stay
+            // plain CCs (MIDI-learn / CC maps unchanged, a DAW's RPN 0 cannot touch MPE state).
+            if mpeEnabled && (controller == 100 || controller == 101 || controller == 6 || controller == 38) {
                 return .mpeControlChange(channel: channel, cc: controller, value: value)
             }
             return .controlChange(cc: controller, value: value)

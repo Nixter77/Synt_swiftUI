@@ -84,17 +84,22 @@ final class Stage14Stage3Tests: XCTestCase {
         // CC 101 = 0 (RPN MSB)
         // CC 100 = 0 (RPN LSB)
         // CC 6 = 24 (Data Entry MSB = 24 semitones)
-        engine.handleCommand(.mpeControlChange(channel: 0, cc: 101, value: 0))
-        engine.handleCommand(.mpeControlChange(channel: 0, cc: 100, value: 0))
-        engine.handleCommand(.mpeControlChange(channel: 0, cc: 6, value: 24))
+        // SYNT_15 R12-4: RPN 0 on a MEMBER channel (ch2 = 1) sets the per-note range;
+        // on the master (ch1 = 0) it sets the master/global range (checked below).
+        engine.handleCommand(.mpeControlChange(channel: 1, cc: 101, value: 0))
+        engine.handleCommand(.mpeControlChange(channel: 1, cc: 100, value: 0))
+        engine.handleCommand(.mpeControlChange(channel: 1, cc: 6, value: 24))
 
         XCTAssertEqual(engine.cachedMpePitchBendRange, 24.0, "RPN 0 must update MPE bend range to 24 semitones")
         engine.pollMPEConfigMailbox() // SYNT_15 R12-1: preset mirrored on main, not written from render
         XCTAssertEqual(engine.preset.mpePitchBendRange, 24.0)
 
         // Also test direct handleRPN call
-        engine.handleRPN(channel: 0, rpn: 0, value: 12)
+        engine.handleRPN(channel: 1, rpn: 0, value: 12)
         XCTAssertEqual(engine.cachedMpePitchBendRange, 12.0)
+        engine.handleRPN(channel: 0, rpn: 0, value: 3)
+        XCTAssertEqual(engine.cachedMpePitchBendRange, 12.0, "master-channel RPN 0 must not change the member range")
+        XCTAssertEqual(engine.cachedPitchBendRange, 3.0)
     }
 
     func testRPN6SetsZoneAndMemberChannelCount() {

@@ -2028,8 +2028,15 @@ public extension AudioEngine {
     public func handleRPN(channel: UInt8, rpn: UInt16, value: UInt8) {
         switch rpn {
         case 0:
-            // RPN 0: Pitch Bend Sensitivity (semitones)
+            // RPN 0: Pitch Bend Sensitivity (semitones).
+            // R12-4: on the zone's master channel it is the master (global) bend range;
+            // on a member channel it is the per-note range.
             let range = Float(min(value, 96))
+            if AudioEngine.isMPEMasterChannel(channel, zone: cachedMpeZone) {
+                cachedPitchBendRange = range
+                publishMPEConfigRT(masterRangeChanged: true)
+                return
+            }
             cachedMpePitchBendRange = range
             let rangeD = Double(range)
             for c in 0..<16 {
@@ -2058,18 +2065,34 @@ public extension AudioEngine {
     }
 
     @inline(__always)
-    func publishMPEConfigRT() {
-        let packed = AudioEngine.packMPEConfig(
+    public static func isMPEMasterChannel(_ channel: UInt8, zone: MPEZone) -> Bool {
+        zone == .lower ? channel == 0 : channel == 15
+    }
+
+    @inline(__always)
+    func publishMPEConfigRT(masterRangeChanged: Bool = false) {
+        var packed = AudioEngine.packMPEConfig(
             enabled: cachedMpeEnabled,
             zone: cachedMpeZone,
             memberCount: cachedMpeMemberChannelCount,
             memberRange: cachedMpePitchBendRange,
-            masterRange: cachedMpeMasterPitchBendRange
+            masterRange: cachedPitchBendRange
         )
-        mpeConfigMailbox.store(packed, ordering: .releasing)
+        if masterRangeChanged { packed |= AudioEngine.mpeMailboxMasterFlag }
+        // Keep a not-yet-polled master-range change sticky (lock-free CAS, bounded by main's exchange).
+        var current = mpeConfigMailbox.load(ordering: .acquiring)
+        while true {
+            var next = packed
+            if current & AudioEngine.mpeMailboxFlag != 0 { next |= current & AudioEngine.mpeMailboxMasterFlag }
+            let (exchanged, original) = mpeConfigMailbox.compareExchange(
+                expected: current, desired: next, ordering: .acquiringAndReleasing)
+            if exchanged { break }
+            current = original
+        }
     }
 
     static let mpeMailboxFlag: UInt64 = 1 << 63
+    static let mpeMailboxMasterFlag: UInt64 = 1 << 62
 
     static func packMPEConfig(enabled: Bool, zone: MPEZone, memberCount: Int, memberRange: Float, masterRange: Float) -> UInt64 {
         var v: UInt64 = mpeMailboxFlag
@@ -2095,12 +2118,13 @@ public extension AudioEngine {
         mpeZone = zone
         mpeMemberChannelCount = count
         mpePitchBendRange = memberRange
-        mpeMasterPitchBendRange = masterRange
+        let masterChanged = v & AudioEngine.mpeMailboxMasterFlag != 0
         updatePresetDisplayOnly {
             $0.mpeEnabled = enabled
             $0.mpeZone = zone
             $0.mpeMemberChannelCount = count
             $0.mpePitchBendRange = memberRange
+            if masterChanged { $0.pitchBendRange = masterRange }
         }
     }
 }
