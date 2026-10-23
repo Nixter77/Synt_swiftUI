@@ -37,7 +37,7 @@ public final class SmoothRandom {
 
     public func reset(seed: UInt32? = nil) {
         if let s = seed {
-            phase = Double(s & 255)
+            phase = Double(s) / Double(UInt32.max) * 256.0
         } else {
             phase = 0
         }

@@ -363,6 +363,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedSendPostInsert: Bool = false
     public var lastSendA: Float = 0
     public var lastSendB: Float = 0
+    public var sendFadeA: Float = 0
+    public var sendFadeB: Float = 0
     public var cachedRotaryEnabled: Bool = false
     public var cachedRotaryFast: Bool = false
     public var cachedRotaryHornSlow: Float = 0.7

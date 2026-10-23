@@ -82,6 +82,47 @@ public final class DSPReverb {
             apIdxL[i] = 0
             apIdxR[i] = 0
         }
+        isClearing = false
+    }
+
+    public private(set) var isClearing: Bool = false
+    private var clearCursor: Int = 0
+    public var totalCount: Int { memoryCount }
+
+    public func startIncrementalClear() {
+        clearCursor = 0
+        isClearing = (memory != nil && memoryCount > 0)
+    }
+
+    public func cancelIncrementalClear() {
+        isClearing = false
+        clearCursor = 0
+    }
+
+    @inline(__always)
+    public func clearIncremental(count: Int = 2048) {
+        guard isClearing, let memory, memoryCount > 0, clearCursor < memoryCount else {
+            isClearing = false
+            return
+        }
+        let end = min(memoryCount, clearCursor + count)
+        for i in clearCursor..<end {
+            memory[i] = 0
+        }
+        clearCursor = end
+        if clearCursor >= memoryCount {
+            isClearing = false
+            for i in 0..<8 {
+                combIdxL[i] = 0
+                combIdxR[i] = 0
+                combFltL[i] = 0
+                combFltR[i] = 0
+            }
+            for i in 0..<4 {
+                apIdxL[i] = 0
+                apIdxR[i] = 0
+            }
+        }
     }
 
     /// Wet stereo pair. The caller applies Mix. Returns the input when storage is missing.

@@ -20,6 +20,7 @@ public enum WavetableError: LocalizedError {
     case insufficientSamples(found: Int, required: Int)
     case bufferCreationFailed
     case unsupportedAudioFormat
+    case fileTooLarge
 
     public var errorDescription: String? {
         switch self {
@@ -29,6 +30,8 @@ public enum WavetableError: LocalizedError {
             return "Failed to allocate audio buffer."
         case .unsupportedAudioFormat:
             return "Unsupported audio format. Float32 or PCM WAV is required."
+        case .fileTooLarge:
+            return "Audio file exceeds maximum allowed length (> 2^32 frames)."
         }
     }
 }
@@ -40,6 +43,13 @@ public struct Wavetable {
     public let frames: [[Float]]  // [frameIndex][sampleIndex]
     public let frameCount: Int
     public let samplesPerFrame: Int
+
+    /// Maximum frames stored in a wavetable preset.
+    public static let maxFramesLimit: Int = 64
+    /// Maximum samples per single wavetable frame.
+    public static let maxSamplesPerFrameLimit: Int = 2048
+    /// Maximum uncompressed serialized size in bytes (64 frames * 2048 samples * 4 bytes + 8 bytes header = 524,296 bytes, ~512 KB).
+    public static let maxSerializedBytes: Int = 512 * 1024 + 8
 
     public init(name: String, frames: [[Float]]) {
         self.name = name
@@ -64,15 +74,31 @@ public struct Wavetable {
         return data
     }
 
+    /// Compresses serialized wavetable frames using zlib deflate for compact preset storage.
+    public func compressedSerializedData() -> Data {
+        let raw = serializedData()
+        if let compressed = try? (raw as NSData).compressed(using: .zlib) as Data {
+            return compressed
+        }
+        return raw
+    }
+
     public static func deserialize(from data: Data, name: String = "User") -> Wavetable? {
-        guard data.count >= 8 else { return nil }
+        guard !data.isEmpty else { return nil }
+        let uncompressedData: Data
+        if let decompressed = try? (data as NSData).decompressed(using: .zlib) as Data {
+            uncompressedData = decompressed
+        } else {
+            uncompressedData = data
+        }
+        guard uncompressedData.count >= 8, uncompressedData.count <= maxSerializedBytes else { return nil }
         var fCount: Int32 = 0
         var sCount: Int32 = 0
-        _ = withUnsafeMutableBytes(of: &fCount) { data.copyBytes(to: $0, from: 0..<4) }
-        _ = withUnsafeMutableBytes(of: &sCount) { data.copyBytes(to: $0, from: 4..<8) }
-        guard fCount > 0, sCount > 0, fCount <= 256, sCount <= 4096 else { return nil }
+        _ = withUnsafeMutableBytes(of: &fCount) { uncompressedData.copyBytes(to: $0, from: 0..<4) }
+        _ = withUnsafeMutableBytes(of: &sCount) { uncompressedData.copyBytes(to: $0, from: 4..<8) }
+        guard fCount > 0, sCount > 0, fCount <= Int32(maxFramesLimit), sCount <= Int32(maxSamplesPerFrameLimit) else { return nil }
         let totalFloats = Int(fCount * sCount)
-        guard data.count >= 8 + totalFloats * MemoryLayout<Float>.size else { return nil }
+        guard uncompressedData.count >= 8 + totalFloats * MemoryLayout<Float>.size else { return nil }
 
         var frames: [[Float]] = []
         frames.reserveCapacity(Int(fCount))
@@ -81,7 +107,7 @@ public struct Wavetable {
             var frame = [Float](repeating: 0, count: Int(sCount))
             frame.withUnsafeMutableBufferPointer { ptr in
                 if let base = ptr.baseAddress {
-                    _ = data.copyBytes(to: UnsafeMutableBufferPointer(start: base, count: Int(sCount)), from: offset..<(offset + Int(sCount) * 4))
+                    _ = uncompressedData.copyBytes(to: UnsafeMutableBufferPointer(start: base, count: Int(sCount)), from: offset..<(offset + Int(sCount) * 4))
                 }
             }
             frames.append(frame)
@@ -248,15 +274,54 @@ public final class WavetableOscillator {
 
     // MARK: - Audio File Parsing & User Wavetables
 
+    /// Robust conditioning for imported frames: NaN/Inf rejection, seamless loop crossfade, DC removal, and peak normalization.
+    public static func cleanAndConditionFrame(_ raw: [Float], seamCrossfadeLength: Int = 32) -> [Float] {
+        guard !raw.isEmpty else { return raw }
+        var frame = [Float](repeating: 0, count: raw.count)
+
+        // 1. Clean / reject NaN and Inf
+        for i in 0..<raw.count {
+            let s = raw[i]
+            frame[i] = (s.isNaN || s.isInfinite) ? 0.0 : s
+        }
+
+        // 2. Loop seam smoothing: eliminate click at frame boundary (connect last sample smoothly to first)
+        let count = frame.count
+        let seamK = min(seamCrossfadeLength, count / 4)
+        if seamK > 1 {
+            let diff = frame[0] - frame[count - 1]
+            for i in 0..<seamK {
+                let idx = count - seamK + i
+                // Half-cosine ramp from 0 to 1 over the last seamK samples
+                let t = 0.5 * (1.0 - cos(Float.pi * Float(i + 1) / Float(seamK)))
+                frame[idx] += diff * t
+            }
+        }
+
+        // 3. DC removal (performed after seam smoothing so the final frame has exactly zero mean)
+        var mean: Float = 0
+        vDSP_meanv(frame, 1, &mean, vDSP_Length(frame.count))
+        var negMean = -mean
+        vDSP_vsadd(frame, 1, &negMean, &frame, 1, vDSP_Length(frame.count))
+
+        // 4. Peak normalization
+        return normalizePeak(frame)
+    }
+
     /// Parses a standard PCM / Float32 WAV or AIFF file (Serum format: 2048 samples per frame, up to maxFrames).
     public static func parseAudioFile(url: URL, samplesPerFrame: Int = 2048, maxFrames: Int = 64) throws -> Wavetable {
         let file = try AVAudioFile(forReading: url)
         let processingFormat = file.processingFormat
-        let length = AVAudioFrameCount(file.length)
-        guard length >= AVAudioFrameCount(samplesPerFrame) else {
+        let length = file.length
+
+        // Guard against negative or > 2^32 frames
+        guard length > 0, length <= Int64(UInt32.max) else {
+            throw WavetableError.fileTooLarge
+        }
+        guard length >= Int64(samplesPerFrame) else {
             throw WavetableError.insufficientSamples(found: Int(length), required: samplesPerFrame)
         }
-        let framesToRead = min(length, AVAudioFrameCount(samplesPerFrame * maxFrames))
+        let framesToRead = min(AVAudioFrameCount(length), AVAudioFrameCount(samplesPerFrame * maxFrames))
         guard let buffer = AVAudioPCMBuffer(pcmFormat: processingFormat, frameCapacity: framesToRead) else {
             throw WavetableError.bufferCreationFailed
         }
@@ -265,30 +330,40 @@ public final class WavetableOscillator {
             throw WavetableError.unsupportedAudioFormat
         }
         let channelCount = Int(processingFormat.channelCount)
+        guard channelCount > 0 else { throw WavetableError.unsupportedAudioFormat }
+
         let totalRead = Int(buffer.frameLength)
         let numFrames = min(maxFrames, totalRead / samplesPerFrame)
         guard numFrames > 0 else {
             throw WavetableError.insufficientSamples(found: totalRead, required: samplesPerFrame)
         }
 
+        let invChannels = 1.0 / Float(channelCount)
         var frames: [[Float]] = []
         frames.reserveCapacity(numFrames)
         for f in 0..<numFrames {
             let offset = f * samplesPerFrame
-            var frame = [Float](repeating: 0, count: samplesPerFrame)
-            if channelCount > 1 {
+            var rawFrame = [Float](repeating: 0, count: samplesPerFrame)
+            if channelCount == 1 {
                 let ch0 = channelData[0]
-                let ch1 = channelData[1]
                 for i in 0..<samplesPerFrame {
-                    frame[i] = (ch0[offset + i] + ch1[offset + i]) * 0.5
+                    let s = ch0[offset + i]
+                    rawFrame[i] = (s.isNaN || s.isInfinite) ? 0.0 : s
                 }
             } else {
-                let ch0 = channelData[0]
+                // Downmix all channels (handles stereo, quad, 5.1, >2 channels)
                 for i in 0..<samplesPerFrame {
-                    frame[i] = ch0[offset + i]
+                    var sum: Float = 0
+                    for ch in 0..<channelCount {
+                        let s = channelData[ch][offset + i]
+                        if !s.isNaN && !s.isInfinite {
+                            sum += s
+                        }
+                    }
+                    rawFrame[i] = sum * invChannels
                 }
             }
-            frames.append(normalizePeak(frame))
+            frames.append(cleanAndConditionFrame(rawFrame))
         }
         let baseName = url.deletingPathExtension().lastPathComponent
         return Wavetable(name: baseName.isEmpty ? "User" : baseName, frames: frames)
@@ -313,11 +388,11 @@ public final class WavetableOscillator {
         frames.reserveCapacity(numFrames)
         for f in 0..<numFrames {
             let offset = f * samplesPerFrame
-            var frame = [Float](repeating: 0, count: samplesPerFrame)
+            var rawFrame = [Float](repeating: 0, count: samplesPerFrame)
             for i in 0..<samplesPerFrame {
-                frame[i] = samples[offset + i]
+                rawFrame[i] = samples[offset + i]
             }
-            frames.append(normalizePeak(frame))
+            frames.append(cleanAndConditionFrame(rawFrame))
         }
         return Wavetable(name: name, frames: frames)
     }
@@ -465,14 +540,20 @@ public final class WavetableOscillator {
             return
         }
         let i = max(0, min(Self.basicWavetables.count - 1, index))
+        os_unfair_lock_lock(Self.cacheLock)
         if let compiled = Self.precompiledBuiltins[i] {
+            os_unfair_lock_unlock(Self.cacheLock)
             loadCompiledWavetable(compiled)
-        } else {
-            let table = Self.basicWavetables[i]
-            let compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
-            Self.precompiledBuiltins[i] = compiled
-            loadCompiledWavetable(compiled)
+            return
         }
+        os_unfair_lock_unlock(Self.cacheLock)
+
+        let table = Self.basicWavetables[i]
+        let compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
+        os_unfair_lock_lock(Self.cacheLock)
+        Self.precompiledBuiltins[i] = compiled
+        os_unfair_lock_unlock(Self.cacheLock)
+        loadCompiledWavetable(compiled)
     }
 
 

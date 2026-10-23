@@ -53,6 +53,43 @@ public final class PingPongDelay {
         writeIndex = 0
         dampL = 0
         dampR = 0
+        isClearing = false
+    }
+
+    public private(set) var isClearing: Bool = false
+    private var clearCursor: Int = 0
+    public var totalCount: Int { bufferL.count }
+
+    public func startIncrementalClear() {
+        clearCursor = 0
+        isClearing = !bufferL.isEmpty
+    }
+
+    public func cancelIncrementalClear() {
+        isClearing = false
+        clearCursor = 0
+    }
+
+    @inline(__always)
+    public func clearIncremental(count: Int = 11000) {
+        guard isClearing else { return }
+        let total = bufferL.count
+        guard total > 0, clearCursor < total else {
+            isClearing = false
+            return
+        }
+        let end = min(total, clearCursor + count)
+        for i in clearCursor..<end {
+            bufferL[i] = 0
+            bufferR[i] = 0
+        }
+        clearCursor = end
+        if clearCursor >= total {
+            isClearing = false
+            writeIndex = 0
+            dampL = 0
+            dampR = 0
+        }
     }
 
     @inline(__always)

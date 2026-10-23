@@ -1277,6 +1277,8 @@ public extension AudioEngine {
         let sendSourceR = cachedSendPostInsert ? outR : preInsertR
 
         if cachedSendA > 0 {
+            if sendReverb.isClearing { sendReverb.cancelIncrementalClear() }
+            sendFadeA += (cachedSendA - sendFadeA) * 0.1
             lastSendA = cachedSendA
             let wet = sendReverb.process(
                 inputL: sendSourceL,
@@ -1284,22 +1286,54 @@ public extension AudioEngine {
                 room: cachedReverbRoom,
                 damp: cachedReverbDamping
             )
-            outL += wet.0 * cachedSendA
-            outR += wet.1 * cachedSendA
-        } else if lastSendA > 0 {
-            sendReverb.reset()
+            outL += wet.0 * sendFadeA
+            outR += wet.1 * sendFadeA
+        } else {
             lastSendA = 0
+            if sendFadeA > 0 {
+                // R9-2: Smoothly fade out previous tail instead of hard cutting,
+                // and incrementally clear the buffer without blocking render
+                if !sendReverb.isClearing { sendReverb.startIncrementalClear() }
+                sendFadeA = max(0, sendFadeA - (1.0 / 8.0))
+                let wet = sendReverb.process(
+                    inputL: 0,
+                    inputR: 0,
+                    room: cachedReverbRoom,
+                    damp: cachedReverbDamping
+                )
+                outL += wet.0 * sendFadeA
+                outR += wet.1 * sendFadeA
+                sendReverb.clearIncremental(count: (sendReverb.totalCount / 8) + 1)
+            } else if sendReverb.isClearing {
+                sendReverb.clearIncremental(count: (sendReverb.totalCount / 8) + 1)
+            }
         }
+
         if cachedSendB > 0 {
+            if sendDelay.isClearing { sendDelay.cancelIncrementalClear() }
+            sendFadeB += (cachedSendB - sendFadeB) * 0.1
             lastSendB = cachedSendB
             sendDelay.delayTime = cachedSendDelayTime
             sendDelay.feedback = cachedSendDelayFeedback
             let wet = sendDelay.process(inputL: sendSourceL, inputR: sendSourceR, mix: 1)
-            outL += wet.0 * cachedSendB
-            outR += wet.1 * cachedSendB
-        } else if lastSendB > 0 {
-            sendDelay.reset()
+            outL += wet.0 * sendFadeB
+            outR += wet.1 * sendFadeB
+        } else {
             lastSendB = 0
+            if sendFadeB > 0 {
+                // R9-2: Smoothly fade out previous tail instead of hard cutting,
+                // and incrementally clear the buffer without blocking render
+                if !sendDelay.isClearing { sendDelay.startIncrementalClear() }
+                sendFadeB = max(0, sendFadeB - (1.0 / 8.0))
+                sendDelay.delayTime = cachedSendDelayTime
+                sendDelay.feedback = cachedSendDelayFeedback
+                let wet = sendDelay.process(inputL: 0, inputR: 0, mix: 1)
+                outL += wet.0 * sendFadeB
+                outR += wet.1 * sendFadeB
+                sendDelay.clearIncremental(count: (sendDelay.totalCount / 8) + 1)
+            } else if sendDelay.isClearing {
+                sendDelay.clearIncremental(count: (sendDelay.totalCount / 8) + 1)
+            }
         }
 
         if cachedRotaryEnabled {

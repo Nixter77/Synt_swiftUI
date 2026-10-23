@@ -469,6 +469,12 @@ public extension AudioEngine {
             lfo.setRandomSeed(effectiveSeed)
             lfo2.setRandomSeed(effectiveSeed ^ 0x5555_5555)
             smoothRandom.reset(seed: effectiveSeed)
+        } else {
+            let defaultSeed: UInt32 = 0x12345678
+            randomSeed = defaultSeed
+            lfo.setRandomSeed(defaultSeed)
+            lfo2.setRandomSeed(defaultSeed ^ 0x5555_5555)
+            smoothRandom.reset()
         }
     }
 
@@ -522,7 +528,7 @@ public extension AudioEngine {
         }
         updatePreset { p in
             p.userWavetableName = table.name
-            p.userWavetableData = serialized
+            p.userWavetableData = table.compressedSerializedData()
             if oscNumber == 1 {
                 p.osc1Waveform = .wavetable
                 p.osc1WavetableIndex = 5
@@ -557,7 +563,7 @@ public extension AudioEngine {
         }
         updatePreset { p in
             p.userWavetableName = table.name
-            p.userWavetableData = serialized
+            p.userWavetableData = table.compressedSerializedData()
             if oscNumber == 1 {
                 p.osc1Waveform = .wavetable
                 p.osc1WavetableIndex = 5
