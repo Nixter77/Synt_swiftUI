@@ -14,15 +14,40 @@ public extension AudioEngine {
 
     public func applyPreset() {
         applyPresetCallCountForTesting += 1
-        if let data = preset.userWavetableData, let table = Wavetable.deserialize(from: data, name: preset.userWavetableName ?? "User") {
-            WavetableOscillator.userWavetable = table
-            let compiled = WavetableOscillator.compile(wavetable: table, sampleRate: sampleRate)
-            WavetableOscillator.userCompiledWavetable = compiled
-            if preset.osc1WavetableIndex == 5 {
-                wavetableEngine1.loadCompiledWavetable(compiled)
-            }
-            if preset.osc2WavetableIndex == 5 {
-                wavetableEngine2.loadCompiledWavetable(compiled)
+        if let data = preset.userWavetableData {
+            let sampleRate = self.sampleRate
+            let name = preset.userWavetableName ?? "User"
+            let osc1Index = preset.osc1WavetableIndex
+            let osc2Index = preset.osc2WavetableIndex
+
+            if let cached = WavetableOscillator.compileUserWavetableAsyncIfNeeded(
+                data: data,
+                name: name,
+                sampleRate: sampleRate,
+                completion: { [weak self] compiled in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        WavetableOscillator.userWavetable = compiled.wavetable
+                        WavetableOscillator.userCompiledWavetable = compiled
+                        if osc1Index == 5 && self.wavetableEngine1.activeCompiled !== compiled {
+                            self.wavetableEngine1.loadCompiledWavetable(compiled)
+                        }
+                        if osc2Index == 5 && self.wavetableEngine2.activeCompiled !== compiled {
+                            self.wavetableEngine2.loadCompiledWavetable(compiled)
+                        }
+                    }
+                }
+            ) {
+                if WavetableOscillator.userCompiledWavetable !== cached {
+                    WavetableOscillator.userWavetable = cached.wavetable
+                    WavetableOscillator.userCompiledWavetable = cached
+                }
+                if preset.osc1WavetableIndex == 5 && wavetableEngine1.activeCompiled !== cached {
+                    wavetableEngine1.loadCompiledWavetable(cached)
+                }
+                if preset.osc2WavetableIndex == 5 && wavetableEngine2.activeCompiled !== cached {
+                    wavetableEngine2.loadCompiledWavetable(cached)
+                }
             }
         }
         // Bank first, then the row that reads it. A buffer must not see `.mseg`
@@ -483,8 +508,16 @@ public extension AudioEngine {
     /// Loads a user wavetable file into the shared user slot and applies it to the specified oscillator.
     public func loadUserWavetable(url: URL, forOscillator oscNumber: Int = 1) throws {
         let table = try WavetableOscillator.parseAudioFile(url: url)
+        let serialized = table.serializedData()
+        let key = WavetableCacheKey(contentHash: serialized.fnv1aHash(), sampleRate: sampleRate)
+        let compiled: CompiledMipData
+        if let cached = WavetableOscillator.getCachedCompiled(for: key) {
+            compiled = cached
+        } else {
+            compiled = WavetableOscillator.compile(wavetable: table, sampleRate: sampleRate)
+            WavetableOscillator.setCachedCompiled(compiled, for: key)
+        }
         WavetableOscillator.userWavetable = table
-        let compiled = WavetableOscillator.compile(wavetable: table, sampleRate: sampleRate)
         WavetableOscillator.userCompiledWavetable = compiled
         if oscNumber == 1 || preset.osc1WavetableIndex == 5 {
             loadedWTIndex1 = 5
@@ -494,7 +527,6 @@ public extension AudioEngine {
             loadedWTIndex2 = 5
             wavetableEngine2.loadCompiledWavetable(compiled)
         }
-        let serialized = table.serializedData()
         updatePreset { p in
             p.userWavetableName = table.name
             p.userWavetableData = serialized
@@ -511,8 +543,16 @@ public extension AudioEngine {
     /// Loads user wavetable from raw float samples.
     public func loadUserWavetable(samples: [Float], name: String = "Imported", forOscillator oscNumber: Int = 1) throws {
         let table = try WavetableOscillator.importAudioBuffer(samples: samples, name: name)
+        let serialized = table.serializedData()
+        let key = WavetableCacheKey(contentHash: serialized.fnv1aHash(), sampleRate: sampleRate)
+        let compiled: CompiledMipData
+        if let cached = WavetableOscillator.getCachedCompiled(for: key) {
+            compiled = cached
+        } else {
+            compiled = WavetableOscillator.compile(wavetable: table, sampleRate: sampleRate)
+            WavetableOscillator.setCachedCompiled(compiled, for: key)
+        }
         WavetableOscillator.userWavetable = table
-        let compiled = WavetableOscillator.compile(wavetable: table, sampleRate: sampleRate)
         WavetableOscillator.userCompiledWavetable = compiled
         if oscNumber == 1 || preset.osc1WavetableIndex == 5 {
             loadedWTIndex1 = 5
@@ -522,7 +562,6 @@ public extension AudioEngine {
             loadedWTIndex2 = 5
             wavetableEngine2.loadCompiledWavetable(compiled)
         }
-        let serialized = table.serializedData()
         updatePreset { p in
             p.userWavetableName = table.name
             p.userWavetableData = serialized

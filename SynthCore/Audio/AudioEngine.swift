@@ -590,6 +590,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     public func renderBlock(intoL: UnsafeMutablePointer<Float>, intoR: UnsafeMutablePointer<Float>?, frameCount: Int) {
+        wavetableEngine1.pullNewWavetableRT()
+        wavetableEngine2.pullNewWavetableRT()
         if let intoR = intoR {
             for frame in 0..<frameCount {
                 advanceParameterRampsRT()

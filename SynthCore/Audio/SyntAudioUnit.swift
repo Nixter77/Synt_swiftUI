@@ -684,6 +684,8 @@ final class SyntRenderContext {
         guard frames <= renderCapacity else { return kAudioUnitErr_TooManyFramesToProcess }
         let engine = self.engine
         engine.pullPresetSnapshotRT()
+        engine.wavetableEngine1.pullNewWavetableRT()
+        engine.wavetableEngine2.pullNewWavetableRT()
         parameters.drain { id, value in engine.applyAddressedParameterRT(id: id, value: value) }
         pullHostTransport()
         schedule(events, timestamp: timestamp, frameCount: frames)

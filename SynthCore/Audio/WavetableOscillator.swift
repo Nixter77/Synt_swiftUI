@@ -12,6 +12,8 @@
 import Foundation
 import Accelerate
 import AVFoundation
+import Synchronization
+import os
 
 /// Errors during audio-file wavetable parsing
 public enum WavetableError: LocalizedError {
@@ -89,6 +91,27 @@ public struct Wavetable {
     }
 }
 
+extension Data {
+    public func fnv1aHash() -> UInt64 {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in self {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return hash
+    }
+}
+
+public struct WavetableCacheKey: Hashable, Sendable {
+    public let contentHash: UInt64
+    public let sampleRateHz: Int
+
+    public init(contentHash: UInt64, sampleRate: Double) {
+        self.contentHash = contentHash
+        self.sampleRateHz = Int(sampleRate.rounded())
+    }
+}
+
 /// Pre-compiled mipmapped wavetable ready for allocation-free render
 public final class CompiledMipData: @unchecked Sendable {
     public let wavetable: Wavetable
@@ -126,17 +149,88 @@ public final class WavetableOscillator {
     public var morphSmoothingCoeff: Float = 0.002
 
     public private(set) var currentWavetable: Wavetable?
-    private var activeCompiled: CompiledMipData?
-    private var mipMaps: [[[Float]]] = []  // [octave][frame][sample]
-    /// Harmonics kept per mip octave (Nyquist at the top of that octave).
-    private var mipMaxHarmonics: [Int] = []
+    public private(set) var activeCompiled: CompiledMipData?
+
+    // Triple buffer for RT lock-free handoff (Chen's wait-free 3-buffer algorithm)
+    private static let hasNewDataFlag: Int = 0x80
+    private let sharedBank = Atomic<Int>(0)
+    private var writeBank: Int = 1
+    private var readBank: Int = 2
+    private let slots: UnsafeMutablePointer<Unmanaged<CompiledMipData>?>
+    private let writeLock: os_unfair_lock_t
 
     private let tableSize: Int = 2048
     private let numOctaves: Int = 11  // C0 to C10
     /// Mips are built for the live engine rate. Must match AudioEngine.
     private var mipSampleRate: Double = 44100.0
 
-    // MARK: - Built-in Wavetables
+    // MARK: - Built-in Wavetables & Cache
+
+    public static let compileCountForTesting = Atomic<Int>(0)
+
+    private static let cacheLock: os_unfair_lock_t = {
+        let lock = os_unfair_lock_t.allocate(capacity: 1)
+        lock.initialize(to: os_unfair_lock())
+        return lock
+    }()
+    private static var compiledCache: [WavetableCacheKey: CompiledMipData] = [:]
+    private static var inProgressKeys = Set<WavetableCacheKey>()
+
+    public static func getCachedCompiled(for key: WavetableCacheKey) -> CompiledMipData? {
+        os_unfair_lock_lock(cacheLock)
+        defer { os_unfair_lock_unlock(cacheLock) }
+        return compiledCache[key]
+    }
+
+    public static func setCachedCompiled(_ compiled: CompiledMipData, for key: WavetableCacheKey) {
+        os_unfair_lock_lock(cacheLock)
+        defer { os_unfair_lock_unlock(cacheLock) }
+        compiledCache[key] = compiled
+        inProgressKeys.remove(key)
+    }
+
+    public static func compileUserWavetableAsyncIfNeeded(
+        data: Data,
+        name: String,
+        sampleRate: Double,
+        completion: (@Sendable (CompiledMipData) -> Void)? = nil
+    ) -> CompiledMipData? {
+        let key = WavetableCacheKey(contentHash: data.fnv1aHash(), sampleRate: sampleRate)
+        os_unfair_lock_lock(cacheLock)
+        if let cached = compiledCache[key] {
+            os_unfair_lock_unlock(cacheLock)
+            return cached
+        }
+        if inProgressKeys.contains(key) {
+            os_unfair_lock_unlock(cacheLock)
+            return nil
+        }
+        inProgressKeys.insert(key)
+        os_unfair_lock_unlock(cacheLock)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let table = Wavetable.deserialize(from: data, name: name) else {
+                os_unfair_lock_lock(cacheLock)
+                inProgressKeys.remove(key)
+                os_unfair_lock_unlock(cacheLock)
+                return
+            }
+            let compiled = compile(wavetable: table, sampleRate: sampleRate)
+            os_unfair_lock_lock(cacheLock)
+            compiledCache[key] = compiled
+            inProgressKeys.remove(key)
+            os_unfair_lock_unlock(cacheLock)
+            completion?(compiled)
+        }
+        return nil
+    }
+
+    public static func clearCacheForTesting() {
+        os_unfair_lock_lock(cacheLock)
+        defer { os_unfair_lock_unlock(cacheLock) }
+        compiledCache.removeAll()
+        inProgressKeys.removeAll()
+    }
 
     public static var userWavetable: Wavetable?
     public static var userCompiledWavetable: CompiledMipData?
@@ -230,6 +324,7 @@ public final class WavetableOscillator {
 
     /// Compiles a wavetable with all band-limited mipmaps outside of the render thread.
     public static func compile(wavetable: Wavetable, sampleRate: Double = 44100.0) -> CompiledMipData {
+        compileCountForTesting.wrappingAdd(1, ordering: .relaxed)
         let maps = buildMipMaps(from: wavetable, sampleRate: sampleRate)
         return CompiledMipData(
             wavetable: wavetable,
@@ -267,8 +362,16 @@ public final class WavetableOscillator {
     /// Loads wavetable frames from an audio file, compiles mipmaps, and sets it as the active user table.
     public func loadFromAudioFile(url: URL) throws {
         let table = try Self.parseAudioFile(url: url)
+        let serialized = table.serializedData()
+        let key = WavetableCacheKey(contentHash: serialized.fnv1aHash(), sampleRate: mipSampleRate)
+        let compiled: CompiledMipData
+        if let cached = Self.getCachedCompiled(for: key) {
+            compiled = cached
+        } else {
+            compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
+            Self.setCachedCompiled(compiled, for: key)
+        }
         Self.userWavetable = table
-        let compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
         Self.userCompiledWavetable = compiled
         loadCompiledWavetable(compiled)
     }
@@ -276,21 +379,62 @@ public final class WavetableOscillator {
     // MARK: - Initialization
 
     public init() {
+        writeLock = .allocate(capacity: 1)
+        writeLock.initialize(to: os_unfair_lock())
+        slots = .allocate(capacity: 3)
+        slots.initialize(repeating: nil, count: 3)
         loadBuiltin(index: 0)
+    }
+
+    deinit {
+        for i in 0..<3 {
+            slots[i]?.release()
+        }
+        slots.deinitialize(count: 3)
+        slots.deallocate()
+        writeLock.deinitialize(count: 1)
+        writeLock.deallocate()
     }
 
     // MARK: - Wavetable Loading
 
     public func loadCompiledWavetable(_ compiled: CompiledMipData) {
         currentWavetable = compiled.wavetable
-        mipMaps = compiled.mipMaps
-        mipMaxHarmonics = compiled.maxHarmonics
         activeCompiled = compiled
         framePosition = targetFramePosition
+        publishCompiled(compiled)
+    }
+
+    private func publishCompiled(_ compiled: CompiledMipData) {
+        os_unfair_lock_lock(writeLock)
+        let newRef = Unmanaged.passRetained(compiled)
+        let oldRef = slots[writeBank]
+        slots[writeBank] = newRef
+        let previousShared = sharedBank.exchange(writeBank | Self.hasNewDataFlag, ordering: .acquiringAndReleasing)
+        writeBank = previousShared & 0x03
+        os_unfair_lock_unlock(writeLock)
+
+        oldRef?.release()
+    }
+
+    @inline(__always)
+    public func pullNewWavetableRT() {
+        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
+            let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
+            readBank = previousShared & 0x03
+        }
     }
 
     public func loadWavetable(_ wavetable: Wavetable) {
-        let compiled = Self.compile(wavetable: wavetable, sampleRate: mipSampleRate)
+        let serialized = wavetable.serializedData()
+        let key = WavetableCacheKey(contentHash: serialized.fnv1aHash(), sampleRate: mipSampleRate)
+        let compiled: CompiledMipData
+        if let cached = Self.getCachedCompiled(for: key) {
+            compiled = cached
+        } else {
+            compiled = Self.compile(wavetable: wavetable, sampleRate: mipSampleRate)
+            Self.setCachedCompiled(compiled, for: key)
+        }
         loadCompiledWavetable(compiled)
     }
 
@@ -309,9 +453,8 @@ public final class WavetableOscillator {
             if let userCompiled = Self.userCompiledWavetable {
                 loadCompiledWavetable(userCompiled)
             } else if let userTable = Self.userWavetable {
-                let compiled = Self.compile(wavetable: userTable, sampleRate: mipSampleRate)
-                Self.userCompiledWavetable = compiled
-                loadCompiledWavetable(compiled)
+                loadWavetable(userTable)
+                Self.userCompiledWavetable = activeCompiled
             } else {
                 loadBuiltin(index: 0)
             }
@@ -458,9 +601,13 @@ public final class WavetableOscillator {
     /// Does not advance morph — call `advanceMorph()` once per sample from the engine.
     @inline(__always)
     public func generateSample(phase: Double, phaseIncrement: Double, sampleRate: Double = 44100.0) -> Float {
-        guard currentWavetable != nil, !mipMaps.isEmpty else {
+        pullNewWavetableRT()
+        guard let unmanaged = slots[readBank] else {
             return 0.0
         }
+        let compiled = unmanaged.takeUnretainedValue()
+        let maps = compiled.mipMaps
+        guard !maps.isEmpty else { return 0.0 }
 
         let frequency = phaseIncrement * sampleRate / (2.0 * Double.pi)
         // One mip, the table built for this octave range. Crossfading two
@@ -468,13 +615,14 @@ public final class WavetableOscillator {
         // (under-limited) table — 4 notes of that was the crunch.
         let exactOctave = log2(max(20.0, frequency) / 20.0)
         let oct = max(0, min(numOctaves - 1, Int(exactOctave)))
-        return sampleMorphed(mipOctave: oct, phase: phase)
+        return sampleMorphed(compiled: compiled, mipOctave: oct, phase: phase)
     }
 
     @inline(__always)
-    private func sampleMorphed(mipOctave: Int, phase: Double) -> Float {
-        guard mipOctave >= 0, mipOctave < mipMaps.count else { return 0 }
-        let frames = mipMaps[mipOctave]
+    private func sampleMorphed(compiled: CompiledMipData, mipOctave: Int, phase: Double) -> Float {
+        let maps = compiled.mipMaps
+        guard mipOctave >= 0, mipOctave < maps.count else { return 0 }
+        let frames = maps[mipOctave]
         let frameCount = frames.count
         guard frameCount > 0 else { return 0 }
 
@@ -558,12 +706,12 @@ public final class WavetableOscillator {
         sampleFromTable(table, phase: phase)
     }
 
-    public var mipOctaveCountForTesting: Int { mipMaps.count }
-    public var currentFrameCountForTesting: Int { mipMaps.first?.count ?? 0 }
+    public var mipOctaveCountForTesting: Int { activeCompiled?.mipMaps.count ?? 0 }
+    public var currentFrameCountForTesting: Int { activeCompiled?.mipMaps.first?.count ?? 0 }
 
     public func mipMaxHarmonicForTesting(_ octave: Int) -> Int {
-        guard octave >= 0, octave < mipMaxHarmonics.count else { return 0 }
-        return mipMaxHarmonics[octave]
+        guard let harmonics = activeCompiled?.maxHarmonics, octave >= 0, octave < harmonics.count else { return 0 }
+        return harmonics[octave]
     }
 
     // MARK: - Static Wavetable Generators
