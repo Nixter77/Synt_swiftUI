@@ -507,11 +507,18 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var controllerMPEConfigDidChange: (() -> Void)? = nil
     /// R12-1: render writes packed MPE config here (RPN/MCM); main polls it. Bit 63 = new data.
     public let mpeConfigMailbox = Atomic<UInt64>(0)
+    /// SYNT_16 R13-5: last resolved user wavetable blob (main thread only).
+    var lastUserWTData: Data?
+    var lastUserWTSampleRate: Double = 0
+    var lastUserWTCompiled: CompiledMipData?
+    public var userWTFastPathCountForTesting = 0
     public var mpeChannelStates: [MPEChannelState] = Array(repeating: MPEChannelState(), count: 16)
 
     public struct RPNChannelState {
         public var rpnMSB: UInt8? = nil
         public var rpnLSB: UInt8? = nil
+        /// SYNT_16: last Data Entry MSB, so a following CC 38 (LSB) can refine it.
+        public var dataMSB: UInt8? = nil
         public init() {}
     }
     public var rpnStates: [RPNChannelState] = Array(repeating: RPNChannelState(), count: 16)

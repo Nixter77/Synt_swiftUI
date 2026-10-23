@@ -2016,7 +2016,14 @@ public extension AudioEngine {
         case 6:
             if let msb = rpnStates[ch].rpnMSB, let lsb = rpnStates[ch].rpnLSB {
                 let rpn = (UInt16(msb) << 7) | UInt16(lsb)
+                rpnStates[ch].dataMSB = value
                 handleRPN(channel: channel, rpn: rpn, value: value)
+            }
+        case 38:
+            // SYNT_16 low: Data Entry LSB. For RPN 0 it is cents (MIDI 1.0); other RPNs ignore it.
+            if let msb = rpnStates[ch].rpnMSB, let lsb = rpnStates[ch].rpnLSB,
+               (UInt16(msb) << 7) | UInt16(lsb) == 0, let coarse = rpnStates[ch].dataMSB {
+                handleRPN(channel: channel, rpn: 0, value: coarse, cents: value)
             }
         default:
             break
@@ -2025,13 +2032,13 @@ public extension AudioEngine {
 
     /// Render thread. Touches only `cached*` / plain RT state and the lock-free mailbox.
     /// Never writes `preset` (its setter runs applyPreset + @Published) — main picks it up in `pollMPEConfigMailbox`.
-    public func handleRPN(channel: UInt8, rpn: UInt16, value: UInt8) {
+    public func handleRPN(channel: UInt8, rpn: UInt16, value: UInt8, cents: UInt8 = 0) {
         switch rpn {
         case 0:
             // RPN 0: Pitch Bend Sensitivity (semitones).
             // R12-4: on the zone's master channel it is the master (global) bend range;
             // on a member channel it is the per-note range.
-            let range = Float(min(value, 96))
+            let range = Float(min(Int(value) * 100 + Int(min(cents, 99)), 9600)) / 100
             if AudioEngine.isMPEMasterChannel(channel, zone: cachedMpeZone) {
                 mpeCtl.masterRange = range
                 cachedPitchBendRange = range
@@ -2120,8 +2127,9 @@ public extension AudioEngine {
         if enabled { v |= 1 }
         if zone == .upper { v |= 2 }
         v |= UInt64(max(0, min(15, memberCount)) & 0x1F) << 2
-        v |= UInt64(UInt8(max(0, min(255, memberRange.rounded())))) << 8
-        v |= UInt64(UInt8(max(0, min(255, masterRange.rounded())))) << 16
+        // SYNT_16: ranges in centi-semitones (14 bits each) so a CC 38 fine value survives.
+        v |= UInt64(max(0, min(9600, Int((memberRange * 100).rounded())))) << 8
+        v |= UInt64(max(0, min(9600, Int((masterRange * 100).rounded())))) << 24
         return v
     }
 
@@ -2134,8 +2142,8 @@ public extension AudioEngine {
         let enabled = v & 1 != 0
         let zone: MPEZone = v & 2 != 0 ? .upper : .lower
         let count = Int((v >> 2) & 0x1F)
-        let memberRange = Float((v >> 8) & 0xFF)
-        let masterRange = Float((v >> 16) & 0xFF)
+        let memberRange = Float((v >> 8) & 0x3FFF) / 100
+        let masterRange = Float((v >> 24) & 0x3FFF) / 100
         mpeEnabled = enabled
         mpeZone = zone
         mpeMemberChannelCount = count

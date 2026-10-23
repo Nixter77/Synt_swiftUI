@@ -335,6 +335,8 @@ public final class WavetableOscillator {
     public private(set) var currentWavetable: Wavetable?
     public private(set) var currentBuiltinIndex: Int?
     public private(set) var activeCompiled: CompiledMipData?
+    /// SYNT_16 R13-6: times loadBuiltin(5) saw a user table with no compiled mips.
+    public var userTableWithoutMipsCountForTesting = 0
     /// SYNT_16 R13-4: bit pattern of `activeCompiled.lfoShape` (0 = none). One word, so a
     /// main-thread table swap is never seen torn by the render-side LFO snapshot.
     public let lfoShapeBits = Atomic<Int>(0)
@@ -725,12 +727,11 @@ public final class WavetableOscillator {
             if let userCompiled = instanceUserCompiled {
                 currentWavetable = userCompiled.wavetable
                 loadCompiledWavetable(userCompiled)
-            } else if let userTable = instanceUserWavetable {
-                currentWavetable = userTable
-                loadWavetable(userTable)
-                currentBuiltinIndex = 5
-                instanceUserCompiled = activeCompiled
             } else {
+                // SYNT_16 R13-6: never compile mips here (reachable from render via
+                // applyPresetDSP). `loadWavetable` always sets `instanceUserCompiled`, so a
+                // table without compiled mips cannot exist; fall back to builtin 0 instead.
+                if instanceUserWavetable != nil { userTableWithoutMipsCountForTesting += 1 }
                 loadBuiltin(index: 0)
             }
             return

@@ -20,13 +20,27 @@ public extension AudioEngine {
         if let data = preset.userWavetableData {
             let sampleRate = self.sampleRate
             let name = preset.userWavetableName ?? "User"
-            if let cached = WavetableOscillator.compileUserWavetableAsyncIfNeeded(
+            // SYNT_16 R13-5: same retained Data buffer + same SR as the last resolved blob means
+            // the same bytes (Data is immutable and we hold it), so skip the ~512 KB hash on main.
+            let fast: CompiledMipData? = {
+                guard let last = lastUserWTData, let compiled = lastUserWTCompiled,
+                      lastUserWTSampleRate == sampleRate,
+                      AudioEngine.sameDataBuffer(last, data) else { return nil }
+                return compiled
+            }()
+            if let fast { userWTFastPathCountForTesting += 1 }
+            if let cached = fast ?? WavetableOscillator.compileUserWavetableAsyncIfNeeded(
                 data: data,
                 name: name,
                 sampleRate: sampleRate,
                 completion: { [weak self] compiled in
                     DispatchQueue.main.async {
                         guard let self else { return }
+                        if self.preset.userWavetableData == data {
+                            self.lastUserWTData = data
+                            self.lastUserWTSampleRate = sampleRate
+                            self.lastUserWTCompiled = compiled
+                        }
                         self.userWavetable = compiled.wavetable
                         self.userCompiledWavetable = compiled
                         self.wavetableEngine1.instanceUserWavetable = compiled.wavetable
@@ -48,6 +62,9 @@ public extension AudioEngine {
                     }
                 }
             ) {
+                lastUserWTData = data
+                lastUserWTSampleRate = sampleRate
+                lastUserWTCompiled = cached
                 self.userWavetable = cached.wavetable
                 self.userCompiledWavetable = cached
                 self.wavetableEngine1.instanceUserWavetable = cached.wavetable
@@ -685,5 +702,13 @@ public extension AudioEngine {
             break
         }
     }
-}
 
+    /// SYNT_16 R13-5: true only when both values share one heap buffer (large Data is
+    /// reference-backed; small inline Data never matches, so it just takes the slow path).
+    static func sameDataBuffer(_ a: Data, _ b: Data) -> Bool {
+        guard a.count == b.count, a.count > 64 else { return false }
+        let pa = a.withUnsafeBytes { UInt(bitPattern: $0.baseAddress) }
+        let pb = b.withUnsafeBytes { UInt(bitPattern: $0.baseAddress) }
+        return pa != 0 && pa == pb
+    }
+}
