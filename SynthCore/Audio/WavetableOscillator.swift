@@ -267,8 +267,33 @@ public struct WavetableCacheKey: Hashable, Sendable {
     }
 }
 
+/// SYNT_16 R13-4: one immutable, immortal LFO shape (middle frame of a table).
+/// Read on the render thread through a raw pointer: no ARC, no allocation.
+public struct LFOShapeTable {
+    public let data: UnsafePointer<Float>
+    public let count: Int
+
+    /// Off the render thread. Never freed (a few KB per compiled table), so a raw pointer
+    /// held by an LFO can never dangle when the oscillator swaps tables.
+    public static func makeImmortal(_ frame: [Float]) -> UnsafePointer<LFOShapeTable> {
+        let n = max(1, frame.count)
+        let d = UnsafeMutablePointer<Float>.allocate(capacity: n)
+        if frame.isEmpty { d.initialize(to: 0) } else { d.initialize(from: frame, count: frame.count) }
+        let p = UnsafeMutablePointer<LFOShapeTable>.allocate(capacity: 1)
+        p.initialize(to: LFOShapeTable(data: UnsafePointer(d), count: frame.isEmpty ? 1 : frame.count))
+        return UnsafePointer(p)
+    }
+
+    /// Middle frame (frame 16 of 32 for the builtins, as the SYNT_15 fixed shape).
+    public static func middleFrame(of table: Wavetable) -> [Float] {
+        table.frames.isEmpty ? [] : table.frames[table.frames.count / 2]
+    }
+}
+
 /// Pre-compiled mipmapped wavetable ready for allocation-free render
 public final class CompiledMipData: @unchecked Sendable {
+    /// SYNT_16 R13-4: shape the wavetable LFO reads when this table is the oscillator's table.
+    public let lfoShape: UnsafePointer<LFOShapeTable>
     public let wavetable: Wavetable
     public let mipMaps: [[[Float]]]
     /// Harmonics kept per mip octave (Nyquist at the top of that octave).
@@ -280,6 +305,7 @@ public final class CompiledMipData: @unchecked Sendable {
         self.wavetable = wavetable
         self.mipMaps = mipMaps
         self.maxHarmonics = maxHarmonics
+        self.lfoShape = LFOShapeTable.makeImmortal(LFOShapeTable.middleFrame(of: wavetable))
     }
 }
 
@@ -309,6 +335,9 @@ public final class WavetableOscillator {
     public private(set) var currentWavetable: Wavetable?
     public private(set) var currentBuiltinIndex: Int?
     public private(set) var activeCompiled: CompiledMipData?
+    /// SYNT_16 R13-4: bit pattern of `activeCompiled.lfoShape` (0 = none). One word, so a
+    /// main-thread table swap is never seen torn by the render-side LFO snapshot.
+    public let lfoShapeBits = Atomic<Int>(0)
 
     // Triple buffer for RT lock-free handoff (Chen's wait-free 3-buffer algorithm)
     private static let hasNewDataFlag: Int = 0x80
@@ -629,6 +658,7 @@ public final class WavetableOscillator {
     public func loadCompiledWavetable(_ compiled: CompiledMipData) {
         currentWavetable = compiled.wavetable
         activeCompiled = compiled
+        lfoShapeBits.store(Int(bitPattern: compiled.lfoShape), ordering: .releasing)
         framePosition = targetFramePosition
         publishCompiled(compiled)
     }

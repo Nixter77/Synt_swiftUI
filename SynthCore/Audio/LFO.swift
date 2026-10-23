@@ -31,8 +31,22 @@ public class LFO {
         p.initialize(from: t, count: t.count)
         return UnsafePointer(p)
     }()
-    private let tablePtr: UnsafePointer<Float> = LFO.defaultTablePointer
-    private let tableCount: Int = LFO.defaultWavetable.count
+    private var tablePtr: UnsafePointer<Float> = LFO.defaultTablePointer
+    private var tableCount: Int = LFO.defaultWavetable.count
+
+    /// SYNT_16 R13-4: render thread, once per block. Adopts the shape of the oscillator's
+    /// current table (bit pattern from `WavetableOscillator.lfoShapeBits`); 0 = default shape.
+    /// Plain pointer reads only: no ARC, no allocation, the oscillator is not touched.
+    @inline(__always)
+    public func adoptShape(bits: Int) {
+        guard let p = UnsafePointer<LFOShapeTable>(bitPattern: bits) else {
+            tablePtr = LFO.defaultTablePointer
+            tableCount = LFO.defaultWavetable.count
+            return
+        }
+        tablePtr = p.pointee.data
+        tableCount = p.pointee.count
+    }
 
     public internal(set) var phase: Double = 0.0
     public private(set) var isCompleted: Bool = false

@@ -639,6 +639,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public func renderBlock(intoL: UnsafeMutablePointer<Float>, intoR: UnsafeMutablePointer<Float>?, frameCount: Int) {
         wavetableEngine1.pullNewWavetableRT()
         wavetableEngine2.pullNewWavetableRT()
+        // SYNT_16 R13-4: wavetable LFOs follow their oscillator's table (per-block snapshot).
+        lfo.adoptShape(bits: wavetableEngine1.lfoShapeBits.load(ordering: .acquiring))
+        lfo2.adoptShape(bits: wavetableEngine2.lfoShapeBits.load(ordering: .acquiring))
         if let intoR = intoR {
             for frame in 0..<frameCount {
                 advanceParameterRampsRT()
