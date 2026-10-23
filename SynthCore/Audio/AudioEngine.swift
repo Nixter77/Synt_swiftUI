@@ -488,13 +488,27 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var sustainedHi: UInt64 = 0
 
     // MPE (MIDI Polyphonic Expression)
-    public var mpeEnabled: Bool = false
+    // SYNT_17 R13-7: the three routing mirrors are main-thread vars; the standalone CoreMIDI thread
+    // reads them only through `standaloneMPERouting` (one atomic word), never the vars themselves.
+    public var mpeEnabled: Bool = false { didSet { publishStandaloneMPERouting() } }
     public var cachedMpeEnabled: Bool = false
     public var mpePitchBendRange: Float = 48.0
     public var cachedMpePitchBendRange: Float = 48.0
-    public var mpeZone: MPEZone = .lower
+    public var mpeZone: MPEZone = .lower { didSet { publishStandaloneMPERouting() } }
     public var cachedMpeZone: MPEZone = .lower
-    public var mpeMemberChannelCount: Int = 15
+    public var mpeMemberChannelCount: Int = 15 { didSet { publishStandaloneMPERouting() } }
+    /// SYNT_17 R13-7: bit 0 enabled, bit 1 upper zone, bits 2-6 member count. Default = off/lower/15.
+    public let standaloneMPERouting = Atomic<Int>(15 << 2)
+    func publishStandaloneMPERouting() {
+        let v = (mpeEnabled ? 1 : 0) | (mpeZone == .upper ? 2 : 0) | (max(0, min(15, mpeMemberChannelCount)) << 2)
+        standaloneMPERouting.store(v, ordering: .releasing)
+    }
+    /// Any thread. Lock-free snapshot of the standalone routing config.
+    @inline(__always)
+    public func standaloneMPESnapshot() -> (enabled: Bool, zone: MPEZone, memberCount: Int) {
+        let v = standaloneMPERouting.load(ordering: .acquiring)
+        return (v & 1 != 0, v & 2 != 0 ? .upper : .lower, (v >> 2) & 0x1F)
+    }
     public var cachedMpeMemberChannelCount: Int = 15
     /// SYNT_16 R13-1: controller (RPN 0 / MCM) values layered over the host/preset value.
     /// Render thread only. A snapshot or parameter write that repeats the previous host
@@ -1063,7 +1077,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// MIDI thread. Zone-aware member test for the standalone path (main-mirrored config).
     @inline(__always)
     public func isStandaloneMPEMember(_ channel: UInt8) -> Bool {
-        mpeEnabled && AudioEngine.isMPEMemberChannel(channel, zone: mpeZone, memberCount: mpeMemberChannelCount)
+        let r = standaloneMPESnapshot()
+        return r.enabled && AudioEngine.isMPEMemberChannel(channel, zone: r.zone, memberCount: r.memberCount)
     }
 
     /// MIDI thread (standalone). R12-5: routes CC through the same router as the AU path.
@@ -1071,9 +1086,10 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// false means the caller handles it as an ordinary CC.
     @discardableResult
     public func midiMPEControlChange(controller: UInt8, value: UInt8, channel: UInt8) -> Bool {
-        guard mpeEnabled else { return false }
+        let r = standaloneMPESnapshot()
+        guard r.enabled else { return false }
         let msg = MIDIMessage.controlChange(controller: controller, value: value, channel: channel)
-        guard let cmd = AudioEngine.command(for: msg, mpeEnabled: true, zone: mpeZone, memberCount: mpeMemberChannelCount) else { return false }
+        guard let cmd = AudioEngine.command(for: msg, mpeEnabled: true, zone: r.zone, memberCount: r.memberCount) else { return false }
         switch cmd {
         case .mpeTimbre, .mpeControlChange:
             _ = midiQueue.push(cmd)
