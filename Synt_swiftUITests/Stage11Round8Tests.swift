@@ -198,9 +198,12 @@ final class Stage11Round8Tests: XCTestCase {
         table.stereoPhaseOffsetDegrees = 90
         table.trigger()
         let stereo = table.nextStereoRawValue(sampleRate: 44_100)
-        let expectedRight = Float(sin(Double.pi * 0.75))
-        XCTAssertEqual(stereo.left, Float(sin(Double.pi * 0.25)), accuracy: 1e-4)
+        // R7-10 (SYNT_14): .wavetable LFO reads a real table shape, not sine.
+        // Verify stereo offset: left at 45 deg, right at 45+90 = 135 deg of the same shape.
+        let expectedLeft = table.sampleWaveform(at: Double.pi * 0.25)
+        let expectedRight = table.sampleWaveform(at: Double.pi * 0.75)
+        XCTAssertEqual(stereo.left, expectedLeft, accuracy: 1e-4)
         XCTAssertEqual(stereo.right, expectedRight, accuracy: 1e-4)
-        XCTAssertGreaterThan(abs(stereo.right), 0.5)
+        XCTAssertGreaterThan(abs(stereo.left - stereo.right), 0.05)
     }
 }

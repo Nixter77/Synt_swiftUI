@@ -172,11 +172,16 @@ import Testing
         #expect(sources.contains(.macro7))
         #expect(sources.contains(.macro8))
 
-        // New enum cases must be at the end
-        let count = sources.count
-        #expect(sources[count - 4] == .macro5)
-        #expect(sources[count - 3] == .macro6)
-        #expect(sources[count - 2] == .macro7)
-        #expect(sources[count - 1] == .macro8)
+        // ModSource is String-raw-valued: presets encode names, not indices, so
+        // appending later cases (MPE sources) is safe. Macros 5-8 must remain a
+        // contiguous block directly after MSEG 2, and raw values must be stable.
+        guard let base = sources.firstIndex(of: .mseg2) else { Issue.record("mseg2 missing"); return }
+        #expect(sources[base + 1] == .macro5)
+        #expect(sources[base + 2] == .macro6)
+        #expect(sources[base + 3] == .macro7)
+        #expect(sources[base + 4] == .macro8)
+        #expect(ModSource.macro5.rawValue == "Macro 5")
+        #expect(ModSource.macro8.rawValue == "Macro 8")
+        #expect(ModSource(rawValue: "Macro 8") == .macro8)
     }
 }

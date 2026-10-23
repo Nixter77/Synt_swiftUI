@@ -66,8 +66,11 @@ import Testing
         p.sendA = 0
         p.sendB = 0
         engine.preset = p
-        // Render 10 samples so engine observes cachedSend == 0
-        for _ in 0..<10 { _ = engine.renderOneSample() }
+        // R9-2: sends fade out over ~15 ms, then the tail is cleared incrementally.
+        // Render past fade (~662 samples @44.1k) plus the incremental clear (64 chunks).
+        for _ in 0..<2000 { _ = engine.renderOneSample() }
+        #expect(engine.sendFadeA == 0)
+        #expect(engine.sendFadeB == 0)
 
         #expect(engine.lastSendA == 0)
         #expect(engine.lastSendB == 0)
