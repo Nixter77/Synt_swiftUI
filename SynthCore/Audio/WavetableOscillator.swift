@@ -279,6 +279,9 @@ public struct LFOShapeTable {
         let n = max(1, frame.count)
         let d = UnsafeMutablePointer<Float>.allocate(capacity: n)
         if frame.isEmpty { d.initialize(to: 0) } else { d.initialize(from: frame, count: frame.count) }
+        // SYNT_17 R14-5: normalize to peak 1 so a quiet user table still gives a full-depth LFO.
+        let peak = frame.reduce(Float(0)) { max($0, abs($1)) }
+        if peak > 1e-6 { for i in 0..<frame.count { d[i] /= peak } }
         let p = UnsafeMutablePointer<LFOShapeTable>.allocate(capacity: 1)
         p.initialize(to: LFOShapeTable(data: UnsafePointer(d), count: frame.isEmpty ? 1 : frame.count))
         return UnsafePointer(p)

@@ -75,3 +75,12 @@ public extension AudioEngine {
     @inline(__always) func adoptHostMPEMemberRange(_ v: Float) { cachedMpePitchBendRange = mpeCtl.adoptMemberRange(v) }
     @inline(__always) func adoptHostMasterBendRange(_ v: Float) { cachedPitchBendRange = mpeCtl.adoptMasterRange(v) }
 }
+
+public extension MPEControllerOverride {
+    /// SYNT_17 R14-8: UI label for the controller's master bend range (runtime only).
+    static func masterBendLabel(_ range: Float?) -> String? {
+        guard let r = range else { return nil }
+        let txt = r == r.rounded() ? String(Int(r)) : String(format: "%.2f", r)
+        return "Controller Master Bend: ±\(txt) st"
+    }
+}

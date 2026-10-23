@@ -269,7 +269,8 @@ extension AudioEngine {
             }
             // R12-2: RPN CCs belong to the MPE path only while MPE is on; otherwise they stay
             // plain CCs (MIDI-learn / CC maps unchanged, a DAW's RPN 0 cannot touch MPE state).
-            if mpeEnabled && (controller == 100 || controller == 101 || controller == 6 || controller == 38)
+            if mpeEnabled && (controller == 100 || controller == 101 || controller == 6 || controller == 38
+                                || controller == 96 || controller == 97)
                 && (channel & 15 == 0 || channel & 15 == 15   // SYNT_16 R13-2: MCM on either zone master
                     || isMPEMasterChannel(channel, zone: zone) || isMPEMemberChannel(channel, zone: zone, memberCount: memberCount)) {
                 return .mpeControlChange(channel: channel, cc: controller, value: value)

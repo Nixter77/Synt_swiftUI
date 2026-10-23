@@ -1625,12 +1625,7 @@ public extension AudioEngine {
             case .setSustain(let down):
                 setSustainPedal(down: down)
             case .controlChange(let cc, let value):
-                let rtIdx = (rtCCMap + Int(cc & 127)).pointee.load(ordering: .acquiring)
-                if rtIdx >= 0, let target = MIDIControlTarget.from(rtIndex: rtIdx) {
-                    if !target.writesAudioParameter || ccTakeoverShouldApply(cc: cc, raw: value, current: liveUnit(for: target), target: target) {
-                        applySingleParameterRT(target: target, rawValue: value)
-                    }
-                }
+                applyPlainCCRT(cc: cc, value: value)
             case .mpeControlChange(let channel, let cc, let value):
                 handleRPNCC(channel: channel, cc: cc, value: value)
             case .midiClock:
@@ -2000,18 +1995,36 @@ public extension AudioEngine {
 
     public func handleRPNCC(channel: UInt8, cc: UInt8, value: UInt8) {
         let ch = Int(channel & 0x0F)
-        switch cc {
-        case 101:
-            if value == 127 {
-                rpnStates[ch].rpnMSB = nil
-            } else {
-                rpnStates[ch].rpnMSB = value
+        // SYNT_17 R14-7: ch1/ch16 outside the current zone reach this path only so an MCM can
+        // switch zones. Everything except RPN 6 data entry there stays a plain CC (CC learn / NRPN).
+        let inZone = AudioEngine.isMPEMasterChannel(channel, zone: cachedMpeZone)
+            || AudioEngine.isMPEMemberChannel(channel, zone: cachedMpeZone, memberCount: cachedMpeMemberChannelCount)
+        if !inZone {
+            switch cc {
+            case 100, 101:
+                handleRPNSelectRT(ch: ch, cc: cc, value: value)
+                applyPlainCCRT(cc: cc, value: value)
+            case 6 where rpnStates[ch].rpnMSB == 0 && rpnStates[ch].rpnLSB == 6:
+                rpnStates[ch].dataMSB = value
+                handleRPN(channel: channel, rpn: 6, value: value)
+            default:
+                applyPlainCCRT(cc: cc, value: value)
             }
-        case 100:
-            if value == 127 {
-                rpnStates[ch].rpnLSB = nil
+            return
+        }
+        switch cc {
+        case 100, 101:
+            handleRPNSelectRT(ch: ch, cc: cc, value: value)
+        case 96, 97:
+            // SYNT_17: RPN Data Increment (96) / Decrement (97), MIDI 1.0. Steps the coarse value of the
+            // selected RPN by 1 (value byte ignored). Only RPN 0 is steppable; MCM is not.
+            if rpnStates[ch].rpnMSB == 0 && rpnStates[ch].rpnLSB == 0 {
+                let cur = Int(rpnStates[ch].dataMSB ?? UInt8(currentBendRangeSemisRT(channel: channel)))
+                let next = UInt8(max(0, min(96, cur + (cc == 96 ? 1 : -1))))
+                rpnStates[ch].dataMSB = next
+                handleRPN(channel: channel, rpn: 0, value: next)
             } else {
-                rpnStates[ch].rpnLSB = value
+                applyPlainCCRT(cc: cc, value: value)
             }
         case 6:
             if let msb = rpnStates[ch].rpnMSB, let lsb = rpnStates[ch].rpnLSB {
@@ -2027,6 +2040,34 @@ public extension AudioEngine {
             }
         default:
             break
+        }
+    }
+
+    /// SYNT_17 R14-6: selecting an RPN (or the null RPN) forgets the previous Data Entry MSB,
+    /// so a lone CC 38 can never refine a stale value from another RPN.
+    @inline(__always)
+    func handleRPNSelectRT(ch: Int, cc: UInt8, value: UInt8) {
+        rpnStates[ch].dataMSB = nil
+        if cc == 101 {
+            rpnStates[ch].rpnMSB = value == 127 ? nil : value
+        } else {
+            rpnStates[ch].rpnLSB = value == 127 ? nil : value
+        }
+    }
+
+    @inline(__always)
+    func currentBendRangeSemisRT(channel: UInt8) -> Int {
+        let r = AudioEngine.isMPEMasterChannel(channel, zone: cachedMpeZone) ? cachedPitchBendRange : cachedMpePitchBendRange
+        return Int(r)
+    }
+
+    /// Render thread. The ordinary CC path (CC map / MIDI learn), shared with `.controlChange`.
+    func applyPlainCCRT(cc: UInt8, value: UInt8) {
+        let rtIdx = (rtCCMap + Int(cc & 127)).pointee.load(ordering: .acquiring)
+        if rtIdx >= 0, let target = MIDIControlTarget.from(rtIndex: rtIdx) {
+            if !target.writesAudioParameter || ccTakeoverShouldApply(cc: cc, raw: value, current: liveUnit(for: target), target: target) {
+                applySingleParameterRT(target: target, rawValue: value)
+            }
         }
     }
 

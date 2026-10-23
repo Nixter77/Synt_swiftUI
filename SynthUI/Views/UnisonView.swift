@@ -10,6 +10,8 @@ struct UnisonView: View {
     @Environment(\.theme) private var theme
     @Binding var preset: SynthPreset
     @State private var macroBank: Int = 0
+    /// SYNT_17 R14-8: controller's master (ch1/ch16) bend range, runtime only. nil = none received.
+    var controllerMasterBendRange: Float? = nil
 
     var body: some View {
         VStack(spacing: 4) {
@@ -123,6 +125,9 @@ struct UnisonView: View {
                         ForEach(1...15, id: \.self) { c in
                             Button("\(c) channels") { preset.mpeMemberChannelCount = c }
                         }
+                    }
+                    if let label = MPEControllerOverride.masterBendLabel(controllerMasterBendRange) {
+                        Text(label)
                     }
                     Divider()
                     Menu("MPE Presets") {

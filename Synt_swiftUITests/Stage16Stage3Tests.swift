@@ -16,6 +16,12 @@ final class Stage16Stage3Tests: XCTestCase {
         return t[i0] * (1 - f) + t[i1] * f
     }
 
+    /// SYNT_17 R14-5: LFO shapes are peak-normalized.
+    static func normalized(_ f: [Float]) -> [Float] {
+        let p = f.reduce(Float(0)) { max($0, abs($1)) }
+        return p > 1e-6 ? f.map { $0 / p } : f
+    }
+
     private func renderOffMain(_ engine: AudioEngine, _ frames: Int) -> Int {
         let done = expectation(description: "render")
         var nan = 0
@@ -32,11 +38,12 @@ final class Stage16Stage3Tests: XCTestCase {
         let engine = AudioEngine(coreOnly: true)
         engine.prepare(sampleRate: 44_100, maxFrames: 256)
         engine.lfo.waveform = .wavetable
+        engine.oscillator1.waveform = .wavetable // SYNT_17 R14-5: LFO follows osc1 only in wavetable mode
         engine.wavetableEngine1.loadBuiltin(index: 2)
         let posBefore = engine.wavetableEngine1.targetFramePosition
         XCTAssertEqual(renderOffMain(engine, 512), 0)
         XCTAssertEqual(engine.wavetableEngine1.targetFramePosition, posBefore, "morph untouched")
-        let expected = LFOShapeTable.middleFrame(of: WavetableOscillator.basicWavetables[2])
+        let expected = Self.normalized(LFOShapeTable.middleFrame(of: WavetableOscillator.basicWavetables[2]))
         var maxDiffFromDefault: Float = 0
         for k in 0..<64 {
             let norm = Double(k) / 64.0
@@ -53,10 +60,12 @@ final class Stage16Stage3Tests: XCTestCase {
         engine.prepare(sampleRate: 44_100, maxFrames: 256)
         engine.lfo.waveform = .wavetable
         engine.lfo2.waveform = .wavetable
+        engine.oscillator1.waveform = .wavetable // SYNT_17 R14-5
+        engine.oscillator2.waveform = .wavetable
         engine.wavetableEngine1.loadBuiltin(index: 0)
         engine.wavetableEngine2.loadBuiltin(index: 4)
         XCTAssertEqual(renderOffMain(engine, 256), 0)
-        let t2 = LFOShapeTable.middleFrame(of: WavetableOscillator.basicWavetables[4])
+        let t2 = Self.normalized(LFOShapeTable.middleFrame(of: WavetableOscillator.basicWavetables[4]))
         for k in 0..<32 {
             let norm = Double(k) / 32.0
             XCTAssertEqual(engine.lfo.sampleWaveform(at: norm * 2 * .pi), ref(LFO.defaultWavetable, norm), accuracy: 1e-4)
