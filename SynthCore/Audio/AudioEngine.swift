@@ -496,6 +496,15 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedMpeZone: MPEZone = .lower
     public var mpeMemberChannelCount: Int = 15
     public var cachedMpeMemberChannelCount: Int = 15
+    /// SYNT_16 R13-1: controller (RPN 0 / MCM) values layered over the host/preset value.
+    /// Render thread only. A snapshot or parameter write that repeats the previous host
+    /// value keeps the controller value; a different host value replaces it.
+    public var mpeCtl = MPEControllerOverride()
+    /// SYNT_16 R13-9: master-channel RPN 0 range seen by main. Runtime only, never saved in a preset.
+    public var controllerMasterPitchBendRange: Float? = nil
+    /// Main thread. Called after `pollMPEConfigMailbox` mirrored a controller change
+    /// (the AU writes the MPE parameters into its store from here).
+    public var controllerMPEConfigDidChange: (() -> Void)? = nil
     /// R12-1: render writes packed MPE config here (RPN/MCM); main polls it. Bit 63 = new data.
     public let mpeConfigMailbox = Atomic<UInt64>(0)
     public var mpeChannelStates: [MPEChannelState] = Array(repeating: MPEChannelState(), count: 16)

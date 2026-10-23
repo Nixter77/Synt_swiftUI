@@ -209,17 +209,17 @@ extension AudioEngine {
         case .transientSustain: cachedTransientSustain = v
         case .transientOutput: cachedTransientOutput = v
         case .transientMix: cachedTransientMix = v
-        case .mpeEnabled: cachedMpeEnabled = v >= 0.5
+        case .mpeEnabled: adoptHostMPEEnabled(v >= 0.5)
         case .mpePitchBendRange:
-            cachedMpePitchBendRange = v
+            adoptHostMPEMemberRange(v)
             mpePitchBendRange = v
         case .mpeZone:
             let z: MPEZone = v >= 0.5 ? .upper : .lower
-            cachedMpeZone = z
+            adoptHostMPEZone(z)
             mpeZone = z
         case .mpeMemberChannelCount:
             let count = Int(v.rounded())
-            cachedMpeMemberChannelCount = count
+            adoptHostMPEMemberCount(count)
             mpeMemberChannelCount = count
         }
     }

@@ -55,6 +55,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         engine.rendersAllDelayInDSP = true
         engine.applyPreset()
         installParameterTree()
+        engine.controllerMPEConfigDidChange = { [weak self] in self?.storeControllerMPEConfig() }
         startProgramChangePoll()
     }
 
@@ -69,9 +70,34 @@ public final class SyntAudioUnit: AUAudioUnit {
     private func startProgramChangePoll() {
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 0.1, repeating: 0.1)
-        timer.setEventHandler { [weak self] in self?.applyPendingProgram() }
+        timer.setEventHandler { [weak self] in
+            self?.applyPendingProgram()
+            self?.drainControllerMPEConfig()
+        }
         timer.resume()
         programChangeTimer = timer
+    }
+
+    /// SYNT_16 R13-1: main thread. The AU engine is `coreOnly` (no metering poll), so the AU
+    /// drains the render's RPN/MCM mailbox itself and writes the MPE parameters (163–166) into
+    /// the store and tree. They are then part of `fullState` (saved with the project) and every
+    /// later snapshot repeats them instead of restoring the old preset values.
+    func drainControllerMPEConfig() {
+        engine.pollMPEConfigMailbox()
+    }
+
+    private func storeControllerMPEConfig() {
+        let p = engine.preset
+        let values: [(SynthParameterAddress, Float)] = [
+            (.mpeEnabled, p.mpeEnabled ? 1 : 0),
+            (.mpePitchBendRange, p.mpePitchBendRange),
+            (.mpeZone, p.mpeZone == .upper ? 1 : 0),
+            (.mpeMemberChannelCount, Float(p.mpeMemberChannelCount)),
+        ]
+        for (address, value) in values where parameters.value(address.rawValue) != value {
+            parameters.set(address.rawValue, value)
+        }
+        refreshParameterTreeFromStore()
     }
 
     /// Off by default. Logic re-sends a Program Change on every play ("Send used
@@ -263,6 +289,7 @@ public final class SyntAudioUnit: AUAudioUnit {
 
     public override var fullState: [String: Any]? {
         get {
+            if Thread.isMainThread { drainControllerMPEConfig() }
             var state = super.fullState ?? [:]
             state[Self.stateVersionKey] = Self.stateVersion
             let snapshot = presetSnapshot()

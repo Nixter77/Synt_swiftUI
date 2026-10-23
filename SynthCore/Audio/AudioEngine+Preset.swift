@@ -14,6 +14,9 @@ public extension AudioEngine {
 
     public func applyPreset() {
         applyPresetCallCountForTesting += 1
+        // SYNT_16 R13-1: mirror pending controller MPE config first, so the snapshot built
+        // below carries it (closes the standalone poll window).
+        pollMPEConfigMailbox()
         if let data = preset.userWavetableData {
             let sampleRate = self.sampleRate
             let name = preset.userWavetableName ?? "User"
@@ -221,7 +224,7 @@ public extension AudioEngine {
         lfo2.waveform = snap.lfo2Waveform
         lfo2.target = snap.lfo2Target
 
-        cachedPitchBendRange = snap.pitchBendRange
+        adoptHostMasterBendRange(snap.pitchBendRange)
         cachedReverbShimmer = snap.reverbShimmer
         cachedRingModAmount = snap.ringModAmount
         cachedNoiseColor = snap.noiseColor
@@ -384,10 +387,11 @@ public extension AudioEngine {
         cachedTransientSustain = snap.transientSustain
         cachedTransientOutput = snap.transientOutput
         cachedTransientMix = snap.transientMix
-        cachedMpeEnabled = snap.mpeEnabled
-        cachedMpePitchBendRange = snap.mpePitchBendRange
-        cachedMpeZone = snap.mpeZone
-        cachedMpeMemberChannelCount = snap.mpeMemberChannelCount
+        // SYNT_16 R13-1: controller RPN/MCM values survive a snapshot that repeats the host values.
+        adoptHostMPEEnabled(snap.mpeEnabled)
+        adoptHostMPEMemberRange(snap.mpePitchBendRange)
+        adoptHostMPEZone(snap.mpeZone)
+        adoptHostMPEMemberCount(snap.mpeMemberChannelCount)
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
         cachedTranceEnabled = snap.tranceGateEnabled

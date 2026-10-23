@@ -2033,10 +2033,12 @@ public extension AudioEngine {
             // on a member channel it is the per-note range.
             let range = Float(min(value, 96))
             if AudioEngine.isMPEMasterChannel(channel, zone: cachedMpeZone) {
+                mpeCtl.masterRange = range
                 cachedPitchBendRange = range
                 publishMPEConfigRT(masterRangeChanged: true)
                 return
             }
+            mpeCtl.memberRange = range
             cachedMpePitchBendRange = range
             let rangeD = Double(range)
             for c in 0..<16 {
@@ -2052,12 +2054,16 @@ public extension AudioEngine {
             // RPN 6: MPE Configuration Message (MCM)
             let memberCount = min(Int(value), 15)
             cachedMpeMemberChannelCount = memberCount
+            mpeCtl.memberCount = memberCount
             if channel == 0 {
                 cachedMpeZone = .lower
+                mpeCtl.zone = .lower
             } else if channel == 15 {
                 cachedMpeZone = .upper
+                mpeCtl.zone = .upper
             }
             cachedMpeEnabled = memberCount > 0
+            mpeCtl.enabled = memberCount > 0
             publishMPEConfigRT()
         default:
             break
@@ -2106,9 +2112,10 @@ public extension AudioEngine {
 
     /// Main thread. Mirrors RPN/MCM changes made on the render thread into the display preset
     /// without `applyPreset()` (render already has the values).
-    public func pollMPEConfigMailbox() {
+    @discardableResult
+    public func pollMPEConfigMailbox() -> Bool {
         let v = mpeConfigMailbox.exchange(0, ordering: .acquiringAndReleasing)
-        guard v & AudioEngine.mpeMailboxFlag != 0 else { return }
+        guard v & AudioEngine.mpeMailboxFlag != 0 else { return false }
         let enabled = v & 1 != 0
         let zone: MPEZone = v & 2 != 0 ? .upper : .lower
         let count = Int((v >> 2) & 0x1F)
@@ -2126,5 +2133,7 @@ public extension AudioEngine {
             $0.mpePitchBendRange = memberRange
             if masterChanged { $0.pitchBendRange = masterRange }
         }
+        controllerMPEConfigDidChange?()
+        return true
     }
 }
