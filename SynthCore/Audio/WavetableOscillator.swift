@@ -340,6 +340,9 @@ public final class WavetableOscillator {
     /// SYNT_16 R13-4: bit pattern of `activeCompiled.lfoShape` (0 = none). One word, so a
     /// main-thread table swap is never seen torn by the render-side LFO snapshot.
     public let lfoShapeBits = Atomic<Int>(0)
+    /// SYNT_17 R14-3: bit pattern of the immortal built-in set for `mipSampleRate`.
+    /// Written on main (init / setSampleRate), read lock-free by `loadBuiltin` (may run on render).
+    private let builtinSetBits = Atomic<Int>(0)
 
     // Triple buffer for RT lock-free handoff (Chen's wait-free 3-buffer algorithm)
     private static let hasNewDataFlag: Int = 0x80
@@ -363,17 +366,68 @@ public final class WavetableOscillator {
         lock.initialize(to: os_unfair_lock())
         return lock
     }()
+    /// SYNT_17 R14-3: counts every `cacheLock` acquisition (tests prove render paths never take it).
+    public static let cacheLockCountForTesting = Atomic<Int>(0)
+    @inline(__always) static func lockCache() {
+        cacheLockCountForTesting.add(1, ordering: .relaxed)
+        os_unfair_lock_lock(cacheLock)
+    }
+    /// Test hook: runs `body` while holding `cacheLock` (proves render paths do not wait on it).
+    public static func withCacheLockHeldForTesting(_ body: () -> Void) {
+        os_unfair_lock_lock(cacheLock)
+        defer { os_unfair_lock_unlock(cacheLock) }
+        body()
+    }
     private static var compiledCache: [WavetableCacheKey: CompiledMipData] = [:]
+    /// SYNT_17 R14-3: per sample rate, an immortal array of the 5 built-in tables (retained forever,
+    /// never freed or mutated after publish). Main-thread built; render reads it lock-free.
+    private static var builtinSets: [Int: UnsafeMutablePointer<Unmanaged<CompiledMipData>>] = [:]
+
+    /// Main / setup thread only. Compiles (or reuses) all built-in tables for `sampleRate`.
+    static func builtinSet(for sampleRate: Double) -> UnsafeMutablePointer<Unmanaged<CompiledMipData>> {
+        let hz = Int(sampleRate.rounded())
+        lockCache()
+        if let set = builtinSets[hz] {
+            // Keep the keyed cache view consistent after clearCacheForTesting.
+            for i in 0..<basicWavetables.count {
+                let key = BuiltinCacheKey(index: i, sampleRate: sampleRate)
+                if precompiledBuiltins[key] == nil { precompiledBuiltins[key] = set[i].takeUnretainedValue() }
+            }
+            os_unfair_lock_unlock(cacheLock)
+            return set
+        }
+        os_unfair_lock_unlock(cacheLock)
+        let n = basicWavetables.count
+        let set = UnsafeMutablePointer<Unmanaged<CompiledMipData>>.allocate(capacity: n)
+        for i in 0..<n {
+            let key = BuiltinCacheKey(index: i, sampleRate: sampleRate)
+            lockCache()
+            let existing = precompiledBuiltins[key]
+            os_unfair_lock_unlock(cacheLock)
+            let compiled = existing ?? compile(wavetable: basicWavetables[i], sampleRate: sampleRate)
+            if existing == nil {
+                lockCache()
+                precompiledBuiltins[key] = compiled
+                os_unfair_lock_unlock(cacheLock)
+            }
+            (set + i).initialize(to: Unmanaged.passRetained(compiled))
+        }
+        lockCache()
+        defer { os_unfair_lock_unlock(cacheLock) }
+        if let raced = builtinSets[hz] { return raced }   // leak the duplicate (immortal by design, rare)
+        builtinSets[hz] = set
+        return set
+    }
     private static var inProgressKeys = Set<WavetableCacheKey>()
 
     public static func getCachedCompiled(for key: WavetableCacheKey) -> CompiledMipData? {
-        os_unfair_lock_lock(cacheLock)
+        lockCache()
         defer { os_unfair_lock_unlock(cacheLock) }
         return compiledCache[key]
     }
 
     public static func setCachedCompiled(_ compiled: CompiledMipData, for key: WavetableCacheKey) {
-        os_unfair_lock_lock(cacheLock)
+        lockCache()
         defer { os_unfair_lock_unlock(cacheLock) }
         compiledCache[key] = compiled
         inProgressKeys.remove(key)
@@ -387,7 +441,7 @@ public final class WavetableOscillator {
     ) -> CompiledMipData? {
         let contentHash = Wavetable.canonicalContentHash(for: data) ?? data.fnv1aHash()
         let key = WavetableCacheKey(contentHash: contentHash, sampleRate: sampleRate)
-        os_unfair_lock_lock(cacheLock)
+        lockCache()
         if let cached = compiledCache[key] {
             os_unfair_lock_unlock(cacheLock)
             return cached
@@ -401,13 +455,13 @@ public final class WavetableOscillator {
 
         DispatchQueue.global(qos: .userInitiated).async {
             guard let table = Wavetable.deserialize(from: data, name: name) else {
-                os_unfair_lock_lock(cacheLock)
+                lockCache()
                 inProgressKeys.remove(key)
                 os_unfair_lock_unlock(cacheLock)
                 return
             }
             let compiled = compile(wavetable: table, sampleRate: sampleRate)
-            os_unfair_lock_lock(cacheLock)
+            lockCache()
             compiledCache[key] = compiled
             inProgressKeys.remove(key)
             os_unfair_lock_unlock(cacheLock)
@@ -417,7 +471,7 @@ public final class WavetableOscillator {
     }
 
     public static func clearCacheForTesting() {
-        os_unfair_lock_lock(cacheLock)
+        lockCache()
         defer { os_unfair_lock_unlock(cacheLock) }
         compiledCache.removeAll()
         inProgressKeys.removeAll()
@@ -642,6 +696,7 @@ public final class WavetableOscillator {
         writeLock.initialize(to: os_unfair_lock())
         slots = .allocate(capacity: 3)
         slots.initialize(repeating: nil, count: 3)
+        builtinSetBits.store(Int(bitPattern: Self.builtinSet(for: mipSampleRate)), ordering: .releasing)
         loadBuiltin(index: 0)
     }
 
@@ -708,6 +763,8 @@ public final class WavetableOscillator {
         mipSampleRate = rate
         morphSmoothingCoeff = Float(88.2 / rate)
         guard changed else { return }
+        // SYNT_17 R14-3: all built-ins for the new rate are ready before anything can look them up.
+        builtinSetBits.store(Int(bitPattern: Self.builtinSet(for: rate)), ordering: .releasing)
         if currentBuiltinIndex == 5, let userTable = instanceUserWavetable ?? instanceUserCompiled?.wavetable {
             // R12-6: user table must be rebuilt for the new Nyquist (cache keyed by SR).
             loadWavetable(userTable)
@@ -739,20 +796,11 @@ public final class WavetableOscillator {
         let i = max(0, min(Self.basicWavetables.count - 1, index))
         let table = Self.basicWavetables[i]
         currentWavetable = table
-        let cacheKey = BuiltinCacheKey(index: i, sampleRate: mipSampleRate)
-        os_unfair_lock_lock(Self.cacheLock)
-        if let compiled = Self.precompiledBuiltins[cacheKey] {
-            os_unfair_lock_unlock(Self.cacheLock)
-            loadCompiledWavetable(compiled)
-            return
-        }
-        os_unfair_lock_unlock(Self.cacheLock)
-
-        let compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
-        os_unfair_lock_lock(Self.cacheLock)
-        Self.precompiledBuiltins[cacheKey] = compiled
-        os_unfair_lock_unlock(Self.cacheLock)
-        loadCompiledWavetable(compiled)
+        // SYNT_17 R14-3: lock-free lookup in the immortal set prepared on main for this rate.
+        // Never takes `cacheLock`, never compiles (also the R13-6 fallback from index 5).
+        let bits = builtinSetBits.load(ordering: .acquiring)
+        guard let set = UnsafeMutablePointer<Unmanaged<CompiledMipData>>(bitPattern: bits) else { return }
+        loadCompiledWavetable(set[i].takeUnretainedValue())
     }
 
 
