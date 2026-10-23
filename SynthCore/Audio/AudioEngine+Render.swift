@@ -1283,7 +1283,7 @@ public extension AudioEngine {
 
         if cachedSendA > 0 {
             if sendReverb.isClearing { sendReverb.cancelIncrementalClear() }
-            sendFadeA += (cachedSendA - sendFadeA) * 0.1
+            sendFadeA += (cachedSendA - sendFadeA) * 0.05
             lastSendA = cachedSendA
             let wet = sendReverb.process(
                 inputL: sendSourceL,
@@ -1296,10 +1296,8 @@ public extension AudioEngine {
         } else {
             lastSendA = 0
             if sendFadeA > 0 {
-                // R9-2: Smoothly fade out previous tail instead of hard cutting,
-                // and incrementally clear the buffer without blocking render
-                if !sendReverb.isClearing { sendReverb.startIncrementalClear() }
-                sendFadeA = max(0, sendFadeA - (1.0 / 8.0))
+                // R9-2: Smooth 10–20 ms tail fade (~15 ms) without click/discontinuity
+                sendFadeA = max(0, sendFadeA - sendFadeStep)
                 let wet = sendReverb.process(
                     inputL: 0,
                     inputR: 0,
@@ -1308,15 +1306,17 @@ public extension AudioEngine {
                 )
                 outL += wet.0 * sendFadeA
                 outR += wet.1 * sendFadeA
-                sendReverb.clearIncremental(count: (sendReverb.totalCount / 8) + 1)
+                if sendFadeA == 0 {
+                    sendReverb.startIncrementalClear()
+                }
             } else if sendReverb.isClearing {
-                sendReverb.clearIncremental(count: (sendReverb.totalCount / 8) + 1)
+                sendReverb.clearIncremental(count: (sendReverb.totalCount / 64) + 1)
             }
         }
 
         if cachedSendB > 0 {
             if sendDelay.isClearing { sendDelay.cancelIncrementalClear() }
-            sendFadeB += (cachedSendB - sendFadeB) * 0.1
+            sendFadeB += (cachedSendB - sendFadeB) * 0.05
             lastSendB = cachedSendB
             sendDelay.delayTime = cachedSendDelayTime
             sendDelay.feedback = cachedSendDelayFeedback
@@ -1326,18 +1326,18 @@ public extension AudioEngine {
         } else {
             lastSendB = 0
             if sendFadeB > 0 {
-                // R9-2: Smoothly fade out previous tail instead of hard cutting,
-                // and incrementally clear the buffer without blocking render
-                if !sendDelay.isClearing { sendDelay.startIncrementalClear() }
-                sendFadeB = max(0, sendFadeB - (1.0 / 8.0))
+                // R9-2: Smooth 10–20 ms tail fade (~15 ms) without click/discontinuity
+                sendFadeB = max(0, sendFadeB - sendFadeStep)
                 sendDelay.delayTime = cachedSendDelayTime
                 sendDelay.feedback = cachedSendDelayFeedback
                 let wet = sendDelay.process(inputL: 0, inputR: 0, mix: 1)
                 outL += wet.0 * sendFadeB
                 outR += wet.1 * sendFadeB
-                sendDelay.clearIncremental(count: (sendDelay.totalCount / 8) + 1)
+                if sendFadeB == 0 {
+                    sendDelay.startIncrementalClear()
+                }
             } else if sendDelay.isClearing {
-                sendDelay.clearIncremental(count: (sendDelay.totalCount / 8) + 1)
+                sendDelay.clearIncremental(count: (sendDelay.totalCount / 64) + 1)
             }
         }
 

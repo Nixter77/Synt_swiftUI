@@ -14,13 +14,15 @@ import Accelerate
 import AVFoundation
 import Synchronization
 import os
+import Compression
 
 /// Errors during audio-file wavetable parsing
-public enum WavetableError: LocalizedError {
+public enum WavetableError: LocalizedError, Equatable {
     case insufficientSamples(found: Int, required: Int)
     case bufferCreationFailed
     case unsupportedAudioFormat
     case fileTooLarge
+    case decompressedSizeExceedsLimit(found: Int, max: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -32,6 +34,8 @@ public enum WavetableError: LocalizedError {
             return "Unsupported audio format. Float32 or PCM WAV is required."
         case .fileTooLarge:
             return "Audio file exceeds maximum allowed length (> 2^32 frames)."
+        case .decompressedSizeExceedsLimit(let found, let max):
+            return "Decompressed wavetable size (\(found) bytes) exceeds safe limit (\(max) bytes)."
         }
     }
 }
@@ -74,31 +78,133 @@ public struct Wavetable {
         return data
     }
 
-    /// Compresses serialized wavetable frames using zlib deflate for compact preset storage.
+    /// 4-byte header magic: "WTZ1"
+    public static let compressedMagic: UInt32 = 0x57545A31
+
+    /// Canonical content hash for wavetable cache lookups.
+    public var contentHash: UInt64 {
+        return serializedData().fnv1aHash()
+    }
+
+    /// Compresses serialized wavetable frames using zlib deflate with safety header for compact preset storage.
+    /// Format: [magic 4B] + [uncompressedSize 4B] + [canonicalContentHash 8B] + [zlibCompressedPayload]
     public func compressedSerializedData() -> Data {
         let raw = serializedData()
-        if let compressed = try? (raw as NSData).compressed(using: .zlib) as Data {
-            return compressed
+        let hash = raw.fnv1aHash()
+        guard let compressedPayload = try? (raw as NSData).compressed(using: .zlib) as Data else {
+            return raw
         }
-        return raw
+        var data = Data()
+        var magic = Self.compressedMagic
+        var uncompressedSize = Int32(raw.count)
+        var canonicalHash = hash
+        data.append(Data(bytes: &magic, count: 4))
+        data.append(Data(bytes: &uncompressedSize, count: 4))
+        data.append(Data(bytes: &canonicalHash, count: 8))
+        data.append(compressedPayload)
+        return data
+    }
+
+    /// Returns canonical content hash for raw or compressed wavetable data.
+    public static func canonicalContentHash(for data: Data) -> UInt64? {
+        if data.count >= 16 {
+            var magic: UInt32 = 0
+            _ = withUnsafeMutableBytes(of: &magic) { data.copyBytes(to: $0, from: 0..<4) }
+            if magic == compressedMagic {
+                var hash: UInt64 = 0
+                _ = withUnsafeMutableBytes(of: &hash) { data.copyBytes(to: $0, from: 8..<16) }
+                return hash
+            }
+        }
+        guard let table = deserialize(from: data) else { return nil }
+        return table.contentHash
+    }
+
+    public static func deserializeOrThrow(from data: Data, name: String = "User") throws -> Wavetable {
+        guard !data.isEmpty else { throw WavetableError.insufficientSamples(found: 0, required: 8) }
+
+        // 1. Check for "WTZ1" magic header
+        if data.count >= 16 {
+            var magic: UInt32 = 0
+            _ = withUnsafeMutableBytes(of: &magic) { data.copyBytes(to: $0, from: 0..<4) }
+            if magic == compressedMagic {
+                var declaredSize: Int32 = 0
+                _ = withUnsafeMutableBytes(of: &declaredSize) { data.copyBytes(to: $0, from: 4..<8) }
+                // R11-5: Check decompressed size limit BEFORE inflating!
+                guard declaredSize >= 8 && declaredSize <= Int32(maxSerializedBytes) else {
+                    throw WavetableError.decompressedSizeExceedsLimit(found: Int(declaredSize), max: maxSerializedBytes)
+                }
+                let payload = data.subdata(in: 16..<data.count)
+                var dest = [UInt8](repeating: 0, count: Int(declaredSize) + 1)
+                let decoded = payload.withUnsafeBytes { srcPtr in
+                    dest.withUnsafeMutableBytes { dstPtr in
+                        compression_decode_buffer(
+                            dstPtr.bindMemory(to: UInt8.self).baseAddress!,
+                            dstPtr.count,
+                            srcPtr.bindMemory(to: UInt8.self).baseAddress!,
+                            srcPtr.count,
+                            nil,
+                            COMPRESSION_ZLIB
+                        )
+                    }
+                }
+                guard decoded == Int(declaredSize) else {
+                    throw WavetableError.decompressedSizeExceedsLimit(found: decoded, max: Int(declaredSize))
+                }
+                let uncompressed = Data(bytes: dest, count: decoded)
+                return try parseRawSerialized(uncompressed, name: name)
+            }
+        }
+
+        // 2. Legacy zlib (without magic header) or zip-bomb payload
+        // Inflate into a strictly bounded buffer of size maxSerializedBytes + 1
+        var dest = [UInt8](repeating: 0, count: maxSerializedBytes + 1)
+        let decoded = data.withUnsafeBytes { srcPtr in
+            dest.withUnsafeMutableBytes { dstPtr in
+                compression_decode_buffer(
+                    dstPtr.bindMemory(to: UInt8.self).baseAddress!,
+                    dstPtr.count,
+                    srcPtr.bindMemory(to: UInt8.self).baseAddress!,
+                    srcPtr.count,
+                    nil,
+                    COMPRESSION_ZLIB
+                )
+            }
+        }
+        if decoded > maxSerializedBytes {
+            // Zip-bomb detected! Refuse without large memory allocation!
+            throw WavetableError.decompressedSizeExceedsLimit(found: decoded, max: maxSerializedBytes)
+        } else if decoded >= 8 {
+            let uncompressed = Data(bytes: dest, count: decoded)
+            return try parseRawSerialized(uncompressed, name: name)
+        } else {
+            // Not zlib compressed: raw serialized data
+            guard data.count <= maxSerializedBytes else {
+                throw WavetableError.decompressedSizeExceedsLimit(found: data.count, max: maxSerializedBytes)
+            }
+            return try parseRawSerialized(data, name: name)
+        }
     }
 
     public static func deserialize(from data: Data, name: String = "User") -> Wavetable? {
-        guard !data.isEmpty else { return nil }
-        let uncompressedData: Data
-        if let decompressed = try? (data as NSData).decompressed(using: .zlib) as Data {
-            uncompressedData = decompressed
-        } else {
-            uncompressedData = data
+        return try? deserializeOrThrow(from: data, name: name)
+    }
+
+    private static func parseRawSerialized(_ uncompressedData: Data, name: String) throws -> Wavetable {
+        guard uncompressedData.count >= 8, uncompressedData.count <= maxSerializedBytes else {
+            throw WavetableError.decompressedSizeExceedsLimit(found: uncompressedData.count, max: maxSerializedBytes)
         }
-        guard uncompressedData.count >= 8, uncompressedData.count <= maxSerializedBytes else { return nil }
         var fCount: Int32 = 0
         var sCount: Int32 = 0
         _ = withUnsafeMutableBytes(of: &fCount) { uncompressedData.copyBytes(to: $0, from: 0..<4) }
         _ = withUnsafeMutableBytes(of: &sCount) { uncompressedData.copyBytes(to: $0, from: 4..<8) }
-        guard fCount > 0, sCount > 0, fCount <= Int32(maxFramesLimit), sCount <= Int32(maxSamplesPerFrameLimit) else { return nil }
+        guard fCount > 0, sCount > 0, fCount <= Int32(maxFramesLimit), sCount <= Int32(maxSamplesPerFrameLimit) else {
+            throw WavetableError.unsupportedAudioFormat
+        }
         let totalFloats = Int(fCount * sCount)
-        guard uncompressedData.count >= 8 + totalFloats * MemoryLayout<Float>.size else { return nil }
+        guard uncompressedData.count >= 8 + totalFloats * MemoryLayout<Float>.size else {
+            throw WavetableError.insufficientSamples(found: uncompressedData.count, required: 8 + totalFloats * MemoryLayout<Float>.size)
+        }
 
         var frames: [[Float]] = []
         frames.reserveCapacity(Int(fCount))
@@ -222,7 +328,8 @@ public final class WavetableOscillator {
         sampleRate: Double,
         completion: (@Sendable (CompiledMipData) -> Void)? = nil
     ) -> CompiledMipData? {
-        let key = WavetableCacheKey(contentHash: data.fnv1aHash(), sampleRate: sampleRate)
+        let contentHash = Wavetable.canonicalContentHash(for: data) ?? data.fnv1aHash()
+        let key = WavetableCacheKey(contentHash: contentHash, sampleRate: sampleRate)
         os_unfair_lock_lock(cacheLock)
         if let cached = compiledCache[key] {
             os_unfair_lock_unlock(cacheLock)
@@ -448,11 +555,14 @@ public final class WavetableOscillator {
         return maps
     }
 
+    /// Instance-specific user wavetable (R11-4: isolated per oscillator / AU instance, not shared static)
+    public var instanceUserWavetable: Wavetable?
+    public var instanceUserCompiled: CompiledMipData?
+
     /// Loads wavetable frames from an audio file, compiles mipmaps, and sets it as the active user table.
     public func loadFromAudioFile(url: URL) throws {
         let table = try Self.parseAudioFile(url: url)
-        let serialized = table.serializedData()
-        let key = WavetableCacheKey(contentHash: serialized.fnv1aHash(), sampleRate: mipSampleRate)
+        let key = WavetableCacheKey(contentHash: table.contentHash, sampleRate: mipSampleRate)
         let compiled: CompiledMipData
         if let cached = Self.getCachedCompiled(for: key) {
             compiled = cached
@@ -460,6 +570,8 @@ public final class WavetableOscillator {
             compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
             Self.setCachedCompiled(compiled, for: key)
         }
+        instanceUserWavetable = table
+        instanceUserCompiled = compiled
         Self.userWavetable = table
         Self.userCompiledWavetable = compiled
         loadCompiledWavetable(compiled)
@@ -517,8 +629,8 @@ public final class WavetableOscillator {
     public func loadWavetable(_ wavetable: Wavetable) {
         currentWavetable = wavetable
         currentBuiltinIndex = nil
-        let serialized = wavetable.serializedData()
-        let key = WavetableCacheKey(contentHash: serialized.fnv1aHash(), sampleRate: mipSampleRate)
+        instanceUserWavetable = wavetable
+        let key = WavetableCacheKey(contentHash: wavetable.contentHash, sampleRate: mipSampleRate)
         let compiled: CompiledMipData
         if let cached = Self.getCachedCompiled(for: key) {
             compiled = cached
@@ -526,6 +638,7 @@ public final class WavetableOscillator {
             compiled = Self.compile(wavetable: wavetable, sampleRate: mipSampleRate)
             Self.setCachedCompiled(compiled, for: key)
         }
+        instanceUserCompiled = compiled
         loadCompiledWavetable(compiled)
     }
 
@@ -546,13 +659,13 @@ public final class WavetableOscillator {
     public func loadBuiltin(index: Int) {
         currentBuiltinIndex = index
         if index == 5 {
-            if let userCompiled = Self.userCompiledWavetable {
+            if let userCompiled = instanceUserCompiled ?? Self.userCompiledWavetable {
                 currentWavetable = userCompiled.wavetable
                 loadCompiledWavetable(userCompiled)
-            } else if let userTable = Self.userWavetable {
+            } else if let userTable = instanceUserWavetable ?? Self.userWavetable {
                 currentWavetable = userTable
                 loadWavetable(userTable)
-                Self.userCompiledWavetable = activeCompiled
+                instanceUserCompiled = activeCompiled
             } else {
                 loadBuiltin(index: 0)
             }

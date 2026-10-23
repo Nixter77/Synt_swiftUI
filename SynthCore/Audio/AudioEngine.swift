@@ -374,6 +374,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var lastSendB: Float = 0
     public var sendFadeA: Float = 0
     public var sendFadeB: Float = 0
+    /// R9-2: Step per sample for smooth 10–20 ms tail fade (~15 ms at current sample rate).
+    public var sendFadeStep: Float = Float(1.0 / (44100.0 * 0.015))
+    /// R11-4: Per-AU instance user wavetable and compiled mip data (not static/shared).
+    public var userWavetable: Wavetable?
+    public var userCompiledWavetable: CompiledMipData?
     public var cachedRotaryEnabled: Bool = false
     public var cachedRotaryFast: Bool = false
     public var cachedRotaryHornSlow: Float = 0.7
@@ -800,6 +805,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     private func pushSampleRateToDSP(_ rate: Double) {
         let rateF = Float(rate)
         smoothingCoeff = Self.smoothingCoefficient(sampleRate: rate)
+        sendFadeStep = Float(1.0 / max(1.0, rate * 0.015))
         parametricEQL.setSampleRate(rateF)
         parametricEQR.setSampleRate(rateF)
         phaser.setSampleRate(rateF)

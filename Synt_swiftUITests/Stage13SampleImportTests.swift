@@ -76,10 +76,9 @@ import Foundation
         // Next sample should NOT immediately cut to 0 or synchronously reset
         _ = engine.renderOneSample()
         #expect(engine.sendFadeA > 0.0) // fading out smoothly!
-        #expect(engine.sendReverb.isClearing) // clearing incrementally
 
-        // Simulate fading out across remaining samples
-        for _ in 0..<10 {
+        // Simulate fading out across remaining ~15 ms and clearing
+        for _ in 0..<1500 {
             _ = engine.renderOneSample()
         }
 
