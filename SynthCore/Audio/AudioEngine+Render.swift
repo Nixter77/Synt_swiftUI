@@ -2023,46 +2023,84 @@ public extension AudioEngine {
         }
     }
 
+    /// Render thread. Touches only `cached*` / plain RT state and the lock-free mailbox.
+    /// Never writes `preset` (its setter runs applyPreset + @Published) — main picks it up in `pollMPEConfigMailbox`.
     public func handleRPN(channel: UInt8, rpn: UInt16, value: UInt8) {
         switch rpn {
         case 0:
-            // RPN 0: Pitch Bend Sensitivity / Range (in semitones)
-            let range = Float(value)
-            mpePitchBendRange = range
+            // RPN 0: Pitch Bend Sensitivity (semitones)
+            let range = Float(min(value, 96))
             cachedMpePitchBendRange = range
-            preset.mpePitchBendRange = range
             let rangeD = Double(range)
+            for c in 0..<16 {
+                mpeChannelStates[c].pitchBendMultiplier = exp2(Double(mpeChannelStates[c].pitchBend) * rangeD / 12.0)
+            }
             for i in 0..<AudioEngine.maxVoices {
                 if voices[i].isActive {
                     voices[i].mpePitchBendMultiplier = exp2(Double(voices[i].mpePitchBend) * rangeD / 12.0)
                 }
             }
+            publishMPEConfigRT()
         case 6:
             // RPN 6: MPE Configuration Message (MCM)
-            let memberCount = Int(value)
-            mpeMemberChannelCount = memberCount
+            let memberCount = min(Int(value), 15)
             cachedMpeMemberChannelCount = memberCount
-            preset.mpeMemberChannelCount = memberCount
             if channel == 0 {
-                mpeZone = .lower
                 cachedMpeZone = .lower
-                preset.mpeZone = .lower
             } else if channel == 15 {
-                mpeZone = .upper
                 cachedMpeZone = .upper
-                preset.mpeZone = .upper
             }
-            if memberCount > 0 {
-                mpeEnabled = true
-                cachedMpeEnabled = true
-                preset.mpeEnabled = true
-            } else {
-                mpeEnabled = false
-                cachedMpeEnabled = false
-                preset.mpeEnabled = false
-            }
+            cachedMpeEnabled = memberCount > 0
+            publishMPEConfigRT()
         default:
             break
+        }
+    }
+
+    @inline(__always)
+    func publishMPEConfigRT() {
+        let packed = AudioEngine.packMPEConfig(
+            enabled: cachedMpeEnabled,
+            zone: cachedMpeZone,
+            memberCount: cachedMpeMemberChannelCount,
+            memberRange: cachedMpePitchBendRange,
+            masterRange: cachedMpeMasterPitchBendRange
+        )
+        mpeConfigMailbox.store(packed, ordering: .releasing)
+    }
+
+    static let mpeMailboxFlag: UInt64 = 1 << 63
+
+    static func packMPEConfig(enabled: Bool, zone: MPEZone, memberCount: Int, memberRange: Float, masterRange: Float) -> UInt64 {
+        var v: UInt64 = mpeMailboxFlag
+        if enabled { v |= 1 }
+        if zone == .upper { v |= 2 }
+        v |= UInt64(max(0, min(15, memberCount)) & 0x1F) << 2
+        v |= UInt64(UInt8(max(0, min(255, memberRange.rounded())))) << 8
+        v |= UInt64(UInt8(max(0, min(255, masterRange.rounded())))) << 16
+        return v
+    }
+
+    /// Main thread. Mirrors RPN/MCM changes made on the render thread into the display preset
+    /// without `applyPreset()` (render already has the values).
+    public func pollMPEConfigMailbox() {
+        let v = mpeConfigMailbox.exchange(0, ordering: .acquiringAndReleasing)
+        guard v & AudioEngine.mpeMailboxFlag != 0 else { return }
+        let enabled = v & 1 != 0
+        let zone: MPEZone = v & 2 != 0 ? .upper : .lower
+        let count = Int((v >> 2) & 0x1F)
+        let memberRange = Float((v >> 8) & 0xFF)
+        let masterRange = Float((v >> 16) & 0xFF)
+        mpeEnabled = enabled
+        mpeZone = zone
+        mpeMemberChannelCount = count
+        mpePitchBendRange = memberRange
+        mpeMasterPitchBendRange = masterRange
+        updatePresetDisplayOnly {
+            $0.mpeEnabled = enabled
+            $0.mpeZone = zone
+            $0.mpeMemberChannelCount = count
+            $0.mpePitchBendRange = memberRange
         }
     }
 }

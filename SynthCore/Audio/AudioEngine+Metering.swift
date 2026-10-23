@@ -27,6 +27,7 @@ public extension AudioEngine {
     public func pollMetering() {
         // MIDI key highlight rides the same 30 Hz poll (no per-note main hop).
         refreshKeyDisplay()
+        pollMPEConfigMailbox()
         let program = pendingProgram.exchange(-1, ordering: .acquiringAndReleasing)
         if program >= 0, let loaded = PresetBrowser.preset(forProgram: Int(program)) {
             preset = loaded

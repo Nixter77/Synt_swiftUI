@@ -89,6 +89,7 @@ final class Stage14Stage3Tests: XCTestCase {
         engine.handleCommand(.mpeControlChange(channel: 0, cc: 6, value: 24))
 
         XCTAssertEqual(engine.cachedMpePitchBendRange, 24.0, "RPN 0 must update MPE bend range to 24 semitones")
+        engine.pollMPEConfigMailbox() // SYNT_15 R12-1: preset mirrored on main, not written from render
         XCTAssertEqual(engine.preset.mpePitchBendRange, 24.0)
 
         // Also test direct handleRPN call

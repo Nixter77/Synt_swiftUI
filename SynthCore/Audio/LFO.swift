@@ -20,8 +20,19 @@ public class LFO {
     public var mode: LFOMode = .free
     public var startPhaseDegrees: Float = 0.0
     public var stereoPhaseOffsetDegrees: Float = 0.0
+    /// Kept for source compatibility. R12-8: the LFO no longer reads the oscillator engine
+    /// (that advanced its morph smoothing and did ARC/bank pulls per sample).
     public weak var wavetableEngine: WavetableOscillator?
     public static let defaultWavetable: [Float] = WavetableOscillator.basicWavetables[0].frames[16]
+    /// Immortal copy of `defaultWavetable` read on the render thread without ARC.
+    static let defaultTablePointer: UnsafePointer<Float> = {
+        let t = defaultWavetable
+        let p = UnsafeMutablePointer<Float>.allocate(capacity: max(1, t.count))
+        p.initialize(from: t, count: t.count)
+        return UnsafePointer(p)
+    }()
+    private let tablePtr: UnsafePointer<Float> = LFO.defaultTablePointer
+    private let tableCount: Int = LFO.defaultWavetable.count
 
     public internal(set) var phase: Double = 0.0
     public private(set) var isCompleted: Bool = false
@@ -112,13 +123,7 @@ public class LFO {
             value = lastRandomValue
 
         case .wavetable:
-            let normalizedPhase = phase / AudioMath.twoPi
-            if let engine = wavetableEngine {
-                let s = engine.generateSample(phase: phase, phaseIncrement: phaseIncrement, sampleRate: sampleRate)
-                value = s != 0 ? s : sampleDefaultWavetable(normalizedPhase: normalizedPhase)
-            } else {
-                value = sampleDefaultWavetable(normalizedPhase: normalizedPhase)
-            }
+            value = sampleDefaultWavetable(normalizedPhase: phase / AudioMath.twoPi)
         }
 
         return value
@@ -127,8 +132,8 @@ public class LFO {
     private func sampleDefaultWavetable(normalizedPhase: Double) -> Float {
         var norm = normalizedPhase
         norm -= floor(norm)
-        let table = Self.defaultWavetable
-        let count = table.count
+        let table = tablePtr
+        let count = tableCount
         guard count > 0 else { return 0.0 }
         let pos = norm * Double(count)
         let idx0 = Int(pos) % count
@@ -156,10 +161,6 @@ public class LFO {
         case .noise:
             return lastRandomValue
         case .wavetable:
-            if let engine = wavetableEngine {
-                let s = engine.generateSample(phase: wrappedP, phaseIncrement: 0)
-                return s != 0 ? s : sampleDefaultWavetable(normalizedPhase: normalizedPhase)
-            }
             return sampleDefaultWavetable(normalizedPhase: normalizedPhase)
         }
     }

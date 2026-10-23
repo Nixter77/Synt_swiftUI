@@ -496,6 +496,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedMpeZone: MPEZone = .lower
     public var mpeMemberChannelCount: Int = 15
     public var cachedMpeMemberChannelCount: Int = 15
+    /// Bend range for the zone's master channel (RPN 0 sent on the master). MPE spec default 2.
+    public var mpeMasterPitchBendRange: Float = 2.0
+    public var cachedMpeMasterPitchBendRange: Float = 2.0
+    /// R12-1: render writes packed MPE config here (RPN/MCM); main polls it. Bit 63 = new data.
+    public let mpeConfigMailbox = Atomic<UInt64>(0)
     public var mpeChannelStates: [MPEChannelState] = Array(repeating: MPEChannelState(), count: 16)
 
     public struct RPNChannelState {
