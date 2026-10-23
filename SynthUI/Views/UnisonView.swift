@@ -105,6 +105,47 @@ struct UnisonView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .help("Arpeggiator Mode, Rate, Octaves, Gate Length & Swing Groove")
+
+                Menu {
+                    Toggle("MPE Enabled", isOn: $preset.mpeEnabled)
+                    Divider()
+                    Picker("MPE Zone", selection: $preset.mpeZone) {
+                        Text("Lower Zone (Ch 1)").tag(MPEZone.lower)
+                        Text("Upper Zone (Ch 16)").tag(MPEZone.upper)
+                    }
+                    Menu("Bend Range: \(Int(preset.mpePitchBendRange)) st") {
+                        Button("12 st") { preset.mpePitchBendRange = 12 }
+                        Button("24 st") { preset.mpePitchBendRange = 24 }
+                        Button("48 st (Default)") { preset.mpePitchBendRange = 48 }
+                        Button("96 st") { preset.mpePitchBendRange = 96 }
+                    }
+                    Menu("Member Channels: \(preset.mpeMemberChannelCount)") {
+                        ForEach(1...15, id: \.self) { c in
+                            Button("\(c) channels") { preset.mpeMemberChannelCount = c }
+                        }
+                    }
+                    Divider()
+                    Menu("MPE Presets") {
+                        ForEach(SynthPreset.mpeFactoryPresets) { mpeP in
+                            Button(mpeP.name) {
+                                preset = mpeP
+                            }
+                        }
+                    }
+                } label: {
+                    Text(preset.mpeEnabled ? "MPE ON (\(Int(preset.mpePitchBendRange))st)" : "MPE")
+                        .font(theme.monoFont(size: 9, weight: .bold))
+                        .foregroundColor(preset.mpeEnabled ? theme.accent : theme.textFaint)
+                        .lineLimit(1)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(preset.mpeEnabled ? theme.accent.opacity(0.18) : theme.tile))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(preset.mpeEnabled ? theme.accent : theme.border, lineWidth: 0.5))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityIdentifier("mpeSettingsMenu")
+                .help("MPE Configuration: On/Off, Pitch Bend Range, Zone, Member Channels")
             }
             .padding(.horizontal, 4)
 
