@@ -183,6 +183,7 @@ public struct RTPresetSnapshot: Sendable {
     public var transientSustain: Float = 0.0
     public var transientOutput: Float = 1.0
     public var transientMix: Float = 1.0
+    public var mpeEnabled: Bool = false
 
     // Effects
     public var reverbMix: Float = 0.0
@@ -406,6 +407,7 @@ public struct RTPresetSnapshot: Sendable {
         transientSustain = max(-1, min(1, preset.transientSustain))
         transientOutput = max(0, min(2, preset.transientOutput))
         transientMix = max(0, min(1, preset.transientMix))
+        mpeEnabled = preset.mpeEnabled
 
         reverbMix = preset.reverbMix
         reverbRoomSize = preset.reverbRoomSize

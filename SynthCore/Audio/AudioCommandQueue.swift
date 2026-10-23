@@ -53,14 +53,21 @@ public enum AudioCommand: Equatable {
     case setAddressedParameter(id: UInt64, value: Float)
     /// Reordered FX chain applied lock-free at buffer boundary.
     case setFXOrder(table: FXOrderTable)
+    /// MPE (MIDI Polyphonic Expression) commands
+    case mpeKeyDown(midiNote: Int, velocity: Float, channel: UInt8)
+    case mpeKeyUp(midiNote: Int, channel: UInt8)
+    case mpePitchBend(channel: UInt8, value: Float)
+    case mpePressure(channel: UInt8, value: Float)
+    case mpeTimbre(channel: UInt8, value: Float)
 
     public var isCritical: Bool {
         switch self {
         case .noteOff, .clearAll, .arpKeyUp, .setSustain, .keyUp, .resetPatchState, .allNotesOff,
-             .midiStart, .midiContinue, .midiStop:
+             .midiStart, .midiContinue, .midiStop, .mpeKeyUp:
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
-             .midiClock, .setAddressedParameter, .setFXOrder:
+             .midiClock, .setAddressedParameter, .setFXOrder,
+             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre:
             return false
         }
     }
@@ -153,8 +160,12 @@ public final class AudioCommandQueue: @unchecked Sendable {
         case .midiStop:
             pendingMIDITransport.store(3, ordering: .releasing)
             return true
+        case .mpeKeyUp(let midiNote, _):
+            orNoteOffBit(clampedMIDI(midiNote))
+            return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
-             .midiClock, .setAddressedParameter, .setFXOrder:
+             .midiClock, .setAddressedParameter, .setFXOrder,
+             .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre:
             return false
         }
     }

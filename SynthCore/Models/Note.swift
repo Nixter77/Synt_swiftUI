@@ -88,6 +88,11 @@ public struct ActiveNote {
     /// Previous filter output fed back into the next sample. Unread while feedback is 0.
     public var filterFeedbackState: Float = 0
     public var polyAftertouch: Float = 0.0
+    public var midiChannel: UInt8 = 0
+    public var mpePitchBend: Float = 0
+    public var mpePitchBendMultiplier: Double = 1.0
+    public var mpePressure: Float = 0
+    public var mpeTimbre: Float = 0
     public var partial: Int = 0
     public var partialCount: Int = 1
 
@@ -196,6 +201,11 @@ public struct ActiveNote {
         self.filterFeedbackState = 0
         self.filterControlTick = 0
         self.polyAftertouch = 0.0
+        self.midiChannel = 0
+        self.mpePitchBend = 0
+        self.mpePitchBendMultiplier = 1.0
+        self.mpePressure = 0
+        self.mpeTimbre = 0
         self.partial = partial
         self.partialCount = partialCount
     }
@@ -265,6 +275,11 @@ public struct ActiveNote {
         pinkState2 = 0.0
         brownState = 0.0
         polyAftertouch = 0.0
+        midiChannel = 0
+        mpePitchBend = 0
+        mpePitchBendMultiplier = 1.0
+        mpePressure = 0
+        mpeTimbre = 0
         filter.reset()
         ladder.reset()
     }

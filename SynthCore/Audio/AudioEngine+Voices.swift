@@ -160,11 +160,12 @@ public extension AudioEngine {
     }
 
     /// Fixed-pool allocation (audio thread). No Dictionary / heap ids.
-    public func createVoice(midiNote: Int, velocity: Float, hadHeldNotes: Bool = false) {
+    public func createVoice(midiNote: Int, velocity: Float, hadHeldNotes: Bool = false, channel: UInt8 = 0) {
         clearSustainBit(midiNote)
         // Soft re-trigger: fade previous partials of this MIDI note (hard kill = click).
         for i in 0..<AudioEngine.maxVoices {
-            if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
+            let channelMatch = !cachedMpeEnabled || channel < 1 || voices[i].midiChannel == channel
+            if voices[i].isActive && voices[i].midiNote == midiNote && channelMatch && !voices[i].isReleasing {
                 voices[i].beginFastRelease()
             }
         }
@@ -242,6 +243,9 @@ public extension AudioEngine {
             voices[slot].targetFrequency = targetFreq
             voices[slot].currentFrequency = curFreq
             voices[slot].glideIntervalSemitones = semitoneInterval
+            if cachedMpeEnabled && channel >= 1 {
+                voices[slot].midiChannel = channel
+            }
             resetVoiceToneBanks(at: slot)
 
             let randVal = Float(seed) / Float(UInt32.max) * 2.0 - 1.0
@@ -339,12 +343,12 @@ public extension AudioEngine {
         return nil
     }
 
-    public func internalNoteOff(midiNote: Int) {
+    public func internalNoteOff(midiNote: Int, channel: UInt8 = 0) {
         if sustainPedalDown {
             setSustainBit(midiNote)
             return
         }
-        releaseHeldNote(midiNote)
+        releaseHeldNote(midiNote, channel: channel)
     }
 
     public func retuneActiveVoicesLegato(to midiNote: Int, velocity: Float) {
@@ -390,7 +394,7 @@ public extension AudioEngine {
         }
     }
 
-    public func handleNoteOn(midiNote: Int, velocity: Float) {
+    public func handleNoteOn(midiNote: Int, velocity: Float, channel: UInt8 = 0) {
         mseg.trigger()
         mseg2.trigger()
         if lfo.mode != .free {
@@ -401,7 +405,7 @@ public extension AudioEngine {
         }
         switch cachedVoiceMode {
         case .poly:
-            createVoice(midiNote: midiNote, velocity: velocity)
+            createVoice(midiNote: midiNote, velocity: velocity, channel: channel)
 
         case .mono:
             let hadHeldNotes = !monoNoteStack.isEmpty
@@ -416,7 +420,7 @@ public extension AudioEngine {
                     }
                 }
                 if let target = active {
-                    createVoice(midiNote: target.note, velocity: target.velocity, hadHeldNotes: hadHeldNotes)
+                    createVoice(midiNote: target.note, velocity: target.velocity, hadHeldNotes: hadHeldNotes, channel: channel)
                 }
             }
 
@@ -429,7 +433,7 @@ public extension AudioEngine {
             if !hadHeldNotes {
                 let savedPort = cachedPortamento
                 cachedPortamento = 0.0
-                createVoice(midiNote: midiNote, velocity: velocity, hadHeldNotes: false)
+                createVoice(midiNote: midiNote, velocity: velocity, hadHeldNotes: false, channel: channel)
                 cachedPortamento = savedPort
                 lastPlayedFrequency = noteToFrequency(midiNote)
             } else if active?.note != noteBefore, let target = active {
@@ -438,15 +442,15 @@ public extension AudioEngine {
         }
     }
 
-    public func handleNoteOff(midiNote: Int) {
+    public func handleNoteOff(midiNote: Int, channel: UInt8 = 0) {
         switch cachedVoiceMode {
         case .poly:
-            internalNoteOff(midiNote: midiNote)
+            internalNoteOff(midiNote: midiNote, channel: channel)
 
         case .mono:
             if !monoNoteStackContains(midiNote) {
                 // Key went down in another mode (e.g. Poly): plain release.
-                internalNoteOff(midiNote: midiNote)
+                internalNoteOff(midiNote: midiNote, channel: channel)
                 return
             }
             if sustainPedalDown {
@@ -465,16 +469,16 @@ public extension AudioEngine {
                             voices[i].beginFastRelease()
                         }
                     }
-                    createVoice(midiNote: prev.note, velocity: prev.velocity, hadHeldNotes: true)
+                    createVoice(midiNote: prev.note, velocity: prev.velocity, hadHeldNotes: true, channel: channel)
                 } else {
-                    releaseHeldNote(midiNote)
+                    releaseHeldNote(midiNote, channel: channel)
                 }
             }
 
         case .legato:
             if !monoNoteStackContains(midiNote) {
                 // Key went down in another mode (e.g. Poly): plain release.
-                internalNoteOff(midiNote: midiNote)
+                internalNoteOff(midiNote: midiNote, channel: channel)
                 return
             }
             if sustainPedalDown {
@@ -490,7 +494,7 @@ public extension AudioEngine {
                 if let prev = activeAfter {
                     retuneActiveVoicesLegato(to: prev.note, velocity: prev.velocity)
                 } else {
-                    releaseHeldNote(midiNote)
+                    releaseHeldNote(midiNote, channel: channel)
                 }
             }
         }
@@ -609,11 +613,12 @@ public extension AudioEngine {
         }
     }
 
-    public func releaseHeldNote(_ midiNote: Int) {
+    public func releaseHeldNote(_ midiNote: Int, channel: UInt8 = 0) {
         let serial = releaseSerialRT
         var released = false
         for i in 0..<AudioEngine.maxVoices {
-            if voices[i].isActive && voices[i].midiNote == midiNote && !voices[i].isReleasing {
+            let channelMatch = !cachedMpeEnabled || channel < 1 || voices[i].midiChannel == channel
+            if voices[i].isActive && voices[i].midiNote == midiNote && channelMatch && !voices[i].isReleasing {
                 voices[i].isReleasing = true
                 voices[i].releaseSerial = serial
                 voices[i].releaseStartValue = voices[i].envelopeValue

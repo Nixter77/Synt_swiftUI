@@ -718,6 +718,11 @@ public extension AudioEngine {
                 osc2Freq *= pitchBendMultiplier
             }
 
+            if cachedMpeEnabled && v.mpePitchBendMultiplier != 1.0 {
+                osc1Freq *= v.mpePitchBendMultiplier
+                osc2Freq *= v.mpePitchBendMultiplier
+            }
+
             if cachedAnalogDrift > 0 {
                 if v.filterControlTick & 7 == 0 {
                     v.driftPhase += 0.00045
@@ -1548,6 +1553,30 @@ public extension AudioEngine {
                 handleNoteOn(midiNote: midiNote, velocity: velocity)
             case .noteOff(let midiNote):
                 handleNoteOff(midiNote: midiNote)
+            case .mpeKeyDown(let midiNote, let velocity, let channel):
+                handleNoteOn(midiNote: midiNote, velocity: velocity, channel: channel)
+            case .mpeKeyUp(let midiNote, let channel):
+                handleNoteOff(midiNote: midiNote, channel: channel)
+            case .mpePitchBend(let channel, let value):
+                let mul = exp2(Double(value) * Double(cachedMpePitchBendRange) / 12.0)
+                for i in 0..<AudioEngine.maxVoices {
+                    if voices[i].isActive && voices[i].midiChannel == channel {
+                        voices[i].mpePitchBend = value
+                        voices[i].mpePitchBendMultiplier = mul
+                    }
+                }
+            case .mpePressure(let channel, let value):
+                for i in 0..<AudioEngine.maxVoices {
+                    if voices[i].isActive && voices[i].midiChannel == channel {
+                        voices[i].mpePressure = value
+                    }
+                }
+            case .mpeTimbre(let channel, let value):
+                for i in 0..<AudioEngine.maxVoices {
+                    if voices[i].isActive && voices[i].midiChannel == channel {
+                        voices[i].mpeTimbre = value
+                    }
+                }
             case .setPitchBend(let amount):
                 pitchBendTarget = amount
             case .setModWheel(let amount):

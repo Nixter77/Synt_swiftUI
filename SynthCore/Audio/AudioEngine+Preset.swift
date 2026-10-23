@@ -56,6 +56,7 @@ public extension AudioEngine {
         publishMSEG2(preset.mseg2)
         rtModMatrix.publish(preset.modMatrix)
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP)
+        mpeEnabled = preset.mpeEnabled
         rtPresetBuffer.publish(snap)
         if !isRenderingActive.load(ordering: .acquiring) {
             cachedFXOrder = snap.fxOrder
@@ -365,6 +366,7 @@ public extension AudioEngine {
         cachedTransientSustain = snap.transientSustain
         cachedTransientOutput = snap.transientOutput
         cachedTransientMix = snap.transientMix
+        cachedMpeEnabled = snap.mpeEnabled
         cachedOscPhaseMode = snap.oscPhaseMode
         cachedPolyphonyLimit = snap.polyphonyLimit
         cachedTranceEnabled = snap.tranceGateEnabled

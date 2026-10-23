@@ -133,6 +133,7 @@ extension SynthPreset {
         case .transientSustain: return transientSustain
         case .transientOutput: return transientOutput
         case .transientMix: return transientMix
+        case .mpeEnabled: return mpeEnabled ? 1 : 0
         }
     }
 
@@ -261,6 +262,7 @@ extension SynthPreset {
         case .transientSustain: transientSustain = value
         case .transientOutput: transientOutput = value
         case .transientMix: transientMix = value
+        case .mpeEnabled: mpeEnabled = value >= 0.5
         }
     }
 

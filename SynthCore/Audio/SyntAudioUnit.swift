@@ -609,6 +609,7 @@ enum SyntParameterTree {
                 indexedKnob(.glideMode, glideModes),
                 toggleKnob(.glideLegatoOnly),
                 indexedKnob(.monoPriority, monoPriorities),
+                toggleKnob(.mpeEnabled),
             ]
         )
         let filter2 = AUParameterTree.createGroup(

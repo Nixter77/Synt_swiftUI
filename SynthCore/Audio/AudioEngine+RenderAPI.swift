@@ -81,12 +81,12 @@ extension AudioEngine {
                 pendingProgram.store(Int32(program), ordering: .releasing)
                 continue
             }
-            guard let command = Self.command(for: message) else { continue }
+            guard let command = Self.command(for: message, mpeEnabled: cachedMpeEnabled) else { continue }
             guard midiScheduleCount < 512 else {
                 // Schedule full: releases must never be lost (stuck notes). Apply
                 // them now, a few samples early; drop only non-release events.
                 switch command {
-                case .keyUp, .allNotesOff, .clearAll, .setSustain(false):
+                case .keyUp, .allNotesOff, .clearAll, .setSustain(false), .mpeKeyUp:
                     handleCommand(command)
                 default:
                     break
@@ -216,13 +216,22 @@ extension AudioEngine {
         }
     }
 
-    private static func command(for message: MIDIMessage) -> AudioCommand? {
+    public static func command(for message: MIDIMessage, mpeEnabled: Bool = false) -> AudioCommand? {
         switch message {
-        case let .noteOn(note, velocity, _):
+        case let .noteOn(note, velocity, channel):
+            if mpeEnabled && channel >= 1 {
+                return .mpeKeyDown(midiNote: Int(note), velocity: velocity, channel: channel)
+            }
             return .keyDown(midiNote: Int(note), velocity: velocity)
-        case let .noteOff(note, _):
+        case let .noteOff(note, channel):
+            if mpeEnabled && channel >= 1 {
+                return .mpeKeyUp(midiNote: Int(note), channel: channel)
+            }
             return .keyUp(midiNote: Int(note))
-        case let .pitchBend(value, _):
+        case let .pitchBend(value, channel):
+            if mpeEnabled && channel >= 1 {
+                return .mpePitchBend(channel: channel, value: value)
+            }
             return .setPitchBend(value)
         case let .modWheel(value, _):
             return .setModWheel(value)
@@ -234,11 +243,18 @@ extension AudioEngine {
             return .clearAll
         case .programChange:
             return nil
-        case let .channelPressure(pressure, _):
+        case let .channelPressure(pressure, channel):
+            if mpeEnabled && channel >= 1 {
+                return .mpePressure(channel: channel, value: pressure)
+            }
             return .setAftertouch(pressure)
         case let .polyPressure(note, pressure, _):
             return .setPolyAftertouch(midiNote: Int(note), pressure: pressure)
-        case let .controlChange(controller, value, _):
+        case let .controlChange(controller, value, channel):
+            if mpeEnabled && channel >= 1 && controller == 74 {
+                let norm = Float(value) / 127.0
+                return .mpeTimbre(channel: channel, value: norm)
+            }
             return .controlChange(cc: controller, value: value)
         case .clock:
             return .midiClock

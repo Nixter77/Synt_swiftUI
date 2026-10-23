@@ -287,13 +287,13 @@ final class MIDIHandler: ObservableObject {
 
     private func dispatch(_ message: MIDIMessage) {
         switch message {
-        case let .noteOn(note, velocity, _):
-            audioEngine?.midiNoteOn(midiNote: Int(note), velocity: velocity)
+        case let .noteOn(note, velocity, ch):
+            audioEngine?.midiNoteOn(midiNote: Int(note), velocity: velocity, channel: ch)
             activity.post(note: note, velocity: UInt8((velocity * 127).rounded()))
-        case let .noteOff(note, _):
-            audioEngine?.midiNoteOff(midiNote: Int(note))
-        case let .pitchBend(value, _):
-            audioEngine?.midiPitchBend(value)
+        case let .noteOff(note, ch):
+            audioEngine?.midiNoteOff(midiNote: Int(note), channel: ch)
+        case let .pitchBend(value, ch):
+            audioEngine?.midiPitchBend(value, channel: ch)
             activity.touch()
         case let .modWheel(value, _):
             audioEngine?.midiModWheel(value)
@@ -301,8 +301,8 @@ final class MIDIHandler: ObservableObject {
         case let .sustain(down, _):
             audioEngine?.midiSustainPedal(down: down)
             activity.touch()
-        case let .channelPressure(pressure, _):
-            audioEngine?.midiAftertouch(pressure)
+        case let .channelPressure(pressure, ch):
+            audioEngine?.midiAftertouch(pressure, channel: ch)
             activity.touch()
         case let .polyPressure(note, pressure, _):
             audioEngine?.midiPolyAftertouch(midiNote: Int(note), pressure: pressure)
@@ -315,8 +315,12 @@ final class MIDIHandler: ObservableObject {
             // Rare (a button press), so one main hop is fine here.
             let n = Int(program)
             DispatchQueue.main.async { [weak self] in self?.applyProgramChange(n) }
-        case let .controlChange(controller, value, _):
+        case let .controlChange(controller, value, ch):
             activity.touch()
+            if controller == 74, audioEngine?.mpeEnabled == true, ch >= 1 {
+                audioEngine?.midiTimbre(Float(value) / 127.0, channel: ch)
+                return
+            }
             if let engine = audioEngine {
                 // DSP: audio thread only. Display (preset / Apple FX): one coalesced main hop.
                 _ = engine.midiQueue.push(.controlChange(cc: controller, value: value))

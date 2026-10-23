@@ -473,6 +473,12 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var sustainedLo: UInt64 = 0
     public var sustainedHi: UInt64 = 0
 
+    // MPE (MIDI Polyphonic Expression)
+    public var mpeEnabled: Bool = false
+    public var cachedMpeEnabled: Bool = false
+    public var mpePitchBendRange: Float = 48.0
+    public var cachedMpePitchBendRange: Float = 48.0
+
     // Level metering (audio-thread accumulators → AtomicMeteringState)
     public var currentLevel: Float = 0.0
     public var currentPeak: Float = 0.0
@@ -958,26 +964,49 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     // MARK: - MIDI input (CoreMIDI thread only; producer of `midiQueue`)
 
     /// Does not read `preset`: the audio thread picks arp vs voice.
-    public func midiNoteOn(midiNote: Int, velocity: Float) {
-        _ = midiQueue.push(.keyDown(midiNote: midiNote, velocity: velocity))
+    public func midiNoteOn(midiNote: Int, velocity: Float, channel: UInt8 = 0) {
+        if mpeEnabled && channel >= 1 {
+            _ = midiQueue.push(.mpeKeyDown(midiNote: midiNote, velocity: velocity, channel: channel))
+        } else {
+            _ = midiQueue.push(.keyDown(midiNote: midiNote, velocity: velocity))
+        }
         midiKeys.insert(midiNote)
     }
 
-    public func midiNoteOff(midiNote: Int) {
-        _ = midiQueue.push(.keyUp(midiNote: midiNote))
+    public func midiNoteOff(midiNote: Int, channel: UInt8 = 0) {
+        if mpeEnabled && channel >= 1 {
+            _ = midiQueue.push(.mpeKeyUp(midiNote: midiNote, channel: channel))
+        } else {
+            _ = midiQueue.push(.keyUp(midiNote: midiNote))
+        }
         midiKeys.remove(midiNote)
     }
 
-    public func midiPitchBend(_ normalized: Float) {
-        _ = midiQueue.push(.setPitchBend(min(1, max(-1, normalized))))
+    public func midiPitchBend(_ normalized: Float, channel: UInt8 = 0) {
+        let bend = min(1, max(-1, normalized))
+        if mpeEnabled && channel >= 1 {
+            _ = midiQueue.push(.mpePitchBend(channel: channel, value: bend))
+        } else {
+            _ = midiQueue.push(.setPitchBend(bend))
+        }
     }
 
     public func midiModWheel(_ amount: Float) {
         _ = midiQueue.push(.setModWheel(min(1, max(0, amount))))
     }
 
-    public func midiAftertouch(_ amount: Float) {
-        _ = midiQueue.push(.setAftertouch(min(1, max(0, amount))))
+    public func midiAftertouch(_ amount: Float, channel: UInt8 = 0) {
+        let val = min(1, max(0, amount))
+        if mpeEnabled && channel >= 1 {
+            _ = midiQueue.push(.mpePressure(channel: channel, value: val))
+        } else {
+            _ = midiQueue.push(.setAftertouch(val))
+        }
+    }
+
+    public func midiTimbre(_ amount: Float, channel: UInt8 = 0) {
+        let val = min(1, max(0, amount))
+        _ = midiQueue.push(.mpeTimbre(channel: channel, value: val))
     }
 
     public func midiPolyAftertouch(midiNote: Int, pressure: Float) {

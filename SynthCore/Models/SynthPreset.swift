@@ -341,6 +341,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var transientOutput: Float = 1.0
     public var transientMix: Float = 1.0
 
+    /// MPE (MIDI Polyphonic Expression) input mode. Off by default, bit-exact when off.
+    public var mpeEnabled: Bool = false
+
     /// Frequency shifter in FX (Bode single-sideband frequency shifter). Off by default.
     public var frequencyShifterEnabled: Bool = false
     public var frequencyShifterShiftHz: Float = 0.0
@@ -426,6 +429,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case randomSeed
         case transientEnabled, transientAttack, transientSustain, transientOutput, transientMix
         case userWavetableName, userWavetableData
+        case mpeEnabled
     }
 
     public init(
@@ -565,7 +569,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         modEnvRelease: Float = 0.1,
         glideMode: GlideMode = .time,
         glideLegatoOnly: Bool = false,
-        monoPriority: MonoPriority = .last
+        monoPriority: MonoPriority = .last,
+        mpeEnabled: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -704,6 +709,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.glideMode = glideMode
         self.glideLegatoOnly = glideLegatoOnly
         self.monoPriority = monoPriority
+        self.mpeEnabled = mpeEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -921,6 +927,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         transientSustain = try c.decodeIfPresent(Float.self, forKey: .transientSustain) ?? 0.0
         transientOutput = try c.decodeIfPresent(Float.self, forKey: .transientOutput) ?? 1.0
         transientMix = try c.decodeIfPresent(Float.self, forKey: .transientMix) ?? 1.0
+        mpeEnabled = try c.decodeIfPresent(Bool.self, forKey: .mpeEnabled) ?? false
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

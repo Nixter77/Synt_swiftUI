@@ -209,6 +209,7 @@ extension AudioEngine {
         case .transientSustain: cachedTransientSustain = v
         case .transientOutput: cachedTransientOutput = v
         case .transientMix: cachedTransientMix = v
+        case .mpeEnabled: cachedMpeEnabled = v >= 0.5
         }
     }
 
@@ -347,6 +348,7 @@ extension AudioEngine {
         case .transientSustain: return cachedTransientSustain
         case .transientOutput: return cachedTransientOutput
         case .transientMix: return cachedTransientMix
+        case .mpeEnabled: return cachedMpeEnabled ? 1 : 0
         }
     }
 
@@ -506,6 +508,9 @@ extension AudioEngine {
             case .transientSustain: preset.transientSustain = v
             case .transientOutput: preset.transientOutput = v
             case .transientMix: preset.transientMix = v
+            case .mpeEnabled:
+                preset.mpeEnabled = v >= 0.5
+                mpeEnabled = v >= 0.5
             }
         }
         if pushToRender { setParameter(id: id, value: v) }

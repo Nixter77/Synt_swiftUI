@@ -145,6 +145,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case transientSustain = 160
     case transientOutput = 161
     case transientMix = 162
+    case mpeEnabled = 163
 
     public var identifier: String {
         switch self {
@@ -270,6 +271,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .transientSustain: return "transientSustain"
         case .transientOutput: return "transientOutput"
         case .transientMix: return "transientMix"
+        case .mpeEnabled: return "mpeEnabled"
         }
     }
 
@@ -397,6 +399,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .transientSustain: return "Transient Sustain"
         case .transientOutput: return "Transient Output"
         case .transientMix: return "Transient Mix"
+        case .mpeEnabled: return "MPE Enabled"
         }
     }
 
