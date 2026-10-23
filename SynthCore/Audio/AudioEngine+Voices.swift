@@ -244,7 +244,12 @@ public extension AudioEngine {
             voices[slot].currentFrequency = curFreq
             voices[slot].glideIntervalSemitones = semitoneInterval
             if cachedMpeEnabled && channel >= 1 {
+                let ch = Int(channel & 15)
                 voices[slot].midiChannel = channel
+                voices[slot].mpePitchBend = mpeChannelStates[ch].pitchBend
+                voices[slot].mpePitchBendMultiplier = mpeChannelStates[ch].pitchBendMultiplier
+                voices[slot].mpePressure = mpeChannelStates[ch].pressure
+                voices[slot].mpeTimbre = mpeChannelStates[ch].timbre
             }
             resetVoiceToneBanks(at: slot)
 
@@ -584,6 +589,9 @@ public extension AudioEngine {
         cachedMacro3 = 0
         cachedMacro4 = 0
         monoNoteStack.clear()
+        for i in 0..<16 {
+            mpeChannelStates[i] = MPEChannelState()
+        }
         releaseAllHeldNotesRT()
     }
 

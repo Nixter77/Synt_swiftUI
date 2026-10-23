@@ -175,6 +175,7 @@ public final class WavetableOscillator {
     public var morphSmoothingCoeff: Float = 0.002
 
     public private(set) var currentWavetable: Wavetable?
+    public private(set) var currentBuiltinIndex: Int?
     public private(set) var activeCompiled: CompiledMipData?
 
     // Triple buffer for RT lock-free handoff (Chen's wait-free 3-buffer algorithm)
@@ -256,11 +257,20 @@ public final class WavetableOscillator {
         defer { os_unfair_lock_unlock(cacheLock) }
         compiledCache.removeAll()
         inProgressKeys.removeAll()
+        precompiledBuiltins.removeAll()
     }
 
     public static var userWavetable: Wavetable?
     public static var userCompiledWavetable: CompiledMipData?
-    public static var precompiledBuiltins: [Int: CompiledMipData] = [:]
+    public struct BuiltinCacheKey: Hashable, Sendable {
+        public let index: Int
+        public let sampleRateHz: Int
+        public init(index: Int, sampleRate: Double) {
+            self.index = index
+            self.sampleRateHz = Int(sampleRate.rounded())
+        }
+    }
+    public static var precompiledBuiltins: [BuiltinCacheKey: CompiledMipData] = [:]
 
     public static let basicWavetables: [Wavetable] = {
         var tables: [Wavetable] = []
@@ -505,6 +515,8 @@ public final class WavetableOscillator {
     }
 
     public func loadWavetable(_ wavetable: Wavetable) {
+        currentWavetable = wavetable
+        currentBuiltinIndex = nil
         let serialized = wavetable.serializedData()
         let key = WavetableCacheKey(contentHash: serialized.fnv1aHash(), sampleRate: mipSampleRate)
         let compiled: CompiledMipData
@@ -523,15 +535,22 @@ public final class WavetableOscillator {
         let changed = abs(rate - mipSampleRate) > 0.5
         mipSampleRate = rate
         morphSmoothingCoeff = Float(88.2 / rate)
-        guard changed, let currentWavetable else { return }
-        loadWavetable(currentWavetable)
+        guard changed else { return }
+        if let idx = currentBuiltinIndex {
+            loadBuiltin(index: idx)
+        } else if let currentWavetable {
+            loadWavetable(currentWavetable)
+        }
     }
 
     public func loadBuiltin(index: Int) {
+        currentBuiltinIndex = index
         if index == 5 {
             if let userCompiled = Self.userCompiledWavetable {
+                currentWavetable = userCompiled.wavetable
                 loadCompiledWavetable(userCompiled)
             } else if let userTable = Self.userWavetable {
+                currentWavetable = userTable
                 loadWavetable(userTable)
                 Self.userCompiledWavetable = activeCompiled
             } else {
@@ -540,18 +559,20 @@ public final class WavetableOscillator {
             return
         }
         let i = max(0, min(Self.basicWavetables.count - 1, index))
+        let table = Self.basicWavetables[i]
+        currentWavetable = table
+        let cacheKey = BuiltinCacheKey(index: i, sampleRate: mipSampleRate)
         os_unfair_lock_lock(Self.cacheLock)
-        if let compiled = Self.precompiledBuiltins[i] {
+        if let compiled = Self.precompiledBuiltins[cacheKey] {
             os_unfair_lock_unlock(Self.cacheLock)
             loadCompiledWavetable(compiled)
             return
         }
         os_unfair_lock_unlock(Self.cacheLock)
 
-        let table = Self.basicWavetables[i]
         let compiled = Self.compile(wavetable: table, sampleRate: mipSampleRate)
         os_unfair_lock_lock(Self.cacheLock)
-        Self.precompiledBuiltins[i] = compiled
+        Self.precompiledBuiltins[cacheKey] = compiled
         os_unfair_lock_unlock(Self.cacheLock)
         loadCompiledWavetable(compiled)
     }

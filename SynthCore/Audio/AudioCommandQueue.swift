@@ -98,13 +98,29 @@ public final class AudioCommandQueue: @unchecked Sendable {
     /// 0 = none, 1 = start, 2 = continue, 3 = stop. Latest wins when the ring is full.
     private let pendingMIDITransport = Atomic<Int8>(0)
 
+    // Per-channel MPE note-off side channel (16 channels x 128 notes)
+    private let pendingMpeKeyUpLo: UnsafeMutablePointer<Atomic<UInt64>>
+    private let pendingMpeKeyUpHi: UnsafeMutablePointer<Atomic<UInt64>>
+
     public init(capacity: Int = 256) {
         self.capacity = max(2, capacity)
         self.buffer = UnsafeMutablePointer<AudioCommand>.allocate(capacity: self.capacity)
         self.buffer.initialize(repeating: .clearAll, count: self.capacity)
+        self.pendingMpeKeyUpLo = UnsafeMutablePointer<Atomic<UInt64>>.allocate(capacity: 16)
+        self.pendingMpeKeyUpHi = UnsafeMutablePointer<Atomic<UInt64>>.allocate(capacity: 16)
+        for i in 0..<16 {
+            (self.pendingMpeKeyUpLo + i).initialize(to: Atomic<UInt64>(0))
+            (self.pendingMpeKeyUpHi + i).initialize(to: Atomic<UInt64>(0))
+        }
     }
 
     deinit {
+        for i in 0..<16 {
+            (pendingMpeKeyUpLo + i).deinitialize(count: 1)
+            (pendingMpeKeyUpHi + i).deinitialize(count: 1)
+        }
+        pendingMpeKeyUpLo.deallocate()
+        pendingMpeKeyUpHi.deallocate()
         buffer.deinitialize(count: capacity)
         buffer.deallocate()
     }
@@ -160,8 +176,8 @@ public final class AudioCommandQueue: @unchecked Sendable {
         case .midiStop:
             pendingMIDITransport.store(3, ordering: .releasing)
             return true
-        case .mpeKeyUp(let midiNote, _):
-            orNoteOffBit(clampedMIDI(midiNote))
+        case .mpeKeyUp(let midiNote, let channel):
+            orMpeKeyUpBit(clampedMIDI(midiNote), channel: Int(channel & 15))
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
              .midiClock, .setAddressedParameter, .setFXOrder,
@@ -234,6 +250,36 @@ public final class AudioCommandQueue: @unchecked Sendable {
             while true {
                 let current = pendingArpKeyUpHi.load(ordering: .relaxed)
                 let (ok, _) = pendingArpKeyUpHi.compareExchange(
+                    expected: current,
+                    desired: current | mask,
+                    ordering: .acquiringAndReleasing
+                )
+                if ok { return }
+            }
+        }
+    }
+
+    @inline(__always)
+    private func orMpeKeyUpBit(_ n: Int, channel: Int) {
+        let ch = channel & 15
+        if n < 64 {
+            let mask = UInt64(1) << n
+            let ptr = pendingMpeKeyUpLo + ch
+            while true {
+                let current = ptr.pointee.load(ordering: .relaxed)
+                let (ok, _) = ptr.pointee.compareExchange(
+                    expected: current,
+                    desired: current | mask,
+                    ordering: .acquiringAndReleasing
+                )
+                if ok { return }
+            }
+        } else {
+            let mask = UInt64(1) << (n - 64)
+            let ptr = pendingMpeKeyUpHi + ch
+            while true {
+                let current = ptr.pointee.load(ordering: .relaxed)
+                let (ok, _) = ptr.pointee.compareExchange(
                     expected: current,
                     desired: current | mask,
                     ordering: .acquiringAndReleasing
@@ -333,7 +379,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
         if !didClearAll && count < limit {
             let bitsLo = pendingArpKeyUpLo.exchange(0, ordering: .acquiringAndReleasing)
             let bitsHi = pendingArpKeyUpHi.exchange(0, ordering: .acquiringAndReleasing)
-            _ = emitBits(
+            count = emitBits(
                 bitsLo: bitsLo,
                 bitsHi: bitsHi,
                 limit: limit,
@@ -343,6 +389,25 @@ public final class AudioCommandQueue: @unchecked Sendable {
                 restoreLo: { [self] rem in self.orArpKeyUpBitRangeLo(rem) },
                 restoreHi: { [self] rem in self.orArpKeyUpBitRangeHi(rem) }
             )
+        }
+
+        if !didClearAll && count < limit {
+            for ch in 0..<16 {
+                guard count < limit else { break }
+                let bitsLo = (pendingMpeKeyUpLo + ch).pointee.exchange(0, ordering: .acquiringAndReleasing)
+                let bitsHi = (pendingMpeKeyUpHi + ch).pointee.exchange(0, ordering: .acquiringAndReleasing)
+                if bitsLo == 0 && bitsHi == 0 { continue }
+                count = emitBits(
+                    bitsLo: bitsLo,
+                    bitsHi: bitsHi,
+                    limit: limit,
+                    count: count,
+                    body: body,
+                    make: { AudioCommand.mpeKeyUp(midiNote: $0, channel: UInt8(ch)) },
+                    restoreLo: { [self] rem in self.orMpeKeyUpBitRangeLo(rem, channel: ch) },
+                    restoreHi: { [self] rem in self.orMpeKeyUpBitRangeHi(rem, channel: ch) }
+                )
+            }
         }
     }
 
@@ -369,6 +434,10 @@ public final class AudioCommandQueue: @unchecked Sendable {
         pendingArpKeyUpLo.store(0, ordering: .relaxed)
         pendingArpKeyUpHi.store(0, ordering: .relaxed)
         pendingMIDITransport.store(0, ordering: .relaxed)
+        for i in 0..<16 {
+            (pendingMpeKeyUpLo + i).pointee.store(0, ordering: .relaxed)
+            (pendingMpeKeyUpHi + i).pointee.store(0, ordering: .relaxed)
+        }
     }
 
     private func orNoteOffBitRangeLo(_ value: UInt64) {
@@ -415,6 +484,34 @@ public final class AudioCommandQueue: @unchecked Sendable {
         while true {
             let current = pendingArpKeyUpHi.load(ordering: .relaxed)
             let (ok, _) = pendingArpKeyUpHi.compareExchange(
+                expected: current,
+                desired: current | value,
+                ordering: .acquiringAndReleasing
+            )
+            if ok { return }
+        }
+    }
+
+    private func orMpeKeyUpBitRangeLo(_ value: UInt64, channel: Int) {
+        guard value != 0 else { return }
+        let ptr = pendingMpeKeyUpLo + (channel & 15)
+        while true {
+            let current = ptr.pointee.load(ordering: .relaxed)
+            let (ok, _) = ptr.pointee.compareExchange(
+                expected: current,
+                desired: current | value,
+                ordering: .acquiringAndReleasing
+            )
+            if ok { return }
+        }
+    }
+
+    private func orMpeKeyUpBitRangeHi(_ value: UInt64, channel: Int) {
+        guard value != 0 else { return }
+        let ptr = pendingMpeKeyUpHi + (channel & 15)
+        while true {
+            let current = ptr.pointee.load(ordering: .relaxed)
+            let (ok, _) = ptr.pointee.compareExchange(
                 expected: current,
                 desired: current | value,
                 ordering: .acquiringAndReleasing
@@ -476,6 +573,10 @@ public final class AudioCommandQueue: @unchecked Sendable {
         if pendingNoteOffHi.load(ordering: .acquiring) != 0 { return false }
         if pendingArpKeyUpLo.load(ordering: .acquiring) != 0 { return false }
         if pendingArpKeyUpHi.load(ordering: .acquiring) != 0 { return false }
+        for i in 0..<16 {
+            if (pendingMpeKeyUpLo + i).pointee.load(ordering: .acquiring) != 0 { return false }
+            if (pendingMpeKeyUpHi + i).pointee.load(ordering: .acquiring) != 0 { return false }
+        }
         return true
     }
 
@@ -493,6 +594,16 @@ public final class AudioCommandQueue: @unchecked Sendable {
             return (pendingNoteOffLo.load(ordering: .acquiring) & (UInt64(1) << n)) != 0
         }
         return (pendingNoteOffHi.load(ordering: .acquiring) & (UInt64(1) << (n - 64))) != 0
+    }
+
+    /// Test helper: whether an mpeKeyUp is parked on the critical side-channel.
+    public func hasPendingMpeKeyUpForTesting(_ midiNote: Int, channel: UInt8) -> Bool {
+        let n = clampedMIDI(midiNote)
+        let ch = Int(channel & 15)
+        if n < 64 {
+            return ((pendingMpeKeyUpLo + ch).pointee.load(ordering: .acquiring) & (UInt64(1) << n)) != 0
+        }
+        return ((pendingMpeKeyUpHi + ch).pointee.load(ordering: .acquiring) & (UInt64(1) << (n - 64))) != 0
     }
 
     /// Test helper: clearAll side-channel flag.

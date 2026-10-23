@@ -50,6 +50,15 @@ public struct ActiveParameterRamp: Sendable {
     }
 }
 
+public struct MPEChannelState: Sendable {
+    public var pitchBend: Float = 0.0
+    public var pitchBendMultiplier: Double = 1.0
+    public var pressure: Float = 0.0
+    public var timbre: Float = 0.0
+
+    public init() {}
+}
+
 public final class AudioEngine: ObservableObject, @unchecked Sendable {
     private static let log = Logger(subsystem: "Home.Synt-swiftUI", category: "AudioEngine")
     private let engine = AVAudioEngine()
@@ -478,6 +487,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedMpeEnabled: Bool = false
     public var mpePitchBendRange: Float = 48.0
     public var cachedMpePitchBendRange: Float = 48.0
+    public var mpeChannelStates: [MPEChannelState] = Array(repeating: MPEChannelState(), count: 16)
 
     // Level metering (audio-thread accumulators → AtomicMeteringState)
     public var currentLevel: Float = 0.0
@@ -552,6 +562,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         oscillator1.wavetableSampleRate = sampleRate
         oscillator2.wavetableEngine = wavetableEngine2
         oscillator2.wavetableSampleRate = sampleRate
+        lfo.wavetableEngine = wavetableEngine1
+        lfo2.wavetableEngine = wavetableEngine2
 
         // Stage 4 defaults: advanced FX off (keep current factory sound).
         distortion.enabled = false

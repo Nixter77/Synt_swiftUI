@@ -1558,7 +1558,10 @@ public extension AudioEngine {
             case .mpeKeyUp(let midiNote, let channel):
                 handleNoteOff(midiNote: midiNote, channel: channel)
             case .mpePitchBend(let channel, let value):
+                let ch = Int(channel & 15)
+                mpeChannelStates[ch].pitchBend = value
                 let mul = exp2(Double(value) * Double(cachedMpePitchBendRange) / 12.0)
+                mpeChannelStates[ch].pitchBendMultiplier = mul
                 for i in 0..<AudioEngine.maxVoices {
                     if voices[i].isActive && voices[i].midiChannel == channel {
                         voices[i].mpePitchBend = value
@@ -1566,12 +1569,16 @@ public extension AudioEngine {
                     }
                 }
             case .mpePressure(let channel, let value):
+                let ch = Int(channel & 15)
+                mpeChannelStates[ch].pressure = value
                 for i in 0..<AudioEngine.maxVoices {
                     if voices[i].isActive && voices[i].midiChannel == channel {
                         voices[i].mpePressure = value
                     }
                 }
             case .mpeTimbre(let channel, let value):
+                let ch = Int(channel & 15)
+                mpeChannelStates[ch].timbre = value
                 for i in 0..<AudioEngine.maxVoices {
                     if voices[i].isActive && voices[i].midiChannel == channel {
                         voices[i].mpeTimbre = value
@@ -1625,6 +1632,9 @@ public extension AudioEngine {
                 cachedMacro2 = 0
                 cachedMacro3 = 0
                 cachedMacro4 = 0
+                for i in 0..<16 {
+                    mpeChannelStates[i] = MPEChannelState()
+                }
                 sustainPedalDown = false
                 sustainedLo = 0
                 sustainedHi = 0

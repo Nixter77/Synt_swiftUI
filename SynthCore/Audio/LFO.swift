@@ -20,6 +20,8 @@ public class LFO {
     public var mode: LFOMode = .free
     public var startPhaseDegrees: Float = 0.0
     public var stereoPhaseOffsetDegrees: Float = 0.0
+    public weak var wavetableEngine: WavetableOscillator?
+    public static let defaultWavetable: [Float] = WavetableOscillator.basicWavetables[0].frames[16]
 
     public internal(set) var phase: Double = 0.0
     public private(set) var isCompleted: Bool = false
@@ -110,11 +112,29 @@ public class LFO {
             value = lastRandomValue
 
         case .wavetable:
-            // LFO does not use multi-frame tables — sine is a safe fallback.
-            value = Float(sin(phase))
+            let normalizedPhase = phase / AudioMath.twoPi
+            if let engine = wavetableEngine {
+                let s = engine.generateSample(phase: phase, phaseIncrement: phaseIncrement, sampleRate: sampleRate)
+                value = s != 0 ? s : sampleDefaultWavetable(normalizedPhase: normalizedPhase)
+            } else {
+                value = sampleDefaultWavetable(normalizedPhase: normalizedPhase)
+            }
         }
 
         return value
+    }
+
+    private func sampleDefaultWavetable(normalizedPhase: Double) -> Float {
+        var norm = normalizedPhase
+        norm -= floor(norm)
+        let table = Self.defaultWavetable
+        let count = table.count
+        guard count > 0 else { return 0.0 }
+        let pos = norm * Double(count)
+        let idx0 = Int(pos) % count
+        let idx1 = (idx0 + 1) % count
+        let frac = Float(pos - floor(pos))
+        return table[idx0] * (1.0 - frac) + table[idx1] * frac
     }
 
     /// Samples the current LFO waveform at an arbitrary phase in [0, 2pi).
@@ -136,7 +156,11 @@ public class LFO {
         case .noise:
             return lastRandomValue
         case .wavetable:
-            return Float(sin(wrappedP))
+            if let engine = wavetableEngine {
+                let s = engine.generateSample(phase: wrappedP, phaseIncrement: 0)
+                return s != 0 ? s : sampleDefaultWavetable(normalizedPhase: normalizedPhase)
+            }
+            return sampleDefaultWavetable(normalizedPhase: normalizedPhase)
         }
     }
 
