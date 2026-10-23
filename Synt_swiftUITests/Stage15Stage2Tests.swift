@@ -55,7 +55,9 @@ final class Stage15Stage2Tests: XCTestCase {
         XCTAssertEqual(engine.cachedPitchBendRange, 2)
         engine.pollMPEConfigMailbox()
         XCTAssertEqual(engine.preset.mpePitchBendRange, 48)
-        XCTAssertEqual(engine.preset.pitchBendRange, 2)
+        // SYNT_16 R13-9: master range is runtime-only (not written into the preset).
+        XCTAssertEqual(engine.controllerMasterPitchBendRange, 2)
+        XCTAssertEqual(engine.cachedPitchBendRange, 2)
     }
 
     func testR12_4_UpperZoneMasterIsChannel16() {

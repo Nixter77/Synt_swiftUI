@@ -2038,20 +2038,16 @@ public extension AudioEngine {
                 publishMPEConfigRT(masterRangeChanged: true)
                 return
             }
+            // SYNT_16 R13-2: RPN 0 from a channel outside the current zone is ignored.
+            guard AudioEngine.isMPEMemberChannel(channel, zone: cachedMpeZone, memberCount: cachedMpeMemberChannelCount) else { return }
             mpeCtl.memberRange = range
             cachedMpePitchBendRange = range
-            let rangeD = Double(range)
-            for c in 0..<16 {
-                mpeChannelStates[c].pitchBendMultiplier = exp2(Double(mpeChannelStates[c].pitchBend) * rangeD / 12.0)
-            }
-            for i in 0..<AudioEngine.maxVoices {
-                if voices[i].isActive {
-                    voices[i].mpePitchBendMultiplier = exp2(Double(voices[i].mpePitchBend) * rangeD / 12.0)
-                }
-            }
+            recomputeMPEBendMultipliersRT()
             publishMPEConfigRT()
         case 6:
-            // RPN 6: MPE Configuration Message (MCM)
+            // RPN 6: MPE Configuration Message (MCM). Only on ch1 / ch16 (zone masters);
+            // SYNT_16 R13-2: accepted whatever the current zone is, so the controller can switch zones.
+            guard channel & 15 == 0 || channel & 15 == 15 else { return }
             let memberCount = min(Int(value), 15)
             cachedMpeMemberChannelCount = memberCount
             mpeCtl.memberCount = memberCount
@@ -2064,9 +2060,28 @@ public extension AudioEngine {
             }
             cachedMpeEnabled = memberCount > 0
             mpeCtl.enabled = memberCount > 0
-            publishMPEConfigRT()
+            // SYNT_16 R13-3: MCM resets member bend to ±48 and master bend to ±2 (MPE 1.0).
+            mpeCtl.memberRange = 48
+            cachedMpePitchBendRange = 48
+            mpeCtl.masterRange = 2
+            cachedPitchBendRange = 2
+            recomputeMPEBendMultipliersRT()
+            publishMPEConfigRT(masterRangeChanged: true)
         default:
             break
+        }
+    }
+
+    /// Render thread. Per event (RPN), not per sample.
+    func recomputeMPEBendMultipliersRT() {
+        let rangeD = Double(cachedMpePitchBendRange)
+        for c in 0..<16 {
+            mpeChannelStates[c].pitchBendMultiplier = exp2(Double(mpeChannelStates[c].pitchBend) * rangeD / 12.0)
+        }
+        for i in 0..<AudioEngine.maxVoices {
+            if voices[i].isActive {
+                voices[i].mpePitchBendMultiplier = exp2(Double(voices[i].mpePitchBend) * rangeD / 12.0)
+            }
         }
     }
 
@@ -2131,8 +2146,9 @@ public extension AudioEngine {
             $0.mpeZone = zone
             $0.mpeMemberChannelCount = count
             $0.mpePitchBendRange = memberRange
-            if masterChanged { $0.pitchBendRange = masterRange }
         }
+        // SYNT_16 R13-9: the controller's master range is runtime state, never written into the preset.
+        if masterChanged { controllerMasterPitchBendRange = masterRange }
         controllerMPEConfigDidChange?()
         return true
     }
