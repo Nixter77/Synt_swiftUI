@@ -39,6 +39,7 @@ final class Stage16Stage3Tests: XCTestCase {
         engine.prepare(sampleRate: 44_100, maxFrames: 256)
         engine.lfo.waveform = .wavetable
         engine.oscillator1.waveform = .wavetable // SYNT_17 R14-5: LFO follows osc1 only in wavetable mode
+        engine.rtOsc1IsWavetable = true // SYNT_18 R15-5: the LFO gate is render-owned now
         engine.wavetableEngine1.loadBuiltin(index: 2)
         let posBefore = engine.wavetableEngine1.targetFramePosition
         XCTAssertEqual(renderOffMain(engine, 512), 0)
@@ -61,7 +62,9 @@ final class Stage16Stage3Tests: XCTestCase {
         engine.lfo.waveform = .wavetable
         engine.lfo2.waveform = .wavetable
         engine.oscillator1.waveform = .wavetable // SYNT_17 R14-5
+        engine.rtOsc1IsWavetable = true // SYNT_18 R15-5: the LFO gate is render-owned now
         engine.oscillator2.waveform = .wavetable
+        engine.rtOsc2IsWavetable = true // SYNT_18 R15-5: the LFO gate is render-owned now
         engine.wavetableEngine1.loadBuiltin(index: 0)
         engine.wavetableEngine2.loadBuiltin(index: 4)
         XCTAssertEqual(renderOffMain(engine, 256), 0)

@@ -37,16 +37,36 @@ public class LFO {
     /// SYNT_16 R13-4: render thread, once per block. Adopts the shape of the oscillator's
     /// current table (bit pattern from `WavetableOscillator.lfoShapeBits`); 0 = default shape.
     /// Plain pointer reads only: no ARC, no allocation, the oscillator is not touched.
+    /// SYNT_18 R15-5: a shape change (table or osc mode switch) crossfades over ~5 ms instead of
+    /// jumping. The very first adoption is immediate (no fade at start → golden output unchanged).
     @inline(__always)
     public func adoptShape(bits: Int) {
-        guard let p = UnsafePointer<LFOShapeTable>(bitPattern: bits) else {
-            tablePtr = LFO.defaultTablePointer
-            tableCount = LFO.defaultWavetable.count
-            return
+        let newPtr: UnsafePointer<Float>
+        let newCount: Int
+        if let p = UnsafePointer<LFOShapeTable>(bitPattern: bits) {
+            newPtr = p.pointee.data
+            newCount = p.pointee.count
+        } else {
+            newPtr = LFO.defaultTablePointer
+            newCount = LFO.defaultWavetable.count
         }
-        tablePtr = p.pointee.data
-        tableCount = p.pointee.count
+        if newPtr != tablePtr {
+            if hasAdoptedShape {
+                prevTablePtr = tablePtr
+                prevTableCount = tableCount
+                shapeFade = 0
+            }
+            tablePtr = newPtr
+            tableCount = newCount
+        }
+        hasAdoptedShape = true
     }
+    private var hasAdoptedShape = false
+    private var prevTablePtr: UnsafePointer<Float> = LFO.defaultTablePointer
+    private var prevTableCount: Int = LFO.defaultWavetable.count
+    /// 1 = no fade in progress.
+    public private(set) var shapeFade: Float = 1
+    public static let shapeFadeSeconds: Double = 0.005
 
     public internal(set) var phase: Double = 0.0
     public private(set) var isCompleted: Bool = false
@@ -138,6 +158,9 @@ public class LFO {
 
         case .wavetable:
             value = sampleDefaultWavetable(normalizedPhase: phase / AudioMath.twoPi)
+            if shapeFade < 1 {
+                shapeFade = min(1, shapeFade + Float(1.0 / (LFO.shapeFadeSeconds * sampleRate)))
+            }
         }
 
         return value
@@ -153,7 +176,16 @@ public class LFO {
         let idx0 = Int(pos) % count
         let idx1 = (idx0 + 1) % count
         let frac = Float(pos - floor(pos))
-        return table[idx0] * (1.0 - frac) + table[idx1] * frac
+        let v = table[idx0] * (1.0 - frac) + table[idx1] * frac
+        guard shapeFade < 1 else { return v }
+        let pc = prevTableCount
+        guard pc > 0 else { return v }
+        let ppos = norm * Double(pc)
+        let p0 = Int(ppos) % pc
+        let p1 = (p0 + 1) % pc
+        let pf = Float(ppos - floor(ppos))
+        let pv = prevTablePtr[p0] * (1.0 - pf) + prevTablePtr[p1] * pf
+        return pv + (v - pv) * shapeFade
     }
 
     /// Samples the current LFO waveform at an arbitrary phase in [0, 2pi).

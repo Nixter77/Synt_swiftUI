@@ -69,11 +69,33 @@ public struct MPEControllerOverride: Sendable {
 }
 
 public extension AudioEngine {
-    @inline(__always) func adoptHostMPEEnabled(_ v: Bool) { cachedMpeEnabled = mpeCtl.adoptEnabled(v) }
-    @inline(__always) func adoptHostMPEZone(_ v: MPEZone) { cachedMpeZone = mpeCtl.adoptZone(v) }
-    @inline(__always) func adoptHostMPEMemberCount(_ v: Int) { cachedMpeMemberChannelCount = mpeCtl.adoptMemberCount(v) }
-    @inline(__always) func adoptHostMPEMemberRange(_ v: Float) { cachedMpePitchBendRange = mpeCtl.adoptMemberRange(v) }
-    @inline(__always) func adoptHostMasterBendRange(_ v: Float) { cachedPitchBendRange = mpeCtl.adoptMasterRange(v) }
+    // SYNT_18 R15-3: when a host value drops a controller override on render, tell main
+    // through the existing lock-free mailbox (main used to keep showing the stale controller value).
+    @inline(__always) func adoptHostMPEEnabled(_ v: Bool) {
+        let had = mpeCtl.enabled != nil
+        cachedMpeEnabled = mpeCtl.adoptEnabled(v)
+        if had && mpeCtl.enabled == nil { publishMPEConfigRT() }
+    }
+    @inline(__always) func adoptHostMPEZone(_ v: MPEZone) {
+        let had = mpeCtl.zone != nil
+        cachedMpeZone = mpeCtl.adoptZone(v)
+        if had && mpeCtl.zone == nil { publishMPEConfigRT() }
+    }
+    @inline(__always) func adoptHostMPEMemberCount(_ v: Int) {
+        let had = mpeCtl.memberCount != nil
+        cachedMpeMemberChannelCount = mpeCtl.adoptMemberCount(v)
+        if had && mpeCtl.memberCount == nil { publishMPEConfigRT() }
+    }
+    @inline(__always) func adoptHostMPEMemberRange(_ v: Float) {
+        let had = mpeCtl.memberRange != nil
+        cachedMpePitchBendRange = mpeCtl.adoptMemberRange(v)
+        if had && mpeCtl.memberRange == nil { publishMPEConfigRT() }
+    }
+    @inline(__always) func adoptHostMasterBendRange(_ v: Float) {
+        let had = mpeCtl.masterRange != nil
+        cachedPitchBendRange = mpeCtl.adoptMasterRange(v)
+        if had && mpeCtl.masterRange == nil { publishMPEConfigRT(masterRangeChanged: true) }
+    }
 }
 
 public extension MPEControllerOverride {

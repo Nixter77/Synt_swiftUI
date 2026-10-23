@@ -25,7 +25,9 @@ extension AudioEngine {
         case .osc1WavetableMorph:
             oscillator1.wavetableMorph = v
             ccWtMorph1Target = v
-        case .osc1Waveform: oscillator1.waveform = Self.waveform(v)
+        case .osc1Waveform:
+            oscillator1.waveform = Self.waveform(v)
+            rtOsc1IsWavetable = oscillator1.waveform == .wavetable
         case .osc1WavetableIndex, .osc2WavetableIndex: break
         case .osc2Volume:
             oscillator2.volume = v
@@ -40,7 +42,9 @@ extension AudioEngine {
         case .osc2WavetableMorph:
             oscillator2.wavetableMorph = v
             ccWtMorph2Target = v
-        case .osc2Waveform: oscillator2.waveform = Self.waveform(v)
+        case .osc2Waveform:
+            oscillator2.waveform = Self.waveform(v)
+            rtOsc2IsWavetable = oscillator2.waveform == .wavetable
         case .osc2Enabled: cachedOsc2Enabled = v >= 0.5
         case .subOscVolume: cachedSubOscVolume = v
         case .fmAmount: cachedFmAmount = v

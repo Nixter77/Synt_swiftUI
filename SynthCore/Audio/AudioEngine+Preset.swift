@@ -176,6 +176,7 @@ public extension AudioEngine {
     public func applyPresetDSP(_ snap: RTPresetSnapshot) {
         cachedFXOrder = snap.fxOrder
         oscillator1.waveform = snap.osc1Waveform
+        rtOsc1IsWavetable = snap.osc1Waveform == .wavetable
         oscillator1.volume = snap.osc1Volume
         oscillator1.octave = snap.osc1Octave
         oscillator1.detune = snap.osc1Detune
@@ -188,6 +189,7 @@ public extension AudioEngine {
         }
 
         oscillator2.waveform = snap.osc2Waveform
+        rtOsc2IsWavetable = snap.osc2Waveform == .wavetable
         oscillator2.volume = snap.osc2Volume
         oscillator2.octave = snap.osc2Octave
         oscillator2.detune = snap.osc2Detune

@@ -517,6 +517,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// SYNT_17 R14-1: main-thread mirror of the controller overrides (runtime only, never saved).
     /// UI reads it to show controller values next to the user's settings.
     public var controllerMPEMain = MPEControllerOverride()
+    /// SYNT_18 R15-5: render-owned LFO gate (written only by applyPresetDSP / applyAddressedParameterRT).
+    public var rtOsc1IsWavetable = false
+    public var rtOsc2IsWavetable = false
     /// SYNT_16 R13-9: master-channel RPN 0 range seen by main. Runtime only, never saved in a preset.
     /// SYNT_17 R14-8: published so the standalone MPE menu shows it.
     @Published public var controllerMasterPitchBendRange: Float? = nil
@@ -667,8 +670,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         // SYNT_16 R13-4: wavetable LFOs follow their oscillator's table (per-block snapshot).
         // SYNT_17 R14-5: only while that oscillator is in wavetable mode; otherwise the default shape
         // (the last-loaded table is invisible to the user then).
-        lfo.adoptShape(bits: oscillator1.waveform == .wavetable ? wavetableEngine1.lfoShapeBits.load(ordering: .acquiring) : 0)
-        lfo2.adoptShape(bits: oscillator2.waveform == .wavetable ? wavetableEngine2.lfoShapeBits.load(ordering: .acquiring) : 0)
+        lfo.adoptShape(bits: rtOsc1IsWavetable ? wavetableEngine1.lfoShapeBits.load(ordering: .acquiring) : 0)
+        lfo2.adoptShape(bits: rtOsc2IsWavetable ? wavetableEngine2.lfoShapeBits.load(ordering: .acquiring) : 0)
         if let intoR = intoR {
             for frame in 0..<frameCount {
                 advanceParameterRampsRT()
