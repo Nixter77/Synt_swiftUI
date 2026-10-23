@@ -119,21 +119,24 @@ public class LFO {
 
     /// Samples the current LFO waveform at an arbitrary phase in [0, 2pi).
     public func sampleWaveform(at p: Double) -> Float {
+        var norm = p / AudioMath.twoPi
+        norm -= floor(norm)
+        let normalizedPhase = norm
+        let wrappedP = norm * AudioMath.twoPi
+
         switch waveform {
         case .sine:
-            return Float(sin(p))
+            return Float(sin(wrappedP))
         case .triangle:
-            let normalizedPhase = p / AudioMath.twoPi
             return Float(4.0 * abs(normalizedPhase - 0.5) - 1.0)
         case .sawtooth:
-            let normalizedPhase = p / AudioMath.twoPi
             return Float(2.0 * normalizedPhase - 1.0)
         case .square:
-            return p < Double.pi ? 1.0 : -1.0
+            return wrappedP < Double.pi ? 1.0 : -1.0
         case .noise:
             return lastRandomValue
         case .wavetable:
-            return Float(sin(p))
+            return Float(sin(wrappedP))
         }
     }
 

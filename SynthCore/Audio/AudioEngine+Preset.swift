@@ -84,13 +84,6 @@ public extension AudioEngine {
 
         let switchedPatch = lastAppliedPresetID != nil
             && (lastAppliedPresetID != preset.id || lastAppliedPresetName != preset.name)
-        if let seed = preset.randomSeed {
-            let effectiveSeed = seed == 0 ? 0x12345678 : seed
-            randomSeed = effectiveSeed
-            lfo.setRandomSeed(effectiveSeed)
-            lfo2.setRandomSeed(effectiveSeed ^ 0x5555_5555)
-            smoothRandom.reset(seed: effectiveSeed)
-        }
         lastAppliedPresetID = preset.id
         lastAppliedPresetName = preset.name
         if switchedPatch {

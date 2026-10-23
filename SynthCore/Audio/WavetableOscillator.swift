@@ -118,7 +118,7 @@ public final class CompiledMipData: @unchecked Sendable {
     public let mipMaps: [[[Float]]]
     /// Harmonics kept per mip octave (Nyquist at the top of that octave).
     public let maxHarmonics: [Int]
-    public init(wavetable: Wavetable, mipMaps: [[[Float]]], maxHarmonics: [Int] = []) {
+    public init(wavetable: Wavetable, mipMaps: [[[Float]]], maxHarmonics: [Int]) {
         self.wavetable = wavetable
         self.mipMaps = mipMaps
         self.maxHarmonics = maxHarmonics
@@ -333,26 +333,30 @@ public final class WavetableOscillator {
         )
     }
 
+    /// Nyquist at the TOP of octave i (f in [20·2^i, 20·2^{i+1})),
+    /// so a note at the bright end cannot alias.
+    public static func maxHarmonic(forOctave octave: Int, sampleRate: Double = 44100.0) -> Int {
+        let nyquist = sampleRate * 0.5
+        let fHigh = 20.0 * pow(2.0, Double(octave + 1))
+        return max(1, Int(floor(nyquist / fHigh)))
+    }
+
     /// Partials kept per mip octave: Nyquist at the TOP of octave i
     /// (f in [20·2^i, 20·2^{i+1})), so a note at the bright end cannot alias.
     public static func mipMaxHarmonics(count: Int = 11, sampleRate: Double = 44100.0) -> [Int] {
-        let nyquist = sampleRate * 0.5
-        return (0..<count).map { octave in
-            max(1, Int(floor(nyquist / (20.0 * pow(2.0, Double(octave + 1))))))
-        }
+        return (0..<count).map { maxHarmonic(forOctave: $0, sampleRate: sampleRate) }
     }
 
     /// Precomputes mipmap tables for all 11 octave ranges.
     public static func buildMipMaps(from wavetable: Wavetable, sampleRate: Double = 44100.0) -> [[[Float]]] {
         var maps: [[[Float]]] = []
         let numOctaves = 11
-        let nyquist = sampleRate * 0.5
+        let harmonics = mipMaxHarmonics(count: numOctaves, sampleRate: sampleRate)
         for octave in 0..<numOctaves {
-            let fHigh = 20.0 * pow(2.0, Double(octave + 1))
-            let maxHarmonic = max(1, Int(floor(nyquist / fHigh)))
+            let maxHarm = harmonics[octave]
             var octaveFrames: [[Float]] = []
             for frame in wavetable.frames {
-                octaveFrames.append(applyFFTBandLimitStatic(frame, maxHarmonic: maxHarmonic))
+                octaveFrames.append(applyFFTBandLimitStatic(frame, maxHarmonic: maxHarm))
             }
             maps.append(octaveFrames)
         }
