@@ -106,18 +106,41 @@ public struct Wavetable {
     }
 
     /// Returns canonical content hash for raw or compressed wavetable data.
-    public static func canonicalContentHash(for data: Data) -> UInt64? {
-        if data.count >= 16 {
-            var magic: UInt32 = 0
-            _ = withUnsafeMutableBytes(of: &magic) { data.copyBytes(to: $0, from: 0..<4) }
-            if magic == compressedMagic {
-                var hash: UInt64 = 0
-                _ = withUnsafeMutableBytes(of: &hash) { data.copyBytes(to: $0, from: 8..<16) }
-                return hash
+    /// R12-9: memo of stored-bytes fingerprint -> verified canonical hash.
+    /// The WTZ1 header hash is never trusted; each distinct blob is decoded
+    /// once, then later lookups only fingerprint the stored bytes.
+    private static var canonicalHashMemo: [UInt64: UInt64] = [:]
+    private static let canonicalHashMemoLock: os_unfair_lock_t = {
+        let l = os_unfair_lock_t.allocate(capacity: 1)
+        l.initialize(to: os_unfair_lock())
+        return l
+    }()
+    public static let canonicalHashDecodeCountForTesting = Atomic<Int>(0)
+
+    static func storedBytesFingerprint(_ data: Data) -> UInt64 {
+        var h: UInt64 = 0xcbf29ce484222325 ^ UInt64(data.count)
+        data.withUnsafeBytes { raw in
+            for b in raw.bindMemory(to: UInt8.self) {
+                h = (h ^ UInt64(b)) &* 0x100000001b3
             }
         }
+        return h
+    }
+
+    public static func canonicalContentHash(for data: Data) -> UInt64? {
+        let fp = storedBytesFingerprint(data)
+        os_unfair_lock_lock(canonicalHashMemoLock)
+        let memo = canonicalHashMemo[fp]
+        os_unfair_lock_unlock(canonicalHashMemoLock)
+        if let memo { return memo }
+        canonicalHashDecodeCountForTesting.wrappingAdd(1, ordering: .relaxed)
         guard let table = deserialize(from: data) else { return nil }
-        return table.contentHash
+        let h = table.contentHash
+        os_unfair_lock_lock(canonicalHashMemoLock)
+        if canonicalHashMemo.count > 256 { canonicalHashMemo.removeAll() }
+        canonicalHashMemo[fp] = h
+        os_unfair_lock_unlock(canonicalHashMemoLock)
+        return h
     }
 
     public static func deserializeOrThrow(from data: Data, name: String = "User") throws -> Wavetable {
@@ -250,7 +273,10 @@ public final class CompiledMipData: @unchecked Sendable {
     public let mipMaps: [[[Float]]]
     /// Harmonics kept per mip octave (Nyquist at the top of that octave).
     public let maxHarmonics: [Int]
-    public init(wavetable: Wavetable, mipMaps: [[[Float]]], maxHarmonics: [Int]) {
+    /// R12-6: sample rate the mips were built for (0 = unknown).
+    public let sampleRate: Double
+    public init(wavetable: Wavetable, mipMaps: [[[Float]]], maxHarmonics: [Int], sampleRate: Double = 0) {
+        self.sampleRate = sampleRate
         self.wavetable = wavetable
         self.mipMaps = mipMaps
         self.maxHarmonics = maxHarmonics
@@ -521,7 +547,8 @@ public final class WavetableOscillator {
         return CompiledMipData(
             wavetable: wavetable,
             mipMaps: maps,
-            maxHarmonics: mipMaxHarmonics(count: maps.count, sampleRate: sampleRate)
+            maxHarmonics: mipMaxHarmonics(count: maps.count, sampleRate: sampleRate),
+            sampleRate: sampleRate
         )
     }
 
@@ -649,7 +676,11 @@ public final class WavetableOscillator {
         mipSampleRate = rate
         morphSmoothingCoeff = Float(88.2 / rate)
         guard changed else { return }
-        if let idx = currentBuiltinIndex {
+        if currentBuiltinIndex == 5, let userTable = instanceUserWavetable ?? instanceUserCompiled?.wavetable {
+            // R12-6: user table must be rebuilt for the new Nyquist (cache keyed by SR).
+            loadWavetable(userTable)
+            currentBuiltinIndex = 5
+        } else if let idx = currentBuiltinIndex {
             loadBuiltin(index: idx)
         } else if let currentWavetable {
             loadWavetable(currentWavetable)
@@ -659,12 +690,15 @@ public final class WavetableOscillator {
     public func loadBuiltin(index: Int) {
         currentBuiltinIndex = index
         if index == 5 {
-            if let userCompiled = instanceUserCompiled ?? Self.userCompiledWavetable {
+            // R12-7: per-instance only; the statics are UI-display mirrors and
+            // must never feed another engine's audio.
+            if let userCompiled = instanceUserCompiled {
                 currentWavetable = userCompiled.wavetable
                 loadCompiledWavetable(userCompiled)
-            } else if let userTable = instanceUserWavetable ?? Self.userWavetable {
+            } else if let userTable = instanceUserWavetable {
                 currentWavetable = userTable
                 loadWavetable(userTable)
+                currentBuiltinIndex = 5
                 instanceUserCompiled = activeCompiled
             } else {
                 loadBuiltin(index: 0)

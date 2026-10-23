@@ -200,8 +200,18 @@ final class Stage11Round8Tests: XCTestCase {
         let stereo = table.nextStereoRawValue(sampleRate: 44_100)
         // R7-10 (SYNT_14): .wavetable LFO reads a real table shape, not sine.
         // Verify stereo offset: left at 45 deg, right at 45+90 = 135 deg of the same shape.
-        let expectedLeft = table.sampleWaveform(at: Double.pi * 0.25)
-        let expectedRight = table.sampleWaveform(at: Double.pi * 0.75)
+        // SYNT_15: independent reference (linear interp over LFO.defaultWavetable),
+        // not the LFO's own sampler.
+        func ref(_ norm: Double) -> Float {
+            let t = LFO.defaultWavetable, n = t.count
+            let pos = norm * Double(n)
+            let i0 = Int(pos) % n, i1 = (i0 + 1) % n
+            let f = Float(pos - Double(Int(pos)))
+            return t[i0] * (1 - f) + t[i1] * f
+        }
+        let expectedLeft = ref(0.125)
+        let expectedRight = ref(0.375)
+        XCTAssertEqual(table.sampleWaveform(at: Double.pi * 0.25), expectedLeft, accuracy: 1e-4)
         XCTAssertEqual(stereo.left, expectedLeft, accuracy: 1e-4)
         XCTAssertEqual(stereo.right, expectedRight, accuracy: 1e-4)
         XCTAssertGreaterThan(abs(stereo.left - stereo.right), 0.05)
