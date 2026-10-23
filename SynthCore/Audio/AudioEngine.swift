@@ -996,7 +996,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     /// Does not read `preset`: the audio thread picks arp vs voice.
     public func midiNoteOn(midiNote: Int, velocity: Float, channel: UInt8 = 0) {
-        if mpeEnabled && channel >= 1 {
+        if isStandaloneMPEMember(channel) {
             _ = midiQueue.push(.mpeKeyDown(midiNote: midiNote, velocity: velocity, channel: channel))
         } else {
             _ = midiQueue.push(.keyDown(midiNote: midiNote, velocity: velocity))
@@ -1005,7 +1005,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     public func midiNoteOff(midiNote: Int, channel: UInt8 = 0) {
-        if mpeEnabled && channel >= 1 {
+        if isStandaloneMPEMember(channel) {
             _ = midiQueue.push(.mpeKeyUp(midiNote: midiNote, channel: channel))
         } else {
             _ = midiQueue.push(.keyUp(midiNote: midiNote))
@@ -1015,7 +1015,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     public func midiPitchBend(_ normalized: Float, channel: UInt8 = 0) {
         let bend = min(1, max(-1, normalized))
-        if mpeEnabled && channel >= 1 {
+        if isStandaloneMPEMember(channel) {
             _ = midiQueue.push(.mpePitchBend(channel: channel, value: bend))
         } else {
             _ = midiQueue.push(.setPitchBend(bend))
@@ -1028,10 +1028,33 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     public func midiAftertouch(_ amount: Float, channel: UInt8 = 0) {
         let val = min(1, max(0, amount))
-        if mpeEnabled && channel >= 1 {
+        if isStandaloneMPEMember(channel) {
             _ = midiQueue.push(.mpePressure(channel: channel, value: val))
         } else {
             _ = midiQueue.push(.setAftertouch(val))
+        }
+    }
+
+    /// MIDI thread. Zone-aware member test for the standalone path (main-mirrored config).
+    @inline(__always)
+    public func isStandaloneMPEMember(_ channel: UInt8) -> Bool {
+        mpeEnabled && AudioEngine.isMPEMemberChannel(channel, zone: mpeZone, memberCount: mpeMemberChannelCount)
+    }
+
+    /// MIDI thread (standalone). R12-5: routes CC through the same router as the AU path.
+    /// Returns true when the CC was consumed by MPE (CC74 timbre on a member, RPN/MCM CCs);
+    /// false means the caller handles it as an ordinary CC.
+    @discardableResult
+    public func midiMPEControlChange(controller: UInt8, value: UInt8, channel: UInt8) -> Bool {
+        guard mpeEnabled else { return false }
+        let msg = MIDIMessage.controlChange(controller: controller, value: value, channel: channel)
+        guard let cmd = AudioEngine.command(for: msg, mpeEnabled: true, zone: mpeZone, memberCount: mpeMemberChannelCount) else { return false }
+        switch cmd {
+        case .mpeTimbre, .mpeControlChange:
+            _ = midiQueue.push(cmd)
+            return true
+        default:
+            return false
         }
     }
 

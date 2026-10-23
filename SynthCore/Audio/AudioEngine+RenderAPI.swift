@@ -81,7 +81,7 @@ extension AudioEngine {
                 pendingProgram.store(Int32(program), ordering: .releasing)
                 continue
             }
-            guard let command = Self.command(for: message, mpeEnabled: cachedMpeEnabled) else { continue }
+            guard let command = Self.command(for: message, mpeEnabled: cachedMpeEnabled, zone: cachedMpeZone, memberCount: cachedMpeMemberChannelCount) else { continue }
             guard midiScheduleCount < 512 else {
                 // Schedule full: releases must never be lost (stuck notes). Apply
                 // them now, a few samples early; drop only non-release events.
@@ -216,20 +216,32 @@ extension AudioEngine {
         }
     }
 
-    public static func command(for message: MIDIMessage, mpeEnabled: Bool = false) -> AudioCommand? {
+    /// R12-3: member channels of an MPE zone. Lower: master ch1 (0), members 2…1+N (1…N).
+    /// Upper: master ch16 (15), members 15−N…14 (0-based). N = 0 → no members.
+    @inline(__always)
+    public static func isMPEMemberChannel(_ channel: UInt8, zone: MPEZone, memberCount: Int) -> Bool {
+        let n = max(0, min(15, memberCount))
+        guard n > 0 else { return false }
+        let ch = Int(channel & 15)
+        if zone == .lower { return ch >= 1 && ch <= n }
+        return ch >= 15 - n && ch <= 14
+    }
+
+    public static func command(for message: MIDIMessage, mpeEnabled: Bool = false,
+                               zone: MPEZone = .lower, memberCount: Int = 15) -> AudioCommand? {
         switch message {
         case let .noteOn(note, velocity, channel):
-            if mpeEnabled && channel >= 1 {
+            if mpeEnabled && isMPEMemberChannel(channel, zone: zone, memberCount: memberCount) {
                 return .mpeKeyDown(midiNote: Int(note), velocity: velocity, channel: channel)
             }
             return .keyDown(midiNote: Int(note), velocity: velocity)
         case let .noteOff(note, channel):
-            if mpeEnabled && channel >= 1 {
+            if mpeEnabled && isMPEMemberChannel(channel, zone: zone, memberCount: memberCount) {
                 return .mpeKeyUp(midiNote: Int(note), channel: channel)
             }
             return .keyUp(midiNote: Int(note))
         case let .pitchBend(value, channel):
-            if mpeEnabled && channel >= 1 {
+            if mpeEnabled && isMPEMemberChannel(channel, zone: zone, memberCount: memberCount) {
                 return .mpePitchBend(channel: channel, value: value)
             }
             return .setPitchBend(value)
@@ -244,20 +256,21 @@ extension AudioEngine {
         case .programChange:
             return nil
         case let .channelPressure(pressure, channel):
-            if mpeEnabled && channel >= 1 {
+            if mpeEnabled && isMPEMemberChannel(channel, zone: zone, memberCount: memberCount) {
                 return .mpePressure(channel: channel, value: pressure)
             }
             return .setAftertouch(pressure)
         case let .polyPressure(note, pressure, _):
             return .setPolyAftertouch(midiNote: Int(note), pressure: pressure)
         case let .controlChange(controller, value, channel):
-            if mpeEnabled && channel >= 1 && controller == 74 {
+            if mpeEnabled && controller == 74 && isMPEMemberChannel(channel, zone: zone, memberCount: memberCount) {
                 let norm = Float(value) / 127.0
                 return .mpeTimbre(channel: channel, value: norm)
             }
             // R12-2: RPN CCs belong to the MPE path only while MPE is on; otherwise they stay
             // plain CCs (MIDI-learn / CC maps unchanged, a DAW's RPN 0 cannot touch MPE state).
-            if mpeEnabled && (controller == 100 || controller == 101 || controller == 6 || controller == 38) {
+            if mpeEnabled && (controller == 100 || controller == 101 || controller == 6 || controller == 38)
+                && (isMPEMasterChannel(channel, zone: zone) || isMPEMemberChannel(channel, zone: zone, memberCount: memberCount)) {
                 return .mpeControlChange(channel: channel, cc: controller, value: value)
             }
             return .controlChange(cc: controller, value: value)

@@ -317,8 +317,8 @@ final class MIDIHandler: ObservableObject {
             DispatchQueue.main.async { [weak self] in self?.applyProgramChange(n) }
         case let .controlChange(controller, value, ch):
             activity.touch()
-            if controller == 74, audioEngine?.mpeEnabled == true, ch >= 1 {
-                audioEngine?.midiTimbre(Float(value) / 127.0, channel: ch)
+            // CC74 on a member channel and RPN/MCM CCs (MPE on) go through the shared zone-aware router.
+            if audioEngine?.midiMPEControlChange(controller: controller, value: value, channel: ch) == true {
                 return
             }
             if let engine = audioEngine {
