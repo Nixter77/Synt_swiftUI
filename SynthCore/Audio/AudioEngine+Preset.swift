@@ -13,6 +13,9 @@ public extension AudioEngine {
     // MARK: - Preset
 
     public func applyPreset() {
+        // SYNT_18 R15-1: mirror render-side table switches before comparing activeCompiled.
+        wavetableEngine1.syncFromRenderMain()
+        wavetableEngine2.syncFromRenderMain()
         applyPresetCallCountForTesting += 1
         // SYNT_16 R13-1: mirror pending controller MPE config first, so the snapshot built
         // below carries it (closes the standalone poll window).
@@ -180,7 +183,8 @@ public extension AudioEngine {
         oscillator1.wavetableMorph = snap.osc1WavetableMorph
         if snap.osc1WavetableIndex != loadedWTIndex1 {
             loadedWTIndex1 = snap.osc1WavetableIndex
-            wavetableEngine1.loadBuiltin(index: snap.osc1WavetableIndex)
+            // SYNT_18 R15-1: lock/ARC-free when this runs on render.
+            if isRenderingActive.load(ordering: .acquiring) { wavetableEngine1.loadBuiltinRT(index: snap.osc1WavetableIndex) } else { wavetableEngine1.loadBuiltin(index: snap.osc1WavetableIndex) }
         }
 
         oscillator2.waveform = snap.osc2Waveform
@@ -191,7 +195,8 @@ public extension AudioEngine {
         oscillator2.wavetableMorph = snap.osc2WavetableMorph
         if snap.osc2WavetableIndex != loadedWTIndex2 {
             loadedWTIndex2 = snap.osc2WavetableIndex
-            wavetableEngine2.loadBuiltin(index: snap.osc2WavetableIndex)
+            // SYNT_18 R15-1: lock/ARC-free when this runs on render.
+            if isRenderingActive.load(ordering: .acquiring) { wavetableEngine2.loadBuiltinRT(index: snap.osc2WavetableIndex) } else { wavetableEngine2.loadBuiltin(index: snap.osc2WavetableIndex) }
         }
 
         envelope.attack = snap.attack

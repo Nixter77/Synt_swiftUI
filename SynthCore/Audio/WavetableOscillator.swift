@@ -725,7 +725,25 @@ public final class WavetableOscillator {
 
     /// Instance-specific user wavetable (R11-4: isolated per oscillator / AU instance, not shared static)
     public var instanceUserWavetable: Wavetable?
-    public var instanceUserCompiled: CompiledMipData?
+    public var instanceUserCompiled: CompiledMipData? {
+        didSet {
+            // SYNT_18 R15-1: keep the previous user table alive one more swap so a render-side
+            // override that still points at its flat view can never see freed memory.
+            if oldValue !== instanceUserCompiled { retiredUserCompiled = oldValue }
+            userViewBits.store(instanceUserCompiled.map { Int(bitPattern: UnsafePointer($0.flatView)) } ?? 0, ordering: .releasing)
+            userLfoBits.store(instanceUserCompiled.map { Int(bitPattern: $0.lfoShape) } ?? 0, ordering: .releasing)
+        }
+    }
+    private var retiredUserCompiled: CompiledMipData?
+    /// SYNT_18 R15-1: POD words so the render thread can switch tables without ARC or locks.
+    private let userViewBits = Atomic<Int>(0)
+    private let userLfoBits = Atomic<Int>(0)
+    /// Render-owned override (set by `loadBuiltinRT`, cleared when main publishes again).
+    private var rtView: UnsafePointer<FlatMipView>?
+    /// Index loaded on render that main has not yet mirrored into `activeCompiled` (-1 = none).
+    public let rtPendingIndex = Atomic<Int>(-1)
+    /// Times `publishCompiled` took `writeLock` (test probe for "no lock on render").
+    public static let publishLockCountForTesting = Atomic<Int>(0)
 
     /// Loads wavetable frames from an audio file, compiles mipmaps, and sets it as the active user table.
     public func loadFromAudioFile(url: URL) throws {
@@ -781,6 +799,7 @@ public final class WavetableOscillator {
     }
 
     private func publishCompiled(_ compiled: CompiledMipData) {
+        Self.publishLockCountForTesting.add(1, ordering: .relaxed)
         os_unfair_lock_lock(writeLock)
         let newRef = Unmanaged.passRetained(compiled)
         let oldRef = slots[writeBank]
@@ -798,7 +817,41 @@ public final class WavetableOscillator {
         if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
             let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
             readBank = previousShared & 0x03
+            rtView = nil
         }
+    }
+
+    /// SYNT_18 R15-1: render-thread table switch. No lock, no allocation, no retain/release:
+    /// built-ins come from the immortal per-rate set, the user table from POD words kept alive
+    /// on main. Main mirrors the choice into `activeCompiled` later via `syncFromRenderMain()`.
+    public func loadBuiltinRT(index: Int) {
+        pullNewWavetableRT()  // an older main publish must not override this newer choice
+        var view: UnsafePointer<FlatMipView>?
+        var lfoBits = 0
+        var effective = index
+        if index == 5, let uv = UnsafePointer<FlatMipView>(bitPattern: userViewBits.load(ordering: .acquiring)) {
+            view = uv
+            lfoBits = userLfoBits.load(ordering: .acquiring)
+        } else {
+            if index == 5 { effective = 0 }
+            let i = max(0, min(Self.basicWavetables.count - 1, effective))
+            guard let set = UnsafeMutablePointer<Unmanaged<CompiledMipData>>(bitPattern: builtinSetBits.load(ordering: .acquiring)) else { return }
+            set[i]._withUnsafeGuaranteedRef { c in
+                view = UnsafePointer(c.flatView)
+                lfoBits = Int(bitPattern: c.lfoShape)
+            }
+        }
+        rtView = view
+        lfoShapeBits.store(lfoBits, ordering: .releasing)
+        framePosition = targetFramePosition
+        rtPendingIndex.store(index, ordering: .releasing)
+    }
+
+    /// SYNT_18 R15-1: main-thread follow-up for a render-side `loadBuiltinRT`. Takes over the
+    /// retain/release (and the lock) off the render thread.
+    public func syncFromRenderMain() {
+        let idx = rtPendingIndex.exchange(-1, ordering: .acquiringAndReleasing)
+        if idx >= 0 { loadBuiltin(index: idx) }
     }
 
     public func loadWavetable(_ wavetable: Wavetable) {
@@ -996,7 +1049,7 @@ public final class WavetableOscillator {
     public func generateSample(phase: Double, phaseIncrement: Double, sampleRate: Double = 44100.0) -> Float {
         pullNewWavetableRT()
         // SYNT_18 R15-2: POD view only (no class, no Swift array → no retain/release per sample).
-        guard let view = viewSlots[readBank] else {
+        guard let view = rtView ?? viewSlots[readBank] else {
             return 0.0
         }
         guard view.pointee.octaves > 0 else { return 0.0 }
