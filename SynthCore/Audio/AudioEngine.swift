@@ -92,12 +92,25 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let sceneHPF = SceneHPF()
 
     @Published public var isPlaying = false
-    public var applyPresetCallCountForTesting: Int = 0
     /// SYNT_23 R14-10: re-entrancy guard for `applyPreset` (main thread only).
     var applyPresetInProgress = false
     var applyPresetRerunPending = false
+    /// SYNT_24 R20-2: max applyPreset passes per outer call (1 + 3 coalesced reruns).
+    static let applyPresetMaxPasses = 4
+    #if DEBUG
+    // SYNT_24 R20-3: test counters exist only in DEBUG builds.
+    public var applyPresetCallCountForTesting: Int = 0
     public var applyPresetCoalescedCountForTesting: Int = 0
     public var applyPresetOffMainCountForTesting: Int = 0
+    /// R20-2: outer calls that stopped at the pass cap with a rerun still pending.
+    public var applyPresetCapHitCountForTesting: Int = 0
+    /// R20-2: tests that hit the cap on purpose turn the assertion off.
+    public var applyPresetCapAssertEnabled = true
+    /// R20-2: invoked at the start of every pass (test-only re-entry source).
+    public var applyPresetPassHookForTesting: (() -> Void)?
+    /// R20-3: opt-in hard main-thread check for applyPreset (off by default; see applyPreset).
+    nonisolated(unsafe) public static var strictMainThreadApplyPreset = false
+    #endif
 
     @Published private var _storedPreset: SynthPreset = .defaultPreset
 

@@ -101,4 +101,39 @@ struct Stage23Stage12Tests {
         #expect(e.applyPresetOffMainCountForTesting == 0)
         #endif
     }
+
+    /// SYNT_24 R20-2 (fails on old code: no cap counter, silent drop). A pass hook that writes
+    /// `preset` 5 times never converges within 4 passes → counted once, assert suppressed.
+    @Test func testR20_2_ApplyPresetCapHitIsCounted() {
+        #if DEBUG
+        let e = AudioEngine(coreOnly: true)
+        e.applyPresetCapAssertEnabled = false
+        var writes = 0
+        e.applyPresetPassHookForTesting = { [unowned e] in
+            if writes < 5 { writes += 1; e.preset.filterCutoff = Float(1000 + writes) }
+        }
+        let before = e.applyPresetCallCountForTesting
+        e.preset.filterCutoff = 500
+        e.applyPresetPassHookForTesting = nil
+        #expect(e.applyPresetCallCountForTesting - before == AudioEngine.applyPresetMaxPasses)
+        #expect(e.applyPresetCapHitCountForTesting == 1)
+        #expect(writes == 4)
+        // Converging case does not count.
+        e.preset.filterCutoff = 600
+        #expect(e.applyPresetCapHitCountForTesting == 1)
+        #endif
+    }
+
+    /// SYNT_24 R19-5: the DEBUG fallback-key log is bounded.
+    @Test func testR19_5_TolerantDecodeLogIsBounded() {
+        #if DEBUG
+        TolerantDecodeLog.resetForTesting()
+        struct E: Error {}
+        for i in 0..<(TolerantDecodeLog.maxKeys + 50) { TolerantDecodeLog.record(key: "k\(i)", error: E()) }
+        let keys = TolerantDecodeLog.fallbackKeysForTesting()
+        #expect(keys.count == TolerantDecodeLog.maxKeys)
+        #expect(keys.last == "k\(TolerantDecodeLog.maxKeys + 49)")
+        TolerantDecodeLog.resetForTesting()
+        #endif
+    }
 }

@@ -19,13 +19,22 @@ public extension AudioEngine {
     public func applyPreset() {
         if applyPresetInProgress {
             applyPresetRerunPending = true
+            #if DEBUG
             applyPresetCoalescedCountForTesting += 1
+            #endif
             return
         }
         #if DEBUG
+        // SYNT_24 R20-3: applyPreset is main-only. Count and log before the hard check so the
+        // log names the culprit even when the precondition traps.
         if !Thread.isMainThread {
             applyPresetOffMainCountForTesting += 1
             NSLog("AudioEngine.applyPreset called off the main thread")
+        }
+        // Hard trap is opt-in: ~600 existing non-@MainActor Swift Testing tests drive applyPreset
+        // from cooperative threads (SYNT_24 measured), so a default-on precondition kills the runner.
+        if Self.strictMainThreadApplyPreset {
+            dispatchPrecondition(condition: .onQueue(.main))
         }
         #endif
         applyPresetInProgress = true
@@ -35,14 +44,29 @@ public extension AudioEngine {
             applyPresetRerunPending = false
             applyPresetPass()
             passes += 1
-        } while applyPresetRerunPending && passes < 4
+        } while applyPresetRerunPending && passes < Self.applyPresetMaxPasses
+        if applyPresetRerunPending {
+            // SYNT_24 R20-2: a callback kept writing `preset`; the last write is dropped from
+            // this call. Surface it instead of failing silently.
+            applyPresetRerunPending = false
+            #if DEBUG
+            applyPresetCapHitCountForTesting += 1
+            NSLog("AudioEngine.applyPreset hit the %d-pass cap with a rerun pending", Self.applyPresetMaxPasses)
+            if applyPresetCapAssertEnabled {
+                assertionFailure("applyPreset re-entry did not converge within \(Self.applyPresetMaxPasses) passes")
+            }
+            #endif
+        }
     }
 
     private func applyPresetPass() {
         // SYNT_18 R15-1: mirror render-side table switches before comparing activeCompiled.
         wavetableEngine1.syncFromRenderMain()
         wavetableEngine2.syncFromRenderMain()
+        #if DEBUG
         applyPresetCallCountForTesting += 1
+        applyPresetPassHookForTesting?()
+        #endif
         // SYNT_16 R13-1: mirror pending controller MPE config first, so the snapshot built
         // below carries it (closes the standalone poll window).
         pollMPEConfigMailbox()

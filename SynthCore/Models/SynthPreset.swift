@@ -1304,8 +1304,13 @@ enum TolerantDecodeLog {
     #if DEBUG
     private static let lock = NSLock()
     nonisolated(unsafe) private static var keys: [String] = []
+    static let maxKeys = 256
     static func record(key: String, error: Error) {
-        lock.lock(); keys.append(key); lock.unlock()
+        // SYNT_24 R19-5: bounded — keep the newest `maxKeys` entries.
+        lock.lock()
+        if keys.count >= maxKeys { keys.removeFirst(keys.count - maxKeys + 1) }
+        keys.append(key)
+        lock.unlock()
         print("[SynthPreset] tolerant decode fell back to default for '\(key)': \(error)")
     }
     static func fallbackKeysForTesting() -> [String] { lock.lock(); defer { lock.unlock() }; return keys }
