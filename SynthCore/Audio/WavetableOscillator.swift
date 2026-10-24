@@ -284,16 +284,30 @@ public struct LFOShapeTable {
     /// Growth is bounded by distinct frames. Still never freed → an LFO pointer cannot dangle.
     /// Off the render thread only (takes a lock).
     public static func interned(_ frame: [Float]) -> UnsafePointer<LFOShapeTable> {
-        if let hit = internTable.withLock({ $0[frame] }) { return UnsafePointer(bitPattern: hit)! }
+        // SYNT_23 R19-3: key by bit pattern — a frame with NaN never compared equal to itself as
+        // [Float], so it re-allocated (leaked) a shape on every compile.
+        let key = frame.map(\.bitPattern)
+        if let hit = internTable.withLock({ $0[key] }) { return UnsafePointer(bitPattern: hit)! }
         let p = allocateImmortal(frame)
         return internTable.withLock { t in
-            if let hit = t[frame] { return UnsafePointer(bitPattern: hit)! }  // lost a race; tiny leak
-            t[frame] = Int(bitPattern: p)
+            if let hit = t[key] { return UnsafePointer(bitPattern: hit)! }  // lost a race; tiny leak
+            t[key] = Int(bitPattern: p)
             return p
         }
     }
-    private static let internTable = Mutex<[[Float]: Int]>([:])
+    private static let internTable = Mutex<[[UInt32]: Int]>([:])
     public static var internedCountForTesting: Int { internTable.withLock { $0.count } }
+
+#if DEBUG
+    /// SYNT_23 R19-2: every shape ever allocated. There is deliberately NO free path for shapes;
+    /// `CompiledMipData.deinit` asserts its shape is still registered. If anyone ever adds a free,
+    /// they must unregister here, which trips that assert and the Stage23 guard test.
+    private static let allocatedShapes = Mutex<Set<Int>>([])
+    public static func isRegisteredForTesting(_ p: UnsafePointer<LFOShapeTable>) -> Bool {
+        allocatedShapes.withLock { $0.contains(Int(bitPattern: p)) }
+    }
+    public static var allocatedCountForTesting: Int { allocatedShapes.withLock { $0.count } }
+#endif
 
     private static func allocateImmortal(_ frame: [Float]) -> UnsafePointer<LFOShapeTable> {
         let n = max(1, frame.count)
@@ -304,6 +318,9 @@ public struct LFOShapeTable {
         if peak > 1e-6 { for i in 0..<frame.count { d[i] /= peak } }
         let p = UnsafeMutablePointer<LFOShapeTable>.allocate(capacity: 1)
         p.initialize(to: LFOShapeTable(data: UnsafePointer(d), count: frame.isEmpty ? 1 : frame.count))
+#if DEBUG
+        _ = allocatedShapes.withLock { $0.insert(Int(bitPattern: p)) }
+#endif
         return UnsafePointer(p)
     }
 
@@ -374,8 +391,11 @@ public final class CompiledMipData: @unchecked Sendable {
         self.flatView = v
     }
 
+    /// SYNT_23 R19-2: must NOT free `lfoShape` — shapes are immortal and shared (interned); an
+    /// LFO's raw `tablePtr`/`prevTablePtr` may still point at it after this table is gone.
     deinit {
 #if DEBUG
+        assert(LFOShapeTable.isRegisteredForTesting(lfoShape), "LFO shape must outlive its table")
         Self.deinitCountForTesting.wrappingAdd(1, ordering: .relaxed)
 #endif
         #if DEBUG

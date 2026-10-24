@@ -17,7 +17,10 @@ public struct Oscillator {
     /// is a plain memcpy — a strong ref made every copy a retain/release pair (the "ARC in
     /// generateSample" item). The owner (AudioEngine, which holds `wavetableEngine1/2` strongly
     /// for its whole life) must keep the engine alive while this oscillator can use it.
-    public unowned(unsafe) var wavetableEngine: WavetableOscillator? = nil
+    /// SYNT_23 R19-1: the setter is internal — outside SynthCore nobody can hand in a temporary
+    /// engine (it would dangle silently). Inside SynthCore only AudioEngine wires its own
+    /// `wavetableEngine1/2`; tests (@testable) must keep the engine alive (withExtendedLifetime).
+    public internal(set) unowned(unsafe) var wavetableEngine: WavetableOscillator? = nil
     /// Morph 0…1 across wavetable frames (smoothed inside the engine).
     public var wavetableMorph: Float = 0.0
     public var wavetableSampleRate: Double = 44100.0
