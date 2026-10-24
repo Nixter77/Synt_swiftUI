@@ -343,7 +343,15 @@ public final class SyntAudioUnit: AUAudioUnit {
 
     /// The engine preset with every addressed value taken from the store.
     func presetSnapshot() -> SynthPreset {
-        var snapshot = engine.preset
+        // SYNT_23 R14-9: off main, `engine.preset` is main-owned (racy) and lags a whole-preset
+        // adopt by the main hop. Use the lock-protected mirror adoptPreset writes synchronously.
+        var snapshot: SynthPreset
+        if Thread.isMainThread {
+            snapshot = engine.preset
+            adoptedPresetLock.lock(); adoptedPresetMirror = snapshot; adoptedPresetLock.unlock()
+        } else {
+            adoptedPresetLock.lock(); snapshot = adoptedPresetMirror ?? engine.preset; adoptedPresetLock.unlock()
+        }
         for address in SynthParameterAddress.allCases {
             snapshot.setParameterValue(parameters.value(address.rawValue), for: address)
         }
@@ -355,7 +363,13 @@ public final class SyntAudioUnit: AUAudioUnit {
     public static let stateDidChangeNotification = Notification.Name("SyntAudioUnitStateDidChange")
 
     /// Whole-preset change: parameters store updates immediately, then main thread applies the preset.
+    /// SYNT_23 R14-9: the last whole preset adopted (any thread) / seen on main; read by
+    /// `presetSnapshot()` off main. Addressed values still come from the store.
+    private let adoptedPresetLock = NSLock()
+    private var adoptedPresetMirror: SynthPreset?
+
     private func adoptPreset(_ preset: SynthPreset, notify: Bool = true) {
+        adoptedPresetLock.lock(); adoptedPresetMirror = preset; adoptedPresetLock.unlock()
         for address in SynthParameterAddress.allCases {
             parameters.set(address.rawValue, preset.parameterValue(for: address))
         }
