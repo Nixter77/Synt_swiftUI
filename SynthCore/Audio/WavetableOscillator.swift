@@ -314,7 +314,10 @@ public final class CompiledMipData: @unchecked Sendable {
     public let flatView: UnsafeMutablePointer<FlatMipView>
     private let flatData: UnsafeMutablePointer<Float>
     /// Test hook: counts deinit (proves a table is not freed on the render thread).
+    // SYNT_21 R17-4: Debug-only test hooks (the test target is built in Debug only).
+#if DEBUG
     public static let deinitCountForTesting = Atomic<Int>(0)
+#endif
     /// SYNT_16 R13-4: shape the wavetable LFO reads when this table is the oscillator's table.
     public let lfoShape: UnsafePointer<LFOShapeTable>
     public let wavetable: Wavetable
@@ -352,7 +355,9 @@ public final class CompiledMipData: @unchecked Sendable {
     }
 
     deinit {
+#if DEBUG
         Self.deinitCountForTesting.wrappingAdd(1, ordering: .relaxed)
+#endif
         #if DEBUG
         if let hook = CompiledMipData.onDeinitForTesting { hook() }
         #endif
@@ -450,6 +455,27 @@ public final class WavetableOscillator {
         body()
     }
     private static var compiledCache: [WavetableCacheKey: CompiledMipData] = [:]
+    /// SYNT_21 R15-6/7: LRU order of `compiledCache` (oldest first); the cache is bounded.
+    /// Eviction only drops the cache's own reference: the oscillator slots and the R16-1 retired
+    /// list retain what render may still read, so an evicted table lives until those release it.
+    private static var compiledCacheOrder: [WavetableCacheKey] = []
+    public static let compiledCacheLimit = 16
+
+    /// cacheLock held. Returns evicted entries so the caller releases them after unlocking.
+    private static func insertCachedLocked(_ compiled: CompiledMipData, for key: WavetableCacheKey) -> [CompiledMipData] {
+        compiledCache[key] = compiled
+        touchCachedLocked(key)
+        var evicted: [CompiledMipData] = []
+        while compiledCacheOrder.count > compiledCacheLimit {
+            let old = compiledCacheOrder.removeFirst()
+            if let e = compiledCache.removeValue(forKey: old) { evicted.append(e) }
+        }
+        return evicted
+    }
+    private static func touchCachedLocked(_ key: WavetableCacheKey) {
+        if let i = compiledCacheOrder.firstIndex(of: key) { compiledCacheOrder.remove(at: i) }
+        compiledCacheOrder.append(key)
+    }
     /// SYNT_17 R14-3: per sample rate, an immortal array of the 5 built-in tables (retained forever,
     /// never freed or mutated after publish). Main-thread built; render reads it lock-free.
     private static var builtinSets: [Int: UnsafeMutablePointer<Unmanaged<CompiledMipData>>] = [:]
@@ -494,14 +520,16 @@ public final class WavetableOscillator {
     public static func getCachedCompiled(for key: WavetableCacheKey) -> CompiledMipData? {
         lockCache()
         defer { os_unfair_lock_unlock(cacheLock) }
+        if compiledCache[key] != nil { touchCachedLocked(key) }
         return compiledCache[key]
     }
 
     public static func setCachedCompiled(_ compiled: CompiledMipData, for key: WavetableCacheKey) {
         lockCache()
-        defer { os_unfair_lock_unlock(cacheLock) }
-        compiledCache[key] = compiled
+        let evicted = insertCachedLocked(compiled, for: key)
         inProgressKeys.remove(key)
+        os_unfair_lock_unlock(cacheLock)
+        withExtendedLifetime(evicted) {}   // released here, outside the lock
     }
 
     public static func compileUserWavetableAsyncIfNeeded(
@@ -514,6 +542,7 @@ public final class WavetableOscillator {
         let key = WavetableCacheKey(contentHash: contentHash, sampleRate: sampleRate)
         lockCache()
         if let cached = compiledCache[key] {
+            touchCachedLocked(key)
             os_unfair_lock_unlock(cacheLock)
             return cached
         }
@@ -533,9 +562,10 @@ public final class WavetableOscillator {
             }
             let compiled = compile(wavetable: table, sampleRate: sampleRate)
             lockCache()
-            compiledCache[key] = compiled
+            let evicted = insertCachedLocked(compiled, for: key)
             inProgressKeys.remove(key)
             os_unfair_lock_unlock(cacheLock)
+            withExtendedLifetime(evicted) {}
             completion?(compiled)
         }
         return nil
@@ -545,6 +575,7 @@ public final class WavetableOscillator {
         lockCache()
         defer { os_unfair_lock_unlock(cacheLock) }
         compiledCache.removeAll()
+        compiledCacheOrder.removeAll()
         inProgressKeys.removeAll()
         precompiledBuiltins.removeAll()
     }
@@ -769,7 +800,9 @@ public final class WavetableOscillator {
     private let userCompiledBits = Atomic<Int>(0)
     /// SYNT_19 R16-1: render's ack — the user table `rtView` currently points into (0 = none).
     public let rtUserAck = Atomic<Int>(0)
+#if DEBUG
     public var retiredUserTableCountForTesting: Int { userTableState.withLock { $0.retired.count } }
+#endif
 
     /// SYNT_19 R16-1: releases retired user tables render is not using. Any non-render thread.
     public func drainRetiredUserTablesMain() {
@@ -955,11 +988,15 @@ public final class WavetableOscillator {
         defer { drainRetiredUserTablesMain() }
         let packed = rtPending.exchange(0, ordering: .acquiringAndReleasing)
         guard packed != 0 else { return }
+#if DEBUG
         afterTakeForTesting?()
+#endif
         loadBuiltin(index: (packed & 0x7) - 1, generation: packed >> 3)
     }
     /// Test probe: runs between taking the pending render switch and publishing its mirror.
+#if DEBUG
     var afterTakeForTesting: (() -> Void)?
+#endif
 
     public func loadWavetable(_ wavetable: Wavetable) {
         currentWavetable = wavetable
