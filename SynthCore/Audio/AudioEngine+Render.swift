@@ -588,6 +588,15 @@ public extension AudioEngine {
         var hlFm: Float = 0
 
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
+        // SYNT_22 Stage 2: one (trivial, ARC-free) copy of each Oscillator per sample instead of one
+        // per voice call, and octave/detune pow() only on change instead of per voice. Bit-identical.
+        let osc1 = oscillator1
+        let osc2 = oscillator2
+        // pow() only when octave/detune actually changed (not per sample).
+        rtOsc1FreqMul.update(octave: osc1.octave, detune: osc1.detune)
+        rtOsc2FreqMul.update(octave: osc2.octave, detune: osc2.detune)
+        let osc1OctMul = rtOsc1FreqMul.octMul, osc1DetMul = rtOsc1FreqMul.detMul
+        let osc2OctMul = rtOsc2FreqMul.octMul, osc2DetMul = rtOsc2FreqMul.detMul
         for i in 0..<AudioEngine.maxVoices {
             guard voices[i].isActive else { continue }
             var v = voices[i]
@@ -614,8 +623,12 @@ public extension AudioEngine {
             let noiseValue = v.filterNoise(rawNoise, color: cachedNoiseColor)
 
             let baseFrequency = v.currentFrequency
-            var osc1Freq = oscillator1.frequencyWithModifiers(baseFrequency)
-            var osc2Freq = oscillator2.frequencyWithModifiers(baseFrequency)
+            var osc1Freq = baseFrequency
+            if osc1.octave != 0 { osc1Freq *= osc1OctMul }
+            if osc1.detune != 0 { osc1Freq = osc1Freq * osc1DetMul }
+            var osc2Freq = baseFrequency
+            if osc2.octave != 0 { osc2Freq *= osc2OctMul }
+            if osc2.detune != 0 { osc2Freq = osc2Freq * osc2DetMul }
             let velValue = v.velocity
 
             let releaseOverride: Float? = v.fastRelease ? ADSREnvelope.fastReleaseSeconds : nil
@@ -774,8 +787,8 @@ public extension AudioEngine {
 
             let phaseInc1 = AudioMath.twoPi * osc1Freq / sampleRate
             var phaseInc2 = AudioMath.twoPi * osc2Freq / sampleRate
-            let pulse2 = pwmMod2 == 0 ? nil : max(0.05, min(0.95, oscillator2.pulseWidth + pwmModulationSpan * pwmMod2))
-            let pulse1 = pwmMod1 == 0 ? nil : max(0.05, min(0.95, oscillator1.pulseWidth + pwmModulationSpan * pwmMod1))
+            let pulse2 = pwmMod2 == 0 ? nil : max(0.05, min(0.95, osc2.pulseWidth + pwmModulationSpan * pwmMod2))
+            let pulse1 = pwmMod1 == 0 ? nil : max(0.05, min(0.95, osc1.pulseWidth + pwmModulationSpan * pwmMod1))
 
             let s2: Float
             var osc1Phase = v.phase
@@ -784,7 +797,7 @@ public extension AudioEngine {
                 let ratio = max(0.25, min(32, Double(cachedFMCoarse) + Double(cachedFMFine)))
                 let voiceFM = fmMod == 0 ? fmAmount : max(0, min(1, fmAmount + fmMod))
                 if cachedFMRoute == .osc1ToOsc2 {
-                    s1 = oscillator1.generateSample(
+                    s1 = osc1.generateSample(
                         phase: v.phase,
                         phaseIncrement: phaseInc1,
                         noiseValue: noiseValue,
@@ -799,7 +812,7 @@ public extension AudioEngine {
                         if osc2Phase < 0 { osc2Phase += AudioMath.twoPi }
                     }
                     if cachedOsc2Enabled || voiceFM > 0 || cachedRingModAmount > 0 {
-                        s2 = oscillator2.generateSample(
+                        s2 = osc2.generateSample(
                             phase: osc2Phase,
                             phaseIncrement: phaseInc2,
                             noiseValue: noiseValue,
@@ -812,7 +825,7 @@ public extension AudioEngine {
                     let modFreq = min(sampleRate * 0.45, osc1Freq * ratio)
                     phaseInc2 = AudioMath.twoPi * modFreq / sampleRate
                     if cachedOsc2Enabled || voiceFM > 0 || cachedRingModAmount > 0 {
-                        s2 = oscillator2.generateSample(
+                        s2 = osc2.generateSample(
                             phase: v.phase2,
                             phaseIncrement: phaseInc2,
                             noiseValue: noiseValue,
@@ -826,7 +839,7 @@ public extension AudioEngine {
                         osc1Phase = osc1Phase.truncatingRemainder(dividingBy: AudioMath.twoPi)
                         if osc1Phase < 0 { osc1Phase += AudioMath.twoPi }
                     }
-                    s1 = oscillator1.generateSample(
+                    s1 = osc1.generateSample(
                         phase: osc1Phase,
                         phaseIncrement: phaseInc1,
                         noiseValue: noiseValue,
@@ -835,7 +848,7 @@ public extension AudioEngine {
                 }
             } else if fmMod == 0 {
                 if cachedOsc2Enabled || fmAmount > 0 || cachedRingModAmount > 0 {
-                    s2 = oscillator2.generateSample(
+                    s2 = osc2.generateSample(
                         phase: v.phase2,
                         phaseIncrement: phaseInc2,
                         noiseValue: noiseValue,
@@ -849,7 +862,7 @@ public extension AudioEngine {
                     osc1Phase = osc1Phase.truncatingRemainder(dividingBy: AudioMath.twoPi)
                     if osc1Phase < 0 { osc1Phase += AudioMath.twoPi }
                 }
-                s1 = oscillator1.generateSample(
+                s1 = osc1.generateSample(
                     phase: osc1Phase,
                     phaseIncrement: phaseInc1,
                     noiseValue: noiseValue,
@@ -858,7 +871,7 @@ public extension AudioEngine {
             } else {
                 let voiceFM = max(0, min(1, fmAmount + fmMod))
                 if cachedOsc2Enabled || voiceFM > 0 || cachedRingModAmount > 0 {
-                    s2 = oscillator2.generateSample(
+                    s2 = osc2.generateSample(
                         phase: v.phase2,
                         phaseIncrement: phaseInc2,
                         noiseValue: noiseValue,
@@ -872,7 +885,7 @@ public extension AudioEngine {
                     osc1Phase = osc1Phase.truncatingRemainder(dividingBy: AudioMath.twoPi)
                     if osc1Phase < 0 { osc1Phase += AudioMath.twoPi }
                 }
-                s1 = oscillator1.generateSample(
+                s1 = osc1.generateSample(
                     phase: osc1Phase,
                     phaseIncrement: phaseInc1,
                     noiseValue: noiseValue,
@@ -2245,5 +2258,20 @@ public extension AudioEngine {
         if v & AudioEngine.mpeMailboxMasterFlag != 0 { controllerMasterPitchBendRange = controllerMPEMain.masterRange }
         controllerMPEConfigDidChange?()
         return true
+    }
+}
+
+
+/// SYNT_22 Stage 2: render-owned cache of the oscillator frequency multipliers. Recomputes the
+/// two pow() only when octave/detune change; same values as `Oscillator.frequencyWithModifiers`.
+struct OscFreqMulCache {
+    private var octave = 0
+    private var detune: Float = 0
+    private(set) var octMul: Double = 1
+    private(set) var detMul: Double = 1
+    @inline(__always)
+    mutating func update(octave o: Int, detune d: Float) {
+        if o != octave { octave = o; octMul = pow(2.0, Double(o)) }
+        if d.bitPattern != detune.bitPattern { detune = d; detMul = pow(2.0, Double(d) / 1200.0) }
     }
 }

@@ -1165,7 +1165,8 @@ struct Synt_swiftUITests {
         let phase = 0.3
         let dt = 0.02
         let raw2 = abs(engine.generateSample(phase: phase, phaseIncrement: dt))
-        let out2 = abs(osc.generateSample(phase: phase, phaseIncrement: dt))
+        // SYNT_22: Oscillator.wavetableEngine is unowned(unsafe); keep the engine alive here.
+        let out2 = withExtendedLifetime(engine) { abs(osc.generateSample(phase: phase, phaseIncrement: dt)) }
         if raw2 > 0.01 {
             #expect(abs(out2 / raw2 - 0.5) < 0.08)
         }

@@ -122,6 +122,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     public var oscillator1 = Oscillator()
     public var oscillator2 = Oscillator()
+    /// SYNT_22 Stage 2: render-owned frequency-multiplier caches (see OscFreqMulCache).
+    var rtOsc1FreqMul = OscFreqMulCache()
+    var rtOsc2FreqMul = OscFreqMulCache()
     public var envelope = ADSREnvelope()
     public var filterEnvelope = ADSREnvelope()
     public var modEnvelope = ADSREnvelope(attack: 0.01, decay: 0.2, sustain: 0.0, release: 0.1)

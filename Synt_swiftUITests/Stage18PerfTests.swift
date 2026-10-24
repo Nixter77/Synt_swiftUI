@@ -49,11 +49,11 @@ struct Stage18WavetablePerfBenchmarks {
         #expect(pct < 200.0)
     }
 
-    static func measure(_ preset: SynthPreset, label: String) -> Double {
+    static func measure(_ preset: SynthPreset, label: String, voices: Int = 32) -> Double {
         let engine = AudioEngine()
         engine.preset = preset
         engine.applyPresetForTesting()
-        for n in 36...67 { engine.noteOn(midiNote: n, velocity: 0.7) }
+        for n in 36..<(36 + voices) { engine.noteOn(midiNote: n, velocity: 0.7) }
         engine.processCommandsForTesting()
 
         let bufferSize = 512
@@ -72,7 +72,7 @@ struct Stage18WavetablePerfBenchmarks {
         }
         let budgetMs = Double(bufferSize * bufferCount) / 44100.0 * 1000.0
         let pct = best / budgetMs * 100.0
-        let line = String(format: "SYNT18-PERF %@ 32 voices x5 unison: best of 3 = %.2f ms = %.2f%% of RT budget\n", label, best, pct)
+        let line = String(format: "SYNT18-PERF %@ %d voices x5 unison: best of 3 = %.2f ms = %.2f%% of RT budget\n", label, voices, best, pct)
         print(line)
         if let h = FileHandle(forWritingAtPath: "/tmp/synt18_perf.txt") ?? {
             FileManager.default.createFile(atPath: "/tmp/synt18_perf.txt", contents: nil)

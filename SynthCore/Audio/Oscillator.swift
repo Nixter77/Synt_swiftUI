@@ -13,8 +13,11 @@ public struct Oscillator {
     public var pulseWidth: Float = 0.5 // For Square wave (PWM)
 
     /// Shared wavetable engine (owned by AudioEngine). Only used when `waveform == .wavetable`.
-    /// Class reference — not copied by value; safe for struct Oscillator.
-    public var wavetableEngine: WavetableOscillator? = nil
+    /// SYNT_22 Stage 2: unowned(unsafe) so copying this struct (once per voice per sample on render)
+    /// is a plain memcpy — a strong ref made every copy a retain/release pair (the "ARC in
+    /// generateSample" item). The owner (AudioEngine, which holds `wavetableEngine1/2` strongly
+    /// for its whole life) must keep the engine alive while this oscillator can use it.
+    public unowned(unsafe) var wavetableEngine: WavetableOscillator? = nil
     /// Morph 0…1 across wavetable frames (smoothed inside the engine).
     public var wavetableMorph: Float = 0.0
     public var wavetableSampleRate: Double = 44100.0
