@@ -54,6 +54,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         maximumFramesToRender = 512
         engine.usesHostTransport = true
         engine.rendersAllDelayInDSP = true
+        engine.rendersAllReverbInDSP = true  // SYNT_20 P2-8
         engine.applyPreset()
         installParameterTree()
         startProgramChangePoll()
@@ -360,7 +361,8 @@ public final class SyntAudioUnit: AUAudioUnit {
         }
         // R5: Synchronously publish snapshot and modMatrix to RTPresetBuffer
         // before returning so the very first audio buffer receives the new preset immediately!
-        let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: engine.rendersAllDelayInDSP)
+        let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: engine.rendersAllDelayInDSP,
+                                    rendersAllReverbInDSP: engine.rendersAllReverbInDSP)
         engine.rtPresetBuffer.publish(snap)
         // Same synchronous block as the matrix. `apply()` on main publishes again;
         // the buffer that runs before that hop must already see this curve.

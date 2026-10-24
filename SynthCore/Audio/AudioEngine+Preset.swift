@@ -93,7 +93,8 @@ public extension AudioEngine {
         publishMSEG(preset.mseg)
         publishMSEG2(preset.mseg2)
         rtModMatrix.publish(preset.modMatrix)
-        let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP)
+        let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP,
+                                    rendersAllReverbInDSP: rendersAllReverbInDSP)
         // SYNT_17 R14-1: main-side routing mirror = controller override ?? user value (last change wins).
         mpeEnabled = controllerMPEMain.adoptEnabled(preset.mpeEnabled)
         mpePitchBendRange = controllerMPEMain.adoptMemberRange(preset.mpePitchBendRange)

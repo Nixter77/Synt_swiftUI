@@ -241,7 +241,7 @@ public struct RTPresetSnapshot: Sendable {
 
     public init() {}
 
-    public init(from preset: SynthPreset, rendersAllDelayInDSP: Bool) {
+    public init(from preset: SynthPreset, rendersAllDelayInDSP: Bool, rendersAllReverbInDSP: Bool = false) {
         osc1Waveform = preset.osc1Waveform
         osc1Volume = preset.osc1Volume
         osc1Octave = preset.osc1Octave
@@ -360,7 +360,7 @@ public struct RTPresetSnapshot: Sendable {
         chorusFlangerDivision = preset.chorusFlangerDivision
         flangerRateHz = chorusFlangerDivision.frequency(bpm: preset.bpm)
         filterFeedback = max(-1, min(1, preset.filterFeedback))
-        dspReverbEnabled = preset.dspReverbEnabled
+        dspReverbEnabled = preset.dspReverbEnabled || rendersAllReverbInDSP
         reverbDamping = max(0, min(1, preset.reverbDamping))
         osc2FixedFrequency = preset.osc2FixedFrequency
         osc2FrequencyHz = max(20, min(8000, preset.osc2FrequencyHz))

@@ -47,7 +47,9 @@ import Testing
         let on = try tailRMS(enabled: true)
         let off = try tailRMS(enabled: false)
         #expect(on > 0.001)
-        #expect(off < on * 0.15)
+        // SYNT_20 P2-8: the AU has no Apple Reverb node, so it renders the DSP reverb for every
+        // preset. `dspReverbEnabled == false` used to be silent here (the old assertion encoded that).
+        #expect(off > 0.001)
     }
 
     private func tailRMS(enabled: Bool) throws -> Float {

@@ -287,6 +287,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Audio Unit: no device graph, so Apple Delay never runs. The DSP delay
     /// renders both modes (ping-pong off = plain stereo delay).
     public var rendersAllDelayInDSP = false
+    /// SYNT_20 P2-8: Audio Unit has no Apple Reverb node either, so the DSP reverb renders
+    /// every preset there. Off by default (standalone keeps Apple Reverb when the preset asks).
+    public var rendersAllReverbInDSP = false
     /// Fixed table of FX slots read on the RT audio thread without allocations.
     public var cachedFXOrder: FXOrderTable = FXOrderTable()
     /// Host or user preference for MIDI Program Change events.

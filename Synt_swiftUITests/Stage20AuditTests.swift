@@ -176,4 +176,24 @@ final class Stage20AuditTests: XCTestCase {
         XCTAssertEqual(engine.wavetableEngine2.rtPendingIndex.load(ordering: .relaxed), -1)
         XCTAssertEqual(engine.wavetableEngine1.currentBuiltinIndex, 3)
     }
+
+    // MARK: P2-8 — AU renders the reverb in DSP even when the preset picks Apple Reverb.
+
+    func testP2_8_AUForcesDSPReverb() throws {
+        let unit = try SyntAudioUnit(componentDescription: Self.desc)
+        let engine = unit.engine
+        var p = engine.preset
+        p.dspReverbEnabled = false
+        p.reverbMix = 0.4
+        engine.preset = p
+        engine.applyPreset()
+        engine.processCommandsForTesting()
+        XCTAssertTrue(engine.cachedDSPReverb, "AU has no Apple Reverb node: reverb would be silent")
+
+        let standalone = AudioEngine()
+        standalone.preset = p
+        standalone.applyPreset()
+        standalone.processCommandsForTesting()
+        XCTAssertFalse(standalone.cachedDSPReverb, "standalone default unchanged")
+    }
 }
