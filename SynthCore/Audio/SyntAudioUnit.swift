@@ -347,8 +347,16 @@ public final class SyntAudioUnit: AUAudioUnit {
         // adopt by the main hop. Use the lock-protected mirror adoptPreset writes synchronously.
         var snapshot: SynthPreset
         if Thread.isMainThread {
-            snapshot = engine.preset
-            adoptedPresetLock.lock(); adoptedPresetMirror = snapshot; adoptedPresetLock.unlock()
+            // SYNT_24 R20-1: while an off-main adopt's main hop is still pending, `engine.preset`
+            // is older than the mirror — use the mirror and do not overwrite it.
+            adoptedPresetLock.lock()
+            if adoptGenerationApplied == adoptGenerationLatest {
+                snapshot = engine.preset
+                adoptedPresetMirror = snapshot
+            } else {
+                snapshot = adoptedPresetMirror ?? engine.preset
+            }
+            adoptedPresetLock.unlock()
         } else {
             adoptedPresetLock.lock(); snapshot = adoptedPresetMirror ?? engine.preset; adoptedPresetLock.unlock()
         }
@@ -367,9 +375,17 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// `presetSnapshot()` off main. Addressed values still come from the store.
     private let adoptedPresetLock = NSLock()
     private var adoptedPresetMirror: SynthPreset?
+    /// SYNT_24 R20-1: bumped by every adopt (any thread); `Applied` is the newest generation whose
+    /// main hop ran. Both under `adoptedPresetLock`.
+    private var adoptGenerationLatest: UInt64 = 0
+    private var adoptGenerationApplied: UInt64 = 0
 
     private func adoptPreset(_ preset: SynthPreset, notify: Bool = true) {
-        adoptedPresetLock.lock(); adoptedPresetMirror = preset; adoptedPresetLock.unlock()
+        adoptedPresetLock.lock()
+        adoptedPresetMirror = preset
+        adoptGenerationLatest &+= 1
+        let generation = adoptGenerationLatest
+        adoptedPresetLock.unlock()
         for address in SynthParameterAddress.allCases {
             parameters.set(address.rawValue, preset.parameterValue(for: address))
         }
@@ -386,6 +402,12 @@ public final class SyntAudioUnit: AUAudioUnit {
 
         let apply: () -> Void = { [weak self] in
             guard let self else { return }
+            // R20-1: a newer adopt already applied (e.g. a main adopt overtook this hop) → stale.
+            self.adoptedPresetLock.lock()
+            let stale = generation < self.adoptGenerationApplied
+            if !stale { self.adoptGenerationApplied = generation }
+            self.adoptedPresetLock.unlock()
+            if stale { return }
             self.engine.preset = preset
             self.syncParameterTreeFromEngine()
             if notify {

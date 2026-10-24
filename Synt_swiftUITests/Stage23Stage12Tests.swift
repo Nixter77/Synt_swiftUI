@@ -48,6 +48,32 @@ struct Stage23Stage12Tests {
         #expect(readBack == FXSlotID.defaultOrder.reversed())
     }
 
+    /// SYNT_24 R20-1 (fails on old code). Off-main set B; main takes a snapshot before the hop runs
+    /// (old: refreshed the mirror from the stale engine.preset A); an off-main get must still see B.
+    @Test func testR20_1_MainSnapshotBeforeHopDoesNotClobberMirror() throws {
+        let unit = try Self.makeUnit()
+        var b = SynthPreset.defaultPreset
+        b.fxOrder = FXSlotID.defaultOrder.reversed()
+        var state = unit.fullState ?? [:]
+        state[SyntAudioUnit.statePresetKey] = try JSONEncoder().encode(b)
+        nonisolated(unsafe) let u = unit
+        let s = state
+        let sem = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async { u.fullState = s; sem.signal() }
+        sem.wait()
+        // Main, hop still queued behind this test.
+        let mainSeen = unit.presetSnapshot().fxOrder
+        nonisolated(unsafe) var readBack: [FXSlotID]?
+        DispatchQueue.global().async {
+            if let d = u.fullState?[SyntAudioUnit.statePresetKey] as? Data,
+               let p = try? JSONDecoder().decode(SynthPreset.self, from: d) { readBack = p.fxOrder }
+            sem.signal()
+        }
+        sem.wait()
+        #expect(mainSeen == FXSlotID.defaultOrder.reversed())
+        #expect(readBack == FXSlotID.defaultOrder.reversed())
+    }
+
     /// R14-10. A `controllerMPEConfigDidChange` callback that writes `preset` fires from inside
     /// applyPreset (pollMPEConfigMailbox). Old code re-entered applyPreset mid-pass; now the nested
     /// call is coalesced into a follow-up pass and the callback's value is still applied.
