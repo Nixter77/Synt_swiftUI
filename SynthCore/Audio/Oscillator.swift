@@ -29,7 +29,8 @@ public struct Oscillator {
         phase: Double,
         phaseIncrement: Double,
         noiseValue: Float = 0.0,
-        pulseWidthOverride: Float? = nil
+        pulseWidthOverride: Float? = nil,
+        pullWavetable: Bool = true
     ) -> Float {
         let sample: Float
         let twoPi = AudioMath.twoPi
@@ -84,11 +85,10 @@ public struct Oscillator {
             // Raw table sample (no engine volume) → single volume multiply below.
             // Morph is advanced once per audio sample in AudioEngine, not per voice.
             if let engine = wavetableEngine {
-                sample = engine.generateSample(
-                    phase: phase,
-                    phaseIncrement: phaseIncrement,
-                    sampleRate: wavetableSampleRate
-                )
+                // SYNT_24 Stage 2: the engine render already pulled this sample (advanceMorph).
+                sample = pullWavetable
+                    ? engine.generateSample(phase: phase, phaseIncrement: phaseIncrement, sampleRate: wavetableSampleRate)
+                    : engine.generateSampleNoPull(phase: phase, phaseIncrement: phaseIncrement, sampleRate: wavetableSampleRate)
             } else {
                 // Fallback if engine not attached — keep signal finite
                 sample = Float(sin(phase))

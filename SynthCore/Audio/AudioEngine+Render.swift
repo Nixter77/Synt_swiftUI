@@ -801,7 +801,8 @@ public extension AudioEngine {
                         phase: v.phase,
                         phaseIncrement: phaseInc1,
                         noiseValue: noiseValue,
-                        pulseWidthOverride: pulse1
+                        pulseWidthOverride: pulse1,
+                        pullWavetable: false
                     )
                     let modFreq = min(sampleRate * 0.45, osc1Freq * ratio)
                     phaseInc2 = AudioMath.twoPi * modFreq / sampleRate
@@ -816,7 +817,8 @@ public extension AudioEngine {
                             phase: osc2Phase,
                             phaseIncrement: phaseInc2,
                             noiseValue: noiseValue,
-                            pulseWidthOverride: pulse2
+                            pulseWidthOverride: pulse2,
+                            pullWavetable: false
                         )
                     } else {
                         s2 = 0
@@ -829,7 +831,8 @@ public extension AudioEngine {
                             phase: v.phase2,
                             phaseIncrement: phaseInc2,
                             noiseValue: noiseValue,
-                            pulseWidthOverride: pulse2
+                            pulseWidthOverride: pulse2,
+                            pullWavetable: false
                         )
                     } else {
                         s2 = 0
@@ -843,7 +846,8 @@ public extension AudioEngine {
                         phase: osc1Phase,
                         phaseIncrement: phaseInc1,
                         noiseValue: noiseValue,
-                        pulseWidthOverride: pulse1
+                        pulseWidthOverride: pulse1,
+                        pullWavetable: false
                     )
                 }
             } else if fmMod == 0 {
@@ -852,7 +856,8 @@ public extension AudioEngine {
                         phase: v.phase2,
                         phaseIncrement: phaseInc2,
                         noiseValue: noiseValue,
-                        pulseWidthOverride: pulse2
+                        pulseWidthOverride: pulse2,
+                        pullWavetable: false
                     )
                 } else {
                     s2 = 0
@@ -866,7 +871,8 @@ public extension AudioEngine {
                     phase: osc1Phase,
                     phaseIncrement: phaseInc1,
                     noiseValue: noiseValue,
-                    pulseWidthOverride: pulse1
+                    pulseWidthOverride: pulse1,
+                    pullWavetable: false
                 )
             } else {
                 let voiceFM = max(0, min(1, fmAmount + fmMod))
@@ -875,7 +881,8 @@ public extension AudioEngine {
                         phase: v.phase2,
                         phaseIncrement: phaseInc2,
                         noiseValue: noiseValue,
-                        pulseWidthOverride: pulse2
+                        pulseWidthOverride: pulse2,
+                        pullWavetable: false
                     )
                 } else {
                     s2 = 0
@@ -889,7 +896,8 @@ public extension AudioEngine {
                     phase: osc1Phase,
                     phaseIncrement: phaseInc1,
                     noiseValue: noiseValue,
-                    pulseWidthOverride: pulse1
+                    pulseWidthOverride: pulse1,
+                    pullWavetable: false
                 )
             }
             var sample = s1

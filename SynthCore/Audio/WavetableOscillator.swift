@@ -967,6 +967,13 @@ public final class WavetableOscillator {
     }
 
     @inline(__always)
+    /// SYNT_24 Stage 2: render-owned frame-split cache for `sampleMorphedFlat` (count -1 = empty).
+    private var fmCachePosBits: UInt32 = 0
+    private var fmCacheCount: Int = -1
+    private var fmCacheIdx1 = 0
+    private var fmCacheIdx2 = 0
+    private var fmCacheFrac: Float = 0
+
     public func pullNewWavetableRT() {
         if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
             let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
@@ -1242,6 +1249,14 @@ public final class WavetableOscillator {
     @inline(__always)
     public func generateSample(phase: Double, phaseIncrement: Double, sampleRate: Double = 44100.0) -> Float {
         pullNewWavetableRT()
+        return generateSampleNoPull(phase: phase, phaseIncrement: phaseIncrement, sampleRate: sampleRate)
+    }
+
+    /// SYNT_24 Stage 2: render path. The caller guarantees `pullNewWavetableRT()` already ran this
+    /// sample (AudioEngine: `advanceMorph()` before the voice loop, `renderBlock` at block start),
+    /// so the per-voice atomic load is skipped. Same output as `generateSample`.
+    @inline(__always)
+    public func generateSampleNoPull(phase: Double, phaseIncrement: Double, sampleRate: Double = 44100.0) -> Float {
         // SYNT_18 R15-2: POD view only (no class, no Swift array → no retain/release per sample).
         guard let view = rtView ?? viewSlots[readBank] else {
             return 0.0
@@ -1275,10 +1290,20 @@ public final class WavetableOscillator {
         let frameCount = view.frames
         guard frameCount > 0 else { return 0 }
 
-        let framePos = framePosition * Float(max(0, frameCount - 1))
-        let frameIndex1 = max(0, min(frameCount - 1, Int(framePos)))
-        let frameIndex2 = min(frameIndex1 + 1, frameCount - 1)
-        let frameFrac = framePos - Float(frameIndex1)
+        // SYNT_24 Stage 2: the frame split depends only on (framePosition, frameCount), which change
+        // at most once per sample — recompute only then, not per voice call. Same arithmetic.
+        if framePosition.bitPattern != fmCachePosBits || frameCount != fmCacheCount {
+            let framePos = framePosition * Float(max(0, frameCount - 1))
+            let i1 = max(0, min(frameCount - 1, Int(framePos)))
+            fmCacheIdx1 = i1
+            fmCacheIdx2 = min(i1 + 1, frameCount - 1)
+            fmCacheFrac = framePos - Float(i1)
+            fmCachePosBits = framePosition.bitPattern
+            fmCacheCount = frameCount
+        }
+        let frameIndex1 = fmCacheIdx1
+        let frameIndex2 = fmCacheIdx2
+        let frameFrac = fmCacheFrac
 
         let n = view.samplesPerFrame
         let sample1 = sampleFromRaw(view.frame(octave: mipOctave, index: frameIndex1), count: n, phase: phase)
