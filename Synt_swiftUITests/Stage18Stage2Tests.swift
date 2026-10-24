@@ -30,7 +30,7 @@ final class Stage18Stage2Tests: XCTestCase {
         XCTAssertTrue(userCompiled === engine.wavetableEngine1.instanceUserCompiled)
 
         // Now "render" is active; main only publishes the snapshot.
-        engine.isRenderingActive.store(true, ordering: .releasing)
+        engine.renderLifecycleActive.store(true, ordering: .releasing)
         engine.preset.osc1WavetableIndex = 0
         engine.applyPreset()
 
@@ -60,7 +60,7 @@ final class Stage18Stage2Tests: XCTestCase {
         }
 
         // Main takes over the retain/release later.
-        engine.isRenderingActive.store(false, ordering: .releasing)
+        engine.renderLifecycleActive.store(false, ordering: .releasing)
         engine.wavetableEngine1.syncFromRenderMain()
         XCTAssertTrue(engine.wavetableEngine1.activeCompiled === ref.activeCompiled)
         XCTAssertEqual(engine.wavetableEngine1.rtPendingIndex.load(ordering: .relaxed), -1)

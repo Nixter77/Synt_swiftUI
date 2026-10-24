@@ -191,12 +191,15 @@ public final class SyntAudioUnit: AUAudioUnit {
         // (over XPC, off main) must survive it. Rewriting the store from the
         // lagging engine.preset here made auval fail "did not retain set value".
         refreshParameterTreeFromStore()
+        // SYNT_20 P1-2: from here on only render applies preset snapshots.
+        engine.renderLifecycleActive.store(true, ordering: .sequentiallyConsistent)
     }
 
     public override func deallocateRenderResources() {
         // R1: Do not nil out musicalContext/transportState while audio render might still be executing
         // the final buffer. They are safely replaced on next allocateRenderResources or deinit.
         super.deallocateRenderResources()
+        engine.renderLifecycleActive.store(false, ordering: .sequentiallyConsistent)
     }
 
     public override var internalRenderBlock: AUInternalRenderBlock {

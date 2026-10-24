@@ -100,9 +100,11 @@ public extension AudioEngine {
         mpeZone = controllerMPEMain.adoptZone(preset.mpeZone)
         mpeMemberChannelCount = controllerMPEMain.adoptMemberCount(preset.mpeMemberChannelCount)
         rtPresetBuffer.publish(snap)
-        if !isRenderingActive.load(ordering: .acquiring) {
+        // SYNT_20 P1-2: render applies the snapshot whenever render can run (no TOCTOU on
+        // "inside a callback"); main applies it only when nothing can render.
+        if !renderLifecycleActive.load(ordering: .sequentiallyConsistent) {
             cachedFXOrder = snap.fxOrder
-            applyPresetDSP(snap)
+            applyPresetDSP(snap, onRenderThread: false)
         }
 
         parameterReverbMix = preset.reverbMix
@@ -173,7 +175,9 @@ public extension AudioEngine {
         ))
     }
 
-    public func applyPresetDSP(_ snap: RTPresetSnapshot) {
+    /// `onRenderThread` names the caller explicitly (SYNT_20 P1-1): the render path
+    /// (`pullPresetSnapshotRT`) must never take the main-side lock/ARC table switch.
+    public func applyPresetDSP(_ snap: RTPresetSnapshot, onRenderThread: Bool = true) {
         cachedFXOrder = snap.fxOrder
         oscillator1.waveform = snap.osc1Waveform
         rtOsc1IsWavetable = snap.osc1Waveform == .wavetable
@@ -185,7 +189,7 @@ public extension AudioEngine {
         if snap.osc1WavetableIndex != loadedWTIndex1 {
             loadedWTIndex1 = snap.osc1WavetableIndex
             // SYNT_18 R15-1: lock/ARC-free when this runs on render.
-            if isRenderingActive.load(ordering: .acquiring) { wavetableEngine1.loadBuiltinRT(index: snap.osc1WavetableIndex) } else { wavetableEngine1.loadBuiltin(index: snap.osc1WavetableIndex) }
+            if onRenderThread { wavetableEngine1.loadBuiltinRT(index: snap.osc1WavetableIndex) } else { wavetableEngine1.loadBuiltin(index: snap.osc1WavetableIndex) }
         }
 
         oscillator2.waveform = snap.osc2Waveform
@@ -198,7 +202,7 @@ public extension AudioEngine {
         if snap.osc2WavetableIndex != loadedWTIndex2 {
             loadedWTIndex2 = snap.osc2WavetableIndex
             // SYNT_18 R15-1: lock/ARC-free when this runs on render.
-            if isRenderingActive.load(ordering: .acquiring) { wavetableEngine2.loadBuiltinRT(index: snap.osc2WavetableIndex) } else { wavetableEngine2.loadBuiltin(index: snap.osc2WavetableIndex) }
+            if onRenderThread { wavetableEngine2.loadBuiltinRT(index: snap.osc2WavetableIndex) } else { wavetableEngine2.loadBuiltin(index: snap.osc2WavetableIndex) }
         }
 
         envelope.attack = snap.attack
@@ -550,7 +554,7 @@ public extension AudioEngine {
             }
         }
         let table = FXOrderTable(order: clean)
-        if !isRenderingActive.load(ordering: .acquiring) {
+        if !renderLifecycleActive.load(ordering: .sequentiallyConsistent) {
             cachedFXOrder = table
         }
         _ = commandQueue.push(.setFXOrder(table: table))

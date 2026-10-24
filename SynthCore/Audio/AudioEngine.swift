@@ -463,6 +463,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Double-buffered preset snapshot consumed by render thread at buffer boundaries.
     public let rtPresetBuffer = RTPresetBuffer()
     public let isRenderingActive = Atomic<Bool>(false)
+    /// SYNT_20 P1-2: render lifecycle, not "inside a callback". True from AU
+    /// `allocateRenderResources` / standalone `start()` until deallocate / `stop()`.
+    /// While true, main only publishes snapshots and render applies them; while false
+    /// nothing renders, so main may apply DSP directly.
+    public let renderLifecycleActive = Atomic<Bool>(false)
     public var lastAppliedPresetID: UUID?
     public var lastAppliedPresetName: String = ""
 
@@ -932,6 +937,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         guard shouldRun, !engine.isRunning else { return }
         do {
             try engine.start()
+            renderLifecycleActive.store(true, ordering: .sequentiallyConsistent)
             isPlaying = true
         } catch {
             Self.log.error("Failed to restart audio engine after a device change: \(error.localizedDescription, privacy: .public)")
@@ -979,6 +985,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
         do {
             try engine.start()
+            renderLifecycleActive.store(true, ordering: .sequentiallyConsistent)
             isPlaying = true
         } catch {
             Self.log.error("Failed to start audio engine: \(error.localizedDescription, privacy: .public)")
@@ -990,6 +997,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
             _ = stopRecording()
         }
         engine.stop()
+        renderLifecycleActive.store(false, ordering: .sequentiallyConsistent)
         isPlaying = false
         clearAllNotes()
         meters.resetDisplay()
