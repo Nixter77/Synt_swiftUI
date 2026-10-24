@@ -848,7 +848,13 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         syncSource = c.tolerant(SyncSource.self, forKey: .syncSource) ?? .`internal`
         filterDrive = try c.decodeIfPresent(Float.self, forKey: .filterDrive) ?? 0
         pan = try c.decodeIfPresent(Float.self, forKey: .pan) ?? 0.0
-        fxOrder = c.tolerant([FXSlotID].self, forKey: .fxOrder) ?? FXSlotID.defaultOrder
+        // SYNT_22 R18-3: lossy — unknown slot IDs are dropped and missing default slots appended,
+        // instead of one bad ID resetting the user's whole order.
+        if let lossy = c.tolerant([LossyDecodable<FXSlotID>].self, forKey: .fxOrder) {
+            fxOrder = Self.sanitizeFXOrder(lossy.compactMap(\.value))
+        } else {
+            fxOrder = FXSlotID.defaultOrder
+        }
         lfoMode = c.tolerant(LFOMode.self, forKey: .lfoMode) ?? .free
         lfoStartPhase = try c.decodeIfPresent(Float.self, forKey: .lfoStartPhase) ?? 0.0
         lfo2Mode = c.tolerant(LFOMode.self, forKey: .lfo2Mode) ?? .free
@@ -1276,11 +1282,35 @@ public enum PresetAuthoring {
 // the default. The encoded format is unchanged, so `stateVersion` stays 1.
 extension KeyedDecodingContainer {
     func tolerant<T: Decodable>(_ type: T.Type, forKey key: Key) -> T? {
-        (try? decodeIfPresent(type, forKey: key)) ?? nil
+        do {
+            return try decodeIfPresent(type, forKey: key)
+        } catch {
+            // SYNT_22 R18-4: the fallback to default is no longer silent (DEBUG only).
+            TolerantDecodeLog.record(key: key.stringValue, error: error)
+            return nil
+        }
     }
 }
 
 struct LossyDecodable<T: Decodable>: Decodable {
     let value: T?
     init(from decoder: Decoder) throws { value = try? T(from: decoder) }
+}
+
+
+/// SYNT_22 R18-4: DEBUG-only diagnostics when a tolerant preset decode falls back to a default.
+/// Release builds do nothing (no logging, no counting).
+enum TolerantDecodeLog {
+    #if DEBUG
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var keys: [String] = []
+    static func record(key: String, error: Error) {
+        lock.lock(); keys.append(key); lock.unlock()
+        print("[SynthPreset] tolerant decode fell back to default for '\(key)': \(error)")
+    }
+    static func fallbackKeysForTesting() -> [String] { lock.lock(); defer { lock.unlock() }; return keys }
+    static func resetForTesting() { lock.lock(); keys.removeAll(); lock.unlock() }
+    #else
+    @inline(__always) static func record(key: String, error: Error) {}
+    #endif
 }
