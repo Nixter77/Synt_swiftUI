@@ -276,6 +276,26 @@ public struct LFOShapeTable {
     /// Off the render thread. Never freed (a few KB per compiled table), so a raw pointer
     /// held by an LFO can never dangle when the oscillator swaps tables.
     public static func makeImmortal(_ frame: [Float]) -> UnsafePointer<LFOShapeTable> {
+        allocateImmortal(frame)
+    }
+
+    /// SYNT_22 R14-4 / R18-1: interned immortal shape. Equal frames share one allocation, so the
+    /// (now LRU-evicting) compile cache recompiling a table does not leak a new shape each time.
+    /// Growth is bounded by distinct frames. Still never freed → an LFO pointer cannot dangle.
+    /// Off the render thread only (takes a lock).
+    public static func interned(_ frame: [Float]) -> UnsafePointer<LFOShapeTable> {
+        if let hit = internTable.withLock({ $0[frame] }) { return UnsafePointer(bitPattern: hit)! }
+        let p = allocateImmortal(frame)
+        return internTable.withLock { t in
+            if let hit = t[frame] { return UnsafePointer(bitPattern: hit)! }  // lost a race; tiny leak
+            t[frame] = Int(bitPattern: p)
+            return p
+        }
+    }
+    private static let internTable = Mutex<[[Float]: Int]>([:])
+    public static var internedCountForTesting: Int { internTable.withLock { $0.count } }
+
+    private static func allocateImmortal(_ frame: [Float]) -> UnsafePointer<LFOShapeTable> {
         let n = max(1, frame.count)
         let d = UnsafeMutablePointer<Float>.allocate(capacity: n)
         if frame.isEmpty { d.initialize(to: 0) } else { d.initialize(from: frame, count: frame.count) }
@@ -331,7 +351,7 @@ public final class CompiledMipData: @unchecked Sendable {
         self.wavetable = wavetable
         self.mipMaps = mipMaps
         self.maxHarmonics = maxHarmonics
-        self.lfoShape = LFOShapeTable.makeImmortal(LFOShapeTable.middleFrame(of: wavetable))
+        self.lfoShape = LFOShapeTable.interned(LFOShapeTable.middleFrame(of: wavetable))
         let octs = mipMaps.count
         let frms = mipMaps.first?.count ?? 0
         let spf = mipMaps.first?.first?.count ?? 0
