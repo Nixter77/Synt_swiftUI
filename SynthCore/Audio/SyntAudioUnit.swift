@@ -836,6 +836,13 @@ final class SyntRenderContext {
 
     /// Audio thread. Walks the UMP packets in place (no copy of the list, no allocation)
     /// and feeds MIDI 1.0 bytes to the same parser as `.MIDI` events.
+    ///
+    /// SYNT_20 P2-7 (documented assumption, no behaviour change): every packet of one
+    /// `.midiEventList` event lands on the event header's `eventSampleTime` offset.
+    /// `MIDIEventPacket.timeStamp` is ignored because, inside an AU render event, its unit and
+    /// origin are not specified by the AU API (hosts send one packet per event, each with its own
+    /// header time). If a host ever batches packets with distinct times, they collapse onto the
+    /// header offset — sample-accurate within the event, never reordered or dropped.
     private func scheduleUMP(_ event: UnsafePointer<AURenderEvent>, offset: Int) {
         let listOffset = MemoryLayout<AUMIDIEventList>.offset(of: \AUMIDIEventList.eventList) ?? 0
         let list = UnsafeRawPointer(event).advanced(by: listOffset)
