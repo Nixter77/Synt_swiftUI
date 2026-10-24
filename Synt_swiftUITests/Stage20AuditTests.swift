@@ -50,4 +50,58 @@ final class Stage20AuditTests: XCTestCase {
         engine.applyPreset()
         XCTAssertEqual(engine.oscillator1.volume, old, accuracy: 1e-6)
     }
+
+    // MARK: P1-3 — host blocks: one box read without ARC, kept alive across a re-allocate.
+
+    static func renderOnce(_ unit: SyntAudioUnit, frames: Int = 64) -> AUAudioUnitStatus {
+        let list = AudioBufferList.allocate(maximumBuffers: 2)
+        let bytes = frames * MemoryLayout<Float>.size
+        for i in 0..<2 {
+            list[i] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(bytes),
+                                  mData: UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 16))
+        }
+        defer {
+            for i in 0..<2 { list[i].mData?.deallocate() }
+            list.unsafeMutablePointer.deallocate()
+        }
+        var flags = AudioUnitRenderActionFlags()
+        var time = AudioTimeStamp()
+        time.mFlags = .sampleTimeValid
+        return unit.internalRenderBlock(&flags, &time, AUAudioFrameCount(frames), 0, list.unsafeMutablePointer, nil, nil)
+    }
+
+    func testP1_3_HostBlocksReadOnRenderAndOldBlockOutlivesReallocate() throws {
+        final class Token {}
+        let unit = try SyntAudioUnit(componentDescription: Self.desc)
+        weak var firstToken: Token?
+        do {
+            let token = Token()
+            firstToken = token
+            unit.musicalContextBlock = { bpm, _, _, beat, _, _ in
+                withExtendedLifetime(token) {}
+                bpm?.pointee = 97
+                beat?.pointee = 0
+                return true
+            }
+        }
+        try unit.allocateRenderResources()
+        XCTAssertEqual(Self.renderOnce(unit), noErr)
+        XCTAssertEqual(unit.engine.cachedBPM, 97, accuracy: 1e-4, "render read the installed musical-context block")
+
+        // Re-allocate with a new block while a render of the old allocation could still be finishing:
+        // the old block must not be released under it.
+        unit.deallocateRenderResources()
+        unit.musicalContextBlock = { bpm, _, _, _, _, _ in bpm?.pointee = 133; return true }
+        try unit.allocateRenderResources()
+        XCTAssertNotNil(firstToken, "previous host block released while render may still call it")
+        XCTAssertEqual(Self.renderOnce(unit), noErr)
+        XCTAssertEqual(unit.engine.cachedBPM, 133, accuracy: 1e-4)
+
+        // Bounded: the allocation after next releases it.
+        unit.deallocateRenderResources()
+        unit.musicalContextBlock = nil
+        try unit.allocateRenderResources()
+        XCTAssertNil(firstToken)
+        unit.deallocateRenderResources()
+    }
 }

@@ -179,8 +179,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         try super.allocateRenderResources()
         let frames = max(1, Int(maximumFramesToRender))
         renderContext.reserve(frames: frames)
-        renderContext.musicalContext = musicalContextBlock
-        renderContext.transportState = transportStateBlock
+        renderContext.installHostBlocks(musical: musicalContextBlock, transport: transportStateBlock)
         let rate = outputBus.format.sampleRate
         let safeRate = rate > 0 ? rate : 44_100
         engine.prepare(sampleRate: safeRate, maxFrames: frames)
@@ -196,8 +195,8 @@ public final class SyntAudioUnit: AUAudioUnit {
     }
 
     public override func deallocateRenderResources() {
-        // R1: Do not nil out musicalContext/transportState while audio render might still be executing
-        // the final buffer. They are safely replaced on next allocateRenderResources or deinit.
+        // R1 / SYNT_20 P1-3: host blocks stay installed; a render still finishing its last buffer
+        // reads them. The next allocate swaps in a new box and keeps the old one alive.
         super.deallocateRenderResources()
         engine.renderLifecycleActive.store(false, ordering: .sequentiallyConsistent)
     }
@@ -677,8 +676,29 @@ enum SyntParameterTree {
 final class SyntRenderContext {
     private let engineUnmanaged: Unmanaged<AudioEngine>
     private let parametersUnmanaged: Unmanaged<AddressedParameterStore>
-    var musicalContext: AUHostMusicalContextBlock?
-    var transportState: AUHostTransportStateBlock?
+    /// SYNT_20 P1-3: host blocks as one immutable box. Render reads it as a raw word through
+    /// `_withUnsafeGuaranteedRef` (no swift_retain/release per buffer, no torn optional write).
+    final class HostBlocks {
+        let musical: AUHostMusicalContextBlock?
+        let transport: AUHostTransportStateBlock?
+        init(musical: AUHostMusicalContextBlock?, transport: AUHostTransportStateBlock?) {
+            self.musical = musical
+            self.transport = transport
+        }
+    }
+    private let hostBlocksBits = Atomic<Int>(0)
+    /// Main only. The current box plus the previous one (a render of the previous allocation
+    /// may still be finishing when the host re-allocates); older boxes are released.
+    private var hostBlocksKeepAlive: [HostBlocks] = []
+    var hostBlocksKeepAliveCountForTesting: Int { hostBlocksKeepAlive.count }
+
+    /// Main thread, inside `allocateRenderResources`.
+    func installHostBlocks(musical: AUHostMusicalContextBlock?, transport: AUHostTransportStateBlock?) {
+        let box = HostBlocks(musical: musical, transport: transport)
+        hostBlocksKeepAlive.append(box)
+        hostBlocksBits.store(Int(bitPattern: Unmanaged.passUnretained(box).toOpaque()), ordering: .releasing)
+        if hostBlocksKeepAlive.count > 2 { hostBlocksKeepAlive.removeFirst(hostBlocksKeepAlive.count - 2) }
+    }
     private var renderLeft: UnsafeMutablePointer<Float>?
     private var renderRight: UnsafeMutablePointer<Float>?
     private(set) var renderCapacity = 0
@@ -739,19 +759,23 @@ final class SyntRenderContext {
     private func pullHostTransport() {
         var tempo: Double?
         var beatPosition: Double?
-        if let musical = musicalContext {
-            var bpm: Double = 0
-            var currentBeat: Double = 0
-            if musical(&bpm, nil, nil, &currentBeat, nil, nil) {
-                tempo = bpm
-                beatPosition = currentBeat
-            }
-        }
         var moving: Bool?
-        if let transport = transportState {
-            var flags = AUHostTransportStateFlags()
-            if transport(&flags, nil, nil, nil) {
-                moving = flags.contains(.moving)
+        if let raw = UnsafeRawPointer(bitPattern: hostBlocksBits.load(ordering: .acquiring)) {
+            Unmanaged<HostBlocks>.fromOpaque(raw)._withUnsafeGuaranteedRef { blocks in
+                if let musical = blocks.musical {
+                    var bpm: Double = 0
+                    var currentBeat: Double = 0
+                    if musical(&bpm, nil, nil, &currentBeat, nil, nil) {
+                        tempo = bpm
+                        beatPosition = currentBeat
+                    }
+                }
+                if let transport = blocks.transport {
+                    var flags = AUHostTransportStateFlags()
+                    if transport(&flags, nil, nil, nil) {
+                        moving = flags.contains(.moving)
+                    }
+                }
             }
         }
         engine.adoptHostContext(tempo: tempo, transportMoving: moving, beatPosition: beatPosition)
