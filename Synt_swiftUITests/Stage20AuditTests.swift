@@ -147,4 +147,33 @@ final class Stage20AuditTests: XCTestCase {
         osc.pullNewWavetableRT()                          // render adopts the publish
         XCTAssertEqual(osc.framePosition, 0.7, accuracy: 1e-6)
     }
+
+    // MARK: P2-5 — retire list is safe off main; standalone mirrors render switches.
+
+    func testP2_5_UserTableSetAndDrainFromManyThreads() {
+        let osc = WavetableOscillator()
+        osc.loadBuiltin(index: 0)
+        let tables = (1...4).map { i -> CompiledMipData in
+            osc.loadBuiltin(index: i); return osc.activeCompiled!
+        }
+        DispatchQueue.concurrentPerform(iterations: 8) { worker in
+            for n in 0..<2000 {
+                if worker % 2 == 0 { osc.instanceUserCompiled = tables[(n + worker) % 4] }
+                else { osc.drainRetiredUserTablesMain() }
+            }
+        }
+        osc.instanceUserCompiled = nil
+        osc.drainRetiredUserTablesMain()
+        XCTAssertEqual(osc.retiredUserTableCountForTesting, 0)
+    }
+
+    func testP2_5_StandalonePollMirrorsRenderSwitch() {
+        let engine = AudioEngine()
+        engine.wavetableEngine1.loadBuiltinRT(index: 3)
+        engine.wavetableEngine2.loadBuiltinRT(index: 2)
+        engine.pollMetering()
+        XCTAssertEqual(engine.wavetableEngine1.rtPendingIndex.load(ordering: .relaxed), -1)
+        XCTAssertEqual(engine.wavetableEngine2.rtPendingIndex.load(ordering: .relaxed), -1)
+        XCTAssertEqual(engine.wavetableEngine1.currentBuiltinIndex, 3)
+    }
 }

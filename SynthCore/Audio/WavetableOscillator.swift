@@ -735,30 +735,53 @@ public final class WavetableOscillator {
 
     /// Instance-specific user wavetable (R11-4: isolated per oscillator / AU instance, not shared static)
     public var instanceUserWavetable: Wavetable?
+    /// SYNT_20 P2-5: the user table and its retire list live behind one main-side lock (render
+    /// never takes it — render reads only `userCompiledBits`/`rtUserAck`), so loads from a
+    /// background import task cannot race the timer-driven drain.
+    private struct UserTableState {
+        var compiled: CompiledMipData?
+        var retired: [CompiledMipData] = []
+    }
+    private let userTableState = Mutex(UserTableState())
     public var instanceUserCompiled: CompiledMipData? {
-        didSet {
+        get { userTableState.withLock { $0.compiled } }
+        set {
             // SYNT_19 R16-1: publish the new table first, then retire the old one. A retired table
-            // is released (on main) only once render's ack no longer names it — hazard-pointer
-            // protocol with `rtUserAck` (both sides seq-cst), not "one swap".
-            userCompiledBits.store(instanceUserCompiled.map { Int(bitPattern: Unmanaged.passUnretained($0).toOpaque()) } ?? 0,
-                                   ordering: .sequentiallyConsistent)
-            if let old = oldValue, old !== instanceUserCompiled { retiredUserTables.append(old) }
-            drainRetiredUserTablesMain()
+            // is released only once render's ack no longer names it — hazard-pointer protocol
+            // with `rtUserAck` (both sides seq-cst), not "one swap".
+            let dropped: [CompiledMipData] = userTableState.withLock { state in
+                let old = state.compiled
+                state.compiled = newValue
+                userCompiledBits.store(newValue.map { Int(bitPattern: Unmanaged.passUnretained($0).toOpaque()) } ?? 0,
+                                       ordering: .sequentiallyConsistent)
+                if let old, old !== newValue { state.retired.append(old) }
+                return Self.drainLocked(&state, ack: rtUserAck.load(ordering: .sequentiallyConsistent))
+            }
+            _ = dropped  // released here, outside the lock
         }
     }
-    /// Main-only retire list (SYNT_19 R16-1).
-    private var retiredUserTables: [CompiledMipData] = []
     /// SYNT_19 R16-1: the user `CompiledMipData` as an unretained POD word for render.
     private let userCompiledBits = Atomic<Int>(0)
     /// SYNT_19 R16-1: render's ack — the user table `rtView` currently points into (0 = none).
     public let rtUserAck = Atomic<Int>(0)
-    public var retiredUserTableCountForTesting: Int { retiredUserTables.count }
+    public var retiredUserTableCountForTesting: Int { userTableState.withLock { $0.retired.count } }
 
-    /// SYNT_19 R16-1: main thread. Releases retired user tables render is not using.
+    /// SYNT_19 R16-1: releases retired user tables render is not using. Any non-render thread.
     public func drainRetiredUserTablesMain() {
-        guard !retiredUserTables.isEmpty else { return }
-        let ack = rtUserAck.load(ordering: .sequentiallyConsistent)
-        retiredUserTables.removeAll { Int(bitPattern: Unmanaged.passUnretained($0).toOpaque()) != ack }
+        let dropped: [CompiledMipData] = userTableState.withLock { state in
+            guard !state.retired.isEmpty else { return [] }
+            return Self.drainLocked(&state, ack: rtUserAck.load(ordering: .sequentiallyConsistent))
+        }
+        _ = dropped
+    }
+    private static func drainLocked(_ state: inout UserTableState, ack: Int) -> [CompiledMipData] {
+        var dropped: [CompiledMipData] = []
+        state.retired.removeAll { table in
+            let free = Int(bitPattern: Unmanaged.passUnretained(table).toOpaque()) != ack
+            if free { dropped.append(table) }
+            return free
+        }
+        return dropped
     }
     /// Render-owned override (set by `loadBuiltinRT`, cleared when main publishes again).
     private var rtView: UnsafePointer<FlatMipView>?

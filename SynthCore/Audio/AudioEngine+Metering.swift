@@ -28,6 +28,10 @@ public extension AudioEngine {
         // MIDI key highlight rides the same 30 Hz poll (no per-note main hop).
         refreshKeyDisplay()
         pollMPEConfigMailbox()
+        // SYNT_20 P2-5: standalone had no main follow-up for render-side wavetable switches
+        // (the AU has its 100 ms timer); mirror them and drain retired user tables here.
+        wavetableEngine1.syncFromRenderMain()
+        wavetableEngine2.syncFromRenderMain()
         let program = pendingProgram.exchange(-1, ordering: .acquiringAndReleasing)
         if program >= 0, let loaded = PresetBrowser.preset(forProgram: Int(program)) {
             preset = loaded
