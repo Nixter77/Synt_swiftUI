@@ -727,17 +727,29 @@ public final class WavetableOscillator {
     public var instanceUserWavetable: Wavetable?
     public var instanceUserCompiled: CompiledMipData? {
         didSet {
-            // SYNT_18 R15-1: keep the previous user table alive one more swap so a render-side
-            // override that still points at its flat view can never see freed memory.
-            if oldValue !== instanceUserCompiled { retiredUserCompiled = oldValue }
-            userViewBits.store(instanceUserCompiled.map { Int(bitPattern: UnsafePointer($0.flatView)) } ?? 0, ordering: .releasing)
-            userLfoBits.store(instanceUserCompiled.map { Int(bitPattern: $0.lfoShape) } ?? 0, ordering: .releasing)
+            // SYNT_19 R16-1: publish the new table first, then retire the old one. A retired table
+            // is released (on main) only once render's ack no longer names it — hazard-pointer
+            // protocol with `rtUserAck` (both sides seq-cst), not "one swap".
+            userCompiledBits.store(instanceUserCompiled.map { Int(bitPattern: Unmanaged.passUnretained($0).toOpaque()) } ?? 0,
+                                   ordering: .sequentiallyConsistent)
+            if let old = oldValue, old !== instanceUserCompiled { retiredUserTables.append(old) }
+            drainRetiredUserTablesMain()
         }
     }
-    private var retiredUserCompiled: CompiledMipData?
-    /// SYNT_18 R15-1: POD words so the render thread can switch tables without ARC or locks.
-    private let userViewBits = Atomic<Int>(0)
-    private let userLfoBits = Atomic<Int>(0)
+    /// Main-only retire list (SYNT_19 R16-1).
+    private var retiredUserTables: [CompiledMipData] = []
+    /// SYNT_19 R16-1: the user `CompiledMipData` as an unretained POD word for render.
+    private let userCompiledBits = Atomic<Int>(0)
+    /// SYNT_19 R16-1: render's ack — the user table `rtView` currently points into (0 = none).
+    public let rtUserAck = Atomic<Int>(0)
+    public var retiredUserTableCountForTesting: Int { retiredUserTables.count }
+
+    /// SYNT_19 R16-1: main thread. Releases retired user tables render is not using.
+    public func drainRetiredUserTablesMain() {
+        guard !retiredUserTables.isEmpty else { return }
+        let ack = rtUserAck.load(ordering: .sequentiallyConsistent)
+        retiredUserTables.removeAll { Int(bitPattern: Unmanaged.passUnretained($0).toOpaque()) != ack }
+    }
     /// Render-owned override (set by `loadBuiltinRT`, cleared when main publishes again).
     private var rtView: UnsafePointer<FlatMipView>?
     /// Index loaded on render that main has not yet mirrored into `activeCompiled` (-1 = none).
@@ -818,6 +830,7 @@ public final class WavetableOscillator {
             let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
             readBank = previousShared & 0x03
             rtView = nil
+            rtUserAck.store(0, ordering: .releasing)  // per publish, not per sample
         }
     }
 
@@ -829,9 +842,24 @@ public final class WavetableOscillator {
         var view: UnsafePointer<FlatMipView>?
         var lfoBits = 0
         var effective = index
-        if index == 5, let uv = UnsafePointer<FlatMipView>(bitPattern: userViewBits.load(ordering: .acquiring)) {
-            view = uv
-            lfoBits = userLfoBits.load(ordering: .acquiring)
+        var userBits = 0
+        if index == 5 {
+            // SYNT_19 R16-1 hazard pointer: ack, then confirm main has not swapped meanwhile.
+            userBits = userCompiledBits.load(ordering: .sequentiallyConsistent)
+            while true {
+                rtUserAck.store(userBits, ordering: .sequentiallyConsistent)
+                let again = userCompiledBits.load(ordering: .sequentiallyConsistent)
+                if again == userBits { break }
+                userBits = again
+            }
+        } else {
+            rtUserAck.store(0, ordering: .releasing)
+        }
+        if index == 5, let raw = UnsafeRawPointer(bitPattern: userBits) {
+            Unmanaged<CompiledMipData>.fromOpaque(raw)._withUnsafeGuaranteedRef { c in
+                view = UnsafePointer(c.flatView)
+                lfoBits = Int(bitPattern: c.lfoShape)
+            }
         } else {
             if index == 5 { effective = 0 }
             let i = max(0, min(Self.basicWavetables.count - 1, effective))
@@ -850,6 +878,7 @@ public final class WavetableOscillator {
     /// SYNT_18 R15-1: main-thread follow-up for a render-side `loadBuiltinRT`. Takes over the
     /// retain/release (and the lock) off the render thread.
     public func syncFromRenderMain() {
+        defer { drainRetiredUserTablesMain() }
         let idx = rtPendingIndex.exchange(-1, ordering: .acquiringAndReleasing)
         if idx >= 0 { loadBuiltin(index: idx) }
     }
