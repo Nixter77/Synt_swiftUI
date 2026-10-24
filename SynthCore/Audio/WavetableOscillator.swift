@@ -901,6 +901,9 @@ public final class WavetableOscillator {
 
     /// Rebuild mip tables for a new Nyquist. Not safe on the render thread.
     public func setSampleRate(_ rate: Double) {
+        // SYNT_19 R16-2: adopt a render-side table switch first, so the rebuild below uses the
+        // table render is actually playing, not a stale `currentBuiltinIndex`.
+        syncFromRenderMain()
         let rate = max(8_000, rate)
         let changed = abs(rate - mipSampleRate) > 0.5
         mipSampleRate = rate

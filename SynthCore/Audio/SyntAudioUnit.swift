@@ -72,6 +72,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         timer.setEventHandler { [weak self] in
             self?.applyPendingProgram()
             self?.drainControllerMPEConfig()
+            self?.syncWavetablesFromRender()
         }
         timer.resume()
         programChangeTimer = timer
@@ -83,6 +84,13 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// (no dirty project, no recorded automation). Render keeps it in `mpeCtl` across snapshots.
     func drainControllerMPEConfig() {
         engine.pollMPEConfigMailbox()
+    }
+
+    /// SYNT_19 R16-2: main thread. The AU may not call `applyPreset` for a long time, so mirror
+    /// render-side table switches (host snapshots) and drain retired user tables here.
+    func syncWavetablesFromRender() {
+        engine.wavetableEngine1.syncFromRenderMain()
+        engine.wavetableEngine2.syncFromRenderMain()
     }
 
     /// Off by default. Logic re-sends a Program Change on every play ("Send used
