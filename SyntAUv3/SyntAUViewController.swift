@@ -8,6 +8,7 @@
 import AudioToolbox
 import CoreAudioKit
 import SwiftUI
+import Combine
 import SynthCore
 
 @objc(SyntAUViewController)
@@ -99,6 +100,9 @@ final class AUParameterSurface: ObservableObject {
     @Published private(set) var preset: SynthPreset
     @Published private(set) var zoom: PluginZoom
     @Published private(set) var layout: PluginLayout
+    /// SYNT_19 R15-8: controller MPE override (nil = none).
+    @Published private(set) var mpeOverrideSummary: String?
+    private var mpeSummaryCancellable: AnyCancellable?
     private let audioUnit: SyntAudioUnit
     let liveModulation: LiveModulationSnapshot
     private var observerToken: AUParameterObserverToken?
@@ -121,6 +125,10 @@ final class AUParameterSurface: ObservableObject {
         self.preset = audioUnit.uiPreset
         self.zoom = audioUnit.uiZoom
         self.layout = audioUnit.uiLayout
+        self.mpeOverrideSummary = audioUnit.controllerMPEOverrideSummary
+        mpeSummaryCancellable = audioUnit.controllerMPEOverrideSummaryPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.mpeOverrideSummary = $0 }
         PatchHistoryManager.shared.registerPresetProvider { [weak self] in
             self?.preset ?? .defaultPreset
         }
@@ -201,6 +209,8 @@ final class AUParameterSurface: ObservableObject {
         applyingFromHost = false
     }
 
+    func resetControllerMPEOverrides() { audioUnit.resetControllerMPEOverrides() }
+
     func setZoom(_ zoom: PluginZoom) {
         audioUnit.uiZoom = zoom
         self.zoom = zoom
@@ -247,8 +257,14 @@ private struct PluginScreen: View {
                             get: { surface.respondsToProgramChange },
                             set: { surface.respondsToProgramChange = $0 }
                         ))
+                        if let summary = surface.mpeOverrideSummary {
+                            Divider()
+                            Text(summary)
+                            Button("Reset to My Settings") { surface.resetControllerMPEOverrides() }
+                                .accessibilityIdentifier("pluginResetMPEOverrides")
+                        }
                     } label: {
-                        Image(systemName: "gearshape")
+                        Image(systemName: surface.mpeOverrideSummary == nil ? "gearshape" : "gearshape.fill")
                             .font(.system(size: 13))
                             .foregroundColor(Theme.baseline.textDim)
                             .padding(6)

@@ -12,6 +12,7 @@ import CoreAudioKit
 import CoreMIDI
 import Foundation
 import Synchronization
+import Combine
 
 public final class SyntAudioUnit: AUAudioUnit {
     let engine: AudioEngine
@@ -88,6 +89,14 @@ public final class SyntAudioUnit: AUAudioUnit {
 
     /// SYNT_19 R16-2: main thread. The AU may not call `applyPreset` for a long time, so mirror
     /// render-side table switches (host snapshots) and drain retired user tables here.
+    /// SYNT_19 R15-8 (AU view): controller MPE override shown in the plugin UI (main thread).
+    public var controllerMPEOverrideSummary: String? { engine.controllerMPEOverrideSummary }
+    public var controllerMPEOverrideSummaryPublisher: AnyPublisher<String?, Never> {
+        engine.$controllerMPEOverrideSummary.removeDuplicates().eraseToAnyPublisher()
+    }
+    /// SYNT_19 R15-8 (AU view): "Reset to My Settings" — main mirror + render command.
+    public func resetControllerMPEOverrides() { engine.resetControllerMPEOverrides() }
+
     func syncWavetablesFromRender() {
         engine.wavetableEngine1.syncFromRenderMain()
         engine.wavetableEngine2.syncFromRenderMain()
