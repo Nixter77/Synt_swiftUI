@@ -725,15 +725,15 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         name = try c.decode(String.self, forKey: .name)
-        category = try c.decodeIfPresent(PresetCategory.self, forKey: .category) ?? .lead
-        osc1Waveform = try c.decodeIfPresent(WaveformType.self, forKey: .osc1Waveform) ?? .sawtooth
+        category = c.tolerant(PresetCategory.self, forKey: .category) ?? .lead
+        osc1Waveform = c.tolerant(WaveformType.self, forKey: .osc1Waveform) ?? .sawtooth
         osc1Volume = try c.decodeIfPresent(Float.self, forKey: .osc1Volume) ?? 0.7
         osc1Octave = try c.decodeIfPresent(Int.self, forKey: .osc1Octave) ?? 0
         osc1Detune = try c.decodeIfPresent(Float.self, forKey: .osc1Detune) ?? 0
         osc1PulseWidth = try c.decodeIfPresent(Float.self, forKey: .osc1PulseWidth) ?? 0.5
         osc1WavetableMorph = try c.decodeIfPresent(Float.self, forKey: .osc1WavetableMorph) ?? 0
         osc2Enabled = try c.decodeIfPresent(Bool.self, forKey: .osc2Enabled) ?? true
-        osc2Waveform = try c.decodeIfPresent(WaveformType.self, forKey: .osc2Waveform) ?? .square
+        osc2Waveform = c.tolerant(WaveformType.self, forKey: .osc2Waveform) ?? .square
         osc2Volume = try c.decodeIfPresent(Float.self, forKey: .osc2Volume) ?? 0.5
         osc2Octave = try c.decodeIfPresent(Int.self, forKey: .osc2Octave) ?? 0
         osc2Detune = try c.decodeIfPresent(Float.self, forKey: .osc2Detune) ?? 5
@@ -743,15 +743,15 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         decay = try c.decodeIfPresent(Float.self, forKey: .decay) ?? 0.1
         sustain = try c.decodeIfPresent(Float.self, forKey: .sustain) ?? 0.7
         release = try c.decodeIfPresent(Float.self, forKey: .release) ?? 0.3
-        filterType = try c.decodeIfPresent(FilterType.self, forKey: .filterType) ?? .lowPass
+        filterType = c.tolerant(FilterType.self, forKey: .filterType) ?? .lowPass
         filterCutoff = try c.decodeIfPresent(Float.self, forKey: .filterCutoff) ?? 5000
         filterResonance = try c.decodeIfPresent(Float.self, forKey: .filterResonance) ?? 0.5
         filterEnvelopeAmount = try c.decodeIfPresent(Float.self, forKey: .filterEnvelopeAmount) ?? 0
         lfoEnabled = try c.decodeIfPresent(Bool.self, forKey: .lfoEnabled) ?? false
         lfoRate = try c.decodeIfPresent(Float.self, forKey: .lfoRate) ?? 5
         lfoDepth = try c.decodeIfPresent(Float.self, forKey: .lfoDepth) ?? 0.5
-        lfoWaveform = try c.decodeIfPresent(WaveformType.self, forKey: .lfoWaveform) ?? .sine
-        lfoTarget = try c.decodeIfPresent(LFOTarget.self, forKey: .lfoTarget) ?? .pitch
+        lfoWaveform = c.tolerant(WaveformType.self, forKey: .lfoWaveform) ?? .sine
+        lfoTarget = c.tolerant(LFOTarget.self, forKey: .lfoTarget) ?? .pitch
         reverbMix = try c.decodeIfPresent(Float.self, forKey: .reverbMix) ?? 0.2
         reverbRoomSize = try c.decodeIfPresent(Float.self, forKey: .reverbRoomSize) ?? 0.5
         chorusRate = try c.decodeIfPresent(Float.self, forKey: .chorusRate) ?? 1.5
@@ -765,19 +765,20 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         unisonVoices = try c.decodeIfPresent(Int.self, forKey: .unisonVoices) ?? 1
         unisonDetune = try c.decodeIfPresent(Float.self, forKey: .unisonDetune) ?? 0
         unisonSpread = try c.decodeIfPresent(Float.self, forKey: .unisonSpread) ?? 0
-        modMatrix = try c.decodeIfPresent([ModMatrixEntry].self, forKey: .modMatrix) ?? []
-        arpMode = try c.decodeIfPresent(ArpeggiatorMode.self, forKey: .arpMode) ?? .off
-        arpRate = try c.decodeIfPresent(TimeDivision.self, forKey: .arpRate) ?? .sixteenth
+        // SYNT_21 R17-5: an entry with an unknown source/destination is dropped, not the preset.
+        modMatrix = (c.tolerant([LossyDecodable<ModMatrixEntry>].self, forKey: .modMatrix) ?? []).compactMap(\.value)
+        arpMode = c.tolerant(ArpeggiatorMode.self, forKey: .arpMode) ?? .off
+        arpRate = c.tolerant(TimeDivision.self, forKey: .arpRate) ?? .sixteenth
         bpm = try c.decodeIfPresent(Float.self, forKey: .bpm) ?? 120
         sequencerData = try c.decodeIfPresent([SequencerStep].self, forKey: .sequencerData)
             ?? Array(repeating: SequencerStep(), count: 16)
         distortionEnabled = try c.decodeIfPresent(Bool.self, forKey: .distortionEnabled) ?? false
-        distortionType = try c.decodeIfPresent(DistortionType.self, forKey: .distortionType) ?? .softClip
+        distortionType = c.tolerant(DistortionType.self, forKey: .distortionType) ?? .softClip
         distortionDrive = try c.decodeIfPresent(Float.self, forKey: .distortionDrive) ?? 0.35
         distortionTone = try c.decodeIfPresent(Float.self, forKey: .distortionTone) ?? 0.5
         distortionMix = try c.decodeIfPresent(Float.self, forKey: .distortionMix) ?? 0.25
         eqEnabled = try c.decodeIfPresent(Bool.self, forKey: .eqEnabled) ?? false
-        eqPreset = try c.decodeIfPresent(EQPreset.self, forKey: .eqPreset) ?? .flat
+        eqPreset = c.tolerant(EQPreset.self, forKey: .eqPreset) ?? .flat
         eqLowGain = try c.decodeIfPresent(Float.self, forKey: .eqLowGain) ?? 0
         eqLowFreq = try c.decodeIfPresent(Float.self, forKey: .eqLowFreq) ?? 100
         eqMidGain = try c.decodeIfPresent(Float.self, forKey: .eqMidGain) ?? 0
@@ -786,7 +787,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         eqHighGain = try c.decodeIfPresent(Float.self, forKey: .eqHighGain) ?? 0
         eqHighFreq = try c.decodeIfPresent(Float.self, forKey: .eqHighFreq) ?? 8000
         phaserEnabled = try c.decodeIfPresent(Bool.self, forKey: .phaserEnabled) ?? false
-        phaserMode = try c.decodeIfPresent(PhaserMode.self, forKey: .phaserMode) ?? .phaser4
+        phaserMode = c.tolerant(PhaserMode.self, forKey: .phaserMode) ?? .phaser4
         phaserRate = try c.decodeIfPresent(Float.self, forKey: .phaserRate) ?? 0.4
         phaserDepth = try c.decodeIfPresent(Float.self, forKey: .phaserDepth) ?? 0.55
         phaserFeedback = try c.decodeIfPresent(Float.self, forKey: .phaserFeedback) ?? 0.25
@@ -800,20 +801,20 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         osc2WavetableIndex = try c.decodeIfPresent(Int.self, forKey: .osc2WavetableIndex) ?? 0
         subOscVolume = try c.decodeIfPresent(Float.self, forKey: .subOscVolume) ?? 0.0
         subOscOctave = try c.decodeIfPresent(Int.self, forKey: .subOscOctave) ?? -1
-        subOscWaveform = try c.decodeIfPresent(WaveformType.self, forKey: .subOscWaveform) ?? .sine
+        subOscWaveform = c.tolerant(WaveformType.self, forKey: .subOscWaveform) ?? .sine
         fmAmount = try c.decodeIfPresent(Float.self, forKey: .fmAmount) ?? 0.0
         oscSyncEnabled = try c.decodeIfPresent(Bool.self, forKey: .oscSyncEnabled) ?? false
         lfoTempoSync = try c.decodeIfPresent(Bool.self, forKey: .lfoTempoSync) ?? false
-        lfoSyncDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .lfoSyncDivision) ?? .quarter
+        lfoSyncDivision = c.tolerant(TimeDivision.self, forKey: .lfoSyncDivision) ?? .quarter
         delayTempoSync = try c.decodeIfPresent(Bool.self, forKey: .delayTempoSync) ?? false
-        delaySyncDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .delaySyncDivision) ?? .eighth
+        delaySyncDivision = c.tolerant(TimeDivision.self, forKey: .delaySyncDivision) ?? .eighth
         lfo2Enabled = try c.decodeIfPresent(Bool.self, forKey: .lfo2Enabled) ?? false
         lfo2Rate = try c.decodeIfPresent(Float.self, forKey: .lfo2Rate) ?? 2.0
         lfo2Depth = try c.decodeIfPresent(Float.self, forKey: .lfo2Depth) ?? 0.5
-        lfo2Waveform = try c.decodeIfPresent(WaveformType.self, forKey: .lfo2Waveform) ?? .triangle
-        lfo2Target = try c.decodeIfPresent(LFOTarget.self, forKey: .lfo2Target) ?? .none
+        lfo2Waveform = c.tolerant(WaveformType.self, forKey: .lfo2Waveform) ?? .triangle
+        lfo2Target = c.tolerant(LFOTarget.self, forKey: .lfo2Target) ?? .none
         lfo2TempoSync = try c.decodeIfPresent(Bool.self, forKey: .lfo2TempoSync) ?? false
-        lfo2SyncDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .lfo2SyncDivision) ?? .eighth
+        lfo2SyncDivision = c.tolerant(TimeDivision.self, forKey: .lfo2SyncDivision) ?? .eighth
         arpOctaves = try c.decodeIfPresent(Int.self, forKey: .arpOctaves) ?? 1
         distortionOversampling = try c.decodeIfPresent(Bool.self, forKey: .distortionOversampling) ?? false
         delayPingPong = try c.decodeIfPresent(Bool.self, forKey: .delayPingPong) ?? false
@@ -826,12 +827,12 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         chorusStereo = try c.decodeIfPresent(Bool.self, forKey: .chorusStereo) ?? true
         reverbShimmer = try c.decodeIfPresent(Float.self, forKey: .reverbShimmer) ?? 0.0
         ringModAmount = try c.decodeIfPresent(Float.self, forKey: .ringModAmount) ?? 0.0
-        noiseColor = try c.decodeIfPresent(NoiseColor.self, forKey: .noiseColor) ?? .white
+        noiseColor = c.tolerant(NoiseColor.self, forKey: .noiseColor) ?? .white
         arpGateLength = try c.decodeIfPresent(Float.self, forKey: .arpGateLength) ?? 0.8
         arpSwing = try c.decodeIfPresent(Float.self, forKey: .arpSwing) ?? 0.0
         velocityToCutoff = try c.decodeIfPresent(Float.self, forKey: .velocityToCutoff) ?? 0.0
         velocityToEnvAmount = try c.decodeIfPresent(Float.self, forKey: .velocityToEnvAmount) ?? 0.0
-        chordMode = try c.decodeIfPresent(ChordMode.self, forKey: .chordMode) ?? .off
+        chordMode = c.tolerant(ChordMode.self, forKey: .chordMode) ?? .off
         macro1 = try c.decodeIfPresent(Float.self, forKey: .macro1) ?? 0.0
         macro2 = try c.decodeIfPresent(Float.self, forKey: .macro2) ?? 0.0
         macro3 = try c.decodeIfPresent(Float.self, forKey: .macro3) ?? 0.0
@@ -843,44 +844,44 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         randomSeed = try c.decodeIfPresent(UInt32.self, forKey: .randomSeed)
         userWavetableName = try c.decodeIfPresent(String.self, forKey: .userWavetableName)
         userWavetableData = try c.decodeIfPresent(Data.self, forKey: .userWavetableData)
-        voiceMode = try c.decodeIfPresent(VoiceMode.self, forKey: .voiceMode) ?? .poly
-        syncSource = try c.decodeIfPresent(SyncSource.self, forKey: .syncSource) ?? .`internal`
+        voiceMode = c.tolerant(VoiceMode.self, forKey: .voiceMode) ?? .poly
+        syncSource = c.tolerant(SyncSource.self, forKey: .syncSource) ?? .`internal`
         filterDrive = try c.decodeIfPresent(Float.self, forKey: .filterDrive) ?? 0
         pan = try c.decodeIfPresent(Float.self, forKey: .pan) ?? 0.0
-        fxOrder = try c.decodeIfPresent([FXSlotID].self, forKey: .fxOrder) ?? FXSlotID.defaultOrder
-        lfoMode = try c.decodeIfPresent(LFOMode.self, forKey: .lfoMode) ?? .free
+        fxOrder = c.tolerant([FXSlotID].self, forKey: .fxOrder) ?? FXSlotID.defaultOrder
+        lfoMode = c.tolerant(LFOMode.self, forKey: .lfoMode) ?? .free
         lfoStartPhase = try c.decodeIfPresent(Float.self, forKey: .lfoStartPhase) ?? 0.0
-        lfo2Mode = try c.decodeIfPresent(LFOMode.self, forKey: .lfo2Mode) ?? .free
+        lfo2Mode = c.tolerant(LFOMode.self, forKey: .lfo2Mode) ?? .free
         lfo2StartPhase = try c.decodeIfPresent(Float.self, forKey: .lfo2StartPhase) ?? 0.0
         arpLatch = try c.decodeIfPresent(Bool.self, forKey: .arpLatch) ?? false
-        velocityCurve = try c.decodeIfPresent(VelocityCurve.self, forKey: .velocityCurve) ?? .linear
+        velocityCurve = c.tolerant(VelocityCurve.self, forKey: .velocityCurve) ?? .linear
         velocityToVolume = try c.decodeIfPresent(Float.self, forKey: .velocityToVolume) ?? 1.0
         modEnvAttack = try c.decodeIfPresent(Float.self, forKey: .modEnvAttack) ?? 0.01
         modEnvDecay = try c.decodeIfPresent(Float.self, forKey: .modEnvDecay) ?? 0.2
         modEnvSustain = try c.decodeIfPresent(Float.self, forKey: .modEnvSustain) ?? 0.0
         modEnvRelease = try c.decodeIfPresent(Float.self, forKey: .modEnvRelease) ?? 0.1
-        glideMode = try c.decodeIfPresent(GlideMode.self, forKey: .glideMode) ?? .time
+        glideMode = c.tolerant(GlideMode.self, forKey: .glideMode) ?? .time
         glideLegatoOnly = try c.decodeIfPresent(Bool.self, forKey: .glideLegatoOnly) ?? false
-        monoPriority = try c.decodeIfPresent(MonoPriority.self, forKey: .monoPriority) ?? .last
+        monoPriority = c.tolerant(MonoPriority.self, forKey: .monoPriority) ?? .last
         stereoEnabled = try c.decodeIfPresent(Bool.self, forKey: .stereoEnabled) ?? false
         stereoWidth = try c.decodeIfPresent(Float.self, forKey: .stereoWidth) ?? 1
         stereoMidSide = try c.decodeIfPresent(Float.self, forKey: .stereoMidSide) ?? 0
         stereoHaasMs = try c.decodeIfPresent(Float.self, forKey: .stereoHaasMs) ?? 0
         stereoMonoBassHz = try c.decodeIfPresent(Float.self, forKey: .stereoMonoBassHz) ?? 0
-        oscPhaseMode = try c.decodeIfPresent(OscPhaseMode.self, forKey: .oscPhaseMode) ?? .reset
+        oscPhaseMode = c.tolerant(OscPhaseMode.self, forKey: .oscPhaseMode) ?? .reset
         polyphonyLimit = try c.decodeIfPresent(Int.self, forKey: .polyphonyLimit) ?? 32
         tranceGateEnabled = try c.decodeIfPresent(Bool.self, forKey: .tranceGateEnabled) ?? false
         tranceGatePattern = try c.decodeIfPresent(UInt16.self, forKey: .tranceGatePattern) ?? 0xAAAA
         tranceGateDepth = try c.decodeIfPresent(Float.self, forKey: .tranceGateDepth) ?? 1
         tranceGateSmooth = try c.decodeIfPresent(Float.self, forKey: .tranceGateSmooth) ?? 0
-        tranceGateDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .tranceGateDivision) ?? .sixteenth
+        tranceGateDivision = c.tolerant(TimeDivision.self, forKey: .tranceGateDivision) ?? .sixteenth
         perlinRate = try c.decodeIfPresent(Float.self, forKey: .perlinRate) ?? 1
         perlinTempoSync = try c.decodeIfPresent(Bool.self, forKey: .perlinTempoSync) ?? false
-        perlinSyncDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .perlinSyncDivision) ?? .quarter
+        perlinSyncDivision = c.tolerant(TimeDivision.self, forKey: .perlinSyncDivision) ?? .quarter
         chorusFlanger = try c.decodeIfPresent(Bool.self, forKey: .chorusFlanger) ?? false
         chorusFeedback = try c.decodeIfPresent(Float.self, forKey: .chorusFeedback) ?? 0
         chorusFlangerSync = try c.decodeIfPresent(Bool.self, forKey: .chorusFlangerSync) ?? false
-        chorusFlangerDivision = try c.decodeIfPresent(TimeDivision.self, forKey: .chorusFlangerDivision) ?? .quarter
+        chorusFlangerDivision = c.tolerant(TimeDivision.self, forKey: .chorusFlangerDivision) ?? .quarter
         filterFeedback = try c.decodeIfPresent(Float.self, forKey: .filterFeedback) ?? 0
         dspReverbEnabled = try c.decodeIfPresent(Bool.self, forKey: .dspReverbEnabled) ?? false
         reverbDamping = try c.decodeIfPresent(Float.self, forKey: .reverbDamping) ?? 0.4
@@ -888,19 +889,19 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         osc2FrequencyHz = try c.decodeIfPresent(Float.self, forKey: .osc2FrequencyHz) ?? 440
         sceneHPFEnabled = try c.decodeIfPresent(Bool.self, forKey: .sceneHPFEnabled) ?? false
         sceneHPFFrequency = try c.decodeIfPresent(Float.self, forKey: .sceneHPFFrequency) ?? 120
-        chorusMode = try c.decodeIfPresent(ChorusMode.self, forKey: .chorusMode) ?? .standard
+        chorusMode = c.tolerant(ChorusMode.self, forKey: .chorusMode) ?? .standard
         fmRatioEnabled = try c.decodeIfPresent(Bool.self, forKey: .fmRatioEnabled) ?? false
         fmCoarse = try c.decodeIfPresent(Int.self, forKey: .fmCoarse) ?? 1
         fmFine = try c.decodeIfPresent(Float.self, forKey: .fmFine) ?? 0
-        fmRoute = try c.decodeIfPresent(FMRoute.self, forKey: .fmRoute) ?? .osc2ToOsc1
-        filter2Routing = try c.decodeIfPresent(DualFilterRouting.self, forKey: .filter2Routing) ?? .off
-        filter2Type = try c.decodeIfPresent(FilterType.self, forKey: .filter2Type) ?? .lowPass
+        fmRoute = c.tolerant(FMRoute.self, forKey: .fmRoute) ?? .osc2ToOsc1
+        filter2Routing = c.tolerant(DualFilterRouting.self, forKey: .filter2Routing) ?? .off
+        filter2Type = c.tolerant(FilterType.self, forKey: .filter2Type) ?? .lowPass
         filter2Cutoff = try c.decodeIfPresent(Float.self, forKey: .filter2Cutoff) ?? 2000
         filter2Resonance = try c.decodeIfPresent(Float.self, forKey: .filter2Resonance) ?? 0.2
         filter2Balance = try c.decodeIfPresent(Float.self, forKey: .filter2Balance) ?? 0.5
         filterVowel = try c.decodeIfPresent(Float.self, forKey: .filterVowel) ?? 0
-        mseg = try c.decodeIfPresent(MSEGPreset.self, forKey: .mseg) ?? MSEGPreset()
-        mseg2 = try c.decodeIfPresent(MSEGPreset.self, forKey: .mseg2) ?? MSEGPreset()
+        mseg = c.tolerant(MSEGPreset.self, forKey: .mseg) ?? MSEGPreset()
+        mseg2 = c.tolerant(MSEGPreset.self, forKey: .mseg2) ?? MSEGPreset()
         attackCurve = try c.decodeIfPresent(Float.self, forKey: .attackCurve) ?? 0
         decayCurve = try c.decodeIfPresent(Float.self, forKey: .decayCurve) ?? 0
         releaseCurve = try c.decodeIfPresent(Float.self, forKey: .releaseCurve) ?? 0
@@ -910,7 +911,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         frequencyShifterShiftHz = try c.decodeIfPresent(Float.self, forKey: .frequencyShifterShiftHz) ?? 0.0
         frequencyShifterMix = try c.decodeIfPresent(Float.self, forKey: .frequencyShifterMix) ?? 0.5
         frequencyShifterFeedback = try c.decodeIfPresent(Float.self, forKey: .frequencyShifterFeedback) ?? 0.0
-        character = try c.decodeIfPresent(CharacterMode.self, forKey: .character) ?? .off
+        character = c.tolerant(CharacterMode.self, forKey: .character) ?? .off
         envFollowerAttack = try c.decodeIfPresent(Float.self, forKey: .envFollowerAttack) ?? 0.01
         envFollowerRelease = try c.decodeIfPresent(Float.self, forKey: .envFollowerRelease) ?? 0.05
         sendA = try c.decodeIfPresent(Float.self, forKey: .sendA) ?? 0
@@ -940,7 +941,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         mpePitchBendRange = try c.decodeIfPresent(Float.self, forKey: .mpePitchBendRange) ?? 48.0
         // SYNT_20 audit P3-9: an unknown zone (newer/foreign preset) falls back to .lower instead of
         // failing the whole preset.
-        mpeZone = ((try? c.decodeIfPresent(MPEZone.self, forKey: .mpeZone)) ?? nil) ?? .lower
+        mpeZone = c.tolerant(MPEZone.self, forKey: .mpeZone) ?? .lower
         mpeMemberChannelCount = try c.decodeIfPresent(Int.self, forKey: .mpeMemberChannelCount) ?? 15
     }
 
@@ -1267,4 +1268,19 @@ public enum PresetAuthoring {
     public static func mod(_ source: ModSource, _ dest: ModDestination, _ amount: Float) -> ModMatrixEntry {
         ModMatrixEntry(source: source, destination: dest, amount: amount)
     }
+}
+
+// MARK: - SYNT_21 R17-5: tolerant decoding
+// An unknown enum case (preset from a newer build or another tool) falls back to the field's
+// default instead of failing the whole preset. `try?` also maps a type mismatch for that key to
+// the default. The encoded format is unchanged, so `stateVersion` stays 1.
+extension KeyedDecodingContainer {
+    func tolerant<T: Decodable>(_ type: T.Type, forKey key: Key) -> T? {
+        (try? decodeIfPresent(type, forKey: key)) ?? nil
+    }
+}
+
+struct LossyDecodable<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
 }
