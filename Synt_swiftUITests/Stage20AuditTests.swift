@@ -104,4 +104,47 @@ final class Stage20AuditTests: XCTestCase {
         XCTAssertNil(firstToken)
         unit.deallocateRenderResources()
     }
+
+    // MARK: P2-4 — a stale main mirror must not override a newer render switch.
+
+    static func samples(_ osc: WavetableOscillator) -> [UInt32] {
+        osc.reset()
+        let inc = 2 * Double.pi * 220 / 44100
+        return (0..<32).map { osc.generateSample(phase: Double($0) * 0.19, phaseIncrement: inc).bitPattern }
+    }
+
+    func testP2_4_StaleMirrorDoesNotOverrideNewerRenderSwitch() {
+        let osc = WavetableOscillator()
+        osc.pullNewWavetableRT()
+        osc.loadBuiltinRT(index: 1)                       // render: A
+        osc.afterTakeForTesting = { osc.loadBuiltinRT(index: 2) }   // render: B, after main took A
+        osc.syncFromRenderMain()                          // main publishes the mirror of A
+        osc.afterTakeForTesting = nil
+        osc.pullNewWavetableRT()                          // render sees A's publish
+
+        let ref = WavetableOscillator()
+        ref.loadBuiltin(index: 2)
+        ref.pullNewWavetableRT()
+        XCTAssertEqual(Self.samples(osc), Self.samples(ref), "render must keep playing B")
+        XCTAssertEqual(osc.rtPendingIndex.load(ordering: .relaxed), 2, "B still awaits its mirror")
+
+        osc.syncFromRenderMain()                          // mirror of B
+        osc.pullNewWavetableRT()
+        XCTAssertEqual(osc.rtPendingIndex.load(ordering: .relaxed), -1)
+        XCTAssertTrue(osc.activeCompiled === ref.activeCompiled)
+        XCTAssertEqual(Self.samples(osc), Self.samples(ref))
+    }
+
+    // MARK: P2-6 — main never writes framePosition; render resets it on adopting a main publish.
+
+    func testP2_6_MainLoadDoesNotWriteFramePosition() {
+        let osc = WavetableOscillator()
+        osc.pullNewWavetableRT()
+        XCTAssertEqual(osc.framePosition, 0)
+        osc.targetFramePosition = 0.7
+        osc.loadBuiltin(index: 1)                         // main
+        XCTAssertEqual(osc.framePosition, 0, "main wrote the render-owned morph state")
+        osc.pullNewWavetableRT()                          // render adopts the publish
+        XCTAssertEqual(osc.framePosition, 0.7, accuracy: 1e-6)
+    }
 }

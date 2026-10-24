@@ -406,6 +406,16 @@ public final class WavetableOscillator {
     private let slots: UnsafeMutablePointer<Unmanaged<CompiledMipData>?>
     /// SYNT_18 R15-2: POD view per slot (same index as `slots`); the render path reads only this.
     private let viewSlots: UnsafeMutablePointer<UnsafePointer<FlatMipView>?>
+    /// SYNT_20 P2-4: generation tag per bank, written under `writeLock` before the bank is shared.
+    /// `Self.mainGeneration` = a main-originated load (always wins); otherwise the render generation
+    /// of the `loadBuiltinRT` that `syncFromRenderMain` mirrors.
+    private let bankGeneration: UnsafeMutablePointer<Int>
+    static let mainGeneration = Int.max
+    /// SYNT_20 P2-6: morph position captured at main publish time; render adopts it on pull
+    /// (same value the old main-side `framePosition = targetFramePosition` wrote).
+    private let bankResetFrame: UnsafeMutablePointer<Float>
+    /// Render-owned: bumps on every `loadBuiltinRT`.
+    private var rtLoadGeneration = 0
     private let writeLock: os_unfair_lock_t
 
     private let tableSize: Int = 2048
@@ -752,8 +762,17 @@ public final class WavetableOscillator {
     }
     /// Render-owned override (set by `loadBuiltinRT`, cleared when main publishes again).
     private var rtView: UnsafePointer<FlatMipView>?
-    /// Index loaded on render that main has not yet mirrored into `activeCompiled` (-1 = none).
-    public let rtPendingIndex = Atomic<Int>(-1)
+    /// Render switch main has not yet mirrored into `activeCompiled`: `(generation << 3) | (index + 1)`,
+    /// 0 = none. One word, so main never pairs an index with another switch's generation.
+    private let rtPending = Atomic<Int>(0)
+    /// Index loaded on render that main has not yet mirrored (-1 = none).
+    public var rtPendingIndex: PendingIndexProbe { PendingIndexProbe(owner: self) }
+    public struct PendingIndexProbe {
+        let owner: WavetableOscillator
+        public func load(ordering: AtomicLoadOrdering) -> Int {
+            (owner.rtPending.load(ordering: .acquiring) & 0x7) - 1
+        }
+    }
     /// Times `publishCompiled` took `writeLock` (test probe for "no lock on render").
     public static let publishLockCountForTesting = Atomic<Int>(0)
 
@@ -784,6 +803,10 @@ public final class WavetableOscillator {
         slots.initialize(repeating: nil, count: 3)
         viewSlots = .allocate(capacity: 3)
         viewSlots.initialize(repeating: nil, count: 3)
+        bankGeneration = .allocate(capacity: 3)
+        bankGeneration.initialize(repeating: Self.mainGeneration, count: 3)
+        bankResetFrame = .allocate(capacity: 3)
+        bankResetFrame.initialize(repeating: 0, count: 3)
         builtinSetBits.store(Int(bitPattern: Self.builtinSet(for: mipSampleRate)), ordering: .releasing)
         loadBuiltin(index: 0)
     }
@@ -796,6 +819,10 @@ public final class WavetableOscillator {
         slots.deallocate()
         viewSlots.deinitialize(count: 3)
         viewSlots.deallocate()
+        bankGeneration.deinitialize(count: 3)
+        bankGeneration.deallocate()
+        bankResetFrame.deinitialize(count: 3)
+        bankResetFrame.deallocate()
         writeLock.deinitialize(count: 1)
         writeLock.deallocate()
     }
@@ -803,20 +830,30 @@ public final class WavetableOscillator {
     // MARK: - Wavetable Loading
 
     public func loadCompiledWavetable(_ compiled: CompiledMipData) {
-        currentWavetable = compiled.wavetable
-        activeCompiled = compiled
-        lfoShapeBits.store(Int(bitPattern: compiled.lfoShape), ordering: .releasing)
-        framePosition = targetFramePosition
-        publishCompiled(compiled)
+        loadCompiledWavetable(compiled, generation: Self.mainGeneration)
     }
 
-    private func publishCompiled(_ compiled: CompiledMipData) {
+    /// SYNT_20 P2-6: main never writes `framePosition`; render resets the morph when it adopts a
+    /// main-originated publish. A mirror of a render switch (`generation` < main) leaves the
+    /// LFO shape and morph to render, which already set them in `loadBuiltinRT`.
+    private func loadCompiledWavetable(_ compiled: CompiledMipData, generation: Int) {
+        currentWavetable = compiled.wavetable
+        activeCompiled = compiled
+        if generation == Self.mainGeneration {
+            lfoShapeBits.store(Int(bitPattern: compiled.lfoShape), ordering: .releasing)
+        }
+        publishCompiled(compiled, generation: generation)
+    }
+
+    private func publishCompiled(_ compiled: CompiledMipData, generation: Int) {
         Self.publishLockCountForTesting.add(1, ordering: .relaxed)
         os_unfair_lock_lock(writeLock)
         let newRef = Unmanaged.passRetained(compiled)
         let oldRef = slots[writeBank]
         slots[writeBank] = newRef
         viewSlots[writeBank] = UnsafePointer(compiled.flatView)
+        bankGeneration[writeBank] = generation
+        bankResetFrame[writeBank] = targetFramePosition
         let previousShared = sharedBank.exchange(writeBank | Self.hasNewDataFlag, ordering: .acquiringAndReleasing)
         writeBank = previousShared & 0x03
         os_unfair_lock_unlock(writeLock)
@@ -829,8 +866,12 @@ public final class WavetableOscillator {
         if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
             let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
             readBank = previousShared & 0x03
+            let generation = bankGeneration[readBank]
+            // SYNT_20 P2-4: a mirror of an older render switch must not override a newer one.
+            guard generation >= rtLoadGeneration else { return }
             rtView = nil
             rtUserAck.store(0, ordering: .releasing)  // per publish, not per sample
+            if generation == Self.mainGeneration { framePosition = bankResetFrame[readBank] }
         }
     }
 
@@ -872,16 +913,21 @@ public final class WavetableOscillator {
         rtView = view
         lfoShapeBits.store(lfoBits, ordering: .releasing)
         framePosition = targetFramePosition
-        rtPendingIndex.store(index, ordering: .releasing)
+        rtLoadGeneration &+= 1
+        rtPending.store((rtLoadGeneration << 3) | (index + 1), ordering: .releasing)
     }
 
     /// SYNT_18 R15-1: main-thread follow-up for a render-side `loadBuiltinRT`. Takes over the
     /// retain/release (and the lock) off the render thread.
     public func syncFromRenderMain() {
         defer { drainRetiredUserTablesMain() }
-        let idx = rtPendingIndex.exchange(-1, ordering: .acquiringAndReleasing)
-        if idx >= 0 { loadBuiltin(index: idx) }
+        let packed = rtPending.exchange(0, ordering: .acquiringAndReleasing)
+        guard packed != 0 else { return }
+        afterTakeForTesting?()
+        loadBuiltin(index: (packed & 0x7) - 1, generation: packed >> 3)
     }
+    /// Test probe: runs between taking the pending render switch and publishing its mirror.
+    var afterTakeForTesting: (() -> Void)?
 
     public func loadWavetable(_ wavetable: Wavetable) {
         currentWavetable = wavetable
@@ -923,19 +969,23 @@ public final class WavetableOscillator {
     }
 
     public func loadBuiltin(index: Int) {
+        loadBuiltin(index: index, generation: Self.mainGeneration)
+    }
+
+    private func loadBuiltin(index: Int, generation: Int) {
         currentBuiltinIndex = index
         if index == 5 {
             // R12-7: per-instance only; the statics are UI-display mirrors and
             // must never feed another engine's audio.
             if let userCompiled = instanceUserCompiled {
                 currentWavetable = userCompiled.wavetable
-                loadCompiledWavetable(userCompiled)
+                loadCompiledWavetable(userCompiled, generation: generation)
             } else {
                 // SYNT_16 R13-6: never compile mips here (reachable from render via
                 // applyPresetDSP). `loadWavetable` always sets `instanceUserCompiled`, so a
                 // table without compiled mips cannot exist; fall back to builtin 0 instead.
                 if instanceUserWavetable != nil { userTableWithoutMipsCountForTesting += 1 }
-                loadBuiltin(index: 0)
+                loadBuiltin(index: 0, generation: generation)
             }
             return
         }
@@ -946,7 +996,7 @@ public final class WavetableOscillator {
         // Never takes `cacheLock`, never compiles (also the R13-6 fallback from index 5).
         let bits = builtinSetBits.load(ordering: .acquiring)
         guard let set = UnsafeMutablePointer<Unmanaged<CompiledMipData>>(bitPattern: bits) else { return }
-        loadCompiledWavetable(set[i].takeUnretainedValue())
+        loadCompiledWavetable(set[i].takeUnretainedValue(), generation: generation)
     }
 
 
@@ -1070,6 +1120,9 @@ public final class WavetableOscillator {
     /// Call from the render path before iterating voices.
     @inline(__always)
     public func advanceMorph() {
+        // SYNT_20 P2-6: adopt a main publish (and its morph reset) before smoothing, so the
+        // reset lands where main's old direct write did.
+        pullNewWavetableRT()
         let morphErr = targetFramePosition - framePosition
         framePosition += morphErr * morphSmoothingCoeff
     }
