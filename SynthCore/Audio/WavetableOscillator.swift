@@ -353,14 +353,19 @@ public final class CompiledMipData: @unchecked Sendable {
 
     deinit {
         Self.deinitCountForTesting.wrappingAdd(1, ordering: .relaxed)
+        #if DEBUG
         if let hook = CompiledMipData.onDeinitForTesting { hook() }
+        #endif
         flatView.deinitialize(count: 1)
         flatView.deallocate()
         flatData.deallocate()
     }
 
     /// Test hook run inside deinit (e.g. records whether it ran on the simulated render thread).
+    // SYNT_20 audit P3-10: test hooks exist only in Debug builds.
+    #if DEBUG
     nonisolated(unsafe) public static var onDeinitForTesting: (() -> Void)?
+    #endif
 }
 
 /// Band-limited wavetable oscillator with mip-mapping
@@ -797,7 +802,9 @@ public final class WavetableOscillator {
         }
     }
     /// Times `publishCompiled` took `writeLock` (test probe for "no lock on render").
+    #if DEBUG
     public static let publishLockCountForTesting = Atomic<Int>(0)
+    #endif
 
     /// Loads wavetable frames from an audio file, compiles mipmaps, and sets it as the active user table.
     public func loadFromAudioFile(url: URL) throws {
@@ -869,7 +876,9 @@ public final class WavetableOscillator {
     }
 
     private func publishCompiled(_ compiled: CompiledMipData, generation: Int) {
+        #if DEBUG
         Self.publishLockCountForTesting.add(1, ordering: .relaxed)
+        #endif
         os_unfair_lock_lock(writeLock)
         let newRef = Unmanaged.passRetained(compiled)
         let oldRef = slots[writeBank]

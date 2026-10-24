@@ -50,11 +50,24 @@ public class LFO {
             newPtr = LFO.defaultTablePointer
             newCount = LFO.defaultWavetable.count
         }
+        // SYNT_20 R16-5: outside wavetable mode a fade is inaudible; finish it so a stale fade
+        // cannot resume later.
+        if waveform != .wavetable { shapeFade = 1; fadeOffset = 0 }
         if newPtr != tablePtr {
             if hasAdoptedShape {
+                // SYNT_20 R16-5: a switch during a running fade starts from the current *mixed*
+                // output: the difference to the new start table decays with the new fade.
+                // First switch: offset 0 → identical to the SYNT_18 crossfade.
+                var offset: Float = 0
+                if shapeFade < 1 {
+                    let norm = phase / AudioMath.twoPi
+                    let mixed = sampleDefaultWavetable(normalizedPhase: norm)
+                    offset = mixed - LFO.sampleTable(tablePtr, tableCount, norm)
+                }
                 prevTablePtr = tablePtr
                 prevTableCount = tableCount
-                shapeFade = 0
+                fadeOffset = offset
+                shapeFade = waveform == .wavetable ? 0 : 1
             }
             tablePtr = newPtr
             tableCount = newCount
@@ -66,6 +79,8 @@ public class LFO {
     private var prevTableCount: Int = LFO.defaultWavetable.count
     /// 1 = no fade in progress.
     public private(set) var shapeFade: Float = 1
+    /// SYNT_20 R16-5: residual of an interrupted fade, scaled by (1 − shapeFade).
+    private var fadeOffset: Float = 0
     public static let shapeFadeSeconds: Double = 0.005
 
     public internal(set) var phase: Double = 0.0
@@ -185,7 +200,19 @@ public class LFO {
         let p1 = (p0 + 1) % pc
         let pf = Float(ppos - floor(ppos))
         let pv = prevTablePtr[p0] * (1.0 - pf) + prevTablePtr[p1] * pf
-        return pv + (v - pv) * shapeFade
+        return pv + (v - pv) * shapeFade + fadeOffset * (1 - shapeFade)
+    }
+
+    @inline(__always)
+    private static func sampleTable(_ t: UnsafePointer<Float>, _ count: Int, _ normalized: Double) -> Float {
+        guard count > 0 else { return 0 }
+        var norm = normalized
+        norm -= floor(norm)
+        let pos = norm * Double(count)
+        let i0 = Int(pos) % count
+        let i1 = (i0 + 1) % count
+        let f = Float(pos - floor(pos))
+        return t[i0] * (1 - f) + t[i1] * f
     }
 
     /// Samples the current LFO waveform at an arbitrary phase in [0, 2pi).

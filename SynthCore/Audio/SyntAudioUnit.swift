@@ -794,6 +794,9 @@ final class SyntRenderContext {
             case .MIDI:
                 let midi = current.pointee.MIDI
                 let count = Int(midi.length)
+                // SYNT_20 audit P3-11 (documented): only channel/system messages of 1–3 bytes are
+                // used. SysEx (`.midiSysEx` events, or `.MIDI` longer than 3 bytes) is dropped:
+                // Synt has no SysEx features. UMP type 3 (7-bit SysEx) is skipped likewise.
                 if count > 0 && count <= 3 {
                     var data = midi.data
                     withUnsafeBytes(of: &data) { raw in

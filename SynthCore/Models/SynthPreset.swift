@@ -938,7 +938,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         transientMix = try c.decodeIfPresent(Float.self, forKey: .transientMix) ?? 1.0
         mpeEnabled = try c.decodeIfPresent(Bool.self, forKey: .mpeEnabled) ?? false
         mpePitchBendRange = try c.decodeIfPresent(Float.self, forKey: .mpePitchBendRange) ?? 48.0
-        mpeZone = try c.decodeIfPresent(MPEZone.self, forKey: .mpeZone) ?? .lower
+        // SYNT_20 audit P3-9: an unknown zone (newer/foreign preset) falls back to .lower instead of
+        // failing the whole preset.
+        mpeZone = ((try? c.decodeIfPresent(MPEZone.self, forKey: .mpeZone)) ?? nil) ?? .lower
         mpeMemberChannelCount = try c.decodeIfPresent(Int.self, forKey: .mpeMemberChannelCount) ?? 15
     }
 
