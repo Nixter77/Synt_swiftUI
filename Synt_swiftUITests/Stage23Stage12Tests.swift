@@ -1,0 +1,78 @@
+//
+//  Stage23Stage12Tests.swift
+//  SYNT_23 Stage 1 (R14-9) and Stage 2 (R14-10).
+//
+
+import Testing
+import Foundation
+import AudioToolbox
+@testable import Synt_swiftUI
+@testable import SynthCore
+
+@MainActor
+@Suite(.serialized)
+struct Stage23Stage12Tests {
+
+    static func makeUnit() throws -> SyntAudioUnit {
+        let description = AudioComponentDescription(
+            componentType: kAudioUnitType_MusicDevice, componentSubType: 0x5379_6E74,
+            componentManufacturer: 0x4E69_7872, componentFlags: 0, componentFlagsMask: 0)
+        return try SyntAudioUnit(componentDescription: description)
+    }
+
+    /// R14-9. A host thread sets fullState and reads it back before main runs. Old code built the
+    /// snapshot from main-owned `engine.preset`, still the previous patch until the main hop →
+    /// non-addressed fields (fxOrder) came back stale.
+    @Test func testR14_9_OffMainFullStateRoundTripSeesAdoptedPreset() throws {
+        let unit = try Self.makeUnit()
+        var b = SynthPreset.defaultPreset
+        b.fxOrder = FXSlotID.defaultOrder.reversed()
+        let data = try JSONEncoder().encode(b)
+        var state = unit.fullState ?? [:]
+        state[SyntAudioUnit.statePresetKey] = data
+
+        // Main is blocked on the semaphore, so adoptPreset's main hop cannot run in between.
+        let sem = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var readBack: [FXSlotID]?
+        nonisolated(unsafe) let u = unit
+        let s = state
+        DispatchQueue.global().async {
+            u.fullState = s
+            if let d = u.fullState?[SyntAudioUnit.statePresetKey] as? Data,
+               let p = try? JSONDecoder().decode(SynthPreset.self, from: d) {
+                readBack = p.fxOrder
+            }
+            sem.signal()
+        }
+        sem.wait()
+        #expect(readBack == FXSlotID.defaultOrder.reversed())
+    }
+
+    /// R14-10. A `controllerMPEConfigDidChange` callback that writes `preset` fires from inside
+    /// applyPreset (pollMPEConfigMailbox). Old code re-entered applyPreset mid-pass; now the nested
+    /// call is coalesced into a follow-up pass and the callback's value is still applied.
+    @Test func testR14_10_ApplyPresetReentryIsCoalesced() {
+        let e = AudioEngine(coreOnly: true)
+        e.preset.mpeEnabled = true
+        e.controllerMPEConfigDidChange = { [unowned e] in
+            // Runs inside applyPreset; this write would recurse on old code.
+            e.preset.filterCutoff = 1234
+        }
+        // Render-side MCM (ch1, N=10) → mailbox.
+        for (cc, v) in [(UInt8(101), UInt8(0)), (100, 6), (6, 10)] {
+            let msg = MIDIMessage.controlChange(controller: cc, value: v, channel: 0)
+            if let cmd = AudioEngine.command(for: msg, mpeEnabled: e.cachedMpeEnabled, zone: e.cachedMpeZone,
+                                             memberCount: e.cachedMpeMemberChannelCount) {
+                e.handleCommand(cmd)
+            }
+        }
+        let before = e.applyPresetCallCountForTesting
+        e.preset.filterCutoff = 500   // applyPreset → poll → callback → preset write
+        #expect(e.applyPresetCoalescedCountForTesting == 1, "nested applyPreset must be coalesced")
+        #expect(e.applyPresetCallCountForTesting - before == 2, "one pass + one coalesced rerun")
+        #expect(e.preset.filterCutoff == 1234)
+        #if DEBUG
+        #expect(e.applyPresetOffMainCountForTesting == 0)
+        #endif
+    }
+}

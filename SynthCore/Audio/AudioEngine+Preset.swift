@@ -12,7 +12,33 @@ import SwiftUI
 public extension AudioEngine {
     // MARK: - Preset
 
+    /// SYNT_23 R14-10: main thread, not re-entrant. A nested call (e.g. a
+    /// `controllerMPEConfigDidChange` callback, fired from `pollMPEConfigMailbox` inside this
+    /// function, that writes `preset`) is coalesced into one more full pass after the current
+    /// one instead of running half-way through it.
     public func applyPreset() {
+        if applyPresetInProgress {
+            applyPresetRerunPending = true
+            applyPresetCoalescedCountForTesting += 1
+            return
+        }
+        #if DEBUG
+        if !Thread.isMainThread {
+            applyPresetOffMainCountForTesting += 1
+            NSLog("AudioEngine.applyPreset called off the main thread")
+        }
+        #endif
+        applyPresetInProgress = true
+        defer { applyPresetInProgress = false }
+        var passes = 0
+        repeat {
+            applyPresetRerunPending = false
+            applyPresetPass()
+            passes += 1
+        } while applyPresetRerunPending && passes < 4
+    }
+
+    private func applyPresetPass() {
         // SYNT_18 R15-1: mirror render-side table switches before comparing activeCompiled.
         wavetableEngine1.syncFromRenderMain()
         wavetableEngine2.syncFromRenderMain()

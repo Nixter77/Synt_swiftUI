@@ -93,6 +93,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     @Published public var isPlaying = false
     public var applyPresetCallCountForTesting: Int = 0
+    /// SYNT_23 R14-10: re-entrancy guard for `applyPreset` (main thread only).
+    var applyPresetInProgress = false
+    var applyPresetRerunPending = false
+    public var applyPresetCoalescedCountForTesting: Int = 0
+    public var applyPresetOffMainCountForTesting: Int = 0
 
     @Published private var _storedPreset: SynthPreset = .defaultPreset
 
