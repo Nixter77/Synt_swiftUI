@@ -2134,6 +2134,7 @@ public extension AudioEngine {
 
     /// SYNT_18 R15-8: render side of "Reset to my settings".
     func clearMPEControllerOverridesRT() {
+        rtMPEResetApplied &+= 1
         mpeCtl.clearOverrides()
         cachedMpeEnabled = mpeCtl.baseEnabled
         cachedMpeZone = mpeCtl.baseZone
@@ -2141,7 +2142,7 @@ public extension AudioEngine {
         cachedMpePitchBendRange = mpeCtl.baseMemberRange
         cachedPitchBendRange = mpeCtl.baseMasterRange
         recomputeMPEBendMultipliersRT()
-        publishMPEConfigRT(masterRangeChanged: true, resetAck: true)
+        publishMPEConfigRT(masterRangeChanged: true)
     }
 
     /// Render thread. Per event (RPN), not per sample.
@@ -2163,7 +2164,7 @@ public extension AudioEngine {
     }
 
     @inline(__always)
-    func publishMPEConfigRT(masterRangeChanged: Bool = false, resetAck: Bool = false) {
+    func publishMPEConfigRT(masterRangeChanged: Bool = false) {
         var packed = AudioEngine.packMPEConfig(
             enabled: cachedMpeEnabled,
             zone: cachedMpeZone,
@@ -2173,13 +2174,13 @@ public extension AudioEngine {
             overrides: mpeCtl
         )
         if masterRangeChanged { packed |= AudioEngine.mpeMailboxMasterFlag }
-        if resetAck { packed |= AudioEngine.mpeMailboxResetAckFlag }
+        packed |= UInt64(rtMPEResetApplied) << AudioEngine.mpeMailboxResetSeqShift
         // Keep a not-yet-polled master-range change sticky (lock-free CAS, bounded by main's exchange).
         var current = mpeConfigMailbox.load(ordering: .acquiring)
         while true {
             var next = packed
             if current & AudioEngine.mpeMailboxFlag != 0 {
-                next |= current & (AudioEngine.mpeMailboxMasterFlag | AudioEngine.mpeMailboxResetAckFlag)
+                next |= current & AudioEngine.mpeMailboxMasterFlag
             }
             let (exchanged, original) = mpeConfigMailbox.compareExchange(
                 expected: current, desired: next, ordering: .acquiringAndReleasing)
@@ -2190,8 +2191,8 @@ public extension AudioEngine {
 
     static let mpeMailboxFlag: UInt64 = 1 << 63
     static let mpeMailboxMasterFlag: UInt64 = 1 << 62
-    /// SYNT_20 R16-6: render has applied "Reset to my settings" (sticky until polled).
-    static let mpeMailboxResetAckFlag: UInt64 = 1 << 43
+    /// SYNT_21 R17-2: bits 44–51 carry render's applied-reset count (mod 256).
+    static let mpeMailboxResetSeqShift: UInt64 = 44
 
     /// Bits 38–42: which values are controller overrides (SYNT_17 R14-1: main mirrors them, runtime only).
     static func packMPEConfig(enabled: Bool, zone: MPEZone, memberCount: Int, memberRange: Float, masterRange: Float,
@@ -2219,10 +2220,11 @@ public extension AudioEngine {
         guard v & AudioEngine.mpeMailboxFlag != 0 else { return false }
         // SYNT_20 R16-6: after a reset on main, entries render published before applying it are
         // stale (they would briefly restore the old override); wait for render's ack.
-        if mpeResetAwaitingAck {
-            guard v & AudioEngine.mpeMailboxResetAckFlag != 0 else { return false }
-            mpeResetAwaitingAck = false
-        }
+        // SYNT_21 R17-2: an entry is current only if render had applied every reset main issued.
+        // R17-3: if render never drains (e.g. the AU stays unallocated after Reset), main keeps
+        // dropping entries — harmless, because only render produces them; the first render block
+        // applies the reset and the stamps match again.
+        guard UInt8(truncatingIfNeeded: v >> AudioEngine.mpeMailboxResetSeqShift) == mpeResetIssued else { return false }
         let enabled = v & 1 != 0
         let zone: MPEZone = v & 2 != 0 ? .upper : .lower
         let count = Int((v >> 2) & 0x1F)

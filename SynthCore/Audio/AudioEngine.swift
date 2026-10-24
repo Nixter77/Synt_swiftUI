@@ -544,8 +544,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var controllerMPEConfigDidChange: (() -> Void)? = nil
     /// R12-1: render writes packed MPE config here (RPN/MCM); main polls it. Bit 63 = new data.
     public let mpeConfigMailbox = Atomic<UInt64>(0)
-    /// SYNT_20 R16-6: main only. Set by `resetControllerMPEOverrides`, cleared by render's ack.
-    var mpeResetAwaitingAck = false
+    /// SYNT_21 R17-2: main only. Number of resets issued (mod 256); replaces the SYNT_20 Bool so a
+    /// double Reset before render drains cannot let an entry between the two resets through.
+    var mpeResetIssued: UInt8 = 0
+    /// SYNT_21 R17-2: render only. Number of resets applied (mod 256), stamped into every mailbox entry.
+    var rtMPEResetApplied: UInt8 = 0
     /// SYNT_16 R13-5: last resolved user wavetable blob (main thread only).
     var lastUserWTData: Data?
     var lastUserWTSampleRate: Double = 0

@@ -77,7 +77,7 @@ public extension AudioEngine {
         mpeMemberChannelCount = controllerMPEMain.baseMemberCount
         mpePitchBendRange = controllerMPEMain.baseMemberRange
         controllerMasterPitchBendRange = nil
-        if commandQueue.push(.clearMPEControllerOverrides) { mpeResetAwaitingAck = true }
+        if commandQueue.push(.clearMPEControllerOverrides) { mpeResetIssued &+= 1 }
     }
 
     // SYNT_18 R15-3: when a host value drops a controller override on render, tell main
