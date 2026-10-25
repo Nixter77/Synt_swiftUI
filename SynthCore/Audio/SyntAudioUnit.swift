@@ -48,6 +48,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         let store = AddressedParameterStore()
         parameters = store
         renderContext = SyntRenderContext(engine: core, parameters: store)
+        adoptedPresetMirror = core.preset  // SYNT_27 P2-2: never empty, so no off-main engine.preset read
         try super.init(componentDescription: componentDescription, options: options)
         outputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outputBus])
         inputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .input, busses: [])
@@ -55,6 +56,14 @@ public final class SyntAudioUnit: AUAudioUnit {
         // SYNT_26 R22-1: the AU flags and the one initial apply happen inside the engine's init
         // (construction-exempt from the strict main check); no second apply here.
         installParameterTree()
+        // SYNT_27 P2-2: main-side preset edits (UI, display-only) keep the mirror current, unless
+        // a newer off-main adopt is still waiting for its hop (then the mirror is the newer one).
+        core.storedPresetDidChange = { [weak self] preset in
+            guard let self else { return }
+            self.adoptedPresetLock.lock()
+            if self.adoptGenerationApplied == self.adoptGenerationLatest { self.adoptedPresetMirror = preset }
+            self.adoptedPresetLock.unlock()
+        }
         startProgramChangePoll()
     }
 
@@ -355,10 +364,10 @@ public final class SyntAudioUnit: AUAudioUnit {
     private func wholePresetSnapshot() -> SynthPreset {
         if Thread.isMainThread {
             adoptedPresetLock.lock(); defer { adoptedPresetLock.unlock() }
-            return adoptGenerationApplied == adoptGenerationLatest ? engine.preset : (adoptedPresetMirror ?? engine.preset)
+            return adoptGenerationApplied == adoptGenerationLatest ? engine.preset : adoptedPresetMirror
         }
         adoptedPresetLock.lock(); defer { adoptedPresetLock.unlock() }
-        return adoptedPresetMirror ?? engine.preset
+        return adoptedPresetMirror
     }
 
     func presetSnapshot() -> SynthPreset {
@@ -373,11 +382,11 @@ public final class SyntAudioUnit: AUAudioUnit {
                 snapshot = engine.preset
                 adoptedPresetMirror = snapshot
             } else {
-                snapshot = adoptedPresetMirror ?? engine.preset
+                snapshot = adoptedPresetMirror
             }
             adoptedPresetLock.unlock()
         } else {
-            adoptedPresetLock.lock(); snapshot = adoptedPresetMirror ?? engine.preset; adoptedPresetLock.unlock()
+            adoptedPresetLock.lock(); snapshot = adoptedPresetMirror; adoptedPresetLock.unlock()
         }
         for address in SynthParameterAddress.allCases {
             snapshot.setParameterValue(parameters.value(address.rawValue), for: address)
@@ -393,7 +402,7 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// SYNT_23 R14-9: the last whole preset adopted (any thread) / seen on main; read by
     /// `presetSnapshot()` off main. Addressed values still come from the store.
     private let adoptedPresetLock = NSLock()
-    private var adoptedPresetMirror: SynthPreset?
+    private var adoptedPresetMirror: SynthPreset
     /// SYNT_24 R20-1: bumped by every adopt (any thread); `Applied` is the newest generation whose
     /// main hop ran. Both under `adoptedPresetLock`.
     private var adoptGenerationLatest: UInt64 = 0

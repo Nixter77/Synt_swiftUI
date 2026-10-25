@@ -118,7 +118,12 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     nonisolated(unsafe) public static var strictMainThreadApplyPreset = true
     #endif
 
-    @Published private var _storedPreset: SynthPreset = .defaultPreset
+    @Published private var _storedPreset: SynthPreset = .defaultPreset {
+        didSet { storedPresetDidChange?(_storedPreset) }
+    }
+    /// SYNT_27 P2-2: called (main thread) after every `preset` change, including display-only
+    /// edits. The AU keeps its any-thread preset mirror current through it.
+    var storedPresetDidChange: ((SynthPreset) -> Void)?
     /// SYNT_27 P2-1: serializes the whole set of render publications (preset snapshot, MSEG 1/2,
     /// mod matrix) so two writers cannot interleave and leave render with a mixed pair.
     /// Render never takes it.

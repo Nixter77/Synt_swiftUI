@@ -58,4 +58,19 @@ final class Stage27AuditTests: XCTestCase {
         Self.drainMain()
     }
     #endif
+
+    // MARK: P2-2 — off-main readers see main-side preset edits (mirror kept current).
+
+    func testP2_2_OffMainTailSeesMainPresetEditAfterAdopt() throws {
+        let unit = try SyntAudioUnit(componentDescription: Self.desc)
+        unit.currentPreset = SyntAudioUnit.factoryPresetsForTesting[1]   // fills the mirror
+        Self.drainMain()
+        unit.engine.preset.release = unit.engine.preset.release + 3.0    // UI edit on main
+        let expected = SyntAudioUnit.tailTime(for: unit.engine.preset)
+        nonisolated(unsafe) var tail: TimeInterval = 0
+        let done = expectation(description: "off main")
+        DispatchQueue.global().async { tail = unit.tailTime; done.fulfill() }
+        wait(for: [done], timeout: 5)
+        XCTAssertEqual(tail, expected, accuracy: 1e-9, "off-main reader saw a stale preset")
+    }
 }
