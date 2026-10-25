@@ -6,3 +6,9 @@
 4. Optional: re-measure Stage 2 hot-spot gain on an idle machine.
 
 Rules unchanged: golden 0xd1b3635203a4799e, nothing into main, no force-push, fail-on-old test per fix, full suite before each commit, restore dump files, new features off by default, decodeIfPresent, AU addresses from 167, RT-safe render.
+
+## SYNT_25 plan (after ROUND21, approved)
+1. R21-1: `@inline(__always)` back on `pullNewWavetableRT` (+ R21-2 cached-vs-reference frame split test).
+2. Idle A/B b866d86 vs HEAD, ≥5 alternations at load < 2, incl. hot-spot re-measure; if never idle, record.
+3. Migrate off-main applyPreset tests to @MainActor; default `strictMainThreadApplyPreset` on in DEBUG.
+4. Optional: R20-4 immortal shapes impossible to free by design.
