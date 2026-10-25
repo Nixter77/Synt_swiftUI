@@ -966,7 +966,6 @@ public final class WavetableOscillator {
         oldRef?.release()
     }
 
-    @inline(__always)
     /// SYNT_24 Stage 2: render-owned frame-split cache for `sampleMorphedFlat` (count -1 = empty).
     private var fmCachePosBits: UInt32 = 0
     private var fmCacheCount: Int = -1
@@ -974,6 +973,29 @@ public final class WavetableOscillator {
     private var fmCacheIdx2 = 0
     private var fmCacheFrac: Float = 0
 
+    /// SYNT_25 R21-2: cached frame split (render-owned). Same arithmetic as the pre-SYNT_24 inline code.
+    @inline(__always)
+    private func frameSplit(_ position: Float, _ frameCount: Int) -> (Int, Int, Float) {
+        if position.bitPattern != fmCachePosBits || frameCount != fmCacheCount {
+            let framePos = position * Float(max(0, frameCount - 1))
+            let i1 = max(0, min(frameCount - 1, Int(framePos)))
+            fmCacheIdx1 = i1
+            fmCacheIdx2 = min(i1 + 1, frameCount - 1)
+            fmCacheFrac = framePos - Float(i1)
+            fmCachePosBits = position.bitPattern
+            fmCacheCount = frameCount
+        }
+        return (fmCacheIdx1, fmCacheIdx2, fmCacheFrac)
+    }
+
+    #if DEBUG
+    func frameSplitForTesting(position: Float, frameCount: Int) -> (Int, Int, Float) {
+        frameSplit(position, frameCount)
+    }
+    #endif
+
+    // SYNT_25 R21-1: attribute back on the function (SYNT_24 had displaced it onto a stored var).
+    @inline(__always)
     public func pullNewWavetableRT() {
         if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
             let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
@@ -1292,18 +1314,7 @@ public final class WavetableOscillator {
 
         // SYNT_24 Stage 2: the frame split depends only on (framePosition, frameCount), which change
         // at most once per sample — recompute only then, not per voice call. Same arithmetic.
-        if framePosition.bitPattern != fmCachePosBits || frameCount != fmCacheCount {
-            let framePos = framePosition * Float(max(0, frameCount - 1))
-            let i1 = max(0, min(frameCount - 1, Int(framePos)))
-            fmCacheIdx1 = i1
-            fmCacheIdx2 = min(i1 + 1, frameCount - 1)
-            fmCacheFrac = framePos - Float(i1)
-            fmCachePosBits = framePosition.bitPattern
-            fmCacheCount = frameCount
-        }
-        let frameIndex1 = fmCacheIdx1
-        let frameIndex2 = fmCacheIdx2
-        let frameFrac = fmCacheFrac
+        let (frameIndex1, frameIndex2, frameFrac) = frameSplit(framePosition, frameCount)
 
         let n = view.samplesPerFrame
         let sample1 = sampleFromRaw(view.frame(octave: mipOctave, index: frameIndex1), count: n, phase: phase)
