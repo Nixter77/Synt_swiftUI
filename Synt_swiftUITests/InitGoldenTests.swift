@@ -132,7 +132,7 @@ struct InitGoldenTests {
     }
 
     /// Two notes, 8192 frames, note-off at 6000. FNV-1a over raw Float bits.
-    nonisolated static func renderHash(_ preset: SynthPreset) -> UInt64 {
+    @MainActor static func renderHash(_ preset: SynthPreset) -> UInt64 {
         let engine = AudioEngine()
         engine.preset = preset
         engine.applyPresetForTesting()

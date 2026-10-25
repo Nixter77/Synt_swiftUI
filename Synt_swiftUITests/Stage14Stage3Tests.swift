@@ -234,7 +234,7 @@ final class Stage14Stage3Tests: XCTestCase {
 
     // MARK: - 4. Golden Audio Harness Bit-Exactness
 
-    func testGoldenHarnessPreserved() {
+    @MainActor func testGoldenHarnessPreserved() {
         let hash = InitGoldenTests.renderHash(.defaultPreset)
         XCTAssertEqual(hash, 0xd1b3635203a4799e, "Default sound must remain bit-identical to golden hash")
     }

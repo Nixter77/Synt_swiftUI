@@ -139,6 +139,8 @@ struct Stage23Stage12Tests {
 
     /// SYNT_25 Stage 3 (fails on old code: default was off). All Swift Testing suites are now
     /// @MainActor, so the DEBUG hard main-thread check on applyPreset is on by default.
+    /// SYNT_26 R22-2: this is a configuration pin (asserts the DEBUG default), not a behaviour
+    /// test; behaviour is covered by Stage26AuditTests (off-main AU construction).
     @Test func testStrictMainThreadApplyPresetDefaultOnInDebug() {
         #if DEBUG
         #expect(AudioEngine.strictMainThreadApplyPreset)

@@ -229,7 +229,7 @@ final class Stage14Stage1Tests: XCTestCase {
 
     // MARK: - Golden Audio Hash
 
-    func testGoldenHarnessPreserved() {
+    @MainActor func testGoldenHarnessPreserved() {
         let hash = InitGoldenTests.renderHash(.defaultPreset)
         XCTAssertEqual(hash, 0xd1b3635203a4799e, "Golden FNV-1a hash must remain bit-identical")
     }

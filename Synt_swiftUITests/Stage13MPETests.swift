@@ -150,7 +150,7 @@ final class Stage13MPETests: XCTestCase {
         XCTAssertEqual(engine.voices[idxB].mpeTimbre, 0.0)
     }
 
-    func testGoldenHarnessBitExactness() {
+    @MainActor func testGoldenHarnessBitExactness() {
         let hash = InitGoldenTests.renderHash(.defaultPreset)
         XCTAssertEqual(hash, 0xd1b3635203a4799e, "Golden FNV-1a hash must match 0xd1b3635203a4799e bit-identically")
     }

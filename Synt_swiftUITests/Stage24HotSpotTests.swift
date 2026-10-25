@@ -44,7 +44,18 @@ final class Stage24HotSpotTests: XCTestCase {
             let i1 = max(0, min(n - 1, Int(framePos)))
             return (i1, min(i1 + 1, n - 1), framePos - Float(i1))
         }
-        var rng = SystemRandomNumberGenerator()
+        // SYNT_26 R22-4: seeded so any failure is reproducible run-to-run.
+        struct SplitMix64: RandomNumberGenerator {
+            var state: UInt64
+            mutating func next() -> UInt64 {
+                state &+= 0x9E3779B97F4A7C15
+                var z = state
+                z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+                z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+                return z ^ (z >> 31)
+            }
+        }
+        var rng = SplitMix64(state: 0x5EED_2026_0026)
         let counts = [1, 2, 3, 8, 64, 256]
         var positions: [Float] = [0, 1, 0.5, Float.ulpOfOne, 1 - Float.ulpOfOne.magnitude, -0.0]
         for _ in 0..<2000 { positions.append(Float.random(in: 0...1, using: &rng)) }
