@@ -267,6 +267,41 @@ public struct WavetableCacheKey: Hashable, Sendable {
     }
 }
 
+/// SYNT_27 R20-4: bump allocator for LFO shapes. Chunks are allocated once and never freed; every
+/// carve starts at least `headerBytes` into a chunk, so a carved pointer is never a heap-block
+/// start. Off the render thread only (takes a lock).
+enum ShapeArena {
+    static let chunkBytes = 256 * 1024
+    static let headerBytes = 64
+    private struct State { var base: UnsafeMutableRawPointer? = nil; var used = 0; var cap = 0 }
+    private static let state = Mutex<State>(State())
+    static func carve(byteCount: Int) -> UnsafeMutableRawPointer {
+        let need = (byteCount + 15) & ~15
+        return state.withLock { st in
+            if st.base == nil || st.used + need > st.cap {
+                let cap = max(chunkBytes, headerBytes + need)
+                st.base = UnsafeMutableRawPointer.allocate(byteCount: cap, alignment: 16)  // never freed
+                st.used = headerBytes; st.cap = cap
+#if DEBUG
+                let b = Int(bitPattern: st.base!)
+                chunks.withLock { $0.append(b..<(b + cap)) }
+#endif
+            }
+            let p = st.base! + st.used
+            st.used += need
+            return p
+        }
+    }
+#if DEBUG
+    private static let chunks = Mutex<[Range<Int>]>([])
+    /// True when `p` lies inside an arena chunk past its header (i.e. not a heap-block start).
+    static func ownsInteriorForTesting(_ p: UnsafeRawPointer) -> Bool {
+        let a = Int(bitPattern: p)
+        return chunks.withLock { $0.contains { $0.contains(a) && a >= $0.lowerBound + headerBytes } }
+    }
+#endif
+}
+
 /// SYNT_16 R13-4: one immutable, immortal LFO shape (middle frame of a table).
 /// Read on the render thread through a raw pointer: no ARC, no allocation.
 public struct LFOShapeTable {
@@ -311,12 +346,16 @@ public struct LFOShapeTable {
 
     private static func allocateImmortal(_ frame: [Float]) -> UnsafePointer<LFOShapeTable> {
         let n = max(1, frame.count)
-        let d = UnsafeMutablePointer<Float>.allocate(capacity: n)
+        // SYNT_27 R20-4: carve header + samples out of a never-freed arena. Neither pointer is the
+        // start of a heap block, so there is no owning allocation to `deallocate()`: a free path
+        // is impossible by design, not by convention.
+        let raw = ShapeArena.carve(byteCount: MemoryLayout<LFOShapeTable>.stride + n * MemoryLayout<Float>.stride)
+        let d = (raw + MemoryLayout<LFOShapeTable>.stride).bindMemory(to: Float.self, capacity: n)
         if frame.isEmpty { d.initialize(to: 0) } else { d.initialize(from: frame, count: frame.count) }
         // SYNT_17 R14-5: normalize to peak 1 so a quiet user table still gives a full-depth LFO.
         let peak = frame.reduce(Float(0)) { max($0, abs($1)) }
         if peak > 1e-6 { for i in 0..<frame.count { d[i] /= peak } }
-        let p = UnsafeMutablePointer<LFOShapeTable>.allocate(capacity: 1)
+        let p = raw.bindMemory(to: LFOShapeTable.self, capacity: 1)
         p.initialize(to: LFOShapeTable(data: UnsafePointer(d), count: frame.isEmpty ? 1 : frame.count))
 #if DEBUG
         _ = allocatedShapes.withLock { $0.insert(Int(bitPattern: p)) }
