@@ -600,15 +600,14 @@ public extension AudioEngine {
     /// Reorders the FX chain on the main thread and publishes the fixed table to the RT audio thread.
     public func setFXOrder(_ order: [FXSlotID]) {
         let clean = SynthPreset.sanitizeFXOrder(order)
-        if Thread.isMainThread {
-            updatePreset { $0.fxOrder = clean }
-        } else {
+        guard Thread.isMainThread else {
             // SYNT_26 P2-6: never block a caller thread on main (deadlock if main waits on it).
-            // The preset copy is display-only; render gets the table through commandQueue below.
-            DispatchQueue.main.async { [weak self] in
-                self?.updatePreset { $0.fxOrder = clean }
-            }
+            // SYNT_27 P3-3: the preset copy and the render push happen together on main, so a
+            // main applyPreset in between cannot publish the old order after the new one.
+            DispatchQueue.main.async { [weak self] in self?.setFXOrder(clean) }
+            return
         }
+        updatePreset { $0.fxOrder = clean }
         let table = FXOrderTable(order: clean)
         if !renderLifecycleActive.load(ordering: .sequentiallyConsistent) {
             cachedFXOrder = table
