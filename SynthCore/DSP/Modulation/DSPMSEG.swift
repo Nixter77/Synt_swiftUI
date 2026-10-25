@@ -204,6 +204,9 @@ public final class DSPMSEG {
     private var writeBank: Int = 0
     private var readBank: Int = 1
     private let sharedBank = Atomic<Int>(2)
+    /// SYNT_26 P1-2: serializes writers (main, or a host thread via `SyntAudioUnit.adoptPreset`)
+    /// over `writeBank`. Render never takes it.
+    private let writerLock = Mutex(())
 
     public private(set) var phase: Float = 0.0
     public private(set) var currentValue: Float = 0.0
@@ -258,8 +261,12 @@ public final class DSPMSEG {
         }
     }
 
-    /// Main thread. Copies a finished model into writeBank and publishes it via atomic exchange.
+    /// Any non-render thread (writers serialized). Copies a finished model into writeBank and publishes it via atomic exchange.
     public func publish(_ model: DSPMSEGModel) {
+        writerLock.withLock { _ in publishLocked(model) }
+    }
+
+    private func publishLocked(_ model: DSPMSEGModel) {
         let base = writeBank * DSPMSEGModel.maxPoints
         let count = min(DSPMSEGModel.maxPoints, model.points.count)
         for i in 0..<count {
@@ -285,6 +292,10 @@ public final class DSPMSEG {
     /// No points. The render thread skips the generator while nothing is routed.
     /// Does not rewrite `model`.
     public func publishEmpty() {
+        writerLock.withLock { _ in publishEmptyLocked() }
+    }
+
+    private func publishEmptyLocked() {
         var meta = meta(at: writeBank)
         meta.pointCount = 0
         setMeta(meta, at: writeBank)

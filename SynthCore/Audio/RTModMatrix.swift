@@ -18,67 +18,78 @@ public struct RTModSlot {
     public var tableBank: Int = 0
 }
 
+/// SYNT_26 P1-2: triple buffer. Each bank holds its slots, count and curve tables, so render
+/// never sees a bank a writer is filling. Writers (main or a host thread) are serialized by
+/// `writerLock`, which render never takes. Render owns `readBank` and swaps only in `snapshot()`.
 public final class RTModMatrix: @unchecked Sendable {
     public static let capacity = 16
     public static let tableSize = 256
+    static let bankCount = 3
+    private static let hasNewDataFlag = 0x80
 
     private let buffers: UnsafeMutablePointer<RTModSlot>
     private let tables: UnsafeMutablePointer<Float>
-    private let countA = Atomic<Int>(0)
-    private let countB = Atomic<Int>(0)
-    private let active = Atomic<Int>(0)
-    private let tableBankActive = Atomic<Int>(0)
+    private let counts: UnsafeMutablePointer<Int>
+    private let sharedBank = Atomic<Int>(2)
+    private let writerLock = Mutex(())
+    /// Writer-owned (under `writerLock`).
+    private var writeBank = 0
+    private let lastPublishedCount = Atomic<Int>(0)
+    /// Render-owned.
+    private var readBank = 1
 
     public init() {
-        buffers = .allocate(capacity: Self.capacity * 2)
+        buffers = .allocate(capacity: Self.capacity * Self.bankCount)
         buffers.initialize(
             repeating: RTModSlot(source: .velocity, destination: .amp, amount: 0),
-            count: Self.capacity * 2
+            count: Self.capacity * Self.bankCount
         )
-        let tableCount = 2 * Self.capacity * Self.tableSize
+        let tableCount = Self.bankCount * Self.capacity * Self.tableSize
         tables = .allocate(capacity: tableCount)
         tables.initialize(repeating: 0, count: tableCount)
+        counts = .allocate(capacity: Self.bankCount)
+        counts.initialize(repeating: 0, count: Self.bankCount)
     }
 
     deinit {
-        buffers.deinitialize(count: Self.capacity * 2)
+        buffers.deinitialize(count: Self.capacity * Self.bankCount)
         buffers.deallocate()
-        tables.deinitialize(count: 2 * Self.capacity * Self.tableSize)
+        tables.deinitialize(count: Self.bankCount * Self.capacity * Self.tableSize)
         tables.deallocate()
+        counts.deinitialize(count: Self.bankCount)
+        counts.deallocate()
     }
 
-    /// Main thread. Builds non-linear tables into the idle bank, then flips the slot buffer.
+    /// Any non-render thread. Fills the writer's bank (slots + tables), then shares it.
     public func publish(_ entries: [ModMatrixEntry]) {
-        let target = 1 - active.load(ordering: .acquiring)
-        let bank = 1 - tableBankActive.load(ordering: .acquiring)
-        let base = buffers + target * Self.capacity
-        let n = min(Self.capacity, entries.count)
-        for i in 0..<n {
-            let curve = entries[i].curve
-            if curve != .linear {
-                fillTable(bank: bank, slot: i, curve: curve)
+        writerLock.withLock { _ in
+            let bank = writeBank
+            let base = buffers + bank * Self.capacity
+            let n = min(Self.capacity, entries.count)
+            for i in 0..<n {
+                let curve = entries[i].curve
+                if curve != .linear {
+                    fillTable(bank: bank, slot: i, curve: curve)
+                }
+                base[i] = RTModSlot(
+                    source: entries[i].source,
+                    destination: entries[i].destination,
+                    amount: entries[i].amount,
+                    curve: curve,
+                    tableBank: bank
+                )
             }
-            base[i] = RTModSlot(
-                source: entries[i].source,
-                destination: entries[i].destination,
-                amount: entries[i].amount,
-                curve: curve,
-                tableBank: curve == .linear ? 0 : bank
-            )
+            counts[bank] = n
+            lastPublishedCount.store(n, ordering: .relaxed)
+            let previous = sharedBank.exchange(bank | Self.hasNewDataFlag, ordering: .acquiringAndReleasing)
+            writeBank = previous & 0x03
         }
-        if target == 0 {
-            countA.store(n, ordering: .releasing)
-        } else {
-            countB.store(n, ordering: .releasing)
-        }
-        tableBankActive.store(bank, ordering: .releasing)
-        active.store(target, ordering: .releasing)
     }
 
     /// Render thread. Linear rows do not call this.
     @inline(__always)
     public func lookup(bank: Int, slot: Int, source: Float) -> Float {
-        let b = bank & 1
+        let b = bank < 0 ? 0 : min(bank, Self.bankCount - 1)
         let s = slot < 0 ? 0 : min(slot, Self.capacity - 1)
         var x = source
         if x < -1 { x = -1 }
@@ -105,15 +116,22 @@ public final class RTModMatrix: @unchecked Sendable {
         }
     }
 
-    /// Render thread. Valid for the current sample.
+    /// Render thread (single reader). Adopts the newest bank, if any. The returned slots (and
+    /// their `tableBank`) stay valid until render's next call.
     @inline(__always)
     public func snapshot() -> (UnsafeMutablePointer<RTModSlot>, Int) {
-        let idx = active.load(ordering: .acquiring)
-        let n = idx == 0
-            ? countA.load(ordering: .acquiring)
-            : countB.load(ordering: .acquiring)
-        return (buffers + idx * Self.capacity, n)
+        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
+            let previous = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
+            readBank = previous & 0x03
+        }
+        return (buffers + readBank * Self.capacity, counts[readBank])
     }
 
-    public var publishedCount: Int { snapshot().1 }
+    /// Any thread: count of the latest publish (does not touch render's bank).
+    public var publishedCount: Int { lastPublishedCount.load(ordering: .relaxed) }
+
+    #if DEBUG
+    var readBankForTesting: Int { readBank }
+    var writeBankForTesting: Int { writerLock.withLock { _ in writeBank } }
+    #endif
 }

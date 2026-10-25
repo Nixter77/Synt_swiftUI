@@ -474,35 +474,50 @@ public struct RTPresetSnapshot: Sendable {
     }
 }
 
+/// SYNT_26 P1-2: triple buffer (same protocol as `WavetableOscillator.publishCompiled` / DSPMSEG).
+/// Writers (main, or a host thread in `SyntAudioUnit.adoptPreset`) are serialized by `writerLock`,
+/// which render never takes. Render owns `readSlot`; a writer never writes the slot render reads,
+/// so a pulled snapshot is never a mix of two publishes.
 public final class RTPresetBuffer: @unchecked Sendable {
+    private static let hasNewDataFlag = 0x80
     private let buffers: UnsafeMutablePointer<RTPresetSnapshot>
-    private let active = Atomic<Int>(0)
-    private let pending = Atomic<Bool>(false)
+    private let sharedSlot = Atomic<Int>(2)
+    private let writerLock = Mutex(())
+    /// Writer-owned (under `writerLock`).
+    private var writeSlot = 0
+    /// Render-owned.
+    private var readSlot = 1
 
     public init() {
-        buffers = .allocate(capacity: 2)
-        buffers.initialize(to: RTPresetSnapshot())
-        (buffers + 1).initialize(to: RTPresetSnapshot())
+        buffers = .allocate(capacity: 3)
+        buffers.initialize(repeating: RTPresetSnapshot(), count: 3)
     }
 
     deinit {
-        buffers.deinitialize(count: 2)
+        buffers.deinitialize(count: 3)
         buffers.deallocate()
     }
 
-    /// Thread-safe. Called from main or host thread.
+    /// Any non-render thread. Writers are serialized; never called from render.
     public func publish(_ snapshot: RTPresetSnapshot) {
-        let target = 1 - active.load(ordering: .acquiring)
-        buffers[target] = snapshot
-        active.store(target, ordering: .releasing)
-        pending.store(true, ordering: .releasing)
+        writerLock.withLock { _ in
+            buffers[writeSlot] = snapshot
+            let previous = sharedSlot.exchange(writeSlot | Self.hasNewDataFlag, ordering: .acquiringAndReleasing)
+            writeSlot = previous & 0x03
+        }
     }
 
-    /// Audio thread only. Pulls the latest snapshot at buffer boundary if pending.
+    /// Audio thread only (single reader). Pulls the latest snapshot at buffer boundary if pending.
     @inline(__always)
     public func pullNewSnapshot() -> RTPresetSnapshot? {
-        guard pending.exchange(false, ordering: .acquiringAndReleasing) else { return nil }
-        let idx = active.load(ordering: .acquiring)
-        return buffers[idx]
+        guard (sharedSlot.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 else { return nil }
+        let previous = sharedSlot.exchange(readSlot, ordering: .acquiringAndReleasing)
+        readSlot = previous & 0x03
+        return buffers[readSlot]
     }
+
+    #if DEBUG
+    /// The slot render currently reads, and the slot the next publish will write.
+    var slotsForTesting: (read: Int, write: Int) { (readSlot, writerLock.withLock { _ in writeSlot }) }
+    #endif
 }
