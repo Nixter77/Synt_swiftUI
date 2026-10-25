@@ -600,7 +600,9 @@ public extension AudioEngine {
         if Thread.isMainThread {
             updatePreset { $0.fxOrder = clean }
         } else {
-            DispatchQueue.main.sync { [weak self] in
+            // SYNT_26 P2-6: never block a caller thread on main (deadlock if main waits on it).
+            // The preset copy is display-only; render gets the table through commandQueue below.
+            DispatchQueue.main.async { [weak self] in
                 self?.updatePreset { $0.fxOrder = clean }
             }
         }

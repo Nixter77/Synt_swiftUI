@@ -193,4 +193,20 @@ final class Stage26AuditTests: XCTestCase {
         XCTAssertEqual(current, idx)
         Self.drainMain()
     }
+
+    // MARK: P2-6 — setFXOrder off main must not block on main.
+
+    func testP2_6_SetFXOrderOffMainDoesNotWaitForMain() {
+        let engine = AudioEngine(coreOnly: true)
+        let order = Array(SynthPreset.defaultPreset.fxOrder.reversed())
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            engine.setFXOrder(order)
+            done.signal()
+        }
+        // Main is blocked here; the old main.sync could not finish until this wait timed out.
+        XCTAssertEqual(done.wait(timeout: .now() + 2), .success, "setFXOrder waited for main (deadlock risk)")
+        Self.drainMain()
+        XCTAssertEqual(engine.preset.fxOrder, SynthPreset.sanitizeFXOrder(order))
+    }
 }
