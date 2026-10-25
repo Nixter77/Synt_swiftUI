@@ -9,6 +9,7 @@ import Testing
 import Foundation
 @testable import SynthCore
 
+@MainActor
 @Suite struct DSPFormantFilterTests {
 
     @Test func formantPeakInSpectrum() {

@@ -8,6 +8,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct LadderFilterTests {
     private func sineRMS(
         frequency: Float,

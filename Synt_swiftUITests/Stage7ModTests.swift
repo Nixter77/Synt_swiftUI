@@ -9,6 +9,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage7ModTests {
 
     private func render(_ mutate: (inout SynthPreset) -> Void, samples: Int = 800) -> [Float] {

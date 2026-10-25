@@ -8,6 +8,7 @@ import AVFoundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct PostFXLimiterTests {
 
     @Test func peakLimiterFollowsReverbIntoTheMixer() {

@@ -13,6 +13,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage9UITests {
 
     // MARK: - Modulation Amount & Highlighting Tests

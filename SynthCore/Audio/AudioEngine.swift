@@ -109,7 +109,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// R20-2: invoked at the start of every pass (test-only re-entry source).
     public var applyPresetPassHookForTesting: (() -> Void)?
     /// R20-3: opt-in hard main-thread check for applyPreset (off by default; see applyPreset).
-    nonisolated(unsafe) public static var strictMainThreadApplyPreset = false
+    nonisolated(unsafe) public static var strictMainThreadApplyPreset = true
     #endif
 
     @Published private var _storedPreset: SynthPreset = .defaultPreset

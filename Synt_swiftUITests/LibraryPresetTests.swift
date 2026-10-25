@@ -10,6 +10,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct LibraryPresetTests {
     /// Below the soft clip (0.95) and the Chord-hiss "hot" peak.
     static let peakCeiling: Float = 0.90

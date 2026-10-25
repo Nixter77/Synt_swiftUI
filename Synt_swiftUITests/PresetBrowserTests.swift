@@ -8,6 +8,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct PresetBrowserTests {
     private var list: [SynthPreset] { PresetBrowser.list }
 

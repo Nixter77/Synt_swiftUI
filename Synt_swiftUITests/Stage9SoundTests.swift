@@ -14,6 +14,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage9SoundTests {
 
     // MARK: - Frequency Shifter Tests

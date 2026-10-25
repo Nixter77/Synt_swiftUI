@@ -8,6 +8,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct CCSmoothingTests {
     @Test func ccStepFromZeroToFullIsARampWithoutStairs() {
         let engine = AudioEngine()

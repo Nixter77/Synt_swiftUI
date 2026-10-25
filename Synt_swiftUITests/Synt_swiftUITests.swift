@@ -28,6 +28,7 @@ private final class LockedCounter: @unchecked Sendable {
     }
 }
 
+@MainActor
 struct Synt_swiftUITests {
 
     // MARK: - AudioCommandQueue

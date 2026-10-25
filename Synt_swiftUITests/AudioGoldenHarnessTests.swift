@@ -124,6 +124,7 @@ private enum GoldenHarness {
 
 // MARK: - STAGE 1 goldens
 
+@MainActor
 struct AudioGoldenHarnessTests {
 
     // MARK: Finite / level gates — 1 note

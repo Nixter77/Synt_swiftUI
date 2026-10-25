@@ -136,4 +136,16 @@ struct Stage23Stage12Tests {
         TolerantDecodeLog.resetForTesting()
         #endif
     }
+
+    /// SYNT_25 Stage 3 (fails on old code: default was off). All Swift Testing suites are now
+    /// @MainActor, so the DEBUG hard main-thread check on applyPreset is on by default.
+    @Test func testStrictMainThreadApplyPresetDefaultOnInDebug() {
+        #if DEBUG
+        #expect(AudioEngine.strictMainThreadApplyPreset)
+        let e = AudioEngine(coreOnly: true)
+        let before = e.applyPresetOffMainCountForTesting
+        e.preset.filterCutoff = 777   // main → must not trap, must not count
+        #expect(e.applyPresetOffMainCountForTesting == before)
+        #endif
+    }
 }

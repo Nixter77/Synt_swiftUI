@@ -168,6 +168,7 @@ private enum HissMatrixHarness {
     }
 }
 
+@MainActor
 @Suite(.serialized)
 struct ChordHissMatrixTests {
 

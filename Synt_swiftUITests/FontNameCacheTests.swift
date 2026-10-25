@@ -8,6 +8,7 @@ import SwiftUI
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct FontNameCacheTests {
     @Test func repeatedFontRequestsDoNotLookUpAgain() {
         let cache = FontNameCache()

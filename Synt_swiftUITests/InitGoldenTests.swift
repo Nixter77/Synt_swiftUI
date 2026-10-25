@@ -10,6 +10,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct InitGoldenTests {
     static let golden: [String: UInt64] = [
         "Init": 0xd1b3635203a4799e,
@@ -131,7 +132,7 @@ struct InitGoldenTests {
     }
 
     /// Two notes, 8192 frames, note-off at 6000. FNV-1a over raw Float bits.
-    static func renderHash(_ preset: SynthPreset) -> UInt64 {
+    nonisolated static func renderHash(_ preset: SynthPreset) -> UInt64 {
         let engine = AudioEngine()
         engine.preset = preset
         engine.applyPresetForTesting()

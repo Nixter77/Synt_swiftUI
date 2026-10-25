@@ -10,6 +10,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct Phase6EffectsTests {
 
     @Test func distortionOversamplingDefaultsToFalseAndDecodesSafely() throws {

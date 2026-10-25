@@ -12,6 +12,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage12MacroSeedTests {
     @Test func randomSeedJSONDecoding() throws {
         // Missing randomSeed in legacy JSON

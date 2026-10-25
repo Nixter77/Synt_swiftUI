@@ -9,6 +9,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct ShowcasePresetTests {
     @Test func showcaseIsAppendedAfterLegacyLibrary() {
         let all = SynthPreset.factoryPresets

@@ -8,6 +8,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage8FormantTests {
 
     private func engine(_ mutate: (inout SynthPreset) -> Void) -> AudioEngine {

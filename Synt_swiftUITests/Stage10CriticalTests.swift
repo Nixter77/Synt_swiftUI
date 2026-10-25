@@ -14,6 +14,7 @@ import Foundation
 import Testing
 @testable import SynthCore
 
+@MainActor
 @Suite struct Stage10CriticalTests {
 
     // MARK: - R7-1: Hilbert Network Sideband Suppression

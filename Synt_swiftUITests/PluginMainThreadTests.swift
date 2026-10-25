@@ -9,6 +9,7 @@ import Foundation
 import Testing
 @testable import SynthCore
 
+@MainActor
 struct PluginMainThreadTests {
     @Test func workFromABackgroundQueueRunsOnMain() async {
         let ranOnMain: Bool = await withCheckedContinuation { done in

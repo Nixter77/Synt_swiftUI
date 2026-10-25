@@ -8,6 +8,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage7SoundTests {
 
     private func render(_ mutate: (inout SynthPreset) -> Void, samples: Int = 600) -> [Float] {

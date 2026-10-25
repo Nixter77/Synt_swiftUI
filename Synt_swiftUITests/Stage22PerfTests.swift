@@ -8,6 +8,7 @@ import Testing
 import Foundation
 @testable import SynthCore
 
+@MainActor
 @Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["SYNT_RUN_PERF"] == "1"))
 struct Stage22WavetablePerfBudget {
 

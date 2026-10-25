@@ -10,6 +10,7 @@ import Foundation
 import AudioToolbox
 @testable import SynthCore
 
+@MainActor
 @Suite struct MicrotuningAndUserPresetsTests {
 
     @Test func scalaParserParsesCommentsDescriptionAndPitches() throws {

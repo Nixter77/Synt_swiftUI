@@ -8,6 +8,7 @@ import Foundation
 import Testing
 @testable import SynthCore
 
+@MainActor
 struct EffectEnableResetTests {
     @Test func eqHistoryIsClearedOnTheFirstSampleAfterReEnable() {
         let eq = ParametricEQ()

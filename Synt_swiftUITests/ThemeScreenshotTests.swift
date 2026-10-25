@@ -8,6 +8,7 @@ import AppKit
 @testable import SynthCore
 import Testing
 
+@MainActor
 struct ThemeScreenshotTests {
 
     @Test func savedSkinsAreNonEmptyPictures() throws {

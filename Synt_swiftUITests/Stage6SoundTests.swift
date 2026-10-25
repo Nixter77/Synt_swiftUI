@@ -8,6 +8,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage6SoundTests {
 
     @Test func missingKeysLeaveFlangerAndFeedbackOff() throws {

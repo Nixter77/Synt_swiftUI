@@ -7,6 +7,7 @@ import Testing
 import Foundation
 @testable import SynthCore
 
+@MainActor
 @Suite(.serialized)
 struct Stage22Stage4Tests {
 

@@ -9,6 +9,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct ThemeNoAudioChangeTests {
 
     /// Not a proof of isolation on its own (renderHash never reads the theme);

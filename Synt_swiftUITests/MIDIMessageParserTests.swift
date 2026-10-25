@@ -10,6 +10,7 @@ import CoreMIDI
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct MIDIMessageParserTests {
 
     // MARK: - Byte stream

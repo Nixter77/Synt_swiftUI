@@ -8,6 +8,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage11SendTests {
 
     private func energy(_ preset: SynthPreset, samples: Int = 3000) -> Float {

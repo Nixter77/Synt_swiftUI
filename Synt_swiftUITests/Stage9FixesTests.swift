@@ -10,6 +10,7 @@ import Foundation
 import AVFAudio
 @testable import SynthCore
 
+@MainActor
 @Suite struct Stage9FixesTests {
 
     // R6-2: .reverbMix/.reverbRoomSize must reach the DSP reverb right away (automation and knobs in AUv3).

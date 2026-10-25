@@ -11,6 +11,7 @@ import Foundation
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 struct Stage10VisualsTests {
 
     @Test func mseg2EncodesAndDecodesCorrectly() throws {

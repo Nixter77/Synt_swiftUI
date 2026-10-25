@@ -8,6 +8,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct SampleRateTests {
 
     @Test func a4Is440HzAt44100And48000() {

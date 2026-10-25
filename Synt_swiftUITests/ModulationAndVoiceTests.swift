@@ -9,6 +9,7 @@ import Testing
 import Foundation
 @testable import SynthCore
 
+@MainActor
 @Suite struct ModulationAndVoiceTests {
 
     @Test func velocityToVolumeZeroGivesIdenticalLoudnessForDifferentVelocities() {

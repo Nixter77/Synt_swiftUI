@@ -12,6 +12,7 @@ import Testing
 /// CPU budget gate. Thread time under the parallel runner still crosses the
 /// 50% line on a loaded machine (measured about 51.7%). The limit stays 50.
 /// Opt in with SYNT_RUN_PERF=1, same as the other render benchmark.
+@MainActor
 @Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["SYNT_RUN_PERF"] == "1"))
 struct RenderBudgetTests {
 

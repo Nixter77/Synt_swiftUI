@@ -10,6 +10,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct Phase7ExpansionTests {
 
     static let peakCeiling: Float = 0.95

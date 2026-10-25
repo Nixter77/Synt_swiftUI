@@ -11,6 +11,7 @@ import Dispatch
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct PhaserControlRateTests {
 
     private func drivePhaser(

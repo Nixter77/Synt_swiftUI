@@ -10,6 +10,7 @@ import Testing
 import Foundation
 @testable import Synt_swiftUI
 
+@MainActor
 struct LiveStep1AftertouchTests {
 
     @Test func channelPressureAndPolyPressureByteParsing() {

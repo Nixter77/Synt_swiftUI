@@ -8,6 +8,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct LEDMeterTests {
     @Test func barFollowsLevelNotPeak() {
         let s = ledSegments(level: 0.1, peak: 1.0, count: 12)

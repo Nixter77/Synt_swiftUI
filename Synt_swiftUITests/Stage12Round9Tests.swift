@@ -18,6 +18,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage12Round9Tests {
     @Test func r9_1_and_r9_7_rotaryInitAndProcessZeroAlloc() {
         let rotary = DSPRotary(sampleRate: 48000)

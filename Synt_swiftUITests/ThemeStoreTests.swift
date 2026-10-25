@@ -9,6 +9,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct ThemeStoreTests {
 
     @Test func savesAndReadsTheSelectedTheme() {

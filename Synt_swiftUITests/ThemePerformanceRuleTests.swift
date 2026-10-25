@@ -7,6 +7,7 @@ import Foundation
 @testable import SynthCore
 import Testing
 
+@MainActor
 struct ThemePerformanceRuleTests {
 
     @Test func viewsStayFlatAndUseOneShadowPerChain() throws {

@@ -8,6 +8,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
+@MainActor
 struct KnobDragTests {
     @Test func dragIsLinearFromTheStartValue() {
         let r: ClosedRange<Float> = 0...1

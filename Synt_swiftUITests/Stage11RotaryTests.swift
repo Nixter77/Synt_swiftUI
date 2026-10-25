@@ -3,6 +3,7 @@ import Testing
 @testable import SynthCore
 @testable import Synt_swiftUI
 
+@MainActor
 @Suite struct Stage11RotaryTests {
     @Test func rotaryOffKeepsTheInitHashAndOldPresetsStayOff() throws {
         let decoded = try JSONDecoder().decode(SynthPreset.self, from: Data(#"{"name":"Old"}"#.utf8))

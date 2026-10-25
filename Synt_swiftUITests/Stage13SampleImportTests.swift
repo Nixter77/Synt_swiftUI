@@ -10,6 +10,7 @@ import Testing
 import Foundation
 @testable import SynthCore
 
+@MainActor
 @Suite struct Stage13SampleImportTests {
 
     // MARK: - 1. Sample Import Robustness
