@@ -128,6 +128,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// mod matrix) so two writers cannot interleave and leave render with a mixed pair.
     /// Render never takes it.
     let presetPublicationLock = Mutex(())
+    /// SYNT_27 P2-1 (full): Dekker-style gate between the one writer inside
+    /// `presetPublicationLock` and render. Render pulls the set only while no writer is
+    /// mid-publish; a writer waits out a pull already in flight. Atomics only on render.
+    let publicationWriterActive = Atomic<Bool>(false)
+    let publicationRenderPulling = Atomic<Bool>(false)
 
     public var preset: SynthPreset {
         get { _storedPreset }
@@ -380,11 +385,15 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let mseg: DSPMSEG = {
         let unit = DSPMSEG(sampleRate: 44_100)
         unit.publishEmpty()
+        unit.pullRT()
+        unit.pullsAsPublicationSet = true
         return unit
     }()
     public let mseg2: DSPMSEG = {
         let unit = DSPMSEG(sampleRate: 44_100)
         unit.publishEmpty()
+        unit.pullRT()
+        unit.pullsAsPublicationSet = true
         return unit
     }()
     public var cachedPerlinHz: Float = 1
@@ -498,7 +507,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let characterToneL = DSPCharacterTone()
     public let characterToneR = DSPCharacterTone()
     /// Read per sample on the render thread; never an array there.
-    public let rtModMatrix = RTModMatrix()
+    public let rtModMatrix: RTModMatrix = {
+        let matrix = RTModMatrix()
+        matrix.pullsAsPublicationSet = true
+        return matrix
+    }()
     /// Double-buffered preset snapshot consumed by render thread at buffer boundaries.
     public let rtPresetBuffer = RTPresetBuffer()
     public let isRenderingActive = Atomic<Bool>(false)

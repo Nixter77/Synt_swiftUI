@@ -508,6 +508,10 @@ public final class RTPresetBuffer: @unchecked Sendable {
         }
     }
 
+    /// Render thread: true when a publish is waiting.
+    @inline(__always)
+    public var hasPendingRT: Bool { (sharedSlot.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 }
+
     /// Audio thread only (single reader). Pulls the latest snapshot at buffer boundary if pending.
     @inline(__always)
     public func pullNewSnapshot() -> RTPresetSnapshot? {

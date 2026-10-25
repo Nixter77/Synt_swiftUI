@@ -143,12 +143,7 @@ public extension AudioEngine {
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP,
                                     rendersAllReverbInDSP: rendersAllReverbInDSP)
         // SYNT_27 P2-1: all four publications as one unit (see `presetPublicationLock`).
-        presetPublicationLock.withLock { _ in
-            publishMSEG(preset.mseg)
-            publishMSEG2(preset.mseg2)
-            rtModMatrix.publish(preset.modMatrix)
-            rtPresetBuffer.publish(snap)
-        }
+        publishPresetSet(preset, snapshot: snap)
         // SYNT_17 R14-1: main-side routing mirror = controller override ?? user value (last change wins).
         mpeEnabled = controllerMPEMain.adoptEnabled(preset.mpeEnabled)
         mpePitchBendRange = controllerMPEMain.adoptMemberRange(preset.mpePitchBendRange)
@@ -188,6 +183,32 @@ public extension AudioEngine {
         if switchedPatch {
             disarmCCTakeover()
             silenceForPresetChange()
+        }
+    }
+
+    /// SYNT_27 P2-1: any non-render thread. Publishes MSEG 1 → MSEG 2 → matrix → snapshot as
+    /// one set: serialized by `presetPublicationLock`, and gated so render never adopts part
+    /// of it (render keeps the previous set whole until the writer is done).
+    func publishPresetSet(_ preset: SynthPreset, snapshot: RTPresetSnapshot,
+                          midPublishForTesting: (() -> Void)? = nil) {
+        presetPublicationLock.withLock { _ in
+            publicationWriterActive.store(true, ordering: .sequentiallyConsistent)
+            while publicationRenderPulling.load(ordering: .sequentiallyConsistent) {
+                sched_yield()
+            }
+            publishMSEG(preset.mseg)
+            publishMSEG2(preset.mseg2)
+            midPublishForTesting?()
+            rtModMatrix.publish(preset.modMatrix)
+            rtPresetBuffer.publish(snapshot)
+            publicationWriterActive.store(false, ordering: .sequentiallyConsistent)
+            // Nothing can render (SYNT_20 P1-2 contract): adopt the banks here, as main
+            // already applies the snapshot itself in that state.
+            if !renderLifecycleActive.load(ordering: .sequentiallyConsistent) {
+                rtModMatrix.pullRT()
+                mseg.pullRT()
+                mseg2.pullRT()
+            }
         }
     }
 

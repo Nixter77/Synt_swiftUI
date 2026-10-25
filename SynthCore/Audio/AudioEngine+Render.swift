@@ -1552,8 +1552,22 @@ public extension AudioEngine {
         return aftertouchSmoothed
     }
 
+    /// SYNT_27 P2-1: adopts snapshot, matrix and MSEG 1/2 together or not at all. If a writer
+    /// is mid-publish, render keeps the whole previous set and retries next block.
     public func pullPresetSnapshotRT() {
-        if let snap = rtPresetBuffer.pullNewSnapshot() {
+        guard rtPresetBuffer.hasPendingRT || rtModMatrix.hasPendingRT
+            || mseg.hasPendingRT || mseg2.hasPendingRT else { return }
+        publicationRenderPulling.store(true, ordering: .sequentiallyConsistent)
+        if publicationWriterActive.load(ordering: .sequentiallyConsistent) {
+            publicationRenderPulling.store(false, ordering: .sequentiallyConsistent)
+            return
+        }
+        let snap = rtPresetBuffer.pullNewSnapshot()
+        rtModMatrix.pullRT()
+        mseg.pullRT()
+        mseg2.pullRT()
+        publicationRenderPulling.store(false, ordering: .sequentiallyConsistent)
+        if let snap {
             applyPresetDSP(snap)
         }
     }

@@ -51,10 +51,12 @@ final class Stage27AuditTests: XCTestCase {
         XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
         unit.adoptPublishHookForTesting = nil
 
-        let snap = try XCTUnwrap(unit.engine.rtPresetBuffer.pullNewSnapshot())
+        unit.engine.pullPresetSnapshotRT()
+        let volume = unit.engine.oscillator1.volume
         let (_, count) = unit.engine.rtModMatrix.snapshot()
-        let expectedCount = snap.osc1Volume == b.osc1Volume ? 3 : 1
-        XCTAssertEqual(count, expectedCount, "render holds preset \(snap.osc1Volume) with another preset's matrix")
+        let expectedCount = volume == b.osc1Volume ? 3 : 1
+        XCTAssertTrue(volume == a.osc1Volume || volume == b.osc1Volume)
+        XCTAssertEqual(count, expectedCount, "render holds preset \(volume) with another preset's matrix")
         Self.drainMain()
     }
     #endif

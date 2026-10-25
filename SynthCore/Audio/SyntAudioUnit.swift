@@ -430,15 +430,12 @@ public final class SyntAudioUnit: AUAudioUnit {
         // Same synchronous block as the matrix. `apply()` on main publishes again;
         // the buffer that runs before that hop must already see this curve.
         // SYNT_27 P2-1: one unit under the engine's publication lock (no interleaved adopts).
-        engine.presetPublicationLock.withLock { _ in
-            engine.rtPresetBuffer.publish(snap)
-            #if DEBUG
-            adoptPublishHookForTesting?()
-            #endif
-            engine.publishMSEG(preset.mseg)
-            engine.publishMSEG2(preset.mseg2)
-            engine.rtModMatrix.publish(preset.modMatrix)
-        }
+        // SYNT_27 P2-1 (full): same order and gate as `applyPreset`.
+        #if DEBUG
+        engine.publishPresetSet(preset, snapshot: snap, midPublishForTesting: adoptPublishHookForTesting)
+        #else
+        engine.publishPresetSet(preset, snapshot: snap)
+        #endif
 
         let apply: () -> Void = { [weak self] in
             guard let self else { return }

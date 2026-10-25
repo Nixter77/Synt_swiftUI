@@ -116,14 +116,28 @@ public final class RTModMatrix: @unchecked Sendable {
         }
     }
 
-    /// Render thread (single reader). Adopts the newest bank, if any. The returned slots (and
-    /// their `tableBank`) stay valid until render's next call.
+    /// SYNT_27 P2-1: when true (the engine's matrix), `snapshot()` never swaps on its own;
+    /// render adopts a new bank only through `pullRT()`, with the rest of the preset set.
+    public var pullsAsPublicationSet = false
+
+    /// Render thread: true when a publish is waiting.
     @inline(__always)
-    public func snapshot() -> (UnsafeMutablePointer<RTModSlot>, Int) {
+    public var hasPendingRT: Bool { (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 }
+
+    /// Render thread: adopt the newest published bank, if any.
+    @inline(__always)
+    public func pullRT() {
         if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
             let previous = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
             readBank = previous & 0x03
         }
+    }
+
+    /// Render thread (single reader). Adopts the newest bank, if any. The returned slots (and
+    /// their `tableBank`) stay valid until render's next call.
+    @inline(__always)
+    public func snapshot() -> (UnsafeMutablePointer<RTModSlot>, Int) {
+        if !pullsAsPublicationSet { pullRT() }
         return (buffers + readBank * Self.capacity, counts[readBank])
     }
 

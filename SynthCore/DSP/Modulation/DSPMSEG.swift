@@ -224,10 +224,7 @@ public final class DSPMSEG {
         self.model = model
         self.sampleRate = max(1.0, sampleRate)
         publish(model)
-        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
-            let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
-            readBank = previousShared & 0x03
-        }
+        if !pullsAsPublicationSet { pullRT() }
         currentValue = sample(0, bank: readBank)
     }
 
@@ -328,13 +325,28 @@ public final class DSPMSEG {
         isSustaining = false
     }
 
-    /// Real-time sample. Reads the reader's bank, exchanging with sharedBank if a new publish arrived.
+    /// SYNT_27 P2-1: when true (the engine's MSEG 1/2), reads never swap banks on their own;
+    /// render adopts a new bank only through `pullRT()`, together with the rest of the preset
+    /// set. Set once before render starts.
+    public var pullsAsPublicationSet = false
+
+    /// Render thread: true when a publish is waiting.
     @inline(__always)
-    public func tick(gate: Bool = true, bpm: Double = 120.0) -> Float {
+    public var hasPendingRT: Bool { (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 }
+
+    /// Render thread: adopt the newest published bank, if any.
+    @inline(__always)
+    public func pullRT() {
         if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
             let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
             readBank = previousShared & 0x03
         }
+    }
+
+    /// Real-time sample. Reads the reader's bank, exchanging with sharedBank if a new publish arrived.
+    @inline(__always)
+    public func tick(gate: Bool = true, bpm: Double = 120.0) -> Float {
+        if !pullsAsPublicationSet { pullRT() }
         return sampleTick(gate: gate, bpm: bpm, bank: readBank)
     }
 
@@ -397,10 +409,7 @@ public final class DSPMSEG {
 
     @inline(__always)
     public func evaluate(at t: Float) -> Float {
-        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
-            let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
-            readBank = previousShared & 0x03
-        }
+        if !pullsAsPublicationSet { pullRT() }
         return evaluate(at: t, bank: readBank)
     }
 
@@ -437,10 +446,7 @@ public final class DSPMSEG {
 
     @inline(__always)
     private func currentMeta() -> PublishedBank {
-        if (sharedBank.load(ordering: .acquiring) & Self.hasNewDataFlag) != 0 {
-            let previousShared = sharedBank.exchange(readBank, ordering: .acquiringAndReleasing)
-            readBank = previousShared & 0x03
-        }
+        if !pullsAsPublicationSet { pullRT() }
         return meta(at: readBank)
     }
 
