@@ -143,8 +143,11 @@ public final class SyntAudioUnit: AUAudioUnit {
         [0, 2]
     }
 
-    public override var tailTime: TimeInterval {
-        let preset = engine.preset
+    /// SYNT_26 P2-4: hosts call this from any thread — read the lock-protected snapshot,
+    /// never main-owned `engine.preset`.
+    public override var tailTime: TimeInterval { Self.tailTime(for: wholePresetSnapshot()) }
+
+    static func tailTime(for preset: SynthPreset) -> TimeInterval {
         var tail: Double = Double(preset.release)
         if preset.delayMix > 0.001 {
             let feedback = Double(min(0.95, max(0.0, preset.delayFeedback)))
@@ -242,7 +245,7 @@ public final class SyntAudioUnit: AUAudioUnit {
     }
 
     public override func saveUserPreset(_ userPreset: AUAudioUnitPreset) throws {
-        var presetToSave = engine.preset
+        var presetToSave = wholePresetSnapshot()  // SYNT_26 P2-4: any thread
         presetToSave.name = userPreset.name
         PresetManager.shared.saveUserPreset(presetToSave)
     }
@@ -266,11 +269,14 @@ public final class SyntAudioUnit: AUAudioUnit {
 
     public override var currentPreset: AUAudioUnitPreset? {
         get {
-            if let index = PresetBrowser.index(of: engine.preset),
+            // SYNT_26 P2-4: any thread — never main-owned `engine.preset`. The whole-preset
+            // mirror (not the store-merged snapshot), so automation does not unmatch the preset.
+            let preset = wholePresetSnapshot()
+            if let index = PresetBrowser.index(of: preset),
                Self.factoryPresetList.indices.contains(index) {
                 return Self.factoryPresetList[index]
             }
-            if let userMatch = userPresets.first(where: { $0.name == engine.preset.name }) {
+            if let userMatch = userPresets.first(where: { $0.name == preset.name }) {
                 return userMatch
             }
             return nil
@@ -343,6 +349,17 @@ public final class SyntAudioUnit: AUAudioUnit {
     #if DEBUG
     static var factoryPresetsForTesting: [AUAudioUnitPreset] { factoryPresetList }
     #endif
+
+    /// SYNT_26 P2-4: whole preset readable from any thread — `engine.preset` only on main and
+    /// only when no off-main adopt is pending, else the lock-protected mirror. No store merge.
+    private func wholePresetSnapshot() -> SynthPreset {
+        if Thread.isMainThread {
+            adoptedPresetLock.lock(); defer { adoptedPresetLock.unlock() }
+            return adoptGenerationApplied == adoptGenerationLatest ? engine.preset : (adoptedPresetMirror ?? engine.preset)
+        }
+        adoptedPresetLock.lock(); defer { adoptedPresetLock.unlock() }
+        return adoptedPresetMirror ?? engine.preset
+    }
 
     func presetSnapshot() -> SynthPreset {
         // SYNT_23 R14-9: off main, `engine.preset` is main-owned (racy) and lags a whole-preset

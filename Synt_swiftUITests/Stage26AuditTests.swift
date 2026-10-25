@@ -170,4 +170,27 @@ final class Stage26AuditTests: XCTestCase {
         Self.drainMain()
         XCTAssertEqual(param.value, automated, accuracy: 0.5, "hop rolled host automation back")
     }
+
+    // MARK: P2-4 — host-thread getters do not read main-owned engine.preset.
+
+    func testP2_4_OffMainGettersSeeAdoptBeforeHop() throws {
+        let unit = try SyntAudioUnit(componentDescription: Self.desc)
+        let initialTail = unit.tailTime
+        let list = PresetBrowser.list
+        let idx = try XCTUnwrap(list.indices.dropFirst().first { SyntAudioUnit.tailTime(for: list[$0]) != initialTail })
+        let target = SyntAudioUnit.factoryPresetsForTesting[idx]
+        nonisolated(unsafe) var tail: TimeInterval = 0
+        nonisolated(unsafe) var current: Int?
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            unit.currentPreset = target                  // hop cannot run: main is blocked below
+            tail = unit.tailTime
+            current = unit.currentPreset?.number
+            done.signal()
+        }
+        done.wait()                                       // block main: engine.preset still old
+        XCTAssertEqual(tail, SyntAudioUnit.tailTime(for: list[idx]), accuracy: 1e-9)
+        XCTAssertEqual(current, idx)
+        Self.drainMain()
+    }
 }
