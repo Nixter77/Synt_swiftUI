@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage19Stage2Tests.swift
 //  SYNT_19 Stage 2: R16-1 — a retired user table is released (on main) only after render
@@ -72,3 +73,5 @@ final class Stage19Stage2Tests: XCTestCase {
         XCTAssertNil(weakA)
     }
 }
+
+#endif

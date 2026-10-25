@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage18Stage2Tests.swift
 //  SYNT_18 Stage 2: R15-1 — table switches that run on render (applyPresetDSP via
@@ -81,3 +82,5 @@ final class Stage18Stage2Tests: XCTestCase {
         XCTAssertTrue(osc.activeCompiled === user)
     }
 }
+
+#endif

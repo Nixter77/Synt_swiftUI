@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage26AuditTests.swift
 //  SYNT_26: nightly audit SYNT25 fixes. Every test fails (or traps) on eabdaee.
@@ -210,3 +211,5 @@ final class Stage26AuditTests: XCTestCase {
         XCTAssertEqual(engine.preset.fxOrder, SynthPreset.sanitizeFXOrder(order))
     }
 }
+
+#endif

@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage27AuditTests.swift
 //  Synt_swiftUITests
@@ -98,3 +99,5 @@ final class Stage27AuditTests: XCTestCase {
         XCTAssertEqual(engine.preset.fxOrder, SynthPreset.sanitizeFXOrder(order))
     }
 }
+
+#endif

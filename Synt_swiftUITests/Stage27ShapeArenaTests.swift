@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 import XCTest
 import Darwin
 @testable import SynthCore
@@ -23,3 +24,5 @@ final class Stage27ShapeArenaTests: XCTestCase {
         XCTAssertEqual(q.pointee.data[79_999], 1, "normalised to peak 1")
     }
 }
+
+#endif

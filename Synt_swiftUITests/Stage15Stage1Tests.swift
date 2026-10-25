@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage15Stage1Tests.swift
 //  SYNT_15 Stage 1: R12-1 (RPN/MCM on render thread must not touch preset/applyPreset),
@@ -102,3 +103,5 @@ final class Stage15Stage1Tests: XCTestCase {
         }
     }
 }
+
+#endif

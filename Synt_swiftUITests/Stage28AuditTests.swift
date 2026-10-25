@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage28AuditTests.swift
 //  Synt_swiftUITests
@@ -82,3 +83,5 @@ final class Stage28AuditTests: XCTestCase {
     }
     #endif
 }
+
+#endif

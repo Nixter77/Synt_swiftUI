@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  LiveStep2CCAndTemplateTests.swift
 //  Synt_swiftUITests
@@ -196,3 +197,5 @@ struct LiveStep2CCAndTemplateTests {
         MIDICCLearnStore.shared.clearMappings()
     }
 }
+
+#endif

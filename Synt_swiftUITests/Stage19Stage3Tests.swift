@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage19Stage3Tests.swift
 //  SYNT_19 Stage 3: R16-2 — setSampleRate adopts a render-side table switch first;
@@ -78,3 +79,5 @@ final class Stage19Stage3Tests: XCTestCase {
         XCTAssertTrue(box.mainOnly)
     }
 }
+
+#endif

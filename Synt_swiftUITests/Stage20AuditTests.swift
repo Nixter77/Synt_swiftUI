@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage20AuditTests.swift
 //  SYNT_20: nightly audit SYNT_14..19 fixes. Every test fails on 42b418c.
@@ -197,3 +198,5 @@ final class Stage20AuditTests: XCTestCase {
         XCTAssertFalse(standalone.cachedDSPReverb, "standalone default unchanged")
     }
 }
+
+#endif

@@ -1,3 +1,4 @@
+#if DEBUG // SYNT_28: uses DEBUG-only test hooks; excluded from Release test builds
 //
 //  Stage23Stage12Tests.swift
 //  SYNT_23 Stage 1 (R14-9) and Stage 2 (R14-10).
@@ -151,3 +152,5 @@ struct Stage23Stage12Tests {
         #endif
     }
 }
+
+#endif
