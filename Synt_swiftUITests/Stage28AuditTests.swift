@@ -56,5 +56,29 @@ final class Stage28AuditTests: XCTestCase {
         XCTAssertTrue(engine.mseg.hasPoints)
         Stage27AuditTests.drainMain()
     }
+
+    // MARK: P2-2 — host automation during a tree refresh is not dropped.
+
+    func testP2_2_BackgroundSetValueDuringRefreshIsKept() throws {
+        let unit = try SyntAudioUnit(componentDescription: Self.desc)
+        Stage27AuditTests.drainMain()
+        let tree = try XCTUnwrap(unit.parameterTree)
+        let address = SynthParameterAddress.filterCutoff
+        let param = try XCTUnwrap(tree.parameter(withAddress: address.rawValue))
+        let target = address.clamped(param.minValue + (param.maxValue - param.minValue) * 0.37)
+        XCTAssertNotEqual(unit.parameters.value(address.rawValue), target)
+
+        let fired = Atomic<Bool>(false)
+        unit.refreshLoopHookForTesting = { _ in
+            guard !fired.exchange(true, ordering: .relaxed) else { return }
+            let done = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async { param.value = target; done.signal() }
+            done.wait()
+        }
+        unit.refreshParameterTreeFromStoreForTesting()
+        unit.refreshLoopHookForTesting = nil
+        XCTAssertEqual(unit.parameters.value(address.rawValue), target, "host automation lost during refresh")
+        Stage27AuditTests.drainMain()
+    }
     #endif
 }

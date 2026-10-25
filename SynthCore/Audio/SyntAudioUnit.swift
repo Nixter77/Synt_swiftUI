@@ -33,7 +33,10 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// Everything the render block touches. The block captures this, never `self`.
     private let renderContext: SyntRenderContext
     /// Set while the tree is being copied from the engine, so the observer does not apply twice.
-    private let suppressParameterObserver = Atomic<Bool>(false)
+    /// SYNT_27 P2-2: originator token for the unit's own tree writes. Holds the thread id of
+    /// the thread mirroring store → tree (0 = none). Only that thread's echoes are dropped;
+    /// host automation from any other thread during a refresh still reaches the store.
+    private let treeMirrorThread = Atomic<UInt64>(0)
     private static let stateVersionKey = "syntStateVersion"
     static let stateVersion = 1
     public static let statePresetKey = "syntPreset"
@@ -477,8 +480,10 @@ public final class SyntAudioUnit: AUAudioUnit {
         let tree = SyntParameterTree.make()
         let store = parameters
         tree.implementorValueObserver = { [weak self] parameter, value in
-            guard let self, !self.suppressParameterObserver.load(ordering: .acquiring),
-                  let address = SynthParameterAddress(rawValue: parameter.address) else { return }
+            guard let self, let address = SynthParameterAddress(rawValue: parameter.address) else { return }
+            // Own echo: the mirroring thread writing back what the store already holds.
+            if self.treeMirrorThread.load(ordering: .acquiring) == Self.currentThreadID,
+               store.value(parameter.address) == address.clamped(value) { return }
             // Any thread: the store is the only DSP writer path (render drains it).
             store.set(parameter.address, address.clamped(value))
             // The preset copy is display-only and lives on main.
@@ -500,22 +505,37 @@ public final class SyntAudioUnit: AUAudioUnit {
     /// Tree mirrors the store without rewriting it from `engine.preset`.
     private func refreshParameterTreeFromStore() {
         guard let tree = parameterTree else { return }
-        suppressParameterObserver.store(true, ordering: .releasing)
+        treeMirrorThread.store(Self.currentThreadID, ordering: .releasing)
+        defer { treeMirrorThread.store(0, ordering: .releasing) }
         for address in SynthParameterAddress.allCases {
             tree.parameter(withAddress: address.rawValue)?.value = parameters.value(address.rawValue)
+            #if DEBUG
+            refreshLoopHookForTesting?(address)
+            #endif
         }
-        suppressParameterObserver.store(false, ordering: .releasing)
     }
+
+    private static var currentThreadID: UInt64 {
+        var tid: UInt64 = 0
+        pthread_threadid_np(nil, &tid)
+        return tid
+    }
+
+    #if DEBUG
+    /// SYNT_27 P2-2 test seam: runs inside the refresh loop after each address.
+    nonisolated(unsafe) var refreshLoopHookForTesting: ((SynthParameterAddress) -> Void)?
+    func refreshParameterTreeFromStoreForTesting() { refreshParameterTreeFromStore() }
+    #endif
 
     private func syncParameterTreeFromEngine() {
         guard let tree = parameterTree else { return }
-        suppressParameterObserver.store(true, ordering: .releasing)
+        treeMirrorThread.store(Self.currentThreadID, ordering: .releasing)
+        defer { treeMirrorThread.store(0, ordering: .releasing) }
         for address in SynthParameterAddress.allCases {
             parameters.set(address.rawValue, engine.preset.parameterValue(for: address))
             guard let parameter = tree.parameter(withAddress: address.rawValue) else { continue }
             parameter.value = parameters.value(address.rawValue)
         }
-        suppressParameterObserver.store(false, ordering: .releasing)
     }
 }
 
