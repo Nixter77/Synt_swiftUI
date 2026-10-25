@@ -27,13 +27,13 @@ public extension AudioEngine {
         #if DEBUG
         // SYNT_24 R20-3: applyPreset is main-only. Count and log before the hard check so the
         // log names the culprit even when the precondition traps.
-        if !Thread.isMainThread {
+        if !Thread.isMainThread && !isConstructing {
             applyPresetOffMainCountForTesting += 1
             NSLog("AudioEngine.applyPreset called off the main thread")
         }
-        // Hard trap is opt-in: ~600 existing non-@MainActor Swift Testing tests drive applyPreset
-        // from cooperative threads (SYNT_24 measured), so a default-on precondition kills the runner.
-        if Self.strictMainThreadApplyPreset {
+        // Hard trap is on by default in DEBUG (SYNT_25). Construction is exempt: the engine is
+        // not shared yet, and AU hosts build the unit off main (SYNT_26 R22-1).
+        if Self.strictMainThreadApplyPreset && !isConstructing {
             dispatchPrecondition(condition: .onQueue(.main))
         }
         #endif

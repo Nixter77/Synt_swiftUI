@@ -94,6 +94,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     @Published public var isPlaying = false
     /// SYNT_23 R14-10: re-entrancy guard for `applyPreset` (main thread only).
     var applyPresetInProgress = false
+    /// SYNT_26 R22-1: true only inside `init`. The engine is not yet published to any other
+    /// thread, so the initial apply may run on whatever thread builds it (AU hosts: XPC queue).
+    var isConstructing = false
     var applyPresetRerunPending = false
     /// SYNT_24 R20-2: max applyPreset passes per outer call (1 + 3 coalesced reruns).
     static let applyPresetMaxPasses = 4
@@ -108,7 +111,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var applyPresetCapAssertEnabled = true
     /// R20-2: invoked at the start of every pass (test-only re-entry source).
     public var applyPresetPassHookForTesting: (() -> Void)?
-    /// R20-3: opt-in hard main-thread check for applyPreset (off by default; see applyPreset).
+    /// R20-3: hard main-thread check for applyPreset — on by default in DEBUG (SYNT_25).
+    /// Skipped while the engine is still being constructed (SYNT_26 R22-1).
     nonisolated(unsafe) public static var strictMainThreadApplyPreset = true
     #endif
 
@@ -639,7 +643,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     /// `coreOnly`: DSP core for the Audio Unit. No device graph, no audio
     /// session, no 30 Hz main poll, no shared MIDI CC store.
-    public init(coreOnly: Bool = false) {
+    /// `audioUnitHosted`: set the AU flags (host transport, delay/reverb always in DSP) before
+    /// the initial apply, so the AU needs no second apply after construction.
+    public init(coreOnly: Bool = false, audioUnitHosted: Bool = false) {
         for i in 0..<128 { (rtCCMap + i).initialize(to: Atomic<Int16>(-1)) }
         for i in 0..<128 { (ccLastRaw + i).initialize(to: Atomic<UInt8>(255)) }
         midiClockIntervals.initialize(repeating: 0, count: 24)
@@ -675,7 +681,14 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
             setupAudioSession()
             setupAudioEngine()
         }
+        if audioUnitHosted {
+            usesHostTransport = true
+            rendersAllDelayInDSP = true
+            rendersAllReverbInDSP = true  // SYNT_20 P2-8
+        }
+        isConstructing = true
         applyPreset()
+        isConstructing = false
         _ = rtPresetBuffer.pullNewSnapshot()
         guard !coreOnly else { return }
         startMeteringPoll()

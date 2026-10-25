@@ -43,7 +43,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
         outputBus = try AUAudioUnitBus(format: format)
         outputBus.maximumChannelCount = 2
-        let core = AudioEngine(coreOnly: true)
+        let core = AudioEngine(coreOnly: true, audioUnitHosted: true)
         engine = core
         let store = AddressedParameterStore()
         parameters = store
@@ -52,10 +52,8 @@ public final class SyntAudioUnit: AUAudioUnit {
         outputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outputBus])
         inputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .input, busses: [])
         maximumFramesToRender = 512
-        engine.usesHostTransport = true
-        engine.rendersAllDelayInDSP = true
-        engine.rendersAllReverbInDSP = true  // SYNT_20 P2-8
-        engine.applyPreset()
+        // SYNT_26 R22-1: the AU flags and the one initial apply happen inside the engine's init
+        // (construction-exempt from the strict main check); no second apply here.
         installParameterTree()
         startProgramChangePoll()
     }
