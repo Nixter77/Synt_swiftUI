@@ -11,7 +11,7 @@
 
 import Foundation
 
-public enum PhaserMode: String, CaseIterable, Codable {
+public enum PhaserMode: String, CaseIterable, Codable, Sendable {
     case phaser2 = "Phaser 2"
     case phaser4 = "Phaser 4"
     case phaser6 = "Phaser 6"

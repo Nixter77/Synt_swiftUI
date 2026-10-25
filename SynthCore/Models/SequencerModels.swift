@@ -5,7 +5,7 @@
 
 import Foundation
 
-public enum ArpeggiatorMode: String, CaseIterable, Codable {
+public enum ArpeggiatorMode: String, CaseIterable, Codable, Sendable {
     case off = "Off"
     case up = "Up"
     case down = "Down"
@@ -14,7 +14,7 @@ public enum ArpeggiatorMode: String, CaseIterable, Codable {
     case asPlayed = "As Played"
 }
 
-public enum TimeDivision: String, CaseIterable, Codable {
+public enum TimeDivision: String, CaseIterable, Codable, Sendable {
     case whole = "1/1"
     case half = "1/2"
     case quarter = "1/4"

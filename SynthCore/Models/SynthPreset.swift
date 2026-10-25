@@ -8,7 +8,7 @@
 import Foundation
 
 /// Where the arp, sequencer and tempo-synced clocks take their tempo.
-public enum SyncSource: String, Codable, CaseIterable, Equatable {
+public enum SyncSource: String, Codable, CaseIterable, Equatable, Sendable {
     case `internal`
     case midiClock
 }
@@ -965,7 +965,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     }
 }
 
-public enum VoiceMode: String, CaseIterable, Codable {
+public enum VoiceMode: String, CaseIterable, Codable, Sendable {
     case poly = "Poly"
     case mono = "Mono"
     case legato = "Legato"
@@ -980,13 +980,13 @@ public enum OscPhaseMode: String, CaseIterable, Codable, Sendable {
     case randomPerNote = "Random Per Note"
 }
 
-public enum NoiseColor: String, CaseIterable, Codable {
+public enum NoiseColor: String, CaseIterable, Codable, Sendable {
     case white = "White"
     case pink = "Pink"
     case brown = "Brown"
 }
 
-public enum ChordMode: String, CaseIterable, Codable {
+public enum ChordMode: String, CaseIterable, Codable, Sendable {
     case off = "Off"
     case octave = "Octave"
     case fifth = "Fifth"
@@ -1016,7 +1016,7 @@ public enum ChordMode: String, CaseIterable, Codable {
     }
 }
 
-public enum FilterType: String, CaseIterable, Codable {
+public enum FilterType: String, CaseIterable, Codable, Sendable {
     case lowPass = "Low Pass"
     case highPass = "High Pass"
     case bandPass = "Band Pass"
@@ -1028,7 +1028,7 @@ public enum FilterType: String, CaseIterable, Codable {
     case comb = "Comb"
 }
 
-public enum LFOTarget: String, CaseIterable, Codable {
+public enum LFOTarget: String, CaseIterable, Codable, Sendable {
     case pitch = "Pitch"
     case filter = "Filter"
     case amplitude = "Amplitude"

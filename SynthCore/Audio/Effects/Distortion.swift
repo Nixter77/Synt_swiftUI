@@ -11,7 +11,7 @@
 
 import Foundation
 
-public enum DistortionType: String, CaseIterable, Codable {
+public enum DistortionType: String, CaseIterable, Codable, Sendable {
     case softClip = "Soft Clip"
     case hardClip = "Hard Clip"
     case tubeSaturation = "Tube"

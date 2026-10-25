@@ -11,7 +11,7 @@ import Foundation
 @MainActor
 public final class PatchHistoryManager: ObservableObject {
     public static let shared = PatchHistoryManager()
-    public static let defaultMaxSteps = 64
+    nonisolated public static let defaultMaxSteps = 64
 
     public enum Slot: String, Sendable, CaseIterable {
         case a = "A"

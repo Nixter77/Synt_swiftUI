@@ -5,7 +5,7 @@
 
 import Foundation
 
-public enum WaveformType: String, CaseIterable, Codable {
+public enum WaveformType: String, CaseIterable, Codable, Sendable {
     case sine = "Sine"
     case sawtooth = "Sawtooth"
     case square = "Square"
