@@ -125,4 +125,49 @@ final class Stage26AuditTests: XCTestCase {
         group.wait()
         XCTAssertEqual(torn.load(ordering: .relaxed), 0, "render saw a bank being rewritten")
     }
+
+    // MARK: P2-3 / P2-5 — adopt hop: only the newest applies; host automation survives it.
+
+    static func drainMain() {
+        let done = XCTestExpectation(description: "main drained")
+        DispatchQueue.main.async { done.fulfill() }
+        _ = XCTWaiter.wait(for: [done], timeout: 5)
+    }
+
+    func testP2_3_OlderHopDoesNotApplyBeforeNewest() throws {
+        let unit = try SyntAudioUnit(componentDescription: Self.desc)
+        let presets = SyntAudioUnit.factoryPresetsForTesting
+        XCTAssertGreaterThan(presets.count, 2)
+        let initialName = unit.engine.preset.name
+        let (a, b) = (presets[1], presets[2])
+        XCTAssertNotEqual(a.name, initialName)
+        nonisolated(unsafe) var seenBetween = ""
+        let queued = expectation(description: "queued")
+        DispatchQueue.global().async {
+            unit.currentPreset = a                       // hop A queued
+            DispatchQueue.main.async { seenBetween = unit.engine.preset.name }
+            unit.currentPreset = b                       // hop B queued
+            queued.fulfill()
+        }
+        wait(for: [queued], timeout: 5)
+        Self.drainMain()
+        XCTAssertNotEqual(seenBetween, PresetBrowser.list[a.number].name, "stale hop A applied before B")
+        XCTAssertEqual(unit.engine.preset.name, PresetBrowser.list[b.number].name)
+    }
+
+    func testP2_5_HopKeepsHostAutomationFromAfterAdopt() throws {
+        let unit = try SyntAudioUnit(componentDescription: Self.desc)
+        let target = SyntAudioUnit.factoryPresetsForTesting[1]
+        let param = try XCTUnwrap(unit.parameterTree?.parameter(withAddress: SynthParameterAddress.filterCutoff.rawValue))
+        let automated: AUValue = PresetBrowser.list[target.number].filterCutoff > 3000 ? 1200 : 6000
+        let queued = expectation(description: "queued")
+        DispatchQueue.global().async {
+            unit.currentPreset = target                  // store <- preset; hop queued
+            param.setValue(automated, originator: nil)   // host automation, before the hop
+            queued.fulfill()
+        }
+        wait(for: [queued], timeout: 5)
+        Self.drainMain()
+        XCTAssertEqual(param.value, automated, accuracy: 0.5, "hop rolled host automation back")
+    }
 }

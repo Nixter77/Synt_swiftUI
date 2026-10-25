@@ -340,6 +340,10 @@ public final class SyntAudioUnit: AUAudioUnit {
     }
 
     /// The engine preset with every addressed value taken from the store.
+    #if DEBUG
+    static var factoryPresetsForTesting: [AUAudioUnitPreset] { factoryPresetList }
+    #endif
+
     func presetSnapshot() -> SynthPreset {
         // SYNT_23 R14-9: off main, `engine.preset` is main-owned (racy) and lags a whole-preset
         // adopt by the main hop. Use the lock-protected mirror adoptPreset writes synchronously.
@@ -400,14 +404,17 @@ public final class SyntAudioUnit: AUAudioUnit {
 
         let apply: () -> Void = { [weak self] in
             guard let self else { return }
-            // R20-1: a newer adopt already applied (e.g. a main adopt overtook this hop) → stale.
+            // R20-1 / SYNT_26 P2-3: only the newest adopt applies. An older hop that runs first
+            // would publish its (older) preset to render and roll the UI back for one main cycle.
             self.adoptedPresetLock.lock()
-            let stale = generation < self.adoptGenerationApplied
-            if !stale { self.adoptGenerationApplied = generation }
+            if generation > self.adoptGenerationApplied { self.adoptGenerationApplied = generation }
+            let stale = generation != self.adoptGenerationLatest
             self.adoptedPresetLock.unlock()
             if stale { return }
             self.engine.preset = preset
-            self.syncParameterTreeFromEngine()
+            // SYNT_26 P2-5: the store already holds this preset (written in adoptPreset) plus any
+            // host automation that arrived since — mirror it, never rewrite it from engine.preset.
+            self.refreshParameterTreeFromStore()
             if notify {
                 NotificationCenter.default.post(name: Self.stateDidChangeNotification, object: self)
             }
