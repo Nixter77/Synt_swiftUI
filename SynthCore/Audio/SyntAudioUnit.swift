@@ -399,6 +399,12 @@ public final class SyntAudioUnit: AUAudioUnit {
     private var adoptGenerationLatest: UInt64 = 0
     private var adoptGenerationApplied: UInt64 = 0
 
+    #if DEBUG
+    /// SYNT_27 P2-1: runs inside adoptPreset between the snapshot and the matrix publish.
+    nonisolated(unsafe) var adoptPublishHookForTesting: (() -> Void)?
+    func adoptPresetForTesting(_ preset: SynthPreset) { adoptPreset(preset, notify: false) }
+    #endif
+
     private func adoptPreset(_ preset: SynthPreset, notify: Bool = true) {
         adoptedPresetLock.lock()
         adoptedPresetMirror = preset
@@ -412,12 +418,18 @@ public final class SyntAudioUnit: AUAudioUnit {
         // before returning so the very first audio buffer receives the new preset immediately!
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: engine.rendersAllDelayInDSP,
                                     rendersAllReverbInDSP: engine.rendersAllReverbInDSP)
-        engine.rtPresetBuffer.publish(snap)
         // Same synchronous block as the matrix. `apply()` on main publishes again;
         // the buffer that runs before that hop must already see this curve.
-        engine.publishMSEG(preset.mseg)
-        engine.publishMSEG2(preset.mseg2)
-        engine.rtModMatrix.publish(preset.modMatrix)
+        // SYNT_27 P2-1: one unit under the engine's publication lock (no interleaved adopts).
+        engine.presetPublicationLock.withLock { _ in
+            engine.rtPresetBuffer.publish(snap)
+            #if DEBUG
+            adoptPublishHookForTesting?()
+            #endif
+            engine.publishMSEG(preset.mseg)
+            engine.publishMSEG2(preset.mseg2)
+            engine.rtModMatrix.publish(preset.modMatrix)
+        }
 
         let apply: () -> Void = { [weak self] in
             guard let self else { return }

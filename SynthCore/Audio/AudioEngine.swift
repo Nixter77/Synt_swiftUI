@@ -92,11 +92,13 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let sceneHPF = SceneHPF()
 
     @Published public var isPlaying = false
-    /// SYNT_23 R14-10: re-entrancy guard for `applyPreset` (main thread only).
+    /// SYNT_23 R14-10: re-entrancy guard for `applyPreset`. Main thread only (plain var by design).
     var applyPresetInProgress = false
     /// SYNT_26 R22-1: true only inside `init`. The engine is not yet published to any other
     /// thread, so the initial apply may run on whatever thread builds it (AU hosts: XPC queue).
+    /// Init-only: written before `self` escapes, never touched afterwards off the init thread.
     var isConstructing = false
+    /// Main thread only, like `applyPresetInProgress`.
     var applyPresetRerunPending = false
     /// SYNT_24 R20-2: max applyPreset passes per outer call (1 + 3 coalesced reruns).
     static let applyPresetMaxPasses = 4
@@ -117,6 +119,10 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     #endif
 
     @Published private var _storedPreset: SynthPreset = .defaultPreset
+    /// SYNT_27 P2-1: serializes the whole set of render publications (preset snapshot, MSEG 1/2,
+    /// mod matrix) so two writers cannot interleave and leave render with a mixed pair.
+    /// Render never takes it.
+    let presetPublicationLock = Mutex(())
 
     public var preset: SynthPreset {
         get { _storedPreset }

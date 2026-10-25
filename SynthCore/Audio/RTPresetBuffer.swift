@@ -2,9 +2,10 @@
 //  RTPresetBuffer.swift
 //  SynthCore
 //
-//  Lock-free double-buffered preset snapshot for real-time audio thread.
-//  Main/host thread publishes a snapshot; render thread pulls at buffer boundary.
-//  Zero ARC, zero allocations on the audio path.
+//  Triple-buffered preset snapshot for the real-time audio thread.
+//  Writers (main / host thread) are serialized by a writer lock that render never takes;
+//  render pulls at the buffer boundary with atomics only. Zero ARC, zero allocations,
+//  no locks on the audio path.
 //
 
 import Foundation

@@ -140,17 +140,20 @@ public extension AudioEngine {
         }
         // Bank first, then the row that reads it. A buffer must not see `.mseg`
         // against the previous curve.
-        publishMSEG(preset.mseg)
-        publishMSEG2(preset.mseg2)
-        rtModMatrix.publish(preset.modMatrix)
         let snap = RTPresetSnapshot(from: preset, rendersAllDelayInDSP: rendersAllDelayInDSP,
                                     rendersAllReverbInDSP: rendersAllReverbInDSP)
+        // SYNT_27 P2-1: all four publications as one unit (see `presetPublicationLock`).
+        presetPublicationLock.withLock { _ in
+            publishMSEG(preset.mseg)
+            publishMSEG2(preset.mseg2)
+            rtModMatrix.publish(preset.modMatrix)
+            rtPresetBuffer.publish(snap)
+        }
         // SYNT_17 R14-1: main-side routing mirror = controller override ?? user value (last change wins).
         mpeEnabled = controllerMPEMain.adoptEnabled(preset.mpeEnabled)
         mpePitchBendRange = controllerMPEMain.adoptMemberRange(preset.mpePitchBendRange)
         mpeZone = controllerMPEMain.adoptZone(preset.mpeZone)
         mpeMemberChannelCount = controllerMPEMain.adoptMemberCount(preset.mpeMemberChannelCount)
-        rtPresetBuffer.publish(snap)
         // SYNT_20 P1-2: render applies the snapshot whenever render can run (no TOCTOU on
         // "inside a callback"); main applies it only when nothing can render.
         if !renderLifecycleActive.load(ordering: .sequentiallyConsistent) {
