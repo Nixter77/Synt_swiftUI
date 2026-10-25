@@ -8,7 +8,7 @@ import Foundation
 public extension SynthPreset {
     /// Filter 2, formant, and MSEG. Counted inside `libraryPresets` so the
     /// showcase slice stays `count - libraryCount - 20`.
-    public static let stage8Presets: [SynthPreset] = [
+    static let stage8Presets: [SynthPreset] = [
         serialGlassBass,
         vowelAhLead,
         msegDrift

@@ -27,7 +27,7 @@ import Foundation
 
 public extension SynthPreset {
     /// Full factory library grouped by category.
-    public static let factoryPresets: [SynthPreset] = (bassPresets
+    static let factoryPresets: [SynthPreset] = (bassPresets
         + leadPresets
         + padPresets
         + keysPresets

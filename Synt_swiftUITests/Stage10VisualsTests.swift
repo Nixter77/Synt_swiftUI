@@ -39,7 +39,7 @@ struct Stage10VisualsTests {
 
     @Test func oldPresetWithoutMSEG2DecodesWithDefault() throws {
         // Construct JSON without mseg2 field
-        var preset = SynthPreset.defaultPreset
+        let preset = SynthPreset.defaultPreset
         let data = try JSONEncoder().encode(preset)
         var dict = try JSONSerialization.jsonObject(with: data) as! [String: Any]
         dict.removeValue(forKey: "mseg2")

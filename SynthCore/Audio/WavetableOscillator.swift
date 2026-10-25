@@ -236,7 +236,7 @@ public struct Wavetable {
             var frame = [Float](repeating: 0, count: Int(sCount))
             frame.withUnsafeMutableBufferPointer { ptr in
                 if let base = ptr.baseAddress {
-                    _ = uncompressedData.copyBytes(to: UnsafeMutableBufferPointer(start: base, count: Int(sCount)), from: offset..<(offset + Int(sCount) * 4))
+                    uncompressedData.copyBytes(to: UnsafeMutableBufferPointer(start: base, count: Int(sCount)), from: offset..<(offset + Int(sCount) * 4))
                 }
             }
             frames.append(frame)

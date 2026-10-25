@@ -132,7 +132,7 @@ struct PhaseV2ArpGrooveTests {
     }
 
     @Test func initGoldenHashPreserved() {
-        var p = SynthPreset.defaultPreset
+        let p = SynthPreset.defaultPreset
         let hash = InitGoldenTests.renderHash(p)
         #expect(hash == InitGoldenTests.golden["Init"], "Init golden hash changed: 0x\(String(hash, radix: 16))")
     }

@@ -122,7 +122,7 @@ public final class CleanBus {
 
 public extension AudioEngine {
     @inline(__always)
-    public func matrixSource(
+    func matrixSource(
         _ source: ModSource,
         lfo: Float,
         lfo2: Float,
@@ -243,7 +243,7 @@ public extension AudioEngine {
     // MARK: - Audio thread render path
 
     /// One sample of synthesis. Commands must already be drained for this buffer.
-    public func renderOneSample() -> (Float, Float) {
+    func renderOneSample() -> (Float, Float) {
         var mixedSampleL: Float = 0.0
         var mixedSampleR: Float = 0.0
         advanceCCSmoothers()
@@ -1503,7 +1503,7 @@ public extension AudioEngine {
 
     /// 5 ms one-pole coefficient for bend/aftertouch; exp() only when the
     /// sample rate changes (same expression, so the value is bit-identical).
-    @inline(__always) public func midiSmoothingCoeff() -> Float {
+    @inline(__always) func midiSmoothingCoeff() -> Float {
         if sampleRate != midiSmoothCoeffSampleRate {
             midiSmoothCoeffSampleRate = sampleRate
             midiSmoothCoeff = Float(1 - exp(-1.0 / (0.005 * sampleRate)))
@@ -1511,7 +1511,7 @@ public extension AudioEngine {
         return midiSmoothCoeff
     }
 
-    public func advancePitchBend() -> Double {
+    func advancePitchBend() -> Double {
         let target = pitchBendTarget
         if target == 0 && pitchBendSmoothed == 0 {
             return 1
@@ -1539,7 +1539,7 @@ public extension AudioEngine {
     }
 
     /// ~5 ms one-pole toward aftertouch target. Idle aftertouch stays 0 and skips work.
-    public func advanceAftertouch() -> Float {
+    func advanceAftertouch() -> Float {
         let target = aftertouchTarget
         if target == 0 && aftertouchSmoothed == 0 {
             return 0
@@ -1554,7 +1554,7 @@ public extension AudioEngine {
 
     /// SYNT_27 P2-1: adopts snapshot, matrix and MSEG 1/2 together or not at all. If a writer
     /// is mid-publish, render keeps the whole previous set and retries next block.
-    public func pullPresetSnapshotRT() {
+    func pullPresetSnapshotRT() {
         guard rtPresetBuffer.hasPendingRT || rtModMatrix.hasPendingRT
             || mseg.hasPendingRT || mseg2.hasPendingRT else { return }
         publicationRenderPulling.store(true, ordering: .sequentiallyConsistent)
@@ -1572,7 +1572,7 @@ public extension AudioEngine {
         }
     }
 
-    public func processCommandQueue() {
+    func processCommandQueue() {
         pullPresetSnapshotRT()
         commandQueue.drain(limit: 128) { [self] command in
             handleCommand(command)
@@ -1590,7 +1590,7 @@ public extension AudioEngine {
         trimAbandonedTails()
     }
 
-    public func handleCommand(_ command: AudioCommand) {
+    func handleCommand(_ command: AudioCommand) {
             switch command {
             case .resetPatchState:
                 resetPatchStateRT()
@@ -1743,7 +1743,7 @@ public extension AudioEngine {
     /// Sample-accurate 16th-note clock. Swing delays user-facing even steps
     /// (2, 4, 6… — odd indices) by `swing * step * 0.5` and shortens them so
     /// the bar length stays constant. No allocation.
-    public func advanceSequencerOneSample() {
+    func advanceSequencerOneSample() {
         let generationChanged = sequencerTransport.pullIfChanged(into: &seqMirror)
         if usesHostTransport || cachedSyncSource == .midiClock {
             seqMirror.bpm = cachedBPM
@@ -1803,7 +1803,7 @@ public extension AudioEngine {
         }
     }
 
-    public func sequencerStepDuration(stepIndex: Int) -> Double {
+    func sequencerStepDuration(stepIndex: Int) -> Double {
         let bpm = Double(max(20, seqMirror.bpm))
         let samplesPerStep = sampleRate * 60.0 / bpm / 4.0
         let swing = Double(min(1, max(0, seqMirror.swing)))
@@ -1814,7 +1814,7 @@ public extension AudioEngine {
         return max(1, samplesPerStep - offset)
     }
 
-    public func triggerSequencerStep() {
+    func triggerSequencerStep() {
         let index = seqMirror.stepIndex
         guard index >= 0 && index < SequencerTransport.stepCount else { return }
 
@@ -1864,7 +1864,7 @@ public extension AudioEngine {
         seqMirror.gateSamplesLeft = max(1, Int((subDuration * effectiveGate).rounded(.down)))
     }
 
-    public func triggerRatchetSubStep(step: SequencerStepRT, subDuration: Double) {
+    func triggerRatchetSubStep(step: SequencerStepRT, subDuration: Double) {
         let raw = seqMirror.rootNote + Int(step.noteOffset) + Int(step.octave) * 12
         let midi = max(0, min(127, raw))
         releaseSequencerNote()
@@ -1874,7 +1874,7 @@ public extension AudioEngine {
         seqMirror.gateSamplesLeft = max(1, Int((subDuration * effectiveGate).rounded(.down)))
     }
 
-    public func releaseSequencerNote() {
+    func releaseSequencerNote() {
         guard seqMirror.heldNote >= 0 else { return }
         releaseHeldNote(seqMirror.heldNote)
         seqMirror.heldNote = -1
@@ -1882,7 +1882,7 @@ public extension AudioEngine {
     }
 
     @inline(__always)
-    public func currentArpStepDuration() -> Double {
+    func currentArpStepDuration() -> Double {
         let base = samplesPerTick
         if cachedArpSwing > 0.001 {
             let offset = Double(cachedArpSwing) * base * 0.5
@@ -1895,7 +1895,7 @@ public extension AudioEngine {
         return base
     }
 
-    public func handleArpTick(stepDuration: Double) {
+    func handleArpTick(stepDuration: Double) {
         if let oldNote = arp.currentNote {
             releaseHeldNote(oldNote)
         }
@@ -1912,7 +1912,7 @@ public extension AudioEngine {
         trimAbandonedTails()
     }
 
-    public func applySingleParameterRT(target: MIDIControlTarget, rawValue: UInt8) {
+    func applySingleParameterRT(target: MIDIControlTarget, rawValue: UInt8) {
         let norm = Float(rawValue) / 127.0
         switch target {
         case .cutoff:
@@ -2030,7 +2030,7 @@ public extension AudioEngine {
 
     // MARK: - MPE RPN Handling (RPN 0 and RPN 6)
 
-    public func handleRPNCC(channel: UInt8, cc: UInt8, value: UInt8) {
+    func handleRPNCC(channel: UInt8, cc: UInt8, value: UInt8) {
         let ch = Int(channel & 0x0F)
         // SYNT_17 R14-7: ch1/ch16 outside the current zone reach this path only so an MCM can
         // switch zones. Everything except RPN 6 data entry there stays a plain CC (CC learn / NRPN).
@@ -2117,7 +2117,7 @@ public extension AudioEngine {
 
     /// Render thread. Touches only `cached*` / plain RT state and the lock-free mailbox.
     /// Never writes `preset` (its setter runs applyPreset + @Published) — main picks it up in `pollMPEConfigMailbox`.
-    public func handleRPN(channel: UInt8, rpn: UInt16, value: UInt8, cents: UInt8 = 0) {
+    func handleRPN(channel: UInt8, rpn: UInt16, value: UInt8, cents: UInt8 = 0) {
         switch rpn {
         case 0:
             // RPN 0: Pitch Bend Sensitivity (semitones).
@@ -2194,7 +2194,7 @@ public extension AudioEngine {
     }
 
     @inline(__always)
-    public static func isMPEMasterChannel(_ channel: UInt8, zone: MPEZone) -> Bool {
+    static func isMPEMasterChannel(_ channel: UInt8, zone: MPEZone) -> Bool {
         zone == .lower ? channel == 0 : channel == 15
     }
 
@@ -2250,7 +2250,7 @@ public extension AudioEngine {
     /// Main thread. Mirrors RPN/MCM changes made on the render thread into the display preset
     /// without `applyPreset()` (render already has the values).
     @discardableResult
-    public func pollMPEConfigMailbox() -> Bool {
+    func pollMPEConfigMailbox() -> Bool {
         let v = mpeConfigMailbox.exchange(0, ordering: .acquiringAndReleasing)
         guard v & AudioEngine.mpeMailboxFlag != 0 else { return false }
         // SYNT_20 R16-6: after a reset on main, entries render published before applying it are

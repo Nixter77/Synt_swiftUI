@@ -27,10 +27,10 @@ public enum PresetImportError: LocalizedError {
 
 public extension SynthPreset {
     /// 1 MB limit ensures presets with embedded compressed user wavetables import cleanly.
-    public static let maxImportBytes = 1024 * 1024
-    public static let maxModSlots = 16
+    static let maxImportBytes = 1024 * 1024
+    static let maxModSlots = 16
 
-    public func sanitized() -> SynthPreset {
+    func sanitized() -> SynthPreset {
         let d = SynthPreset(name: name, category: category)
         var p = self
 

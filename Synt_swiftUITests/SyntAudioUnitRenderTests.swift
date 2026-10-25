@@ -158,9 +158,11 @@ struct SyntAudioUnitRenderTests {
         let group = DispatchGroup()
 
         group.enter()
+        // Test-only cross-thread hand-off; the render thread owns l/r until group.wait().
+        nonisolated(unsafe) let renderUnit = unit, renderL = l, renderR = r
         DispatchQueue.global().async {
             while !stop.load(ordering: .acquiring) {
-                unit.engine.render(frames: frames, intoL: l, intoR: r)
+                renderUnit.engine.render(frames: frames, intoL: renderL, intoR: renderR)
             }
             group.leave()
         }

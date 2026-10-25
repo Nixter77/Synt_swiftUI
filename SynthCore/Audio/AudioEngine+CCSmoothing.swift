@@ -11,7 +11,7 @@ import Synchronization
 
 public extension MIDIControlTarget {
     /// Reverb mix and room size are Apple AU parameters. The audio thread does not own them.
-    public var writesAudioParameter: Bool {
+    var writesAudioParameter: Bool {
         switch self {
         case .reverbMix, .reverbRoomSize: return false
         default: return true
@@ -19,7 +19,7 @@ public extension MIDIControlTarget {
     }
 
     /// Inverse of `MIDICCLearnStore.applyValue`, as a 0...1 position.
-    public func normalizedUnit(_ unit: Float) -> Float {
+    func normalizedUnit(_ unit: Float) -> Float {
         switch self {
         case .cutoff:
             return log(max(unit, 1e-4) / 20) / log(1000)
@@ -58,14 +58,14 @@ public extension MIDIControlTarget {
         }
     }
 
-    public func rawMIDI(matching unit: Float) -> Int {
+    func rawMIDI(matching unit: Float) -> Int {
         let norm = normalizedUnit(unit)
         guard norm.isFinite else { return 0 }
         let clamped = min(1, max(0, norm))
         return Int((Double(clamped) * 127).rounded())
     }
 
-    public func unit(in preset: SynthPreset, pan: Float) -> Float {
+    func unit(in preset: SynthPreset, pan: Float) -> Float {
         switch self {
         case .cutoff: return preset.filterCutoff
         case .resonance: return preset.filterResonance
@@ -127,7 +127,7 @@ public extension MIDIControlTarget {
 public extension AudioEngine {
     /// ~8 ms. Cached per sample rate. 44.1 kHz goldens never take the glide branch.
     @inline(__always)
-    public func ccSmoothingCoeff() -> Float {
+    func ccSmoothingCoeff() -> Float {
         if sampleRate != ccSmoothCoeffSampleRate {
             ccSmoothCoeffSampleRate = sampleRate
             ccSmoothCoeff = Float(1 - exp(-1.0 / (0.008 * sampleRate)))
@@ -137,7 +137,7 @@ public extension AudioEngine {
 
     /// One sample of the zipper glide. An idle parameter is left untouched.
     @inline(__always)
-    public func glideToward(_ value: inout Float, target: Float, coeff: Float) {
+    func glideToward(_ value: inout Float, target: Float, coeff: Float) {
         let delta = target - value
         if abs(delta) < 1e-6 {
             if value != target { value = target }
@@ -146,7 +146,7 @@ public extension AudioEngine {
         value += delta * coeff
     }
 
-    public func advanceCCSmoothers() {
+    func advanceCCSmoothers() {
         let coeff = ccSmoothingCoeff()
         glideToward(&ccPanRT, target: ccPanTarget, coeff: coeff)
         glideToward(&oscillator1.pulseWidth, target: ccPwm1Target, coeff: coeff)
@@ -173,7 +173,7 @@ public extension AudioEngine {
     }
 
     /// Copy the values `applyPreset` just wrote, so the next sample does not glide.
-    public func snapCCTargetsFromLive() {
+    func snapCCTargetsFromLive() {
         ccPanTarget = ccPanRT
         ccPwm1Target = oscillator1.pulseWidth
         ccPwm2Target = oscillator2.pulseWidth
@@ -194,7 +194,7 @@ public extension AudioEngine {
         ccLfoDepthTarget = cachedLfoDepth
     }
 
-    public func disarmCCTakeover() {
+    func disarmCCTakeover() {
         ccCaughtLo.store(0, ordering: .releasing)
         ccCaughtHi.store(0, ordering: .releasing)
         for i in 0..<128 {
@@ -202,7 +202,7 @@ public extension AudioEngine {
         }
     }
 
-    public func isCCCaught(_ cc: UInt8) -> Bool {
+    func isCCCaught(_ cc: UInt8) -> Bool {
         let n = cc & 127
         if n < 64 {
             return ccCaughtLo.load(ordering: .acquiring) & (UInt64(1) << n) != 0
@@ -210,7 +210,7 @@ public extension AudioEngine {
         return ccCaughtHi.load(ordering: .acquiring) & (UInt64(1) << (n - 64)) != 0
     }
 
-    public func setCCCaught(_ cc: UInt8) {
+    func setCCCaught(_ cc: UInt8) {
         let n = cc & 127
         if n < 64 {
             ccCaughtLo.bitwiseOr(UInt64(1) << n, ordering: .releasing)
@@ -221,7 +221,7 @@ public extension AudioEngine {
 
     /// True when this CC may move the parameter. After a patch change it waits
     /// until the knob is within one step of the value, or steps across it.
-    public func ccTakeoverShouldApply(cc: UInt8, raw: UInt8, current: Float, target: MIDIControlTarget) -> Bool {
+    func ccTakeoverShouldApply(cc: UInt8, raw: UInt8, current: Float, target: MIDIControlTarget) -> Bool {
         if isCCCaught(cc) { return true }
         let position = target.rawMIDI(matching: current)
         let rawI = Int(raw & 127)
@@ -237,7 +237,7 @@ public extension AudioEngine {
     }
 
     /// Value the audio thread is using right now, in the same units as the CC mapping.
-    public func liveUnit(for target: MIDIControlTarget) -> Float {
+    func liveUnit(for target: MIDIControlTarget) -> Float {
         switch target {
         case .cutoff: return cachedFilterCutoff
         case .resonance: return ccResonanceRT >= 0 ? ccResonanceRT : filterL.resonance

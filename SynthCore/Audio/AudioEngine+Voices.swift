@@ -145,7 +145,7 @@ public struct MonoNoteStack {
 public extension AudioEngine {
     // MARK: - Voices (fixed pool; audio thread)
 
-    public func clearAllVoices() {
+    func clearAllVoices() {
         for i in 0..<AudioEngine.maxVoices {
             voices[i].deactivate()
             resetVoiceToneBanks(at: i)
@@ -160,7 +160,7 @@ public extension AudioEngine {
     }
 
     /// Fixed-pool allocation (audio thread). No Dictionary / heap ids.
-    public func createVoice(midiNote: Int, velocity: Float, hadHeldNotes: Bool = false, channel: UInt8 = 0) {
+    func createVoice(midiNote: Int, velocity: Float, hadHeldNotes: Bool = false, channel: UInt8 = 0) {
         clearSustainBit(midiNote)
         // Soft re-trigger: fade previous partials of this MIDI note (hard kill = click).
         for i in 0..<AudioEngine.maxVoices {
@@ -264,7 +264,7 @@ public extension AudioEngine {
     }
 
     /// Fade extra unison partials so each MIDI note keeps one sounding voice.
-    public func collapseExtraUnisonPartials() {
+    func collapseExtraUnisonPartials() {
         for i in 0..<AudioEngine.maxVoices {
             guard voices[i].isActive, !voices[i].isReleasing else { continue }
             for j in (i + 1)..<AudioEngine.maxVoices {
@@ -281,7 +281,7 @@ public extension AudioEngine {
         }
     }
 
-    public func uniqueActiveMIDINoteCountExcluding(midiNote: Int) -> Int {
+    func uniqueActiveMIDINoteCountExcluding(midiNote: Int) -> Int {
         var lo: UInt64 = 0
         var hi: UInt64 = 0
         var count = 0
@@ -300,7 +300,7 @@ public extension AudioEngine {
         return count
     }
 
-    public func findFreeVoiceSlot() -> Int? {
+    func findFreeVoiceSlot() -> Int? {
         let upper: Int
         if cachedPolyphonyLimit >= AudioEngine.maxVoices || cachedPolyphonyLimit <= 0 {
             upper = AudioEngine.maxVoices
@@ -351,7 +351,7 @@ public extension AudioEngine {
         return nil
     }
 
-    public func internalNoteOff(midiNote: Int, channel: UInt8 = 0) {
+    func internalNoteOff(midiNote: Int, channel: UInt8 = 0) {
         if sustainPedalDown {
             setSustainBit(midiNote)
             return
@@ -359,7 +359,7 @@ public extension AudioEngine {
         releaseHeldNote(midiNote, channel: channel)
     }
 
-    public func retuneActiveVoicesLegato(to midiNote: Int, velocity: Float) {
+    func retuneActiveVoicesLegato(to midiNote: Int, velocity: Float) {
         let baseFreq = noteToFrequency(midiNote)
         var anyFound = false
 
@@ -402,7 +402,7 @@ public extension AudioEngine {
         }
     }
 
-    public func handleNoteOn(midiNote: Int, velocity: Float, channel: UInt8 = 0) {
+    func handleNoteOn(midiNote: Int, velocity: Float, channel: UInt8 = 0) {
         mseg.trigger()
         mseg2.trigger()
         if lfo.mode != .free {
@@ -450,7 +450,7 @@ public extension AudioEngine {
         }
     }
 
-    public func handleNoteOff(midiNote: Int, channel: UInt8 = 0) {
+    func handleNoteOff(midiNote: Int, channel: UInt8 = 0) {
         switch cachedVoiceMode {
         case .poly:
             internalNoteOff(midiNote: midiNote, channel: channel)
@@ -508,12 +508,12 @@ public extension AudioEngine {
         }
     }
 
-    public func monoNoteStackContains(_ note: Int) -> Bool {
+    func monoNoteStackContains(_ note: Int) -> Bool {
         for i in 0..<monoNoteStack.count where monoNoteStack.get(i).note == note { return true }
         return false
     }
 
-    public func setSustainPedal(down: Bool) {
+    func setSustainPedal(down: Bool) {
         if sustainPedalDown && !down {
             sustainPedalDown = false
             releaseAllSustained()
@@ -522,7 +522,7 @@ public extension AudioEngine {
         sustainPedalDown = down
     }
 
-    public func setSustainBit(_ note: Int) {
+    func setSustainBit(_ note: Int) {
         guard note >= 0, note < 128 else { return }
         if note < 64 {
             sustainedLo |= UInt64(1) << note
@@ -531,7 +531,7 @@ public extension AudioEngine {
         }
     }
 
-    public func clearSustainBit(_ note: Int) {
+    func clearSustainBit(_ note: Int) {
         guard note >= 0, note < 128 else { return }
         if note < 64 {
             sustainedLo &= ~(UInt64(1) << note)
@@ -540,7 +540,7 @@ public extension AudioEngine {
         }
     }
 
-    public func releaseAllSustained() {
+    func releaseAllSustained() {
         let lo = sustainedLo
         let hi = sustainedHi
         sustainedLo = 0
@@ -582,7 +582,7 @@ public extension AudioEngine {
     }
 
     /// Device gone (audio thread): pedal up, bend centred, every key released.
-    public func applyMIDIResetRT() {
+    func applyMIDIResetRT() {
         sustainPedalDown = false
         pitchBendTarget = 0
         aftertouchTarget = 0
@@ -602,7 +602,7 @@ public extension AudioEngine {
     /// every key, so with the sustain pedal down the voices keep sounding (they
     /// become pedal-held) until the pedal lifts. Pedal up: every voice enters
     /// its release. Arp keys are dropped either way. Pedal state is left as is.
-    public func releaseAllHeldNotesRT() {
+    func releaseAllHeldNotesRT() {
         if sustainPedalDown {
             for i in 0..<AudioEngine.maxVoices where voices[i].isActive && !voices[i].isReleasing {
                 setSustainBit(voices[i].midiNote)
@@ -624,7 +624,7 @@ public extension AudioEngine {
         }
     }
 
-    public func releaseHeldNote(_ midiNote: Int, channel: UInt8 = 0) {
+    func releaseHeldNote(_ midiNote: Int, channel: UInt8 = 0) {
         let serial = releaseSerialRT
         var released = false
         for i in 0..<AudioEngine.maxVoices {
@@ -653,7 +653,7 @@ public extension AudioEngine {
     /// authored release. Older leftovers fade in 6 ms so a new chord is not
     /// summed with the previous one. Nothing held: the last gesture rings out.
     /// A short preset release is the pluck and is not shortened further.
-    public func trimAbandonedTails() {
+    func trimAbandonedTails() {
         if envelope.release <= AudioEngine.tailTrimSkipsReleaseAtOrBelow { return }
 
         var held = 0

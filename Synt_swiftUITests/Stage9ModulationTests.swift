@@ -20,8 +20,8 @@ import Testing
     // MARK: - ADSR Curves Tests
 
     @Test func adsrCurvesZeroIsIdenticalToOldCalculation() {
-        var envDefault = ADSREnvelope(attack: 0.05, decay: 0.1, sustain: 0.5, release: 0.1)
-        var envWithZeroCurve = ADSREnvelope(
+        let envDefault = ADSREnvelope(attack: 0.05, decay: 0.1, sustain: 0.5, release: 0.1)
+        let envWithZeroCurve = ADSREnvelope(
             attack: 0.05,
             decay: 0.1,
             sustain: 0.5,
@@ -62,9 +62,9 @@ import Testing
     }
 
     @Test func adsrCurvesChangeTrajectoryAndStayBounded() {
-        var envLinear = ADSREnvelope(attack: 0.1, decay: 0.1, sustain: 0.5, release: 0.1, attackCurve: 0.0)
-        var envConvex = ADSREnvelope(attack: 0.1, decay: 0.1, sustain: 0.5, release: 0.1, attackCurve: 0.8)
-        var envConcave = ADSREnvelope(attack: 0.1, decay: 0.1, sustain: 0.5, release: 0.1, attackCurve: -0.8)
+        let envLinear = ADSREnvelope(attack: 0.1, decay: 0.1, sustain: 0.5, release: 0.1, attackCurve: 0.0)
+        let envConvex = ADSREnvelope(attack: 0.1, decay: 0.1, sustain: 0.5, release: 0.1, attackCurve: 0.8)
+        let envConcave = ADSREnvelope(attack: 0.1, decay: 0.1, sustain: 0.5, release: 0.1, attackCurve: -0.8)
 
         var phaseLin: EnvelopePhase = .attack; var timeLin: Double = 0.0; var valLin: Float = 0.0
         var phaseCvx: EnvelopePhase = .attack; var timeCvx: Double = 0.0; var valCvx: Float = 0.0

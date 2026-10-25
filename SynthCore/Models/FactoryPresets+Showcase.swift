@@ -14,7 +14,7 @@ import Foundation
 public extension SynthPreset {
     private typealias M = PresetAuthoring
 
-    public static let showcasePresets: [SynthPreset] = [
+    static let showcasePresets: [SynthPreset] = [
         // MARK: Bass
         SynthPreset(
             name: "Rubber Wobble",

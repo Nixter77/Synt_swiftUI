@@ -16,7 +16,7 @@ public extension AudioEngine {
     /// `controllerMPEConfigDidChange` callback, fired from `pollMPEConfigMailbox` inside this
     /// function, that writes `preset`) is coalesced into one more full pass after the current
     /// one instead of running half-way through it.
-    public func applyPreset() {
+    func applyPreset() {
         if applyPresetInProgress {
             applyPresetRerunPending = true
             #if DEBUG
@@ -81,7 +81,7 @@ public extension AudioEngine {
                       AudioEngine.sameDataBuffer(last, data) else { return nil }
                 return compiled
             }()
-            if let fast { userWTFastPathCountForTesting += 1 }
+            if fast != nil { userWTFastPathCountForTesting += 1 }
             if let cached = fast ?? WavetableOscillator.compileUserWavetableAsyncIfNeeded(
                 data: data,
                 name: name,
@@ -252,7 +252,7 @@ public extension AudioEngine {
 
     /// `onRenderThread` names the caller explicitly (SYNT_20 P1-1): the render path
     /// (`pullPresetSnapshotRT`) must never take the main-side lock/ARC table switch.
-    public func applyPresetDSP(_ snap: RTPresetSnapshot, onRenderThread: Bool = true) {
+    func applyPresetDSP(_ snap: RTPresetSnapshot, onRenderThread: Bool = true) {
         cachedFXOrder = snap.fxOrder
         oscillator1.waveform = snap.osc1Waveform
         rtOsc1IsWavetable = snap.osc1Waveform == .wavetable
@@ -543,13 +543,13 @@ public extension AudioEngine {
         snapCCTargetsFromLive()
     }
 
-    public func loadPreset(_ preset: SynthPreset) {
+    func loadPreset(_ preset: SynthPreset) {
         self.preset = preset
     }
 
     /// New factory/user patch: stop leftover voices and wipe Delay/Reverb tails.
     /// Knob edits keep the same id/name and must not cut the note.
-    public func silenceForPresetChange() {
+    func silenceForPresetChange() {
         clearAllNotes()
         // Render-owned state is reset by the render thread, never from here.
         _ = commandQueue.push(.resetPatchState)
@@ -559,7 +559,7 @@ public extension AudioEngine {
     }
 
     /// Render thread only (via `.resetPatchState`).
-    public func resetPatchStateRT() {
+    func resetPatchStateRT() {
         ccResonanceRT = -1
         ccPanRT = 0
         ccPanTarget = 0
@@ -612,14 +612,14 @@ public extension AudioEngine {
     /// Mutate the published preset as a whole so `didSet` → `applyPreset()` always runs.
     /// UI must use this (or assign `preset = …`) for advanced FX / morph — never write
     /// only to live `distortion` / `phaser` / oscillator morph and leave `preset` stale.
-    public func updatePreset(_ body: (inout SynthPreset) -> Void) {
+    func updatePreset(_ body: (inout SynthPreset) -> Void) {
         var next = preset
         body(&next)
         preset = next
     }
 
     /// Reorders the FX chain on the main thread and publishes the fixed table to the RT audio thread.
-    public func setFXOrder(_ order: [FXSlotID]) {
+    func setFXOrder(_ order: [FXSlotID]) {
         let clean = SynthPreset.sanitizeFXOrder(order)
         guard Thread.isMainThread else {
             // SYNT_26 P2-6: never block a caller thread on main (deadlock if main waits on it).
@@ -637,7 +637,7 @@ public extension AudioEngine {
     }
 
     /// Loads a user wavetable file into the shared user slot and applies it to the specified oscillator.
-    public func loadUserWavetable(url: URL, forOscillator oscNumber: Int = 1) throws {
+    func loadUserWavetable(url: URL, forOscillator oscNumber: Int = 1) throws {
         let table = try WavetableOscillator.parseAudioFile(url: url)
         let key = WavetableCacheKey(contentHash: table.contentHash, sampleRate: sampleRate)
         let compiled: CompiledMipData
@@ -679,7 +679,7 @@ public extension AudioEngine {
     }
 
     /// Loads user wavetable from raw float samples.
-    public func loadUserWavetable(samples: [Float], name: String = "Imported", forOscillator oscNumber: Int = 1) throws {
+    func loadUserWavetable(samples: [Float], name: String = "Imported", forOscillator oscNumber: Int = 1) throws {
         let table = try WavetableOscillator.importAudioBuffer(samples: samples, name: name)
         let key = WavetableCacheKey(contentHash: table.contentHash, sampleRate: sampleRate)
         let compiled: CompiledMipData
@@ -723,7 +723,7 @@ public extension AudioEngine {
     // MARK: - Direct Parameter Modulation from MIDI CC (No applyPreset overhead)
 
     /// Main thread, one CC. See `applyCCBatchFromMIDI`.
-    public func applySingleParameterFromMIDI(cc: UInt8, value: UInt8) {
+    func applySingleParameterFromMIDI(cc: UInt8, value: UInt8) {
         applyCCBatchFromMIDI([(cc: cc, value: value)])
     }
 
@@ -731,7 +731,7 @@ public extension AudioEngine {
     /// (published once per batch, without `applyPreset`) and the Apple AU
     /// effects. DSP state is changed only by the audio thread
     /// (`controlChange` → `applySingleParameterRT`).
-    public func applyCCBatchFromMIDI(_ batch: [(cc: UInt8, value: UInt8)]) {
+    func applyCCBatchFromMIDI(_ batch: [(cc: UInt8, value: UInt8)]) {
         let store = MIDICCLearnStore.shared
         var next = preset
         var touched: [MIDIControlTarget] = []

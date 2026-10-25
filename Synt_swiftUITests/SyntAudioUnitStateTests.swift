@@ -247,8 +247,9 @@ struct SyntAudioUnitStateTests {
 
         let group = DispatchGroup()
         group.enter()
+        nonisolated(unsafe) let bgUnit = unit  // test-only: exercise off-main fullState set
         DispatchQueue.global().async {
-            unit.fullState = state
+            bgUnit.fullState = state
             group.leave()
         }
         group.wait()

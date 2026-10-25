@@ -13,7 +13,7 @@ public extension AudioEngine {
 
     /// Drop a running external transport when the user switches back to INT,
     /// and wait for a new Start after switching to EXT.
-    public func adoptSyncSourceRT() {
+    func adoptSyncSourceRT() {
         let source = cachedSyncSource
         if source == appliedSyncSource { return }
         appliedSyncSource = source
@@ -22,7 +22,7 @@ public extension AudioEngine {
     }
 
     /// One 0xF8. The first tick only marks the time; BPM updates once a quarter is full.
-    public func receiveMIDIClockRT() {
+    func receiveMIDIClockRT() {
         guard cachedSyncSource == .midiClock else { return }
         let now = midiClockSample
         if midiClockHaveLast {
@@ -53,7 +53,7 @@ public extension AudioEngine {
 
     /// Start resets the arp, the sequencer and both LFOs. Continue does not.
     /// Stop releases sounding notes and leaves the phase where it is.
-    public func applyMIDITransportRT(resetPhase: Bool, running: Bool) {
+    func applyMIDITransportRT(resetPhase: Bool, running: Bool) {
         guard cachedSyncSource == .midiClock else { return }
         midiClockHaveLast = false
         if resetPhase {

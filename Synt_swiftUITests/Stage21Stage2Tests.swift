@@ -32,7 +32,7 @@ final class Stage21Stage2Tests: XCTestCase {
     func testR15_7_EvictionKeepsTableInUseAlive() {
         let table = WavetableOscillator.basicWavetables[1]
         let inUse = WavetableOscillator.compile(wavetable: table, sampleRate: 44100)
-        weak var weakInUse: CompiledMipData? = inUse
+        weak let weakInUse: CompiledMipData? = inUse
         let osc = WavetableOscillator()
         osc.instanceUserCompiled = inUse
         WavetableOscillator.setCachedCompiled(inUse, for: key(0))

@@ -13,7 +13,7 @@ import Foundation
 public extension SynthPreset {
     private typealias M = PresetAuthoring
 
-    public static let libraryPresets: [SynthPreset] =
+    static let libraryPresets: [SynthPreset] =
         libBass + libLead + libPad + libKeys + libPluck + libStrings + libBrass + libArp + libFX
         + stage8Presets
 

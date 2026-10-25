@@ -18,7 +18,7 @@ struct SynthCoreRenderAPITests {
         let frames = offset + lookahead + 400
         let engine = AudioEngine()
         engine.prepare(sampleRate: 44_100, maxFrames: frames)
-        var bytes: [UInt8] = [0x90, 60, 100]
+        let bytes: [UInt8] = [0x90, 60, 100]
         bytes.withUnsafeBufferPointer { raw in
             engine.enqueueMIDI(raw.baseAddress!, count: 3, sampleOffset: offset)
         }

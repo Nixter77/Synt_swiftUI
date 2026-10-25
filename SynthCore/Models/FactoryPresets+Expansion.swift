@@ -16,7 +16,7 @@ import Foundation
 
 public extension SynthPreset {
 
-    public static let expansionPresets: [SynthPreset] = (
+    static let expansionPresets: [SynthPreset] = (
         vocalFormantPresets +
         fmMetallicPresets +
         analogSyncAcidPresets +

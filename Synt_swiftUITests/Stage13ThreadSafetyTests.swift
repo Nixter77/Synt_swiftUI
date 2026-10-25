@@ -146,7 +146,7 @@ final class Stage13ThreadSafetyTests: XCTestCase {
         for _ in 0..<4 {
             frames2.append([Float](repeating: -0.5, count: 2048))
         }
-        let data2 = Wavetable(name: "Table2", frames: frames2).serializedData()
+        _ = Wavetable(name: "Table2", frames: frames2).serializedData()
 
         engine.preset.osc1Waveform = .wavetable
         engine.preset.osc1WavetableIndex = 5
