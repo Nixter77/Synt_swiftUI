@@ -1,3 +1,13 @@
 .DS_Store
 firebase-debug.log
 main
+
+# Agent task / report / plan scratch (keep out of the public repo)
+GROK_BUILD_*.md
+SYNT_*REPORT*.md
+SYNT_*_MATRIX*.md
+*_NOTES.md
+*_DUMP.txt
+*PLAN*.md
+*ROADMAP*.md
+firebase-debug.log
