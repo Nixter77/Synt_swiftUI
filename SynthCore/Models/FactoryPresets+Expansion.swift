@@ -48,12 +48,13 @@ public extension SynthPreset {
         p.osc1Octave = -1
         p.fmAmount = 0.18
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.28
         p.filterDecay = 0.18
         p.filterSustain = 0.35
         p.filterCutoff = 480
         p.filterResonance = 0.28
         p.masterVolume = 0.5
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.35)]
+        p.modMatrix = [A.mod(.env2, .fm, 0.12)]
         p.osc1Detune = 0.15
     },
         A.make("Robotic Vowel Lead", .lead) { p in
@@ -307,13 +308,14 @@ public extension SynthPreset {
         p.osc1Volume = 0.55
         p.osc1Octave = -1
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.32
         p.filterAttack = 0.004
         p.filterDecay = 0.16
         p.filterSustain = 0.15
         p.filterCutoff = 380
         p.filterResonance = 0.42
         p.masterVolume = 0.5
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.55)]
+        p.modMatrix = [A.mod(.env2, .pitch1, 0.04)]
         p.osc1Detune = 2.70
     },
         A.make("Hard Sync Screamer", .lead) { p in
@@ -354,11 +356,12 @@ public extension SynthPreset {
         p.unisonSpread = 0.22
         p.attack = 0.06
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.22
         p.filterDecay = 0.3
         p.filterSustain = 0.5
         p.filterCutoff = 1400
         p.masterVolume = 0.44
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.22)]
+        p.modMatrix = [A.mod(.env2, .pitch2, 0.04)]
         p.osc1Detune = 3.15
     },
         A.make("Cyberpunk Sync Bass", .bass) { p in

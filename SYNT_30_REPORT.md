@@ -14,7 +14,9 @@ Factory chord-safety tests still cap unison at 2, wavetable morph at 0.42, and w
 
 ## Verification
 
-Full `Synt_swiftUITests` on macOS: 776 tests, 769 passed, 6 skipped, 1 expected failure (the chord-hiss wet-stack note), 0 failed. Init golden hash stays `0xd1b3635203a4799e`.
+Dedicated filter ADSR sets `filterEnvelopeAmount` so the cutoff scale moves. Env 2 rows go to pitch, pulse width, or FM, which the per-voice matrix applies. Nasal Band Lead stays formant, so its Env 2 row goes to pitch instead of a cutoff amount the formant path ignores.
+
+Full `Synt_swiftUITests` on macOS: 776 tests, 769 passed, 6 skipped, 1 expected failure (the chord-hiss wet-stack note), 0 failed. That wet-complex case keeps an 8 minute limit because the parallel suite's wall clock for it runs past 3 minutes. Init golden hash stays `0xd1b3635203a4799e`.
 
 ## Smoke note
 
@@ -26,7 +28,7 @@ These patches are the ones to open if you want to hear the new paths. The bar in
 4. Vowel Ah Lead — formant vowel, stage 8 suffix of the library.
 5. MSEG Drift — three-point MSEG into pitch.
 6. Wind Gust — MSEG 2 into cutoff.
-7. Velvet Acid — Env 2 into cutoff on a mono bass.
+7. Velvet Acid — dedicated filter envelope opens the cutoff; Env 2 moves oscillator 2 pulse width.
 8. Wavetable Growl — wavetable plus a saw, macro 1 into cutoff.
 9. Deep House Organ Chord — rotary speaker on the expansion bank.
 10. Trance Gate Runner — sixteenth trance gate with the arp on.

@@ -81,6 +81,7 @@ public extension SynthPreset {
         p.filterCutoff = 860
         p.filterResonance = 0.34
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.22
         p.filterAttack = 0.004
         p.filterDecay = 0.18
         p.filterSustain = 0.2
@@ -93,7 +94,7 @@ public extension SynthPreset {
         p.distortionType = .softClip
         p.distortionDrive = 0.14
         p.distortionMix = 0.08
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.35)]
+        p.modMatrix = [A.mod(.env2, .pwm2, 0.22)]
     },
         A.make("Round Reese", .bass) { p in
         p.osc1Waveform = .sawtooth
@@ -160,11 +161,12 @@ public extension SynthPreset {
         p.filterCutoff = 1100
         p.filterResonance = 0.2
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.28
         p.filterDecay = 0.12
         p.filterSustain = 0.25
         p.reverbMix = 0.04
         p.masterVolume = 0.5
-        p.modMatrix = [A.mod(.env2, .resonance, 0.2)]
+        p.modMatrix = [A.mod(.env2, .pwm1, 0.2)]
     },
         A.make("Soft 808", .bass) { p in
         p.osc1Waveform = .sine

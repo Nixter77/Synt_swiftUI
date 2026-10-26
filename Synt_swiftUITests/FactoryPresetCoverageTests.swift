@@ -119,9 +119,18 @@ struct FactoryPresetCoverageTests {
         !preset.mseg2.points.isEmpty && preset.modMatrix.contains { $0.source == .mseg2 && $0.amount != 0 }
     }
 
+    /// Per-voice matrix passes `env2`. The global scan does not, so cutoff,
+    /// resonance, and vowel rows sourced from Env 2 stay at 0.
+    private static let env2AppliedDestinations: Set<ModDestination> = [
+        .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .mix, .finePitch, .fm
+    ]
+
     private static func env2OrDedicated(_ preset: SynthPreset) -> Bool {
-        preset.filterEnvUseDedicatedADSR
-            || preset.modMatrix.contains { $0.source == .env2 && $0.amount != 0 }
+        let dedicatedMovesCutoff = preset.filterEnvUseDedicatedADSR && preset.filterEnvelopeAmount != 0
+        let env2Applied = preset.modMatrix.contains {
+            $0.source == .env2 && $0.amount != 0 && env2AppliedDestinations.contains($0.destination)
+        }
+        return dedicatedMovesCutoff || env2Applied
     }
 
     private static func wavetableMorphed(_ preset: SynthPreset) -> Bool {

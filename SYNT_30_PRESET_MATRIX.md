@@ -49,3 +49,5 @@ Counts are the shipped arrays the coverage test scans (103 + 50 + 2).
 | Noise color other than white | several | 11 | [x] |
 
 Names are unique across factory + expansion and non-empty. Factory stays at 103. Expansion stays at 50.
+
+Env 2 counts only when the matrix destination is one the per-voice scan applies with the env2 value: pitch, amplitude, pan, pulse width, mix, fine pitch, or FM. Dedicated filter ADSR counts only when `filterEnvelopeAmount` is not 0, so the cutoff scale actually moves.

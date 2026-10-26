@@ -268,7 +268,8 @@ struct ChordHissMatrixTests {
 
     // MARK: - Wet-boost factory subset (pads / keys / leads with complex timbre)
 
-    @Test(.timeLimit(.minutes(3)))
+    // Parallel suite wall-clock for these 16 short renders sits past 3 minutes.
+    @Test(.timeLimit(.minutes(8)))
     func matrix_wetComplex_3note_documentNearClip() async throws {
         let names = [
             "Crystal Lead", "Silk Lead", "Cloud Bed", "Slow Motion",

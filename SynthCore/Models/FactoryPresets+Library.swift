@@ -28,13 +28,14 @@ public extension SynthPreset {
         p.filterCutoff = 480
         p.filterResonance = 0.45
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.3
         p.filterAttack = 0.003
         p.filterDecay = 0.16
         p.filterSustain = 0.1
         p.filterRelease = 0.1
         p.reverbMix = 0.03
         p.masterVolume = 0.48
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.45)]
+        p.modMatrix = [A.mod(.env2, .pitch1, 0.04)]
     },
         A.make("Hollow Pulse Bass", .bass) { p in
         p.osc1Waveform = .square
@@ -157,11 +158,12 @@ public extension SynthPreset {
         p.filterCutoff = 2400
         p.filterResonance = 0.14
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.26
         p.filterDecay = 0.1
         p.filterSustain = 0.3
         p.reverbMix = 0.06
         p.masterVolume = 0.46
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.25)]
+        p.modMatrix = [A.mod(.env2, .pwm1, 0.18)]
     },
         A.make("Glide Saw Lead", .lead) { p in
         p.osc1Waveform = .sawtooth
@@ -216,6 +218,7 @@ public extension SynthPreset {
         p.filterCutoff = 1600
         p.filterResonance = 0.22
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.2
         p.filterAttack = 0.005
         p.filterDecay = 0.14
         p.filterSustain = 0.35
@@ -225,7 +228,7 @@ public extension SynthPreset {
         p.distortionType = .tapeSaturation
         p.distortionDrive = 0.16
         p.distortionMix = 0.1
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.3)]
+        p.modMatrix = [A.mod(.env2, .pwm2, 0.16)]
     },
         A.make("Whistle Lead", .lead) { p in
         p.osc1Waveform = .wavetable
@@ -261,7 +264,7 @@ public extension SynthPreset {
         p.filterSustain = 0.55
         p.reverbMix = 0.08
         p.masterVolume = 0.62
-        p.modMatrix = [A.mod(.env2, .vowel, 0.2)]
+        p.modMatrix = [A.mod(.env2, .pitch1, 0.04)]
     },
     ]
 
@@ -643,12 +646,13 @@ public extension SynthPreset {
         p.filterCutoff = 1400
         p.filterResonance = 0.2
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.28
         p.filterAttack = 0.008
         p.filterDecay = 0.18
         p.filterSustain = 0.2
         p.reverbMix = 0.06
         p.masterVolume = 0.48
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.4)]
+        p.modMatrix = [A.mod(.env2, .pwm2, 0.16)]
     },
         A.make("Soft Horns", .brass) { p in
         p.osc1Waveform = .sawtooth
@@ -682,12 +686,13 @@ public extension SynthPreset {
         p.filterCutoff = 1800
         p.filterResonance = 0.16
         p.filterEnvUseDedicatedADSR = true
+        p.filterEnvelopeAmount = 0.24
         p.filterAttack = 0.015
         p.filterDecay = 0.12
         p.filterSustain = 0.55
         p.reverbMix = 0.08
         p.masterVolume = 0.46
-        p.modMatrix = [A.mod(.env2, .cutoff, 0.28)]
+        p.modMatrix = [A.mod(.env2, .pwm2, 0.14)]
     },
         A.make("Synth Brass Pad", .brass) { p in
         p.osc1Waveform = .sawtooth
