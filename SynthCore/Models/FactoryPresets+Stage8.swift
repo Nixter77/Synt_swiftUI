@@ -42,7 +42,9 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.24
         p.reverbMix = 0.04
         p.reverbRoomSize = 0.28
-        p.masterVolume = 0.42
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
         p.modMatrix = [A.mod(.env1, .cutoff, 0.18), A.mod(.velocity, .cutoff, 0.20)]
@@ -83,7 +85,7 @@ public extension SynthPreset {
         p.delayTime = 0.26
         p.delayFeedback = 0.14
         p.delayPingPong = true
-        p.masterVolume = 0.66
+        p.masterVolume = 0.62
         p.portamento = 0.035
         p.character = .bright
         p.modMatrix = [A.mod(.lfo1, .vowel, 0.22), A.mod(.env2, .pwm2, 0.20), A.mod(.velocity, .amp, 0.22)]

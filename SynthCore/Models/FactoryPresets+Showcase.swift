@@ -46,7 +46,9 @@ public extension SynthPreset {
         p.lfoDepth = 0
         p.lfoTarget = .none
         p.reverbMix = 0.04
-        p.masterVolume = 0.50
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.unisonVoices = 2
         p.unisonDetune = 6
         p.unisonSpread = 0.30
@@ -89,7 +91,9 @@ public extension SynthPreset {
         p.lfoRate = 0.55
         p.lfoTarget = .none
         p.reverbMix = 0.04
-        p.masterVolume = 0.50
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
         p.modMatrix = [A.mod(.lfo1, .pwm1, 0.32), A.mod(.velocity, .cutoff, 0.20)]
@@ -126,7 +130,8 @@ public extension SynthPreset {
         p.filterRelease = 0.10
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
-        p.masterVolume = 0.50
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
         p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
@@ -162,7 +167,7 @@ public extension SynthPreset {
         p.delayTime = 0.26
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.46
+        p.masterVolume = 0.52
         p.unisonVoices = 2
         p.unisonDetune = 6
         p.unisonSpread = 0.30
@@ -199,7 +204,7 @@ public extension SynthPreset {
         p.delayTime = 0.30
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.46
+        p.masterVolume = 0.52
         p.portamento = 0.04
         p.character = .warm
         p.modMatrix = [A.mod(.lfo1, .pitch1, 0.012), A.mod(.lfo1, .pitch2, 0.012), A.mod(.lfo1, .pwm2, 0.16), A.mod(.env1, .cutoff, 0.14)]
@@ -229,7 +234,7 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.24
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
-        p.masterVolume = 0.46
+        p.masterVolume = 0.52
         p.unisonVoices = 2
         p.unisonDetune = 5
         p.unisonSpread = 0.24
@@ -370,7 +375,7 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.phaserEnabled = true
         p.phaserMode = .phaser4
         p.phaserMix = 0.22
@@ -407,13 +412,13 @@ public extension SynthPreset {
         p.lfoTarget = .none
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.distortionEnabled = true
         p.distortionType = .tubeSaturation
         p.distortionDrive = 0.12
         p.distortionMix = 0.10
         p.character = .warm
-        p.modMatrix = [A.mod(.lfo1, .amp, 0.22), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.lfo1, .amp, 0.22), A.mod(.velocity, .amp, 0.22), A.mod(.velocity, .cutoff, 0.20)]
     },
         A.make("Velvet Clav", .keys) { p in
         p.osc1Waveform = .square
@@ -442,7 +447,7 @@ public extension SynthPreset {
         p.transientSustain = -0.10
         p.reverbMix = 0.08
         p.reverbRoomSize = 0.34
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.distortionEnabled = true
         p.distortionType = .tapeSaturation
         p.distortionDrive = 0.12
@@ -480,7 +485,7 @@ public extension SynthPreset {
         p.delayPingPong = true
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.modMatrix = [A.mod(.lfo1, .pan, 0.40), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
     },
         A.make("Flange Harp", .pluck) { p in
@@ -509,7 +514,7 @@ public extension SynthPreset {
         p.reverbMix = 0.14
         p.reverbRoomSize = 0.42
         p.chorusMix = 0.10
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.modMatrix = [A.mod(.env1, .pitch1, 0.02), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
     },
         A.make("Bit Pluck Arp", .pluck) { p in
@@ -540,7 +545,7 @@ public extension SynthPreset {
         p.delayTime = 0.18
         p.delayFeedback = 0.14
         p.delayPingPong = true
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.arpMode = .up
         p.arpRate = .sixteenth
         p.arpGateLength = 0.70

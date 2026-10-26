@@ -746,7 +746,7 @@ public extension SynthPreset {
         p.transientSustain = -0.08
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.36
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.character = .bright
         p.modMatrix = [A.mod(.env2, .fm, 0.12), A.mod(.velocity, .amp, 0.26), A.mod(.velocity, .cutoff, 0.20)]
     },
@@ -778,7 +778,7 @@ public extension SynthPreset {
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
         p.chorusMix = 0.10
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 3.4
         p.lfoTarget = .none
@@ -809,7 +809,7 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.18
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.rotaryEnabled = true
         p.rotaryMix = 0.72
         p.rotaryDrive = 0.14
@@ -853,7 +853,7 @@ public extension SynthPreset {
         p.transientSustain = -0.10
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.character = .bright
         p.modMatrix = [A.mod(.env2, .pwm2, 0.20), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
     },
@@ -882,7 +882,7 @@ public extension SynthPreset {
         p.reverbMix = 0.14
         p.reverbRoomSize = 0.42
         p.chorusMix = 0.08
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.macro3 = 0.35
         p.lfoEnabled = true
         p.lfoRate = 4.2
@@ -925,7 +925,7 @@ public extension SynthPreset {
         p.delayTime = 0.20
         p.delayFeedback = 0.14
         p.delayPingPong = true
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.modMatrix = [A.mod(.env2, .pitch1, 0.03), A.mod(.velocity, .amp, 0.26), A.mod(.velocity, .cutoff, 0.22)]
     },
         A.make("Marimba", .pluck) { p in
@@ -958,7 +958,7 @@ public extension SynthPreset {
         p.transientSustain = -0.10
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.38
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.character = .warm
         p.modMatrix = [A.mod(.env2, .fm, 0.12), A.mod(.velocity, .amp, 0.26), A.mod(.velocity, .cutoff, 0.20)]
     },
@@ -991,7 +991,7 @@ public extension SynthPreset {
         p.delayTime = 0.26
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.42
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 0.28
         p.lfoTarget = .none
@@ -1027,7 +1027,7 @@ public extension SynthPreset {
         p.transientSustain = -0.14
         p.reverbMix = 0.08
         p.reverbRoomSize = 0.34
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.character = .warm
         p.modMatrix = [A.mod(.env2, .pwm1, 0.22), A.mod(.velocity, .amp, 0.28), A.mod(.velocity, .cutoff, 0.22)]
     },
@@ -1063,7 +1063,7 @@ public extension SynthPreset {
         p.delayPingPong = true
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.modMatrix = [A.mod(.env2, .pitch1, 0.02), A.mod(.velocity, .amp, 0.26), A.mod(.velocity, .cutoff, 0.22)]
     },
     ]

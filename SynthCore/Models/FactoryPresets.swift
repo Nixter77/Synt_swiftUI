@@ -388,7 +388,7 @@ public extension SynthPreset {
         p.delayTime = 0.26
         p.delayFeedback = 0.18
         p.analogDrift = 0.08
-        p.masterVolume = 0.48
+        p.masterVolume = 0.52
         p.eqEnabled = true
         p.eqLowGain = -2
         p.eqMidGain = 1
@@ -907,7 +907,7 @@ public extension SynthPreset {
         p.transientSustain = -0.12
         p.reverbMix = 0.08
         p.reverbRoomSize = 0.32
-        p.masterVolume = 0.42
+        p.masterVolume = 0.45
         p.distortionEnabled = true
         p.distortionType = .tubeSaturation
         p.distortionDrive = 0.14
@@ -943,7 +943,7 @@ public extension SynthPreset {
         p.delayTime = 0.28
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 0.40
         p.lfoTarget = .none
@@ -978,7 +978,7 @@ public extension SynthPreset {
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
         p.chorusMix = 0.10
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.distortionEnabled = true
         p.distortionType = .tapeSaturation
         p.distortionDrive = 0.12
@@ -1101,7 +1101,7 @@ public extension SynthPreset {
         p.delayTime = 0.22
         p.delayFeedback = 0.14
         p.delayPingPong = true
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 0.35
         p.lfoTarget = .none
@@ -1141,7 +1141,7 @@ public extension SynthPreset {
         p.delayTime = 0.24
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 0.30
         p.lfoTarget = .none

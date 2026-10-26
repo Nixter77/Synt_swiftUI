@@ -84,7 +84,9 @@ public extension SynthPreset {
         p.filterResonance = 0.28
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
-        p.masterVolume = 0.52
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
         p.modMatrix = [A.mod(.env2, .fm, 0.14), A.mod(.velocity, .cutoff, 0.22)]
@@ -115,7 +117,7 @@ public extension SynthPreset {
         p.delayTime = 0.26
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.50
+        p.masterVolume = 0.52
         p.filter2Routing = .parallel
         p.filter2Type = .lowPass
         p.filter2Cutoff = 2400
@@ -185,7 +187,7 @@ public extension SynthPreset {
         p.delayTime = 0.28
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.48
+        p.masterVolume = 0.52
         p.lfoEnabled = true
         p.lfoRate = 4.8
         p.lfoDepth = 0.05
@@ -324,7 +326,7 @@ public extension SynthPreset {
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
         p.chorusMix = 0.10
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 0.35
         p.lfoTarget = .none
@@ -396,7 +398,7 @@ public extension SynthPreset {
         p.delayTime = 0.28
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 0.30
         p.lfoTarget = .none
@@ -430,7 +432,7 @@ public extension SynthPreset {
         p.filterSustain = 0.18
         p.filterRelease = 0.40
         p.velocityToCutoff = 0.24
-        p.masterVolume = 0.42
+        p.masterVolume = 0.45
         p.stereoEnabled = true
         p.stereoWidth = 1.24
         p.lfoEnabled = true
@@ -499,7 +501,9 @@ public extension SynthPreset {
         p.filterRelease = 0.10
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
-        p.masterVolume = 0.50
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.transientEnabled = true
         p.transientAttack = 0.35
         p.transientSustain = -0.15
@@ -539,7 +543,7 @@ public extension SynthPreset {
         p.delayTime = 0.24
         p.delayFeedback = 0.14
         p.delayPingPong = true
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.modMatrix = [A.mod(.env2, .fm, 0.10), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 2.10
     },
@@ -636,7 +640,7 @@ public extension SynthPreset {
         p.reverbMix = 0.14
         p.reverbRoomSize = 0.42
         p.chorusMix = 0.08
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 4.0
         p.lfoTarget = .none
@@ -670,7 +674,9 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.28
         p.velocityToEnvAmount = 0.30
         p.reverbMix = 0.04
-        p.masterVolume = 0.50
+        p.masterVolume = 0.58
+        p.voiceMode = .legato
+        p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
         p.modMatrix = [A.mod(.env2, .pitch1, 0.04), A.mod(.velocity, .cutoff, 0.24)]
@@ -703,7 +709,7 @@ public extension SynthPreset {
         p.delayTime = 0.24
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.48
+        p.masterVolume = 0.52
         p.distortionEnabled = true
         p.distortionType = .tubeSaturation
         p.distortionDrive = 0.16
@@ -741,7 +747,9 @@ public extension SynthPreset {
         p.filterRelease = 0.12
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
-        p.masterVolume = 0.52
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
         p.character = .warm
@@ -807,7 +815,9 @@ public extension SynthPreset {
         p.filterRelease = 0.12
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
-        p.masterVolume = 0.50
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.distortionEnabled = true
         p.distortionType = .softClip
         p.distortionDrive = 0.16
@@ -844,7 +854,7 @@ public extension SynthPreset {
         p.transientSustain = -0.10
         p.reverbMix = 0.08
         p.reverbRoomSize = 0.34
-        p.masterVolume = 0.44
+        p.masterVolume = 0.45
         p.modMatrix = [A.mod(.env2, .pwm1, 0.22), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 3.45
     },
@@ -905,7 +915,9 @@ public extension SynthPreset {
         p.filterSustain = 0.10
         p.filterRelease = 0.14
         p.velocityToCutoff = 0.24
-        p.masterVolume = 0.50
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.transientEnabled = true
         p.transientAttack = 0.36
         p.transientSustain = -0.10
@@ -1430,7 +1442,7 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
-        p.masterVolume = 0.42
+        p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 3.6
         p.lfoTarget = .none
@@ -1497,7 +1509,7 @@ public extension SynthPreset {
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
         p.chorusMix = 0.10
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.analogDrift = 0.22
         p.character = .warm
         p.noiseColor = .pink
@@ -1534,7 +1546,9 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.06
         p.reverbRoomSize = 0.34
-        p.masterVolume = 0.48
+        p.masterVolume = 0.58
+        p.voiceMode = .mono
+        p.portamento = 0.03
         p.arpMode = .up
         p.arpRate = .sixteenth
         p.sequencerData = A.proSequence()
@@ -1571,7 +1585,7 @@ public extension SynthPreset {
         p.delayTime = 0.22
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.48
+        p.masterVolume = 0.52
         p.character = .bright
         p.modMatrix = [A.mod(.env2, .pitch2, 0.08), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 6.60
@@ -1603,7 +1617,7 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
-        p.masterVolume = 0.42
+        p.masterVolume = 0.45
         p.rotaryEnabled = true
         p.rotaryMix = 0.72
         p.rotaryDrive = 0.12
@@ -1709,7 +1723,7 @@ public extension SynthPreset {
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
         p.chorusMix = 0.10
-        p.masterVolume = 0.43
+        p.masterVolume = 0.45
         p.analogDrift = 0.18
         p.character = .warm
         p.lfoEnabled = true
@@ -1748,7 +1762,7 @@ public extension SynthPreset {
         p.delayTime = 0.26
         p.delayFeedback = 0.16
         p.delayPingPong = true
-        p.masterVolume = 0.48
+        p.masterVolume = 0.52
         p.portamento = 0.04
         p.character = .warm
         p.macro2 = 0.35
