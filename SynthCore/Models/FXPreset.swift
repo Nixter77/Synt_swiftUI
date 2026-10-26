@@ -9,6 +9,8 @@ import Foundation
 
 public enum FXKind: String, CaseIterable, Codable {
     case distortion, eq, phaser, chorus, delay, reverb
+    /// Appended. These are not insert-slot kinds; snapshots still live in the FX menu.
+    case rotary, frequencyShifter, transient, tranceGate, fxOrder
 }
 
 public struct FXPreset: Codable, Identifiable, Equatable {
@@ -113,6 +115,40 @@ public struct FXPreset: Codable, Identifiable, Equatable {
         case .reverb:
             preset.reverbMix = values["mix"] ?? preset.reverbMix
             preset.reverbRoomSize = values["room"] ?? preset.reverbRoomSize
+        case .rotary:
+            preset.rotaryFast = (ints["fast"] ?? 0) != 0
+            preset.rotaryHornSlow = values["hornSlow"] ?? preset.rotaryHornSlow
+            preset.rotaryHornFast = values["hornFast"] ?? preset.rotaryHornFast
+            preset.rotaryDrumSlow = values["drumSlow"] ?? preset.rotaryDrumSlow
+            preset.rotaryDrumFast = values["drumFast"] ?? preset.rotaryDrumFast
+            preset.rotaryDrive = values["drive"] ?? preset.rotaryDrive
+            preset.rotaryMix = values["mix"] ?? preset.rotaryMix
+            preset.rotaryAccel = values["accel"] ?? preset.rotaryAccel
+        case .frequencyShifter:
+            preset.frequencyShifterShiftHz = values["shift"] ?? preset.frequencyShifterShiftHz
+            preset.frequencyShifterMix = values["mix"] ?? preset.frequencyShifterMix
+            preset.frequencyShifterFeedback = values["feedback"] ?? preset.frequencyShifterFeedback
+        case .transient:
+            preset.transientAttack = values["attack"] ?? preset.transientAttack
+            preset.transientSustain = values["sustain"] ?? preset.transientSustain
+            preset.transientOutput = values["output"] ?? preset.transientOutput
+            preset.transientMix = values["mix"] ?? preset.transientMix
+        case .tranceGate:
+            if let pattern = ints["pattern"] {
+                preset.tranceGatePattern = UInt16(clamping: pattern)
+            }
+            if let division = TimeDivision.allCases[safe: ints["division"] ?? 0] {
+                preset.tranceGateDivision = division
+            }
+            preset.tranceGateDepth = values["depth"] ?? preset.tranceGateDepth
+            preset.tranceGateSmooth = values["smooth"] ?? preset.tranceGateSmooth
+        case .fxOrder:
+            let slots = (0..<6).compactMap { index -> FXSlotID? in
+                FXSlotID.allCases[safe: ints["slot\(index)"] ?? -1]
+            }
+            if slots.count == 6, Set(slots).count == 6 {
+                preset.fxOrder = slots
+            }
         }
     }
 
@@ -192,6 +228,65 @@ public struct FXPreset: Codable, Identifiable, Equatable {
                     "room": preset.reverbRoomSize,
                 ]
             )
+        case .rotary:
+            return FXPreset(
+                name: "",
+                kind: kind,
+                isFactory: false,
+                values: [
+                    "hornSlow": preset.rotaryHornSlow,
+                    "hornFast": preset.rotaryHornFast,
+                    "drumSlow": preset.rotaryDrumSlow,
+                    "drumFast": preset.rotaryDrumFast,
+                    "drive": preset.rotaryDrive,
+                    "mix": preset.rotaryMix,
+                    "accel": preset.rotaryAccel,
+                ],
+                ints: ["fast": preset.rotaryFast ? 1 : 0]
+            )
+        case .frequencyShifter:
+            return FXPreset(
+                name: "",
+                kind: kind,
+                isFactory: false,
+                values: [
+                    "shift": preset.frequencyShifterShiftHz,
+                    "mix": preset.frequencyShifterMix,
+                    "feedback": preset.frequencyShifterFeedback,
+                ]
+            )
+        case .transient:
+            return FXPreset(
+                name: "",
+                kind: kind,
+                isFactory: false,
+                values: [
+                    "attack": preset.transientAttack,
+                    "sustain": preset.transientSustain,
+                    "output": preset.transientOutput,
+                    "mix": preset.transientMix,
+                ]
+            )
+        case .tranceGate:
+            return FXPreset(
+                name: "",
+                kind: kind,
+                isFactory: false,
+                values: [
+                    "depth": preset.tranceGateDepth,
+                    "smooth": preset.tranceGateSmooth,
+                ],
+                ints: [
+                    "pattern": Int(preset.tranceGatePattern),
+                    "division": index(of: preset.tranceGateDivision, in: TimeDivision.allCases),
+                ]
+            )
+        case .fxOrder:
+            var ints: [String: Int] = [:]
+            for (index, slot) in preset.fxOrder.enumerated() {
+                ints["slot\(index)"] = indexOfSlot(slot)
+            }
+            return FXPreset(name: "", kind: kind, isFactory: false, values: [:], ints: ints)
         }
     }
 
@@ -228,6 +323,14 @@ public struct FXPreset: Codable, Identifiable, Equatable {
                 out[key] = min(DistortionType.allCases.count - 1, max(0, raw))
             case (.phaser, "mode"):
                 out[key] = min(PhaserMode.allCases.count - 1, max(0, raw))
+            case (.rotary, "fast"):
+                out[key] = raw == 0 ? 0 : 1
+            case (.tranceGate, "division"):
+                out[key] = min(TimeDivision.allCases.count - 1, max(0, raw))
+            case (.tranceGate, "pattern"):
+                out[key] = min(65535, max(0, raw))
+            case (.fxOrder, _) where key.hasPrefix("slot"):
+                out[key] = min(FXSlotID.allCases.count - 1, max(0, raw))
             default:
                 out[key] = raw
             }
@@ -267,9 +370,37 @@ public struct FXPreset: Codable, Identifiable, Equatable {
             return 0...0.9
         case (.delay, "mix"), (.reverb, "mix"), (.reverb, "room"):
             return 0...1
+        case (.rotary, "hornSlow"):
+            return 0.2...3
+        case (.rotary, "hornFast"):
+            return 1...12
+        case (.rotary, "drumSlow"):
+            return 0.15...2.5
+        case (.rotary, "drumFast"):
+            return 1...10
+        case (.rotary, "drive"), (.rotary, "mix"):
+            return 0...1
+        case (.rotary, "accel"):
+            return 0.2...20
+        case (.frequencyShifter, "shift"):
+            return -1000...1000
+        case (.frequencyShifter, "mix"):
+            return 0...1
+        case (.frequencyShifter, "feedback"):
+            return -0.95...0.95
+        case (.transient, "attack"), (.transient, "sustain"):
+            return -1...1
+        case (.transient, "output"):
+            return 0...2
+        case (.transient, "mix"), (.tranceGate, "depth"), (.tranceGate, "smooth"):
+            return 0...1
         default:
             return -1000...1000
         }
+    }
+
+    private static func indexOfSlot(_ slot: FXSlotID) -> Int {
+        FXSlotID.allCases.firstIndex(of: slot) ?? 0
     }
 }
 

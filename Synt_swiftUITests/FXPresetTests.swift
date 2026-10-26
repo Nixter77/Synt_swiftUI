@@ -31,7 +31,7 @@ struct FXPresetTests {
                 }
             case .phaser:
                 #expect(patch.phaserEnabled == before.phaserEnabled)
-            case .chorus, .delay, .reverb:
+            case .chorus, .delay, .reverb, .rotary, .frequencyShifter, .transient, .tranceGate, .fxOrder:
                 break
             }
         }
@@ -231,6 +231,31 @@ struct FXPresetTests {
         case .reverb:
             copy.reverbMix = 0
             copy.reverbRoomSize = 0
+        case .rotary:
+            copy.rotaryFast = false
+            copy.rotaryHornSlow = 0
+            copy.rotaryHornFast = 0
+            copy.rotaryDrumSlow = 0
+            copy.rotaryDrumFast = 0
+            copy.rotaryDrive = 0
+            copy.rotaryMix = 0
+            copy.rotaryAccel = 0
+        case .frequencyShifter:
+            copy.frequencyShifterShiftHz = 0
+            copy.frequencyShifterMix = 0
+            copy.frequencyShifterFeedback = 0
+        case .transient:
+            copy.transientAttack = 0
+            copy.transientSustain = 0
+            copy.transientOutput = 0
+            copy.transientMix = 0
+        case .tranceGate:
+            copy.tranceGatePattern = 0
+            copy.tranceGateDivision = .whole
+            copy.tranceGateDepth = 0
+            copy.tranceGateSmooth = 0
+        case .fxOrder:
+            copy.fxOrder = FXSlotID.defaultOrder
         }
         return copy
     }

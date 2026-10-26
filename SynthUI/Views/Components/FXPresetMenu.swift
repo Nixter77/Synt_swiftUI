@@ -104,6 +104,11 @@ struct FXPresetMenu: View {
         case .chorus: return "Chorus"
         case .delay: return "Delay"
         case .reverb: return "Reverb"
+        case .rotary: return "Rotary"
+        case .frequencyShifter: return "Freq Shifter"
+        case .transient: return "Transient"
+        case .tranceGate: return "Trance Gate"
+        case .fxOrder: return "FX Order"
         }
     }
 
