@@ -6,6 +6,8 @@ main
 GROK_BUILD_*.md
 SYNT_*REPORT*.md
 SYNT_*_MATRIX*.md
+!SYNT_30_REPORT.md
+!SYNT_30_PRESET_MATRIX.md
 *_NOTES.md
 *_DUMP.txt
 *PLAN*.md
