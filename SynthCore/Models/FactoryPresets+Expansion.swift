@@ -2,14 +2,17 @@
 //  FactoryPresets+Expansion.swift
 //  Synt_swiftUI
 //
-//  Sound Expansion Pack: 50 next-generation presets leveraging the full synth engine:
-//  - 5 Wavetable sets (Basic, Analog, Digital, PWM, Formant)
-//  - Sub-Oscillator (-1/-2 oct, Sine/Tri/Square)
-//  - Linear FM (Osc 2 -> Osc 1) & Hard Sync
-//  - Filter Envelope Amount (-1...1) & Key Tracking
-//  - Dual LFOs with Tempo BPM Sync & Extended Mod Matrix
-//  - Step Sequencer Pro with 303 Acid Slide (Tie) & Per-step Gate
-//  - 2x Oversampled Distortion & Stereo Ping-Pong Delay
+//  Sound Expansion Pack: second browser bank (~50), not part of `factoryPresets`.
+//
+//  Same SYNT_30 authoring policy as FactoryPresets.swift. This pack is the
+//  wavetable / FM / formant / MSEG / FX-order heavy bank:
+//  - Wavetable sets (Basic, Analog, Digital, PWM, Formant) including dual WT
+//  - FM, hard sync, sub, dedicated filter ADSR / Env 2, dual filter, vowel mod
+//  - MSEG 1 and MSEG 2, macros into the matrix
+//  - Non-default FX order, rotary, frequency shifter, transient, trance gate
+//  - Sequencer Pro (tie, ratchet, probability) and tempo-synced arp
+//  - masterVolume ≤ 0.75, sends at the factory caps unless the patch is FX
+//  - Init is not in this list
 //
 
 import Foundation

@@ -2,25 +2,24 @@
 //  FactoryPresets.swift
 //  Synt_swiftUI
 //
-//  Factory library authored for the *live* render path, not for a future engine.
+//  Factory library authored for the current engine (SYNT_30).
 //
-//  What the code actually does today:
-//  - Filter: knob + LFO→filter. `filterEnvelopeAmount` and matrix→cutoff are stored, not heard.
-//  - Matrix that sounds: pitch1 / pitch2 / amp / pan. PWM / cutoff / mix do nothing.
-//  - Wavetable is one table (Basic Shapes): 0 sine → 0.33 tri → 0.67 saw → 1 square.
-//  - Unison only while one key is held; a second key collapses to 1 partial. Useless on pads.
-//  - Mix bus is a linear peak rider, then a ceiling that stays linear up to 0.90.
-//    Apple Delay/Reverb still sit after that. Keep sends modest.
-//  - Osc2 is mixed 50/50 with osc1 (volumes still relative). Two bright sources + octave = sand.
-//  - Linear sum: 4 notes are louder than 1. Pads/strings stay quieter at the master.
-//  - Phaser / deep chorus / distortion have no oversample. One extra FX, mild, or none.
+//  Live paths to showcase, not to avoid:
+//  - Dual filter (serial / parallel), formant + vowel / vowel mod
+//  - Amp env, dedicated filter ADSR / Env 2, MSEG 1 and MSEG 2
+//  - Wavetable morph and index, dual wavetable, FM, hard sync, sub, ring, noise color
+//  - Macros 1–8 into the matrix, raw LFO rows, arp and sequencer Pro
+//  - FX order, rotary, frequency shifter, transient, trance gate, stereo bus, character
+//  - MPE pressure / timbre on the dedicated MPE bank
 //
-//  Authoring limits (must match tests):
-//  - reverbMix ≤ 0.24, room ≤ 0.55, delayMix ≤ 0.10, delayFeedback ≤ 0.22
-//  - chorusMix ≤ 0.14; unison ≤ 2 and only bass / lead / mono FX
-//  - no two wavetable oscillators; WT morph stays in 0.08…0.40 (sine–tri), not square
-//  - Env Amt = 0; matrix only live destinations
-//  - Init (`defaultPreset`) is not in this list and must stay untouched
+//  Soft caps (FactoryPresetCoverageTests):
+//  - masterVolume ≤ 0.75; poly pads and strings quieter than mono bass/lead
+//  - reverbMix ≤ 0.35, delayMix ≤ 0.22, chorusMix ≤ 0.22
+//    unless the patch is an explicit FX / ambient showcase
+//  - unison ≤ 4; prefer 1–2 on dense pads
+//  - every non-Init factory and expansion patch renders finite and non-silent for ≥ 1 s
+//  - matrix rows use destinations the render path actually applies
+//  - Init (`defaultPreset`) is not in this list and must stay bit-identical
 //
 
 import Foundation
