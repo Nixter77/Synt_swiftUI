@@ -72,7 +72,7 @@ public extension SynthPreset {
         p.filterResonance = 0.18
         p.reverbMix = 0.05
         p.masterVolume = 0.44
-        p.unisonVoices = 3
+        p.unisonVoices = 2
         p.unisonDetune = 8
         p.unisonSpread = 0.3
     },
@@ -230,7 +230,7 @@ public extension SynthPreset {
         A.make("Whistle Lead", .lead) { p in
         p.osc1Waveform = .wavetable
         p.osc1Volume = 0.48
-        p.osc1WavetableMorph = 0.55
+        p.osc1WavetableMorph = 0.42
         p.osc1WavetableIndex = 4
         p.osc2Enabled = true
         p.osc2Waveform = .sine
@@ -339,7 +339,7 @@ public extension SynthPreset {
         A.make("Pulse Sweep Pad", .pad) { p in
         p.osc1Waveform = .wavetable
         p.osc1Volume = 0.4
-        p.osc1WavetableMorph = 0.48
+        p.osc1WavetableMorph = 0.42
         p.osc1WavetableIndex = 3
         p.osc2Enabled = true
         p.osc2Waveform = .square
@@ -623,9 +623,6 @@ public extension SynthPreset {
         p.reverbMix = 0.12
         p.chorusMix = 0.12
         p.masterVolume = 0.32
-        p.unisonVoices = 2
-        p.unisonDetune = 7
-        p.unisonSpread = 0.4
         p.stereoEnabled = true
         p.stereoWidth = 1.25
     },
@@ -708,9 +705,6 @@ public extension SynthPreset {
         p.reverbMix = 0.12
         p.chorusMix = 0.08
         p.masterVolume = 0.4
-        p.unisonVoices = 2
-        p.unisonDetune = 6
-        p.unisonSpread = 0.25
     },
         A.make("Low Tuba", .brass) { p in
         p.osc1Waveform = .sawtooth

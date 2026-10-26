@@ -179,7 +179,6 @@ public extension SynthPreset {
         p.lfoTarget = .none
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.5
-        p.chorusMix = 0.1
         p.masterVolume = 0.34
         p.phaserEnabled = true
         p.phaserMode = .phaser8

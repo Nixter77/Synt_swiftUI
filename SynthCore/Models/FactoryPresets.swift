@@ -704,9 +704,6 @@ public extension SynthPreset {
         p.reverbRoomSize = 0.48
         p.chorusMix = 0.12
         p.masterVolume = 0.34
-        p.unisonVoices = 2
-        p.unisonDetune = 6
-        p.unisonSpread = 0.3
         p.macro1 = 0.28
         p.modMatrix = [A.mod(.macro1, .cutoff, 0.25)]
     },
