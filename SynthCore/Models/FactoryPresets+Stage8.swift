@@ -1,13 +1,14 @@
 //
 //  FactoryPresets+Stage8.swift
-//  Three demos appended after the existing library. Old patches are untouched.
+//  Filter 2, formant, and MSEG demos. Still the tail of `libraryPresets`,
+//  and no longer the only patches that use those paths.
 //
 
 import Foundation
 
 public extension SynthPreset {
-    /// Filter 2, formant, and MSEG. Counted inside `libraryPresets` so the
-    /// showcase slice stays `count - libraryCount - 20`.
+    private typealias A = FactoryAuthoring
+
     static let stage8Presets: [SynthPreset] = [
         serialGlassBass,
         vowelAhLead,
@@ -15,62 +16,65 @@ public extension SynthPreset {
     ]
 
     private static var serialGlassBass: SynthPreset {
-        var preset = SynthPreset(
-            name: "Serial Glass Bass",
-            category: .bass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.62, osc1Octave: -1,
-            osc2Enabled: false,
-            attack: 0.005, decay: 0.24, sustain: 0.62, release: 0.18,
-            filterCutoff: 720, filterResonance: 0.18,
-            reverbMix: 0.04, reverbRoomSize: 0.28,
-            masterVolume: 0.38
-        )
-        preset.filter2Routing = .serial
-        preset.filter2Type = .bandPass
-        preset.filter2Cutoff = 1600
-        preset.filter2Resonance = 0.28
-        preset.filter2Balance = 0.62
-        return preset
+        A.make("Serial Glass Bass", .bass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.55
+        p.osc1Octave = -1
+        p.attack = 0.006
+        p.decay = 0.22
+        p.sustain = 0.6
+        p.release = 0.18
+        p.filterCutoff = 680
+        p.filterResonance = 0.16
+        p.reverbMix = 0.04
+        p.reverbRoomSize = 0.28
+        p.masterVolume = 0.42
+        p.modMatrix = [A.mod(.env1, .cutoff, 0.12)]
+        p.filter2Routing = .serial
+        p.filter2Type = .bandPass
+        p.filter2Cutoff = 1600
+        p.filter2Resonance = 0.26
+        p.filter2Balance = 0.62
+    }
     }
 
     private static var vowelAhLead: SynthPreset {
-        var preset = SynthPreset(
-            name: "Vowel Ah Lead",
-            category: .lead,
-            osc1Waveform: .sawtooth, osc1Volume: 0.9,
-            osc2Enabled: false,
-            attack: 0.008, decay: 0.2, sustain: 0.85, release: 0.22,
-            filterCutoff: 4000, filterResonance: 0.1,
-            reverbMix: 0.04, reverbRoomSize: 0.3,
-            masterVolume: 0.75
-        )
-        preset.filterType = .formant
-        preset.filterVowel = 1.4
-        return preset
+        A.make("Vowel Ah Lead", .lead) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.95
+        p.attack = 0.008
+        p.decay = 0.2
+        p.sustain = 0.85
+        p.release = 0.22
+        p.filterType = .formant
+        p.filterCutoff = 2600
+        p.filterResonance = 0.06
+        p.lfoEnabled = true
+        p.lfoRate = 0.3
+        p.lfoTarget = .none
+        p.reverbMix = 0.06
+        p.reverbRoomSize = 0.32
+        p.masterVolume = 0.64
+        p.modMatrix = [A.mod(.lfo1, .vowel, 0.18)]
+        p.filterVowel = 1.4
+    }
     }
 
     private static var msegDrift: SynthPreset {
-        var preset = SynthPreset(
-            name: "MSEG Drift",
-            category: .fx,
-            osc1Waveform: .triangle, osc1Volume: 0.64,
-            osc2Enabled: false,
-            attack: 0.02, decay: 0.4, sustain: 0.75, release: 0.35,
-            filterCutoff: 2800, filterResonance: 0.08,
-            reverbMix: 0.06, reverbRoomSize: 0.3,
-            masterVolume: 0.36,
-            modMatrix: [PresetAuthoring.mod(.mseg, .pitch1, 0.08)]
-        )
-        var shape = MSEGPreset()
-        shape.points = [
-            DSPMSEGPoint(time: 0, value: -0.55),
-            DSPMSEGPoint(time: 0.4, value: 0.85, curve: -0.25),
-            DSPMSEGPoint(time: 1, value: -0.15, curve: 0.2)
-        ]
-        shape.rateHz = 0.7
-        shape.sustainIndex = nil
-        shape.triggerMode = .retrigger
-        preset.mseg = shape
-        return preset
+        A.make("MSEG Drift", .fx) { p in
+        p.osc1Waveform = .triangle
+        p.osc1Volume = 0.55
+        p.attack = 0.02
+        p.decay = 0.35
+        p.sustain = 0.72
+        p.release = 0.35
+        p.filterCutoff = 2400
+        p.filterResonance = 0.08
+        p.reverbMix = 0.08
+        p.reverbRoomSize = 0.32
+        p.masterVolume = 0.38
+        p.modMatrix = [A.mod(.mseg, .pitch1, 0.08)]
+        p.mseg = A.shape(rate: 0.7, -0.55, 0.85, -0.15)
+    }
     }
 }

@@ -2,538 +2,855 @@
 //  FactoryPresets+Library.swift
 //  Synt_swiftUI
 //
-//  2026-10-18: 42 patches appended after the showcase so the library is 100.
-//  Legacy + showcase patches are untouched (their golden hashes stay).
-//  Same authoring limits as FactoryPresets.swift; LibraryPresetTests checks
-//  every patch for NaN, clipping and loudness at 1 / 3 notes (and its arp).
+//  Library appended after the showcase. Stage 8 demos stay the suffix.
+//  SYNT_30 bodies: filter 2, formant, MSEG, Env 2, rotary, and macros
+//  live here as well as in the legacy bank. Same caps as FactoryPresets.swift.
 //
 
 import Foundation
 
 public extension SynthPreset {
-    private typealias M = PresetAuthoring
+    private typealias A = FactoryAuthoring
 
     static let libraryPresets: [SynthPreset] =
         libBass + libLead + libPad + libKeys + libPluck + libStrings + libBrass + libArp + libFX
         + stage8Presets
 
-    // MARK: - Bass (6)
-
     private static let libBass: [SynthPreset] = [
-        SynthPreset(
-            name: "Acid Squelch",
-            category: .bass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.68, osc1Octave: -1,
-            osc2Enabled: false,
-            attack: 0.003, decay: 0.20, sustain: 0.35, release: 0.090,
-            filterCutoff: 520, filterResonance: 0.62,
-            reverbMix: 0.03, reverbRoomSize: 0.25,
-            masterVolume: 0.40, portamento: 0.06,
-            modMatrix: [M.mod(.env1, .cutoff, 0.40), M.mod(.velocity, .resonance, 0.15)],
-            distortionEnabled: true, distortionType: .softClip, distortionDrive: 0.18, distortionTone: 0.45, distortionMix: 0.12
-        ),
-        SynthPreset(
-            name: "Hollow Pulse Bass",
-            category: .bass,
-            osc1Waveform: .square, osc1Volume: 0.66, osc1Octave: -1, osc1PulseWidth: 0.18,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.30, osc2Octave: -1, osc2Detune: 0,
-            attack: 0.004, decay: 0.30, sustain: 0.55, release: 0.120,
-            filterCutoff: 1400, filterResonance: 0.18,
-            reverbMix: 0.03, reverbRoomSize: 0.25,
-            masterVolume: 0.50
-        ),
-        SynthPreset(
-            name: "Fat Unison Bass",
-            category: .bass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.58, osc1Octave: -1,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.42, osc2Octave: -2, osc2Detune: 3,
-            attack: 0.006, decay: 0.25, sustain: 0.80, release: 0.160,
-            filterCutoff: 640, filterResonance: 0.24,
-            reverbMix: 0.03, reverbRoomSize: 0.25,
-            masterVolume: 0.46,
-            unisonVoices: 2, unisonDetune: 10, unisonSpread: 0.35,
-            distortionEnabled: true, distortionType: .tapeSaturation, distortionDrive: 0.16, distortionTone: 0.40, distortionMix: 0.12
-        ),
-        SynthPreset(
-            name: "Finger Pluck Bass",
-            category: .bass,
-            osc1Waveform: .triangle, osc1Volume: 0.70, osc1Octave: -1,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.22, osc2Octave: -1, osc2Detune: 2,
-            attack: 0.002, decay: 0.38, sustain: 0.0, release: 0.120,
-            filterCutoff: 700, filterResonance: 0.15,
-            reverbMix: 0.04, reverbRoomSize: 0.28,
-            masterVolume: 0.54,
-            modMatrix: [M.mod(.env1, .cutoff, 0.30), M.mod(.velocity, .amp, 0.30)]
-        ),
-        SynthPreset(
-            name: "Wavefold Bass",
-            category: .bass,
-            osc1Waveform: .sine, osc1Volume: 0.70, osc1Octave: -1,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.25, osc2Octave: -2, osc2Detune: 0,
-            attack: 0.004, decay: 0.30, sustain: 0.70, release: 0.140,
-            filterCutoff: 1800, filterResonance: 0.12,
-            reverbMix: 0.03, reverbRoomSize: 0.25,
-            masterVolume: 0.48,
-            distortionEnabled: true, distortionType: .wavefolder, distortionDrive: 0.30, distortionTone: 0.45, distortionMix: 0.30
-        ),
-        SynthPreset(
-            name: "Dub Wobble",
-            category: .bass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.62, osc1Octave: -1,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.36, osc2Octave: -2, osc2Detune: 0,
-            attack: 0.006, decay: 0.20, sustain: 0.85, release: 0.180,
-            filterCutoff: 480, filterResonance: 0.42,
-            lfoEnabled: true, lfoRate: 2.0, lfoDepth: 0.30, lfoWaveform: .triangle, lfoTarget: .filter,
-            reverbMix: 0.05, reverbRoomSize: 0.30,
-            masterVolume: 0.48
-        ),
+        A.make("Acid Squelch", .bass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.55
+        p.osc1Octave = -1
+        p.attack = 0.004
+        p.decay = 0.2
+        p.sustain = 0.35
+        p.release = 0.1
+        p.filterCutoff = 480
+        p.filterResonance = 0.45
+        p.filterEnvUseDedicatedADSR = true
+        p.filterAttack = 0.003
+        p.filterDecay = 0.16
+        p.filterSustain = 0.1
+        p.filterRelease = 0.1
+        p.reverbMix = 0.03
+        p.masterVolume = 0.48
+        p.modMatrix = [A.mod(.env2, .cutoff, 0.45)]
+    },
+        A.make("Hollow Pulse Bass", .bass) { p in
+        p.osc1Waveform = .square
+        p.osc1Volume = 0.52
+        p.osc1Octave = -1
+        p.osc1PulseWidth = 0.3
+        p.attack = 0.008
+        p.decay = 0.24
+        p.sustain = 0.6
+        p.release = 0.16
+        p.filterCutoff = 620
+        p.filterResonance = 0.2
+        p.reverbMix = 0.04
+        p.masterVolume = 0.46
+        p.filter2Routing = .serial
+        p.filter2Type = .bandPass
+        p.filter2Cutoff = 1100
+        p.filter2Resonance = 0.3
+        p.filter2Balance = 0.55
+    },
+        A.make("Fat Unison Bass", .bass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.46
+        p.osc1Octave = -1
+        p.osc1Detune = -5
+        p.osc2Enabled = true
+        p.osc2Waveform = .sawtooth
+        p.osc2Volume = 0.36
+        p.osc2Detune = 6
+        p.attack = 0.015
+        p.decay = 0.25
+        p.sustain = 0.7
+        p.release = 0.22
+        p.filterCutoff = 800
+        p.filterResonance = 0.18
+        p.reverbMix = 0.05
+        p.masterVolume = 0.44
+        p.unisonVoices = 3
+        p.unisonDetune = 8
+        p.unisonSpread = 0.3
+    },
+        A.make("Finger Pluck Bass", .bass) { p in
+        p.osc1Waveform = .triangle
+        p.osc1Volume = 0.55
+        p.osc1Octave = -1
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.3
+        p.osc2Octave = -2
+        p.attack = 0.003
+        p.decay = 0.18
+        p.sustain = 0.25
+        p.release = 0.12
+        p.filterCutoff = 900
+        p.filterResonance = 0.12
+        p.reverbMix = 0.04
+        p.masterVolume = 0.48
+    },
+        A.make("Wavefold Bass", .bass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.5
+        p.osc1Octave = -1
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.2
+        p.oscSyncEnabled = true
+        p.attack = 0.006
+        p.decay = 0.2
+        p.sustain = 0.55
+        p.release = 0.14
+        p.filterCutoff = 740
+        p.filterResonance = 0.24
+        p.reverbMix = 0.04
+        p.masterVolume = 0.46
+        p.distortionEnabled = true
+        p.distortionType = .wavefolder
+        p.distortionDrive = 0.16
+        p.distortionMix = 0.08
+    },
+        A.make("Dub Wobble", .bass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.52
+        p.osc1Octave = -1
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.22
+        p.osc2Octave = -1
+        p.attack = 0.01
+        p.decay = 0.3
+        p.sustain = 0.65
+        p.release = 0.2
+        p.filterCutoff = 540
+        p.filterResonance = 0.3
+        p.lfoEnabled = true
+        p.lfoRate = 0.4
+        p.lfoTarget = .none
+        p.reverbMix = 0.08
+        p.delayMix = 0.06
+        p.delayTime = 0.36
+        p.delayFeedback = 0.18
+        p.masterVolume = 0.46
+        p.modMatrix = [A.mod(.lfo1, .cutoff, 0.28)]
+    },
     ]
-
-    // MARK: - Lead (6)
 
     private static let libLead: [SynthPreset] = [
-        SynthPreset(
-            name: "Chip Square Lead",
-            category: .lead,
-            osc1Waveform: .square, osc1Volume: 0.56, osc1Octave: 0, osc1PulseWidth: 0.25,
-            osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.18, osc2Octave: 1, osc2Detune: 0, osc2PulseWidth: 0.5,
-            attack: 0.002, decay: 0.10, sustain: 0.80, release: 0.080,
-            filterCutoff: 6500, filterResonance: 0.08,
-            lfoEnabled: true, lfoRate: 6.0, lfoDepth: 0.04, lfoTarget: .pitch,
-            reverbMix: 0.08, reverbRoomSize: 0.30,
-            masterVolume: 0.42,
-            distortionEnabled: true, distortionType: .bitcrusher, distortionDrive: 0.15, distortionTone: 0.55, distortionMix: 0.12
-        ),
-        SynthPreset(
-            name: "Glide Saw Lead",
-            category: .lead,
-            osc1Waveform: .sawtooth, osc1Volume: 0.58, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.40, osc2Octave: 0, osc2Detune: 8,
-            attack: 0.010, decay: 0.20, sustain: 0.75, release: 0.200,
-            filterCutoff: 3200, filterResonance: 0.28,
-            reverbMix: 0.10, reverbRoomSize: 0.38,
-            delayTime: 0.375, delayFeedback: 0.20, delayMix: 0.08,
-            masterVolume: 0.46, portamento: 0.12
-        ),
-        SynthPreset(
-            name: "Breathy Flute",
-            category: .lead,
-            osc1Waveform: .sine, osc1Volume: 0.70, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .noise, osc2Volume: 0.06, osc2Octave: 0, osc2Detune: 0,
-            attack: 0.070, decay: 0.20, sustain: 0.85, release: 0.180,
-            filterCutoff: 3000, filterResonance: 0.10,
-            lfoEnabled: true, lfoRate: 4.8, lfoDepth: 0.03, lfoTarget: .pitch,
-            reverbMix: 0.18, reverbRoomSize: 0.45,
-            masterVolume: 0.56,
-            modMatrix: [M.mod(.velocity, .amp, 0.25)]
-        ),
-        SynthPreset(
-            name: "Overdrive Lead",
-            category: .lead,
-            osc1Waveform: .sawtooth, osc1Volume: 0.60, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.24, osc2Octave: -1, osc2Detune: 4, osc2PulseWidth: 0.45,
-            attack: 0.008, decay: 0.25, sustain: 0.80, release: 0.200,
-            filterCutoff: 2400, filterResonance: 0.32,
-            reverbMix: 0.10, reverbRoomSize: 0.38,
-            masterVolume: 0.42,
-            unisonVoices: 2, unisonDetune: 5, unisonSpread: 0.30,
-            distortionEnabled: true, distortionType: .tubeSaturation, distortionDrive: 0.34, distortionTone: 0.45, distortionMix: 0.28
-        ),
-        SynthPreset(
-            name: "Whistle Lead",
-            category: .lead,
-            osc1Waveform: .triangle, osc1Volume: 0.62, osc1Octave: 1,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.30, osc2Octave: 1, osc2Detune: 3,
-            attack: 0.025, decay: 0.15, sustain: 0.85, release: 0.150,
-            filterCutoff: 5000, filterResonance: 0.08,
-            lfoEnabled: true, lfoRate: 5.5, lfoDepth: 0.05, lfoTarget: .pitch,
-            reverbMix: 0.16, reverbRoomSize: 0.42,
-            masterVolume: 0.50, portamento: 0.04
-        ),
-        SynthPreset(
-            name: "Nasal Band Lead",
-            category: .lead,
-            osc1Waveform: .sawtooth, osc1Volume: 0.62, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.30, osc2Octave: 0, osc2Detune: 5, osc2PulseWidth: 0.35,
-            attack: 0.012, decay: 0.20, sustain: 0.78, release: 0.180,
-            filterType: .bandPass, filterCutoff: 1400, filterResonance: 0.40,
-            reverbMix: 0.12, reverbRoomSize: 0.40,
-            masterVolume: 0.56,
-            modMatrix: [M.mod(.velocity, .cutoff, 0.15)],
-            eqEnabled: true, eqPreset: .vocal,
-            eqLowGain: -2, eqLowFreq: 150, eqMidGain: 3, eqMidFreq: 1500, eqHighGain: 0, eqHighFreq: 8000
-        ),
+        A.make("Chip Square Lead", .lead) { p in
+        p.osc1Waveform = .square
+        p.osc1Volume = 0.52
+        p.osc1PulseWidth = 0.25
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.18
+        p.osc2Octave = 1
+        p.osc2PulseWidth = 0.4
+        p.attack = 0.004
+        p.decay = 0.14
+        p.sustain = 0.6
+        p.release = 0.12
+        p.filterCutoff = 2400
+        p.filterResonance = 0.14
+        p.filterEnvUseDedicatedADSR = true
+        p.filterDecay = 0.1
+        p.filterSustain = 0.3
+        p.reverbMix = 0.06
+        p.masterVolume = 0.46
+        p.modMatrix = [A.mod(.env2, .cutoff, 0.25)]
+    },
+        A.make("Glide Saw Lead", .lead) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.52
+        p.osc2Enabled = true
+        p.osc2Waveform = .sawtooth
+        p.osc2Volume = 0.2
+        p.osc2Detune = 4
+        p.attack = 0.01
+        p.decay = 0.2
+        p.sustain = 0.7
+        p.release = 0.18
+        p.filterCutoff = 1900
+        p.filterResonance = 0.18
+        p.reverbMix = 0.08
+        p.masterVolume = 0.46
+        p.portamento = 0.08
+    },
+        A.make("Breathy Flute", .lead) { p in
+        p.osc1Waveform = .sine
+        p.osc1Volume = 0.5
+        p.osc2Enabled = true
+        p.osc2Waveform = .triangle
+        p.osc2Volume = 0.22
+        p.osc2Detune = 2
+        p.fmAmount = 0.1
+        p.attack = 0.08
+        p.decay = 0.2
+        p.sustain = 0.75
+        p.release = 0.25
+        p.filterCutoff = 2800
+        p.filterResonance = 0.08
+        p.reverbMix = 0.1
+        p.masterVolume = 0.46
+        p.noiseColor = .pink
+        p.modMatrix = [A.mod(.lfo1, .pitch1, 0.01)]
+        p.lfoEnabled = true
+        p.lfoRate = 4.8
+        p.lfoTarget = .none
+    },
+        A.make("Overdrive Lead", .lead) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.5
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.18
+        p.osc2PulseWidth = 0.35
+        p.attack = 0.008
+        p.decay = 0.18
+        p.sustain = 0.65
+        p.release = 0.16
+        p.filterCutoff = 1600
+        p.filterResonance = 0.22
+        p.filterEnvUseDedicatedADSR = true
+        p.filterAttack = 0.005
+        p.filterDecay = 0.14
+        p.filterSustain = 0.35
+        p.reverbMix = 0.06
+        p.masterVolume = 0.46
+        p.distortionEnabled = true
+        p.distortionType = .tapeSaturation
+        p.distortionDrive = 0.16
+        p.distortionMix = 0.1
+        p.modMatrix = [A.mod(.env2, .cutoff, 0.3)]
+    },
+        A.make("Whistle Lead", .lead) { p in
+        p.osc1Waveform = .wavetable
+        p.osc1Volume = 0.48
+        p.osc1WavetableMorph = 0.55
+        p.osc1WavetableIndex = 4
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.16
+        p.osc2Octave = 1
+        p.attack = 0.02
+        p.decay = 0.15
+        p.sustain = 0.7
+        p.release = 0.2
+        p.filterCutoff = 3600
+        p.filterResonance = 0.06
+        p.reverbMix = 0.08
+        p.masterVolume = 0.46
+    },
+        A.make("Nasal Band Lead", .lead) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.92
+        p.attack = 0.01
+        p.decay = 0.18
+        p.sustain = 0.7
+        p.release = 0.18
+        p.filterType = .formant
+        p.filterCutoff = 2400
+        p.filterResonance = 0.08
+        p.filterVowel = 1.0
+        p.filterEnvUseDedicatedADSR = true
+        p.filterDecay = 0.2
+        p.filterSustain = 0.55
+        p.reverbMix = 0.08
+        p.masterVolume = 0.62
+        p.modMatrix = [A.mod(.env2, .vowel, 0.2)]
+    },
     ]
-
-    // MARK: - Pad (5) — chords: no unison, quieter master
 
     private static let libPad: [SynthPreset] = [
-        SynthPreset(
-            name: "Soft Saw Pad",
-            category: .pad,
-            osc1Waveform: .sawtooth, osc1Volume: 0.46, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.40, osc2Octave: 0, osc2Detune: 7,
-            attack: 0.800, decay: 0.6, sustain: 0.85, release: 1.400,
-            filterCutoff: 1600, filterResonance: 0.14,
-            reverbMix: 0.22, reverbRoomSize: 0.52,
-            chorusRate: 0.6, chorusDepth: 0.30, chorusMix: 0.12,
-            masterVolume: 0.38
-        ),
-        SynthPreset(
-            name: "Sine Glass Pad",
-            category: .pad,
-            osc1Waveform: .sine, osc1Volume: 0.56, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.24, osc2Octave: 1, osc2Detune: 4,
-            attack: 1.200, decay: 0.8, sustain: 0.80, release: 1.600,
-            filterCutoff: 4200, filterResonance: 0.08,
-            lfoEnabled: true, lfoRate: 0.25, lfoDepth: 0.12, lfoTarget: .amplitude,
-            reverbMix: 0.22, reverbRoomSize: 0.54,
-            masterVolume: 0.44
-        ),
-        SynthPreset(
-            name: "Dark Choir",
-            category: .pad,
-            osc1Waveform: .wavetable, osc1Volume: 0.50, osc1Octave: 0, osc1WavetableMorph: 0.22,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.30, osc2Octave: -1, osc2Detune: 3,
-            attack: 0.600, decay: 0.5, sustain: 0.85, release: 1.200,
-            filterCutoff: 950, filterResonance: 0.12,
-            reverbMix: 0.22, reverbRoomSize: 0.52,
-            masterVolume: 0.44,
-            eqEnabled: true, eqPreset: .vocal,
-            eqLowGain: -1, eqLowFreq: 150, eqMidGain: 3, eqMidFreq: 900, eqHighGain: -2, eqHighFreq: 7000
-        ),
-        SynthPreset(
-            name: "Pulse Sweep Pad",
-            category: .pad,
-            osc1Waveform: .square, osc1Volume: 0.46, osc1Octave: 0, osc1PulseWidth: 0.40,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.28, osc2Octave: 0, osc2Detune: 6,
-            attack: 0.700, decay: 0.6, sustain: 0.85, release: 1.300,
-            filterCutoff: 2000, filterResonance: 0.14,
-            lfoEnabled: true, lfoRate: 0.35, lfoDepth: 0.0, lfoTarget: .none,
-            reverbMix: 0.20, reverbRoomSize: 0.50,
-            masterVolume: 0.38,
-            modMatrix: [M.mod(.lfo1, .pwm1, 0.30), M.mod(.lfo1, .cutoff, 0.15)]
-        ),
-        SynthPreset(
-            name: "Night Swell",
-            category: .pad,
-            osc1Waveform: .sawtooth, osc1Volume: 0.44, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.36, osc2Octave: -1, osc2Detune: 0,
-            attack: 1.500, decay: 1.0, sustain: 0.90, release: 1.800,
-            filterCutoff: 1100, filterResonance: 0.20,
-            lfoEnabled: true, lfoRate: 0.12, lfoDepth: 0.30, lfoTarget: .filter,
-            reverbMix: 0.24, reverbRoomSize: 0.55,
-            masterVolume: 0.40
-        ),
+        A.make("Soft Saw Pad", .pad) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.4
+        p.osc2Enabled = true
+        p.osc2Waveform = .sawtooth
+        p.osc2Volume = 0.28
+        p.osc2Detune = 6
+        p.attack = 0.3
+        p.decay = 0.35
+        p.sustain = 0.84
+        p.release = 0.8
+        p.filterCutoff = 1100
+        p.filterResonance = 0.1
+        p.reverbMix = 0.14
+        p.chorusMix = 0.1
+        p.masterVolume = 0.34
+        p.filter2Routing = .parallel
+        p.filter2Type = .lowPass
+        p.filter2Cutoff = 2800
+        p.filter2Resonance = 0.1
+        p.filter2Balance = 0.4
+    },
+        A.make("Sine Glass Pad", .pad) { p in
+        p.osc1Waveform = .sine
+        p.osc1Volume = 0.46
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.28
+        p.osc2Octave = 1
+        p.osc2Detune = 3
+        p.attack = 0.28
+        p.decay = 0.3
+        p.sustain = 0.86
+        p.release = 0.9
+        p.filterCutoff = 2000
+        p.filterResonance = 0.06
+        p.reverbMix = 0.16
+        p.masterVolume = 0.32
+        p.stereoEnabled = true
+        p.stereoWidth = 1.25
+    },
+        A.make("Dark Choir", .pad) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.55
+        p.osc2Enabled = true
+        p.osc2Waveform = .triangle
+        p.osc2Volume = 0.32
+        p.osc2Detune = 5
+        p.attack = 0.16
+        p.decay = 0.35
+        p.sustain = 0.82
+        p.release = 0.9
+        p.filterType = .formant
+        p.filterCutoff = 1800
+        p.filterResonance = 0.08
+        p.filterVowel = 0.4
+        p.lfoEnabled = true
+        p.lfoRate = 0.12
+        p.lfoTarget = .none
+        p.reverbMix = 0.14
+        p.reverbRoomSize = 0.48
+        p.masterVolume = 0.36
+        p.character = .warm
+        p.filter2Routing = .parallel
+        p.filter2Type = .lowPass
+        p.filter2Cutoff = 1600
+        p.filter2Resonance = 0.1
+        p.filter2Balance = 0.62
+        p.modMatrix = [A.mod(.lfo1, .vowel, 0.16)]
+    },
+        A.make("Pulse Sweep Pad", .pad) { p in
+        p.osc1Waveform = .wavetable
+        p.osc1Volume = 0.4
+        p.osc1WavetableMorph = 0.48
+        p.osc1WavetableIndex = 3
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.16
+        p.osc2PulseWidth = 0.4
+        p.attack = 0.26
+        p.decay = 0.35
+        p.sustain = 0.8
+        p.release = 0.75
+        p.filterCutoff = 1400
+        p.filterResonance = 0.14
+        p.lfoEnabled = true
+        p.lfoRate = 0.1
+        p.lfoTarget = .none
+        p.reverbMix = 0.14
+        p.masterVolume = 0.34
+        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.2)]
+    },
+        A.make("Night Swell", .pad) { p in
+        p.osc1Waveform = .triangle
+        p.osc1Volume = 0.44
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.24
+        p.osc2Detune = 4
+        p.attack = 0.35
+        p.decay = 0.4
+        p.sustain = 0.82
+        p.release = 1.0
+        p.filterCutoff = 1000
+        p.filterResonance = 0.1
+        p.reverbMix = 0.16
+        p.masterVolume = 0.32
+        p.mseg = A.shape(rate: 0.12, 0.1, 0.9, 0.2)
+        p.modMatrix = [A.mod(.mseg, .cutoff, 0.25)]
+    },
     ]
-
-    // MARK: - Keys (5)
 
     private static let libKeys: [SynthPreset] = [
-        SynthPreset(
-            name: "Toy Piano",
-            category: .keys,
-            osc1Waveform: .triangle, osc1Volume: 0.62, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.18, osc2Octave: 2, osc2Detune: 6,
-            attack: 0.002, decay: 0.55, sustain: 0.0, release: 0.300,
-            filterCutoff: 6000, filterResonance: 0.08,
-            reverbMix: 0.12, reverbRoomSize: 0.35,
-            masterVolume: 0.50,
-            modMatrix: [M.mod(.velocity, .amp, 0.35)]
-        ),
-        SynthPreset(
-            name: "Digital EP",
-            category: .keys,
-            osc1Waveform: .sine, osc1Volume: 0.62, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.26, osc2Octave: 1, osc2Detune: 4,
-            attack: 0.003, decay: 1.20, sustain: 0.25, release: 0.500,
-            filterCutoff: 5000, filterResonance: 0.08,
-            reverbMix: 0.14, reverbRoomSize: 0.40,
-            chorusRate: 0.8, chorusDepth: 0.30, chorusMix: 0.10,
-            masterVolume: 0.48,
-            modMatrix: [M.mod(.velocity, .amp, 0.40), M.mod(.velocity, .mix, 0.20)]
-        ),
-        SynthPreset(
-            name: "Rotary Organ",
-            category: .keys,
-            osc1Waveform: .sine, osc1Volume: 0.56, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.40, osc2Octave: 1, osc2Detune: 0,
-            attack: 0.004, decay: 0.10, sustain: 0.90, release: 0.080,
-            filterCutoff: 4500, filterResonance: 0.06,
-            lfoEnabled: true, lfoRate: 6.2, lfoDepth: 0.35, lfoTarget: .pan,
-            reverbMix: 0.12, reverbRoomSize: 0.38,
-            masterVolume: 0.42
-        ),
-        SynthPreset(
-            name: "Bright Harpsi",
-            category: .keys,
-            osc1Waveform: .sawtooth, osc1Volume: 0.52, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.22, osc2Octave: 1, osc2Detune: 2, osc2PulseWidth: 0.20,
-            attack: 0.001, decay: 0.60, sustain: 0.0, release: 0.250,
-            filterCutoff: 4800, filterResonance: 0.10,
-            reverbMix: 0.12, reverbRoomSize: 0.36,
-            masterVolume: 0.44,
-            eqEnabled: true, eqPreset: .bassCut,
-            eqLowGain: -4, eqLowFreq: 180, eqMidGain: 0, eqMidFreq: 1000, eqHighGain: 1, eqHighFreq: 7000
-        ),
-        SynthPreset(
-            name: "Mellow Vibes",
-            category: .keys,
-            osc1Waveform: .sine, osc1Volume: 0.66, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.16, osc2Octave: 2, osc2Detune: 0,
-            attack: 0.002, decay: 1.50, sustain: 0.0, release: 0.800,
-            filterCutoff: 5000, filterResonance: 0.06,
-            lfoEnabled: true, lfoRate: 5.0, lfoDepth: 0.22, lfoTarget: .amplitude,
-            reverbMix: 0.16, reverbRoomSize: 0.42,
-            masterVolume: 0.50,
-            modMatrix: [M.mod(.velocity, .amp, 0.30)]
-        ),
+        A.make("Toy Piano", .keys) { p in
+        p.osc1Waveform = .sine
+        p.osc1Volume = 0.55
+        p.osc2Enabled = true
+        p.osc2Waveform = .triangle
+        p.osc2Volume = 0.16
+        p.osc2Octave = 2
+        p.attack = 0.002
+        p.decay = 0.3
+        p.sustain = 0.05
+        p.release = 0.2
+        p.filterCutoff = 3400
+        p.filterResonance = 0.06
+        p.reverbMix = 0.1
+        p.masterVolume = 0.46
+    },
+        A.make("Digital EP", .keys) { p in
+        p.osc1Waveform = .wavetable
+        p.osc1Volume = 0.52
+        p.osc1WavetableMorph = 0.24
+        p.osc1WavetableIndex = 2
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.2
+        p.attack = 0.005
+        p.decay = 0.4
+        p.sustain = 0.35
+        p.release = 0.35
+        p.filterCutoff = 2100
+        p.filterResonance = 0.12
+        p.reverbMix = 0.1
+        p.masterVolume = 0.46
+        p.modMatrix = [A.mod(.env1, .wtMorph1, 0.15)]
+    },
+        A.make("Rotary Organ", .keys) { p in
+        p.osc1Waveform = .square
+        p.osc1Volume = 0.38
+        p.osc1PulseWidth = 0.48
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.26
+        p.osc2Octave = 1
+        p.attack = 0.015
+        p.decay = 0.08
+        p.sustain = 0.9
+        p.release = 0.16
+        p.filterCutoff = 2200
+        p.filterResonance = 0.06
+        p.reverbMix = 0.08
+        p.masterVolume = 0.48
+        p.rotaryEnabled = true
+        p.rotaryMix = 0.72
+        p.rotaryDrive = 0.12
+        p.rotaryFast = true
+    },
+        A.make("Bright Harpsi", .keys) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.42
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.2
+        p.osc2PulseWidth = 0.3
+        p.attack = 0.002
+        p.decay = 0.2
+        p.sustain = 0.1
+        p.release = 0.12
+        p.filterCutoff = 3600
+        p.filterResonance = 0.1
+        p.reverbMix = 0.08
+        p.masterVolume = 0.46
+    },
+        A.make("Mellow Vibes", .keys) { p in
+        p.osc1Waveform = .sine
+        p.osc1Volume = 0.52
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.22
+        p.osc2Octave = 1
+        p.osc2Detune = 6
+        p.attack = 0.01
+        p.decay = 0.55
+        p.sustain = 0.2
+        p.release = 0.45
+        p.filterCutoff = 2600
+        p.filterResonance = 0.08
+        p.reverbMix = 0.12
+        p.masterVolume = 0.46
+        p.macro3 = 0.35
+        p.modMatrix = [A.mod(.macro3, .pan, 0.25)]
+    },
     ]
-
-    // MARK: - Pluck (5)
 
     private static let libPluck: [SynthPreset] = [
-        SynthPreset(
-            name: "Koto Pluck",
-            category: .pluck,
-            osc1Waveform: .square, osc1Volume: 0.56, osc1Octave: 0, osc1PulseWidth: 0.30,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.28, osc2Octave: 1, osc2Detune: 3,
-            attack: 0.002, decay: 0.35, sustain: 0.0, release: 0.220,
-            filterCutoff: 1600, filterResonance: 0.22,
-            reverbMix: 0.14, reverbRoomSize: 0.40,
-            masterVolume: 0.48,
-            modMatrix: [M.mod(.env1, .cutoff, 0.35)]
-        ),
-        SynthPreset(
-            name: "Marimba",
-            category: .pluck,
-            osc1Waveform: .sine, osc1Volume: 0.72, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.14, osc2Octave: 2, osc2Detune: 0,
-            attack: 0.001, decay: 0.32, sustain: 0.0, release: 0.180,
-            filterCutoff: 3500, filterResonance: 0.06,
-            reverbMix: 0.10, reverbRoomSize: 0.34,
-            masterVolume: 0.56,
-            modMatrix: [M.mod(.velocity, .amp, 0.30)]
-        ),
-        SynthPreset(
-            name: "Harp Glimmer",
-            category: .pluck,
-            osc1Waveform: .triangle, osc1Volume: 0.62, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.28, osc2Octave: 1, osc2Detune: 4,
-            attack: 0.002, decay: 0.90, sustain: 0.0, release: 0.700,
-            filterCutoff: 4200, filterResonance: 0.08,
-            reverbMix: 0.20, reverbRoomSize: 0.50,
-            masterVolume: 0.50
-        ),
-        SynthPreset(
-            name: "Muted Synth Pluck",
-            category: .pluck,
-            osc1Waveform: .sawtooth, osc1Volume: 0.64, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.20, osc2Octave: -1, osc2Detune: 2,
-            attack: 0.001, decay: 0.15, sustain: 0.0, release: 0.100,
-            filterCutoff: 950, filterResonance: 0.34,
-            reverbMix: 0.06, reverbRoomSize: 0.30,
-            masterVolume: 0.52
-        ),
-        SynthPreset(
-            name: "Echo Pluck",
-            category: .pluck,
-            osc1Waveform: .square, osc1Volume: 0.54, osc1Octave: 0, osc1PulseWidth: 0.5,
-            osc2Enabled: false,
-            attack: 0.001, decay: 0.25, sustain: 0.0, release: 0.150,
-            filterCutoff: 2600, filterResonance: 0.18,
-            reverbMix: 0.10, reverbRoomSize: 0.36,
-            delayTime: 0.375, delayFeedback: 0.22, delayMix: 0.10,
-            masterVolume: 0.48
-        ),
+        A.make("Koto Pluck", .pluck) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.48
+        p.osc2Enabled = true
+        p.osc2Waveform = .triangle
+        p.osc2Volume = 0.18
+        p.attack = 0.002
+        p.decay = 0.2
+        p.sustain = 0.08
+        p.release = 0.16
+        p.filterCutoff = 2200
+        p.filterResonance = 0.16
+        p.reverbMix = 0.08
+        p.masterVolume = 0.46
+    },
+        A.make("Marimba", .pluck) { p in
+        p.osc1Waveform = .sine
+        p.osc1Volume = 0.55
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.2
+        p.osc2Octave = 1
+        p.attack = 0.003
+        p.decay = 0.28
+        p.sustain = 0.05
+        p.release = 0.22
+        p.filterCutoff = 3000
+        p.filterResonance = 0.08
+        p.reverbMix = 0.1
+        p.masterVolume = 0.46
+    },
+        A.make("Harp Glimmer", .pluck) { p in
+        p.osc1Waveform = .triangle
+        p.osc1Volume = 0.48
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.22
+        p.osc2Octave = 1
+        p.osc2Detune = 3
+        p.attack = 0.004
+        p.decay = 0.45
+        p.sustain = 0.1
+        p.release = 0.4
+        p.filterCutoff = 2800
+        p.filterResonance = 0.06
+        p.reverbMix = 0.14
+        p.delayMix = 0.05
+        p.delayFeedback = 0.14
+        p.masterVolume = 0.44
+    },
+        A.make("Muted Synth Pluck", .pluck) { p in
+        p.osc1Waveform = .square
+        p.osc1Volume = 0.48
+        p.osc1PulseWidth = 0.35
+        p.attack = 0.003
+        p.decay = 0.14
+        p.sustain = 0.12
+        p.release = 0.1
+        p.filterCutoff = 1500
+        p.filterResonance = 0.2
+        p.reverbMix = 0.06
+        p.masterVolume = 0.46
+    },
+        A.make("Echo Pluck", .pluck) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.46
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.16
+        p.attack = 0.004
+        p.decay = 0.22
+        p.sustain = 0.1
+        p.release = 0.3
+        p.filterCutoff = 2000
+        p.filterResonance = 0.12
+        p.delayMix = 0.08
+        p.delayTime = 0.28
+        p.delayFeedback = 0.18
+        p.reverbMix = 0.08
+        p.masterVolume = 0.46
+    },
     ]
-
-    // MARK: - Strings (4)
 
     private static let libStrings: [SynthPreset] = [
-        SynthPreset(
-            name: "Slow Violas",
-            category: .strings,
-            osc1Waveform: .sawtooth, osc1Volume: 0.46, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.40, osc2Octave: 0, osc2Detune: 6,
-            attack: 0.550, decay: 0.5, sustain: 0.85, release: 0.900,
-            filterCutoff: 2200, filterResonance: 0.12,
-            reverbMix: 0.20, reverbRoomSize: 0.50,
-            chorusRate: 0.5, chorusDepth: 0.28, chorusMix: 0.10,
-            masterVolume: 0.40
-        ),
-        SynthPreset(
-            name: "Pizzicato",
-            category: .strings,
-            osc1Waveform: .sawtooth, osc1Volume: 0.56, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.30, osc2Octave: 0, osc2Detune: 4,
-            attack: 0.002, decay: 0.24, sustain: 0.0, release: 0.180,
-            filterCutoff: 2500, filterResonance: 0.10,
-            reverbMix: 0.16, reverbRoomSize: 0.44,
-            masterVolume: 0.50,
-            modMatrix: [M.mod(.velocity, .amp, 0.30)]
-        ),
-        SynthPreset(
-            name: "Solo Cello",
-            category: .strings,
-            osc1Waveform: .sawtooth, osc1Volume: 0.58, osc1Octave: -1,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.34, osc2Octave: -1, osc2Detune: 4,
-            attack: 0.180, decay: 0.3, sustain: 0.85, release: 0.450,
-            filterCutoff: 1500, filterResonance: 0.14,
-            lfoEnabled: true, lfoRate: 5.0, lfoDepth: 0.03, lfoTarget: .pitch,
-            reverbMix: 0.18, reverbRoomSize: 0.46,
-            masterVolume: 0.46
-        ),
-        SynthPreset(
-            name: "String Machine",
-            category: .strings,
-            osc1Waveform: .square, osc1Volume: 0.44, osc1Octave: 0, osc1PulseWidth: 0.45,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.36, osc2Octave: 1, osc2Detune: 5,
-            attack: 0.250, decay: 0.4, sustain: 0.85, release: 0.700,
-            filterCutoff: 2800, filterResonance: 0.10,
-            reverbMix: 0.16, reverbRoomSize: 0.44,
-            chorusRate: 0.9, chorusDepth: 0.40, chorusMix: 0.14,
-            masterVolume: 0.38
-        ),
+        A.make("Slow Violas", .strings) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.4
+        p.osc2Enabled = true
+        p.osc2Waveform = .triangle
+        p.osc2Volume = 0.24
+        p.osc2Detune = 5
+        p.attack = 0.34
+        p.decay = 0.3
+        p.sustain = 0.85
+        p.release = 0.7
+        p.filterCutoff = 1200
+        p.filterResonance = 0.1
+        p.reverbMix = 0.14
+        p.chorusMix = 0.1
+        p.masterVolume = 0.32
+    },
+        A.make("Pizzicato", .strings) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.48
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.16
+        p.attack = 0.002
+        p.decay = 0.16
+        p.sustain = 0.05
+        p.release = 0.12
+        p.filterCutoff = 1800
+        p.filterResonance = 0.12
+        p.reverbMix = 0.1
+        p.masterVolume = 0.4
+    },
+        A.make("Solo Cello", .strings) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.5
+        p.osc1Octave = -1
+        p.osc2Enabled = true
+        p.osc2Waveform = .triangle
+        p.osc2Volume = 0.18
+        p.osc2Octave = -1
+        p.attack = 0.06
+        p.decay = 0.25
+        p.sustain = 0.75
+        p.release = 0.35
+        p.filterCutoff = 780
+        p.filterResonance = 0.14
+        p.reverbMix = 0.12
+        p.masterVolume = 0.36
+        p.character = .warm
+    },
+        A.make("String Machine", .strings) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.38
+        p.osc1Detune = -4
+        p.osc2Enabled = true
+        p.osc2Waveform = .sawtooth
+        p.osc2Volume = 0.32
+        p.osc2Detune = 7
+        p.attack = 0.18
+        p.decay = 0.25
+        p.sustain = 0.86
+        p.release = 0.55
+        p.filterCutoff = 1600
+        p.filterResonance = 0.08
+        p.reverbMix = 0.12
+        p.chorusMix = 0.12
+        p.masterVolume = 0.32
+        p.unisonVoices = 2
+        p.unisonDetune = 7
+        p.unisonSpread = 0.4
+        p.stereoEnabled = true
+        p.stereoWidth = 1.25
+    },
     ]
-
-    // MARK: - Brass (5)
 
     private static let libBrass: [SynthPreset] = [
-        SynthPreset(
-            name: "Brass Stab",
-            category: .brass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.54, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.42, osc2Octave: 0, osc2Detune: 5,
-            attack: 0.020, decay: 0.25, sustain: 0.55, release: 0.180,
-            filterCutoff: 1400, filterResonance: 0.20,
-            reverbMix: 0.12, reverbRoomSize: 0.40,
-            masterVolume: 0.42,
-            modMatrix: [M.mod(.env1, .cutoff, 0.30), M.mod(.velocity, .cutoff, 0.15)]
-        ),
-        SynthPreset(
-            name: "Soft Horns",
-            category: .brass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.50, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.38, osc2Octave: 0, osc2Detune: 3,
-            attack: 0.120, decay: 0.3, sustain: 0.80, release: 0.350,
-            filterCutoff: 1150, filterResonance: 0.12,
-            reverbMix: 0.18, reverbRoomSize: 0.46,
-            masterVolume: 0.46,
-            modMatrix: [M.mod(.velocity, .cutoff, 0.20)]
-        ),
-        SynthPreset(
-            name: "Trumpet Lead",
-            category: .brass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.58, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.24, osc2Octave: 0, osc2Detune: 2, osc2PulseWidth: 0.45,
-            attack: 0.040, decay: 0.20, sustain: 0.80, release: 0.180,
-            filterCutoff: 2600, filterResonance: 0.24,
-            lfoEnabled: true, lfoRate: 5.5, lfoDepth: 0.03, lfoTarget: .pitch,
-            reverbMix: 0.14, reverbRoomSize: 0.42,
-            masterVolume: 0.44,
-            modMatrix: [M.mod(.env1, .cutoff, 0.15)],
-            eqEnabled: true, eqPreset: .midPresence,
-            eqLowGain: -1, eqLowFreq: 150, eqMidGain: 2, eqMidFreq: 1800, eqHighGain: 0, eqHighFreq: 8000
-        ),
-        SynthPreset(
-            name: "Synth Brass Pad",
-            category: .brass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.46, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .sawtooth, osc2Volume: 0.40, osc2Octave: 0, osc2Detune: 8,
-            attack: 0.300, decay: 0.5, sustain: 0.80, release: 0.600,
-            filterCutoff: 1800, filterResonance: 0.16,
-            reverbMix: 0.18, reverbRoomSize: 0.48,
-            chorusRate: 0.7, chorusDepth: 0.30, chorusMix: 0.10,
-            masterVolume: 0.38
-        ),
-        SynthPreset(
-            name: "Low Tuba",
-            category: .brass,
-            osc1Waveform: .sawtooth, osc1Volume: 0.60, osc1Octave: -1,
-            osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.26, osc2Octave: -2, osc2Detune: 0, osc2PulseWidth: 0.45,
-            attack: 0.060, decay: 0.25, sustain: 0.80, release: 0.200,
-            filterCutoff: 700, filterResonance: 0.14,
-            reverbMix: 0.10, reverbRoomSize: 0.40,
-            masterVolume: 0.50
-        ),
+        A.make("Brass Stab", .brass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.52
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.22
+        p.osc2Detune = 3
+        p.attack = 0.01
+        p.decay = 0.16
+        p.sustain = 0.35
+        p.release = 0.14
+        p.filterCutoff = 1400
+        p.filterResonance = 0.2
+        p.filterEnvUseDedicatedADSR = true
+        p.filterAttack = 0.008
+        p.filterDecay = 0.18
+        p.filterSustain = 0.2
+        p.reverbMix = 0.06
+        p.masterVolume = 0.48
+        p.modMatrix = [A.mod(.env2, .cutoff, 0.4)]
+    },
+        A.make("Soft Horns", .brass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.46
+        p.osc2Enabled = true
+        p.osc2Waveform = .triangle
+        p.osc2Volume = 0.24
+        p.osc2Detune = 4
+        p.attack = 0.08
+        p.decay = 0.25
+        p.sustain = 0.75
+        p.release = 0.3
+        p.filterCutoff = 1100
+        p.filterResonance = 0.12
+        p.reverbMix = 0.1
+        p.masterVolume = 0.44
+        p.macro2 = 0.3
+        p.modMatrix = [A.mod(.macro2, .cutoff, 0.22)]
+    },
+        A.make("Trumpet Lead", .brass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.5
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.16
+        p.osc2PulseWidth = 0.4
+        p.attack = 0.02
+        p.decay = 0.18
+        p.sustain = 0.7
+        p.release = 0.18
+        p.filterCutoff = 1800
+        p.filterResonance = 0.16
+        p.filterEnvUseDedicatedADSR = true
+        p.filterAttack = 0.015
+        p.filterDecay = 0.12
+        p.filterSustain = 0.55
+        p.reverbMix = 0.08
+        p.masterVolume = 0.46
+        p.modMatrix = [A.mod(.env2, .cutoff, 0.28)]
+    },
+        A.make("Synth Brass Pad", .brass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.42
+        p.osc2Enabled = true
+        p.osc2Waveform = .sawtooth
+        p.osc2Volume = 0.3
+        p.osc2Detune = 6
+        p.attack = 0.12
+        p.decay = 0.25
+        p.sustain = 0.8
+        p.release = 0.4
+        p.filterCutoff = 1300
+        p.filterResonance = 0.14
+        p.reverbMix = 0.12
+        p.chorusMix = 0.08
+        p.masterVolume = 0.4
+        p.unisonVoices = 2
+        p.unisonDetune = 6
+        p.unisonSpread = 0.25
+    },
+        A.make("Low Tuba", .brass) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.5
+        p.osc1Octave = -1
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.28
+        p.osc2Octave = -1
+        p.attack = 0.04
+        p.decay = 0.2
+        p.sustain = 0.8
+        p.release = 0.25
+        p.filterCutoff = 520
+        p.filterResonance = 0.12
+        p.reverbMix = 0.08
+        p.masterVolume = 0.46
+        p.character = .warm
+    },
     ]
-
-    // MARK: - Arp / Seq (4) — hold a chord, the arp plays it
 
     private static let libArp: [SynthPreset] = [
-        SynthPreset(
-            name: "Up Arp Pluck",
-            category: .arp,
-            osc1Waveform: .square, osc1Volume: 0.54, osc1Octave: 0, osc1PulseWidth: 0.35,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.24, osc2Octave: 1, osc2Detune: 0,
-            attack: 0.001, decay: 0.16, sustain: 0.0, release: 0.100,
-            filterCutoff: 2400, filterResonance: 0.22,
-            reverbMix: 0.10, reverbRoomSize: 0.36,
-            masterVolume: 0.48,
-            arpMode: .up, arpRate: .sixteenth, bpm: 120
-        ),
-        SynthPreset(
-            name: "Down Arp Bells",
-            category: .arp,
-            osc1Waveform: .sine, osc1Volume: 0.62, osc1Octave: 0,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.20, osc2Octave: 2, osc2Detune: 5,
-            attack: 0.001, decay: 0.45, sustain: 0.0, release: 0.400,
-            filterCutoff: 5000, filterResonance: 0.06,
-            reverbMix: 0.18, reverbRoomSize: 0.46,
-            masterVolume: 0.50,
-            arpMode: .down, arpRate: .eighth, bpm: 100
-        ),
-        SynthPreset(
-            name: "Random Sparkle",
-            category: .arp,
-            osc1Waveform: .triangle, osc1Volume: 0.58, osc1Octave: 1,
-            osc2Enabled: true, osc2Waveform: .sine, osc2Volume: 0.24, osc2Octave: 1, osc2Detune: 6,
-            attack: 0.001, decay: 0.20, sustain: 0.0, release: 0.150,
-            filterCutoff: 5500, filterResonance: 0.08,
-            reverbMix: 0.14, reverbRoomSize: 0.44,
-            delayTime: 0.25, delayFeedback: 0.20, delayMix: 0.08,
-            masterVolume: 0.44,
-            arpMode: .random, arpRate: .sixteenth, bpm: 128
-        ),
-        SynthPreset(
-            name: "UpDown Bass Arp",
-            category: .arp,
-            osc1Waveform: .sawtooth, osc1Volume: 0.64, osc1Octave: -1,
-            osc2Enabled: true, osc2Waveform: .square, osc2Volume: 0.24, osc2Octave: -1, osc2Detune: 3, osc2PulseWidth: 0.4,
-            attack: 0.002, decay: 0.18, sustain: 0.20, release: 0.090,
-            filterCutoff: 900, filterResonance: 0.30,
-            reverbMix: 0.04, reverbRoomSize: 0.28,
-            masterVolume: 0.48,
-            modMatrix: [M.mod(.env1, .cutoff, 0.25)],
-            arpMode: .upDown, arpRate: .sixteenth, bpm: 124
-        ),
+        A.make("Up Arp Pluck", .arp) { p in
+        p.osc1Waveform = .square
+        p.osc1Volume = 0.48
+        p.osc1PulseWidth = 0.35
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.16
+        p.attack = 0.003
+        p.decay = 0.14
+        p.sustain = 0.2
+        p.release = 0.1
+        p.filterCutoff = 2200
+        p.filterResonance = 0.14
+        p.reverbMix = 0.06
+        p.masterVolume = 0.44
+        p.arpMode = .up
+        p.arpRate = .sixteenth
+        p.sequencerData = A.proSequence()
+        p.modMatrix = [A.mod(.velocity, .cutoff, 0.12)]
+    },
+        A.make("Down Arp Bells", .arp) { p in
+        p.osc1Waveform = .sine
+        p.osc1Volume = 0.5
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.22
+        p.osc2Octave = 1
+        p.attack = 0.004
+        p.decay = 0.3
+        p.sustain = 0.1
+        p.release = 0.25
+        p.filterCutoff = 3400
+        p.filterResonance = 0.06
+        p.reverbMix = 0.12
+        p.masterVolume = 0.44
+        p.arpMode = .down
+        p.arpRate = .eighth
+    },
+        A.make("Random Sparkle", .arp) { p in
+        p.osc1Waveform = .triangle
+        p.osc1Volume = 0.48
+        p.osc1Octave = 1
+        p.osc2Enabled = true
+        p.osc2Waveform = .sine
+        p.osc2Volume = 0.16
+        p.osc2Octave = 2
+        p.attack = 0.003
+        p.decay = 0.18
+        p.sustain = 0.1
+        p.release = 0.16
+        p.filterCutoff = 4000
+        p.filterResonance = 0.08
+        p.reverbMix = 0.1
+        p.masterVolume = 0.44
+        p.arpMode = .random
+        p.arpRate = .sixteenth
+    },
+        A.make("UpDown Bass Arp", .arp) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.5
+        p.osc1Octave = -1
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.18
+        p.osc2Octave = -1
+        p.attack = 0.004
+        p.decay = 0.16
+        p.sustain = 0.4
+        p.release = 0.12
+        p.filterCutoff = 900
+        p.filterResonance = 0.22
+        p.reverbMix = 0.04
+        p.masterVolume = 0.46
+        p.arpMode = .upDown
+        p.arpRate = .eighth
+    },
     ]
 
-    // MARK: - FX (2)
-
     private static let libFX: [SynthPreset] = [
-        SynthPreset(
-            name: "Laser Zap",
-            category: .fx,
-            osc1Waveform: .sine, osc1Volume: 0.62, osc1Octave: 1,
-            osc2Enabled: true, osc2Waveform: .triangle, osc2Volume: 0.24, osc2Octave: 0, osc2Detune: 0,
-            attack: 0.001, decay: 0.22, sustain: 0.0, release: 0.120,
-            filterCutoff: 6000, filterResonance: 0.10,
-            reverbMix: 0.12, reverbRoomSize: 0.40,
-            masterVolume: 0.42,
-            modMatrix: [M.mod(.env1, .pitch1, 1.5), M.mod(.env1, .pitch2, 1.2)]
-        ),
-        SynthPreset(
-            name: "Wind Gust",
-            category: .fx,
-            osc1Waveform: .noise, osc1Volume: 0.46, osc1Octave: 0,
-            osc2Enabled: false,
-            attack: 0.900, decay: 0.8, sustain: 0.85, release: 1.500,
-            filterType: .bandPass, filterCutoff: 1100, filterResonance: 0.55,
-            lfoEnabled: true, lfoRate: 0.15, lfoDepth: 0.40, lfoTarget: .filter,
-            reverbMix: 0.20, reverbRoomSize: 0.50,
-            masterVolume: 0.48
-        ),
+        A.make("Laser Zap", .fx) { p in
+        p.osc1Waveform = .sawtooth
+        p.osc1Volume = 0.46
+        p.osc2Enabled = true
+        p.osc2Waveform = .square
+        p.osc2Volume = 0.16
+        p.attack = 0.002
+        p.decay = 0.12
+        p.sustain = 0.1
+        p.release = 0.15
+        p.filterCutoff = 2400
+        p.filterResonance = 0.2
+        p.reverbMix = 0.08
+        p.masterVolume = 0.42
+        p.frequencyShifterEnabled = true
+        p.frequencyShifterShiftHz = 18
+        p.frequencyShifterMix = 0.28
+        p.frequencyShifterFeedback = 0.08
+        p.modMatrix = [A.mod(.env1, .pitch1, 0.15)]
+    },
+        A.make("Wind Gust", .fx) { p in
+        p.osc1Waveform = .noise
+        p.osc1Volume = 0.4
+        p.osc2Enabled = true
+        p.osc2Waveform = .triangle
+        p.osc2Volume = 0.14
+        p.attack = 0.2
+        p.decay = 0.4
+        p.sustain = 0.6
+        p.release = 0.7
+        p.filterType = .bandPass
+        p.filterCutoff = 800
+        p.filterResonance = 0.28
+        p.reverbMix = 0.16
+        p.reverbRoomSize = 0.5
+        p.masterVolume = 0.36
+        p.noiseColor = .brown
+        p.mseg2 = A.shape(rate: 0.18, -0.3, 0.6, 0.05)
+        p.modMatrix = [A.mod(.mseg2, .cutoff, 0.3)]
+    },
     ]
 }

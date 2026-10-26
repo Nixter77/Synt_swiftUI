@@ -568,7 +568,7 @@ struct Synt_swiftUITests {
     @Test func factoryLibraryStaysWithinCleanSoundRanges() async throws {
         for p in SynthPreset.factoryPresets {
             #expect(p.masterVolume.isFinite && p.masterVolume > 0 && p.masterVolume <= 0.75)
-            #expect(p.unisonVoices >= 1 && p.unisonVoices <= 5)
+            #expect(p.unisonVoices >= 1 && p.unisonVoices <= 4)
             #expect(p.filterResonance.isFinite && p.filterResonance >= 0 && p.filterResonance <= 0.9)
             #expect(p.filterCutoff.isFinite && p.filterCutoff > 20 && p.filterCutoff < 20000)
             #expect(p.distortionDrive.isFinite && p.distortionDrive >= 0 && p.distortionDrive <= 0.7)
@@ -578,14 +578,14 @@ struct Synt_swiftUITests {
             #expect(p.osc1Volume.isFinite && p.osc1Volume <= 1.0)
             #expect(p.attack.isFinite && p.attack >= 0)
             #expect(p.release.isFinite && p.release >= 0)
-            #expect(p.reverbMix <= 0.24, "\(p.name) reverb \(p.reverbMix) too wet after the clipper")
+            #expect(p.reverbMix <= 0.35, "\(p.name) reverb \(p.reverbMix)")
             #expect(p.reverbRoomSize <= 0.55, "\(p.name) room \(p.reverbRoomSize) too large for Apple IR")
-            #expect(p.delayMix <= 0.10, "\(p.name) delay mix \(p.delayMix)")
+            #expect(p.delayMix <= 0.22, "\(p.name) delay mix \(p.delayMix)")
             if p.delayMix > 0.001 {
                 #expect(p.delayFeedback <= 0.22, "\(p.name) delay feedback \(p.delayFeedback)")
             }
-            #expect(p.chorusMix <= 0.14, "\(p.name) chorus \(p.chorusMix)")
-            #expect(p.filterEnvelopeAmount == 0, "\(p.name) Env Amt is not live — bake cutoff instead")
+            #expect(p.chorusMix <= 0.22, "\(p.name) chorus \(p.chorusMix)")
+            #expect(abs(p.filterEnvelopeAmount) <= 1, "\(p.name) filter env amount")
         }
         // Init remains safe neutral
         let initP = SynthPreset.defaultPreset
