@@ -411,6 +411,7 @@ extension FactoryAuthoring {
         identity(&p, index: i, salt: salt, acid: acid)
         velocity(&p, index: i, salt: salt)
         loudness(&p)
+        categoryGesture(&p)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -664,6 +665,48 @@ extension FactoryAuthoring {
             p.chorusMix = r2(max(choFloor, p.chorusMix - cut))
         } else {
             p.delayMix = r2(max(dlyFloor, p.delayMix - cut))
+        }
+    }
+}
+
+// MARK: - SYNT_37 category gesture
+
+extension FactoryAuthoring {
+    /// SYNT_37: runs after `loudness`. Fills missing category must-haves (docs/PRESET_TASTE.md):
+    /// bass mono+sub, lead fast, pad/strings slow and clean, keys short, pluck short.
+    /// Only moves a value that misses its rule; never touches unison, master, res or cutoff.
+    /// Pizzicato strings keep their plucked gesture.
+    static func categoryGesture(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        func r3(_ x: Float) -> Float { (x * 1000).rounded() / 1000 }
+        let soft = has(p, softWords)
+        switch p.category {
+        case .bass:
+            if p.voiceMode == .poly { p.voiceMode = .mono }
+            if !has(p, ["slap", "pluck"]) && !(0.02...0.12).contains(p.portamento) {
+                p.portamento = min(0.12, max(0.02, p.portamento))
+            }
+            if p.subOscVolume < 0.08 && p.osc1Octave > -1 && p.osc2Octave > -1 { p.subOscVolume = 0.10 }
+        case .lead:
+            if p.attack > 0.08 && !(0.02...0.15).contains(p.portamento) {
+                p.attack = soft ? 0.08 : 0.05
+            }
+            if p.attack > 0.25 && p.portamento > 0.20 { p.portamento = 0.15 }
+        case .pad, .strings:
+            if has(p, ["pizz"]) { return }
+            if p.attack < 0.15 { p.attack = 0.15 }
+            if p.release < 0.60 { p.release = 0.60 }
+            if p.distortionEnabled && p.distortionMix > 0.10 { p.distortionEnabled = false }
+        case .keys:
+            if p.attack > 0.05 { p.attack = 0.05 }
+            p.release = r3(min(0.55, max(0.15, p.release)))
+            if p.sustain > 0.75 { p.sustain = 0.75 }
+        case .pluck:
+            if p.attack > 0.01 { p.attack = 0.01 }
+            if p.sustain > 0.25 { p.sustain = 0.25 }
+            if p.release > 0.55 { p.release = 0.55 }
+        case .brass, .arp, .fx:
+            break
         }
     }
 }

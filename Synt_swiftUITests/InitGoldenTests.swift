@@ -2,7 +2,7 @@
 //  InitGoldenTests.swift
 //  Bit-exact render hashes for Init and every factory preset.
 //  Init stays 0xd1b3635203a4799e. Factory hashes were recaptured in SYNT_30
-//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors. Re-capture only on purpose.
+//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture. Re-capture only on purpose.
 //
 
 import Foundation
@@ -33,8 +33,8 @@ struct InitGoldenTests {
         "Air Choir": 0xcf97d53143b91980,
         "Slow Motion": 0x063f0ac6acd7ca5b,
         "Soft EP": 0xe9c5d10781abda43,
-        "Organ Soft": 0x8b352da4656ffce4,
-        "Clav Tick": 0x1346a21913c79f33,
+        "Organ Soft": 0x40b338e8e3c65b53,
+        "Clav Tick": 0xdb018787293e83ae,
         "Bell Keys": 0x1bb5006300a4dff3,
         "Rhodes Warm": 0xf4b9b0210bef9fc9,
         "Nylon Pluck": 0xcf710df4b39fe77e,
@@ -43,7 +43,7 @@ struct InitGoldenTests {
         "WT Pluck": 0x764b7146441ab63c,
         "Muted Guitar": 0xaa6f6e39b83ae5bb,
         "Section Soft": 0x7e8f0ed8e74c0449,
-        "Cello Warm": 0xd0f18fc6add9fb98,
+        "Cello Warm": 0xdf716c17209b7a6f,
         "High Ensemble": 0x01e3b0646e1e22ff,
         "Tremolo Strings": 0xb5955e090317936f,
         "WT Orchestra": 0x4371f57f00a28fa2,
@@ -64,7 +64,7 @@ struct InitGoldenTests {
         "Tidal Pad": 0xfb074699218903b1,
         "Phaser Rhodes": 0x2f1824265370815e,
         "Wurli Tremolo": 0x7d91fa0b2b62bb81,
-        "Velvet Clav": 0x57a5cd1154fc4533,
+        "Velvet Clav": 0xc0db04bae619ba4b,
         "Pan Ping Pluck": 0xb34d7d63053f5afb,
         "Flange Harp": 0x708db071a9bc7021,
         "Bit Pluck Arp": 0x6e87bc6b6399d43b,
@@ -93,8 +93,8 @@ struct InitGoldenTests {
         "Night Swell": 0x64bd617b8d19a12c,
         "Toy Piano": 0xbb601357cb2d0e66,
         "Digital EP": 0x551aee29a816f616,
-        "Rotary Organ": 0x8d3ad72578a45426,
-        "Bright Harpsi": 0x7e4157dc08829ef1,
+        "Rotary Organ": 0x860bfe0cef040e1f,
+        "Bright Harpsi": 0x9152c7a2f6b2cbd2,
         "Mellow Vibes": 0x0eeee71693aaaad1,
         "Koto Pluck": 0xbe9711e856a02063,
         "Marimba": 0x5c3ddb050a4358f4,
@@ -103,7 +103,7 @@ struct InitGoldenTests {
         "Echo Pluck": 0x3fc4bb288ddfe44b,
         "Slow Violas": 0x982535609c4fcb54,
         "Pizzicato": 0x4baaef012ce3a943,
-        "Solo Cello": 0x201cd0e342a42f0,
+        "Solo Cello": 0xb248d341fb96300d,
         "String Machine": 0x90605eb4912eaf9b,
         "Brass Stab": 0x146ccee4d56d05f0,
         "Soft Horns": 0xebf4eb9c6411f80b,

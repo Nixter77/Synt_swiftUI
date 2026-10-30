@@ -78,4 +78,11 @@ struct FactoryCategoryMustHaveTests {
         print(lines.joined(separator: "\n"))
         try? lines.joined(separator: "\n").write(toFile: "/tmp/synt37_musthave.txt", atomically: true, encoding: .utf8)
     }
+
+    @Test func mustHaveTargetsMet() {
+        for (c, t) in Self.targets {
+            let r = Self.pct(c)
+            #expect(r.pct >= t, "\(c.rawValue) must-have \(r.pct)% < \(t)%")
+        }
+    }
 }
