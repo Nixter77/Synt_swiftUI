@@ -6,6 +6,13 @@
 
 import Foundation
 
+// SYNT_32 dead paths — never target these in factory presets:
+// 1. Env2 / Mod Env / Random / S&H as a matrix source into a global destination
+//    (cutoff, resonance, WT morph, vowel, FX mix, LFO rate/depth): the engine ignores it.
+//    Use LFO1 / LFO2 / MSEG / velocity / aftertouch / mod wheel instead.
+// 2. Formant filter ignores cutoff, resonance and filter env. Modulate `.vowel` only.
+// 3. `dspReverbEnabled` is never set by default, so reverb in fxOrder / matrix is weak.
+//    Set it to true on every preset where reverb should take part.
 enum FactoryAuthoring {
     static let orderDelayFirst: [FXSlotID] = [.delay, .chorus, .eq, .distortion, .phaser, .reverb]
     static let orderDirtLast: [FXSlotID] = [.eq, .phaser, .chorus, .delay, .reverb, .distortion]
