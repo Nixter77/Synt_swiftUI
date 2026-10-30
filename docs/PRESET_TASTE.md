@@ -56,3 +56,6 @@ Applied after the SYNT_32 floors; floors win on conflict. Audited by `FactoryIde
 - Hard / Growl / Screamer / Grit / Dirty / Overdrive → dirt ≥0.28 on bass/lead/brass.
 - Drift / Motion / Morph / Wobble → strongest live mod ≥0.40.
 - Factory names unique across factory, expansion and MPE banks.
+
+## SYNT_33 contrast
+Res, filter env, dirt and space wet (pad/strings reverb 0.20–0.30 + chorus 0.14–0.22, keys chorus, lead/arp/pluck delay 0.12–0.22, FX reverb 0.30–0.42) are staggered by index inside their sub-band — never two fixed values per category. `contrastAuditHasNoClones`: no same-category pair with mean normalised character distance < 0.02.

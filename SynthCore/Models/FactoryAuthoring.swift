@@ -406,6 +406,7 @@ extension FactoryAuthoring {
         }
 
         // SYNT_33 — the name decides the sound.
+        contrast(&p, index: i, salt: salt, upper: upper, acid: acid)
         weakSpots(&p, index: i, upper: upper)
         identity(&p, index: i, salt: salt, acid: acid)
 
@@ -522,6 +523,60 @@ extension FactoryAuthoring {
             }
         default:
             break
+        }
+    }
+}
+
+// MARK: - SYNT_33 contrast
+
+/// SYNT_32 put every preset on one of two floor values per band, so neighbours
+/// in a category came out as clones. Stagger res, filter env and dirt by index
+/// inside the same sub-band (lower or upper third), never below the floors.
+extension FactoryAuthoring {
+    static func stagger(_ i: Int, _ salt: Int, _ k: Double) -> Float {
+        Float((Double(i + salt + 1) * k).truncatingRemainder(dividingBy: 1))
+    }
+
+    static func contrast(_ p: inout SynthPreset, index i: Int, salt: Int, upper: Bool, acid: Bool) {
+        let c = p.category
+        guard !acid else { return }
+        func r2(_ x: Float) -> Float { (x * 100).rounded() / 100 }
+        if p.filterType != .formant {
+            let band = resonanceBand(c)
+            let upperFloor = band.lo + (band.hi - band.lo) * 2 / 3
+            let floor = band.lo + (band.hi - band.lo) * 0.35
+            let (lo, hi) = upper ? (upperFloor + 0.01, band.hi - 0.02) : (floor, upperFloor - 0.02)
+            if p.filterResonance >= lo - 0.001 && p.filterResonance <= hi + 0.04 {
+                p.filterResonance = r2(lo + (hi - lo) * stagger(i, salt, 0.414_213_562))
+            }
+            if p.filterEnvelopeAmount > 0 {
+                let envLo = max(p.filterEnvelopeAmount, 0)
+                let envHi: Float = upper ? 0.68 : 0.49
+                if envHi > envLo {
+                    p.filterEnvelopeAmount = r2(envLo + (envHi - envLo) * stagger(i, salt, 0.732_050_808))
+                }
+            }
+        }
+        // Space: spread wet amounts across the allowed band instead of two fixed values.
+        let w = stagger(i, salt, 0.302_775_638)
+        switch c {
+        case .pad, .strings:
+            p.reverbMix = r2(0.20 + 0.10 * w)
+            p.chorusMix = r2(0.14 + 0.08 * stagger(i, salt, 0.561_552_813))
+        case .keys:
+            p.chorusMix = r2(0.14 + 0.08 * w)
+        case .lead, .arp:
+            p.delayMix = r2(0.12 + 0.10 * w)
+        case .pluck where p.delayMix > 0.05:
+            p.delayMix = r2(0.12 + 0.10 * w)
+        case .fx where p.reverbMix >= 0.30:
+            p.reverbMix = r2(0.30 + 0.12 * w)
+        default:
+            break
+        }
+        if isDirtCategory(c) && p.distortionEnabled && p.distortionMix >= 0.18 {
+            let (lo, hi): (Float, Float) = p.distortionMix >= 0.29 ? (0.29, 0.35) : (0.18, 0.28)
+            p.distortionMix = r2(lo + (hi - lo) * stagger(i, salt, 0.236_067_977))
         }
     }
 }

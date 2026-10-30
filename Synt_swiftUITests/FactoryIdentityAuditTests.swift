@@ -71,4 +71,44 @@ struct FactoryIdentityAuditTests {
         #expect(arpBite >= 0.40)
         #expect(lead >= 0.50 && keys >= 0.50 && pluck >= 0.50)
     }
+
+    /// Normalised character vector; distance is the mean absolute difference.
+    static func vector(_ p: SynthPreset) -> [Float] {
+        [
+            p.filterResonance / 0.70,
+            max(0, p.filterEnvelopeAmount) / 0.70,
+            (p.distortionEnabled ? p.distortionMix : 0) / 0.35,
+            A.strongestMotion(p) / 0.60,
+            FactoryCharacterAuditTests.fxWet(p) / 0.45,
+            (p.stereoWidth - 0.90) / 0.95,
+            Float(p.unisonVoices - 1),
+            log2(max(100, p.filterCutoff) / 100) / 7
+        ]
+    }
+
+    static func distance(_ a: SynthPreset, _ b: SynthPreset) -> Float {
+        zip(vector(a), vector(b)).map { abs($0 - $1) }.reduce(0, +) / 8
+    }
+
+    static let cloneThreshold: Float = 0.02
+
+    @Test func contrastAuditHasNoClones() {
+        var lines: [String] = []
+        var clones = 0
+        for c in PresetCategory.allCases {
+            let ps = Self.all.filter { $0.category == c && $0.name != "Init" }
+            var pairs: [(Float, String, String)] = []
+            for x in ps.indices { for y in ps.indices where y > x {
+                pairs.append((Self.distance(ps[x], ps[y]), ps[x].name, ps[y].name))
+            } }
+            pairs.sort { $0.0 < $1.0 }
+            clones += pairs.filter { $0.0 < Self.cloneThreshold }.count
+            for pair in pairs.prefix(3) {
+                lines.append(String(format: "SYNT_33 CONTRAST | %@ | %.3f | %@ ~ %@", c.rawValue, pair.0, pair.1, pair.2))
+            }
+        }
+        print(lines.joined(separator: "\n"))
+        try? lines.joined(separator: "\n").write(toFile: "/tmp/synt33_contrast.txt", atomically: true, encoding: .utf8)
+        #expect(clones == 0, "clone pairs: \(clones)\n\(lines.joined(separator: "\n"))")
+    }
 }
