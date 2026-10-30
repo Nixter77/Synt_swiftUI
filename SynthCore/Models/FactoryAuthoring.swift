@@ -620,7 +620,7 @@ extension FactoryAuthoring {
 // MARK: - SYNT_36 loudness hierarchy
 
 extension FactoryAuthoring {
-    /// PRESET_TASTE master bands. Brass / arp have no band (soft cap 0.75 only).
+    /// PRESET_TASTE master bands. SYNT_37 S3: brass / arp 0.40–0.55.
     static func loudnessBand(_ c: PresetCategory) -> (lo: Float, hi: Float)? {
         switch c {
         case .bass: return (0.58, 0.65)
@@ -628,7 +628,7 @@ extension FactoryAuthoring {
         case .keys, .pluck: return (0.45, 0.55)
         case .pad, .strings: return (0.32, 0.40)
         case .fx: return (0.30, 0.55)
-        default: return nil
+        case .brass, .arp: return (0.40, 0.55)
         }
     }
 
