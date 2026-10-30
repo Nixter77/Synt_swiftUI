@@ -111,7 +111,7 @@ enum FactoryAuthoring {
 /// Values only: it edits preset fields, never the engine. Init is never passed in.
 extension FactoryAuthoring {
     /// Categories the pass touches.
-    static let characterCategories: Set<PresetCategory> = [.bass, .lead, .brass]
+    static let characterCategories: Set<PresetCategory> = [.bass, .lead, .brass, .pad, .strings, .keys, .pluck]
 
     static let deadSources: Set<ModSource> = [.env2, .modEnv, .random, .sampleAndHold]
     /// Destinations read once per sample from the global matrix scan.
