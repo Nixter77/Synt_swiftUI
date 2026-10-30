@@ -73,4 +73,39 @@ struct FactoryLoudnessAuditTests {
         #expect(med([.lead]) > med([.keys, .pluck]))
         #expect(med([.keys, .pluck]) > med([.pad, .strings]))
     }
+
+    // MARK: - S3 peak / clip guard (offline render, no Apple FX; values only)
+
+    /// Two notes like InitGoldenTests (vel 0.8 / 0.7, 8192 frames). Returns peak |sample| and NaN flag.
+    static func peak(_ preset: SynthPreset) -> (peak: Float, nan: Bool) {
+        var p = preset
+        p.arpMode = .off
+        let engine = AudioEngine()
+        engine.preset = p
+        engine.applyPresetForTesting()
+        engine.noteOn(midiNote: 60, velocity: 0.8)
+        engine.noteOn(midiNote: 64, velocity: 0.7)
+        engine.processCommandsForTesting()
+        var pk: Float = 0
+        var nan = false
+        for _ in 0..<8192 {
+            let (l, r) = engine.renderOneSample()
+            if !l.isFinite || !r.isFinite { nan = true; continue }
+            pk = max(pk, abs(l), abs(r))
+        }
+        return (pk, nan)
+    }
+
+    @Test(.timeLimit(.minutes(8)))
+    func factoryPeaksAudibleAndUnclipped() {
+        var lines: [String] = []
+        for p in Self.all {
+            let r = Self.peak(p)
+            lines.append(String(format: "SYNT_36 PEAK | %@ | %@ | master %.2f | peak %.4f", p.name, p.category.rawValue, p.masterVolume, r.peak))
+            #expect(!r.nan, "\(p.name) NaN/Inf")
+            #expect(r.peak > 0.005, "\(p.name) silent peak \(r.peak)")
+            #expect(r.peak < 1.0, "\(p.name) hard clip peak \(r.peak)")
+        }
+        try? lines.joined(separator: "\n").write(toFile: "/tmp/synt36_peaks.txt", atomically: true, encoding: .utf8)
+    }
 }
