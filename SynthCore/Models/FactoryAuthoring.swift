@@ -705,8 +705,17 @@ extension FactoryAuthoring {
             if p.attack > 0.01 { p.attack = 0.01 }
             if p.sustain > 0.25 { p.sustain = 0.25 }
             if p.release > 0.55 { p.release = 0.55 }
-        case .brass, .arp, .fx:
-            break
+        case .brass:
+            // SYNT_38: dirt cap (no unison force — chord-safety).
+            let cap: Float = has(p, ["soft", "velvet"]) ? 0.22 : 0.30
+            if p.distortionEnabled && p.distortionMix > cap { p.distortionMix = cap }
+            if !(p.attack <= 0.12 || p.filterEnvelopeAmount >= 0.40) { p.attack = soft ? 0.12 : 0.08 }
+        case .arp:
+            if p.attack > 0.08 { p.attack = 0.08 }
+            if p.sustain > 0.55 { p.sustain = 0.55 }
+        case .fx:
+            // SYNT_38: pad-like FX (slow attack + long tail) → shorter tail unless the name is a drone/shimmer bed.
+            if p.attack >= 0.15 && p.release >= 0.60 && !has(p, ["shimmer", "drone"]) { p.release = 0.55 }
         }
     }
 }

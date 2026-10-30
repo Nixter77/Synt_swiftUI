@@ -115,7 +115,7 @@ struct InitGoldenTests {
         "Random Sparkle": 0xca45d8d25ca6b28e,
         "UpDown Bass Arp": 0x9c1bda7f8c872325,
         "Laser Zap": 0x830cb28b1fd7c4f2,
-        "Wind Gust": 0xc5d52142d8265655,
+        "Wind Gust": 0x6d1737d1f932dab6,
         // Stage 8 demos, captured when the three patches were added.
         "Serial Glass Bass": 0xd4203c6b27a9f147,
         "Vowel Ah Lead": 0xac2523114512f9e9,
