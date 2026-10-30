@@ -406,6 +406,7 @@ extension FactoryAuthoring {
         }
 
         // SYNT_33 — the name decides the sound.
+        weakSpots(&p, index: i, upper: upper)
         identity(&p, index: i, salt: salt, acid: acid)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
@@ -491,6 +492,36 @@ extension FactoryAuthoring {
             }).max(by: { abs(p.modMatrix[$0].amount) < abs(p.modMatrix[$1].amount) }) {
                 p.modMatrix[k].amount = (p.modMatrix[k].amount < 0 ? -1 : 1) * 0.40
             }
+        }
+    }
+}
+
+// MARK: - SYNT_33 category weak spots
+
+extension FactoryAuthoring {
+    static func weakSpots(_ p: inout SynthPreset, index i: Int, upper: Bool) {
+        switch p.category {
+        case .brass:
+            // Brass ensemble: two voices on every other patch.
+            if i % 2 == 0 && p.unisonVoices < 2 && !p.phaserEnabled {
+                p.unisonVoices = 2
+                p.unisonDetune = 7
+                p.unisonSpread = 0.28
+            }
+        case .arp:
+            // Bite on the lower-band arps: light dirt the upper ones get from filter env.
+            if !upper && !p.distortionEnabled {
+                p.distortionEnabled = true
+                p.distortionMix = 0.16
+                p.distortionDrive = max(p.distortionDrive, 0.20)
+            }
+        case .pluck:
+            // Dry plucks get a short room so they don't sit in a vacuum.
+            if p.delayMix <= 0.05 && p.reverbMix < 0.15 {
+                p.reverbMix = 0.16
+            }
+        default:
+            break
         }
     }
 }

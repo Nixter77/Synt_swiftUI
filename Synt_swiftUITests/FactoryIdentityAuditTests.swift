@@ -55,4 +55,20 @@ struct FactoryIdentityAuditTests {
         let dupes = seen.filter { $0.value > 1 }.keys.sorted()
         #expect(dupes.isEmpty, "duplicate names: \(dupes)")
     }
+
+    @Test func weakSpotFloorsHold() {
+        func share(_ c: PresetCategory, _ ok: (SynthPreset) -> Bool) -> Float {
+            let ps = Self.all.filter { $0.category == c }
+            return Float(ps.filter(ok).count) / Float(max(1, ps.count))
+        }
+        let brassUni = share(.brass) { $0.unisonVoices >= 2 }
+        let arpBite = share(.arp) { ($0.distortionEnabled && (0.14...0.25).contains($0.distortionMix)) || $0.filterEnvelopeAmount >= 0.50 }
+        let space: (SynthPreset) -> Bool = { $0.delayMix >= 0.12 || $0.chorusMix >= 0.14 || $0.reverbMix >= 0.15 }
+        let lead = share(.lead, space), keys = share(.keys, space), pluck = share(.pluck, space)
+        print(String(format: "SYNT_33 WEAK | brassUni %.0f%% | arpBite %.0f%% | space lead %.0f%% keys %.0f%% pluck %.0f%%",
+                     brassUni * 100, arpBite * 100, lead * 100, keys * 100, pluck * 100))
+        #expect(brassUni >= 0.50)
+        #expect(arpBite >= 0.40)
+        #expect(lead >= 0.50 && keys >= 0.50 && pluck >= 0.50)
+    }
 }
