@@ -54,4 +54,14 @@ struct FactoryVelocityAuditTests {
             #expect(!(p.distortionEnabled && p.distortionMix > 0.22), "\(p.name) soft dirt")
         }
     }
+
+    @Test func velocityFloorsHold() {
+        for c in Self.floorCategories {
+            let (hit, total) = Self.share(c)
+            #expect(Float(hit) >= 0.70 * Float(total), "\(c.rawValue) velocity \(hit)/\(total)")
+        }
+        for p in Self.all where p.category == .pad || p.category == .strings {
+            #expect(Self.velAmp(p) >= 0.10, "\(p.name) has no soft vel→amp")
+        }
+    }
 }

@@ -409,6 +409,7 @@ extension FactoryAuthoring {
         contrast(&p, index: i, salt: salt, upper: upper, acid: acid)
         weakSpots(&p, index: i, upper: upper)
         identity(&p, index: i, salt: salt, acid: acid)
+        velocity(&p, index: i, salt: salt)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -571,6 +572,45 @@ extension FactoryAuthoring {
         if isDirtCategory(c) && p.distortionEnabled && p.distortionMix >= 0.18 {
             let (lo, hi): (Float, Float) = p.distortionMix >= 0.29 ? (0.29, 0.35) : (0.18, 0.28)
             p.distortionMix = r2(lo + (hi - lo) * stagger(i, salt, 0.236_067_977))
+        }
+    }
+}
+
+// MARK: - SYNT_35 velocity floors
+
+extension FactoryAuthoring {
+    static let velocitySoftWords = ["soft", "velvet", "whisper"]
+
+    /// Soft vs hard must read: adds velocity→cutoff / →amp only where a preset has none.
+    /// Runs after `identity`; never lowers an existing amount and adds no dirt.
+    static func velocity(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        let c = p.category
+        let formant = p.filterType == .formant
+        func r2(_ x: Float) -> Float { (x * 100).rounded() / 100 }
+        let soft = has(p, velocitySoftWords)
+        let t = stagger(i, salt, 0.381_966_011) * (soft ? 0.5 : 1)
+        func ampRow() -> Float {
+            p.modMatrix.filter { $0.source == .velocity && $0.destination == .amp }.map { abs($0.amount) }.max() ?? 0
+        }
+        func cutRow() -> Float {
+            p.modMatrix.filter { $0.source == .velocity && $0.destination == .cutoff }.map { abs($0.amount) }.max() ?? 0
+        }
+        func addAmp(_ lo: Float, _ hi: Float) {
+            guard p.modMatrix.count < 16 else { return }
+            p.modMatrix.append(mod(.velocity, .amp, r2(lo + (hi - lo) * t)))
+        }
+        switch c {
+        case .bass, .lead:
+            let cut = formant ? 0 : max(p.velocityToCutoff, cutRow())
+            guard max(cut, ampRow()) < 0.15 else { return }
+            if formant { addAmp(0.20, 0.45) } else { p.velocityToCutoff = r2(0.18 + 0.22 * t) }
+        case .keys, .pluck:
+            if ampRow() < 0.15 { addAmp(0.25, 0.50) }
+            if !formant && max(p.velocityToCutoff, cutRow()) < 0.12 { p.velocityToCutoff = r2(0.12 + 0.18 * t) }
+        case .pad, .strings:
+            if ampRow() < 0.10 { addAmp(0.15, 0.28) }
+        default:
+            break
         }
     }
 }
