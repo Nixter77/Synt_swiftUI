@@ -101,4 +101,21 @@ struct FactoryCategoryMustHaveTests {
         let names = Self.fxPadLike
         #expect(names.count <= Self.fxPadLikeMax, "FX pad-like \(names.count) > \(Self.fxPadLikeMax): \(names)")
     }
+    // SYNT_39: FX wet floor. wet = max(reverb, delay, chorus); reverb always sits in fxOrder.
+    static let fxWetMin: Float = 0.30
+    static let fxWetTargetPct = 80
+    static var fxBank: [SynthPreset] { all.filter { $0.category == .fx && !["Init", "Default", "Template"].contains($0.name) } }
+    static var fxWetMisses: [String] { fxBank.filter { FactoryCharacterAuditTests.fxWet($0) < fxWetMin - 1e-4 }.map(\.name) }
+    static var fxWetPct: Int { fxBank.isEmpty ? 100 : (fxBank.count - fxWetMisses.count) * 100 / fxBank.count }
+
+    @Test func fxWetInventory() {
+        var lines = ["SYNT_39 FXWET | n \(Self.fxBank.count) | ok \(Self.fxWetPct)% | target \(Self.fxWetTargetPct)%"]
+        for p in Self.fxBank {
+            lines.append(String(format: "SYNT_39 FXWET | %@ | rev %.2f dly %.2f cho %.2f | wet %.2f | dspRev %d | atk %.3f rel %.2f | m %.2f",
+                                p.name, p.reverbMix, p.delayMix, p.chorusMix, FactoryCharacterAuditTests.fxWet(p),
+                                p.dspReverbEnabled ? 1 : 0, p.attack, p.release, p.masterVolume))
+        }
+        try? lines.joined(separator: "\n").write(toFile: "/tmp/synt39_fxwet.txt", atomically: true, encoding: .utf8)
+        #expect(Self.fxWetPct >= Self.fxWetTargetPct, "FX wet \(Self.fxWetPct)% < \(Self.fxWetTargetPct)%: \(Self.fxWetMisses)")
+    }
 }
