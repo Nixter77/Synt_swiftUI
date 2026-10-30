@@ -614,3 +614,23 @@ extension FactoryAuthoring {
         }
     }
 }
+
+// MARK: - SYNT_36 loudness hierarchy
+
+extension FactoryAuthoring {
+    /// PRESET_TASTE master bands. Brass / arp have no band (soft cap 0.75 only).
+    static func loudnessBand(_ c: PresetCategory) -> (lo: Float, hi: Float)? {
+        switch c {
+        case .bass: return (0.58, 0.65)
+        case .lead: return (0.52, 0.62)
+        case .keys, .pluck: return (0.45, 0.55)
+        case .pad, .strings: return (0.32, 0.40)
+        case .fx: return (0.30, 0.55)
+        default: return nil
+        }
+    }
+
+    static let loudnessSoftWords = ["soft", "velvet", "whisper", "silk", "round"]
+
+    static func isLoudnessSoft(_ p: SynthPreset) -> Bool { has(p, loudnessSoftWords) }
+}
