@@ -57,7 +57,9 @@ struct LibraryPresetTests {
         for p in SynthPreset.factoryPresets where owner[fingerprint(p)] == nil {
             owner[fingerprint(p)] = p.name
         }
-        for p in SynthPreset.libraryPresets {
+        // SYNT_32: check the shipped (character-passed) library patches.
+        let libraryNames = Set(SynthPreset.libraryPresets.map(\.name))
+        for p in SynthPreset.factoryPresets where libraryNames.contains(p.name) {
             #expect(owner[fingerprint(p)] == p.name, "\(p.name) renders like \(owner[fingerprint(p)] ?? "?")")
         }
     }

@@ -28,10 +28,12 @@ public extension SynthPreset {
     private typealias A = FactoryAuthoring
 
     /// Legacy categories, then showcase, then the 2026-10-18 library (stage 8 last).
-    static let factoryPresets: [SynthPreset] =
+    /// SYNT_32: the character pass lifts every bank into the upper taste bands.
+    static let factoryPresets: [SynthPreset] = A.characterPass(
         bassPresets + leadPresets + padPresets + keysPresets + pluckPresets + stringsPresets + fxPresets
-        + showcasePresets
-        + libraryPresets
+            + showcasePresets
+            + libraryPresets
+    )
 
     // MARK: - Bass
 

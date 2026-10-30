@@ -20,7 +20,9 @@ import Foundation
 public extension SynthPreset {
     private typealias A = FactoryAuthoring
 
-    static let expansionPresets: [SynthPreset] = [
+    static let expansionPresets: [SynthPreset] = A.characterPass(expansionAuthored, salt: 200)
+
+    private static let expansionAuthored: [SynthPreset] = [
         A.make("Choir of Angels", .pad) { p in
         p.osc1Waveform = .wavetable
         p.osc1Volume = 0.44

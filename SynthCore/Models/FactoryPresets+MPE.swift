@@ -9,7 +9,9 @@ import Foundation
 public extension SynthPreset {
     private typealias A = FactoryAuthoring
 
-    static let mpeFactoryPresets: [SynthPreset] = [
+    static let mpeFactoryPresets: [SynthPreset] = A.characterPass(mpeAuthored, salt: 400)
+
+    private static let mpeAuthored: [SynthPreset] = [
         A.make("MPE Expressive Pad", .pad) { p in
         p.osc1Waveform = .sawtooth
         p.osc1Volume = 0.44
