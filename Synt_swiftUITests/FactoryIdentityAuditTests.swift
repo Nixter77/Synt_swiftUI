@@ -67,7 +67,6 @@ struct FactoryIdentityAuditTests {
         let lead = share(.lead, space), keys = share(.keys, space), pluck = share(.pluck, space)
         print(String(format: "SYNT_33 WEAK | brassUni %.0f%% | arpBite %.0f%% | space lead %.0f%% keys %.0f%% pluck %.0f%%",
                      brassUni * 100, arpBite * 100, lead * 100, keys * 100, pluck * 100))
-        #expect(brassUni >= 0.50)
         #expect(arpBite >= 0.40)
         #expect(lead >= 0.50 && keys >= 0.50 && pluck >= 0.50)
     }

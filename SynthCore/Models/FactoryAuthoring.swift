@@ -502,13 +502,7 @@ extension FactoryAuthoring {
 extension FactoryAuthoring {
     static func weakSpots(_ p: inout SynthPreset, index i: Int, upper: Bool) {
         switch p.category {
-        case .brass:
-            // Brass ensemble: two voices on every other patch.
-            if i % 2 == 0 && p.unisonVoices < 2 && !p.phaserEnabled {
-                p.unisonVoices = 2
-                p.unisonDetune = 7
-                p.unisonSpread = 0.28
-            }
+        // Brass unison dropped: chord-safety rule (unison only bass/lead/fx).
         case .arp:
             // Bite on the lower-band arps: light dirt the upper ones get from filter env.
             if !upper && !p.distortionEnabled {
@@ -570,7 +564,7 @@ extension FactoryAuthoring {
         case .pluck where p.delayMix > 0.05:
             p.delayMix = r2(0.12 + 0.10 * w)
         case .fx where p.reverbMix >= 0.30:
-            p.reverbMix = r2(0.30 + 0.12 * w)
+            p.reverbMix = r2(0.30 + 0.05 * w)
         default:
             break
         }
