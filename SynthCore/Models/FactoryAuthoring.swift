@@ -410,6 +410,7 @@ extension FactoryAuthoring {
         weakSpots(&p, index: i, upper: upper)
         identity(&p, index: i, salt: salt, acid: acid)
         velocity(&p, index: i, salt: salt)
+        loudness(&p)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -633,4 +634,36 @@ extension FactoryAuthoring {
     static let loudnessSoftWords = ["soft", "velvet", "whisper", "silk", "round"]
 
     static func isLoudnessSoft(_ p: SynthPreset) -> Bool { has(p, loudnessSoftWords) }
+
+    /// SYNT_36: runs after `velocity`. Nudges masterVolume into the category band (soft names in
+    /// the lower half, cap 0.75); on non-FX trims the loudest wet mix by ≤0.05 when the wet sum
+    /// exceeds 0.45, never below the SYNT_32 FX floors. Never touches dirt / res / cutoff.
+    static func loudness(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        func r2(_ x: Float) -> Float { (x * 100).rounded() / 100 }
+        var m = min(p.masterVolume, 0.75)
+        if let band = loudnessBand(p.category) {
+            var hi = band.hi
+            if isLoudnessSoft(p) { hi = ((band.lo + band.hi) / 2 * 100).rounded(.down) / 100 }
+            m = min(hi, max(band.lo, m))
+        }
+        p.masterVolume = r2(m)
+
+        guard p.category != .fx else { return }
+        let over = p.reverbMix + p.delayMix + p.chorusMix - 0.45
+        guard over > 1e-4 else { return }
+        let c = p.category
+        let padLike = c == .pad || c == .strings
+        let revFloor: Float = padLike ? 0.20 : 0.12
+        let choFloor: Float = (padLike || c == .keys) ? 0.14 : 0.12
+        let dlyFloor: Float = 0.12
+        let cut = min(0.05, over)
+        if p.reverbMix >= p.chorusMix && p.reverbMix >= p.delayMix {
+            p.reverbMix = r2(max(revFloor, p.reverbMix - cut))
+        } else if p.chorusMix >= p.delayMix {
+            p.chorusMix = r2(max(choFloor, p.chorusMix - cut))
+        } else {
+            p.delayMix = r2(max(dlyFloor, p.delayMix - cut))
+        }
+    }
 }

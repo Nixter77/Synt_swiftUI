@@ -2,7 +2,7 @@
 //  InitGoldenTests.swift
 //  Bit-exact render hashes for Init and every factory preset.
 //  Init stays 0xd1b3635203a4799e. Factory hashes were recaptured in SYNT_30
-//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors. Re-capture only on purpose.
+//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors. Re-capture only on purpose.
 //
 
 import Foundation
@@ -19,7 +19,7 @@ struct InitGoldenTests {
         "Round Reese": 0x7848569e8faa2fd7,
         "Wavetable Growl": 0x7804aca28f6684f5,
         "Muted Funk": 0xaf1ed5e1627375d7,
-        "Soft 808": 0x57696e22662f8b67,
+        "Soft 808": 0x7e3a30807e6e6dbc,
         "Silk Lead": 0x03fcc5420bb703d6,
         "Crystal Lead": 0x8eaca00807a6f6bb,
         "Warm Mono": 0x677edf0861a04287,
@@ -28,10 +28,10 @@ struct InitGoldenTests {
         "PWM Whisper": 0x9e5d50235d368181,
         "Cloud Bed": 0xc0c845beeb022c05,
         "Glass Horizon": 0xa75fb71c83584079,
-        "Analog Drift": 0x7925efe8b2bbe93f,
+        "Analog Drift": 0x60d9543a987f07ed,
         "Noir Pad": 0x37fd1b013c41141d,
         "Air Choir": 0xcf97d53143b91980,
-        "Slow Motion": 0x3e0d43540eb8abe9,
+        "Slow Motion": 0x063f0ac6acd7ca5b,
         "Soft EP": 0xe9c5d10781abda43,
         "Organ Soft": 0x8b352da4656ffce4,
         "Clav Tick": 0x1346a21913c79f33,
@@ -44,7 +44,7 @@ struct InitGoldenTests {
         "Muted Guitar": 0xaa6f6e39b83ae5bb,
         "Section Soft": 0x7e8f0ed8e74c0449,
         "Cello Warm": 0xd0f18fc6add9fb98,
-        "High Ensemble": 0x79da49cdc9b0a886,
+        "High Ensemble": 0x01e3b0646e1e22ff,
         "Tremolo Strings": 0xb5955e090317936f,
         "WT Orchestra": 0x4371f57f00a28fa2,
         "Shimmer Rise": 0x64027a1f845d1fd6,
@@ -88,7 +88,7 @@ struct InitGoldenTests {
         "Nasal Band Lead": 0xe0dfce9c080103b1,
         "Soft Saw Pad": 0x50070f2df9699c1a,
         "Sine Glass Pad": 0x1800148fecf3d46e,
-        "Dark Choir": 0x8acf731ea09deec2,
+        "Dark Choir": 0xf26ad77c3df54641,
         "Pulse Sweep Pad": 0x4ccc423470373a91,
         "Night Swell": 0x64bd617b8d19a12c,
         "Toy Piano": 0xbb601357cb2d0e66,
@@ -118,7 +118,7 @@ struct InitGoldenTests {
         "Wind Gust": 0xc5d52142d8265655,
         // Stage 8 demos, captured when the three patches were added.
         "Serial Glass Bass": 0xd4203c6b27a9f147,
-        "Vowel Ah Lead": 0xc0a2d5bd1daeaf57,
+        "Vowel Ah Lead": 0xac2523114512f9e9,
         "MSEG Drift": 0x2e712decc132c46f,
     ]
 

@@ -61,10 +61,7 @@ struct FactoryLoudnessAuditTests {
     @Test func loudnessBandsHold() {
         let v = Self.violations()
         try? v.joined(separator: "\n").write(toFile: "/tmp/synt36_violations.txt", atomically: true, encoding: .utf8)
-        // SYNT_36 S1 baseline: known violations until FactoryAuthoring.loudness lands (S2).
-        withKnownIssue(isIntermittent: true) {
-            #expect(v.isEmpty, "\(v.count) loudness violations:\n\(v.joined(separator: "\n"))")
-        }
+        #expect(v.isEmpty, "\(v.count) loudness violations:\n\(v.joined(separator: "\n"))")
     }
 
     @Test func hierarchyMediansOrdered() {
