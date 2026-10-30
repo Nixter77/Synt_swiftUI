@@ -405,6 +405,9 @@ extension FactoryAuthoring {
             p.stereoMonoBassHz = 120
         }
 
+        // SYNT_33 — the name decides the sound.
+        identity(&p, index: i, salt: salt, acid: acid)
+
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
         func wetCount() -> Int {
@@ -418,5 +421,76 @@ extension FactoryAuthoring {
             }
         }
         if wetCount() > 2 && p.phaserEnabled { p.phaserEnabled = false }
+    }
+}
+
+// MARK: - SYNT_33 identity pass
+
+/// Name keywords pull a preset toward what its name promises (docs/PRESET_TASTE.md,
+/// "SYNT_33 identity"). Runs after the SYNT_32 floors; it never goes below them.
+extension FactoryAuthoring {
+    static let softWords = ["soft", "velvet", "warm", "whisper", "silk", "round", "mellow"]
+    static let darkWords = ["dark", "noir", "muted"]
+    static let brightWords = ["bright", "crystal", "glass", "air"]
+    static let wideWords = ["wide", "super", "cloud", "horizon"]
+    static let hardWords = ["hard", "growl", "screamer", "grit", "dirty", "overdrive"]
+    static let motionWords = ["drift", "motion", "morph", "wobble"]
+
+    static func has(_ p: SynthPreset, _ words: [String]) -> Bool {
+        let n = p.name.lowercased()
+        return words.contains { n.contains($0) }
+    }
+
+    static func isDirtCategory(_ c: PresetCategory) -> Bool { c == .bass || c == .lead || c == .brass }
+
+    static func identity(_ p: inout SynthPreset, index i: Int, salt: Int, acid: Bool) {
+        let c = p.category
+        let formant = p.filterType == .formant
+        let band = resonanceBand(c)
+        let mid = (band.lo + band.hi) / 2
+        let width = widthBand(c)
+        let frac = Float((Double(i + salt + 1) * 0.618_033_988_75).truncatingRemainder(dividingBy: 1))
+
+        if has(p, softWords) {
+            if p.distortionEnabled {
+                p.distortionMix = min(p.distortionMix, 0.22)
+                p.distortionDrive = min(p.distortionDrive, 0.22)
+            }
+            if !formant && !acid {
+                p.filterResonance = min(p.filterResonance, ((mid - 0.01) * 100).rounded() / 100)
+            }
+            let wMid = (width.lo + width.hi) / 2
+            p.stereoWidth = ((width.lo + (wMid - width.lo) * frac) * 100).rounded() / 100
+        }
+        if has(p, darkWords) && !formant {
+            p.filterCutoff = min(p.filterCutoff, 1400)
+        }
+        if has(p, brightWords) && !formant && c != .bass {
+            p.filterCutoff = max(p.filterCutoff, 2200)
+            p.filterResonance = min(band.hi, max(p.filterResonance, ((mid + 0.01) * 100).rounded() / 100))
+        }
+        if has(p, wideWords) {
+            let lo = width.lo + (width.hi - width.lo) * 2 / 3
+            p.stereoWidth = ((lo + 0.01 + (width.hi - lo - 0.01) * frac) * 100).rounded() / 100
+        }
+        if has(p, hardWords) {
+            if isDirtCategory(c) {
+                p.distortionEnabled = true
+                p.distortionMix = min(0.35, max(p.distortionMix, 0.30))
+                p.distortionDrive = max(p.distortionDrive, 0.26)
+            } else if p.distortionEnabled {
+                p.distortionDrive = max(p.distortionDrive, 0.30)
+            }
+        }
+        if has(p, motionWords) && strongestMotion(p) < 0.40 {
+            if let k = p.modMatrix.indices.filter({ k in
+                let e = p.modMatrix[k]
+                return liveSources.contains(e.source) && !pitchDestinations.contains(e.destination)
+                    && e.destination != .fm && !isDeadRow(e) && !isFormantDeadRow(e, p)
+                    && !(e.source == .mseg && p.mseg.points.isEmpty) && !(e.source == .mseg2 && p.mseg2.points.isEmpty)
+            }).max(by: { abs(p.modMatrix[$0].amount) < abs(p.modMatrix[$1].amount) }) {
+                p.modMatrix[k].amount = (p.modMatrix[k].amount < 0 ? -1 : 1) * 0.40
+            }
+        }
     }
 }

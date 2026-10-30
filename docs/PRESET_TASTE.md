@@ -46,3 +46,13 @@ Loudness hierarchy stays (bass > lead > keys/pluck > pad/strings; FX 0.30–0.55
 1. Env2 / Mod Env / Random / S&H as a matrix SOURCE into a global destination (cutoff, resonance, WT morph, vowel, FX mix, LFO rate/depth) — ignored by the engine. Use LFO1/LFO2/MSEG/velocity/aftertouch/mod wheel instead.
 2. Formant filter ignores cutoff, resonance and filter env. Move `.vowel` only (LFO/MSEG → vowel).
 3. `dspReverbEnabled` defaults off, so reverb in fxOrder / matrix is weak. Set it true explicitly where reverb should participate.
+
+## SYNT_33 identity (the name decides the sound)
+Applied after the SYNT_32 floors; floors win on conflict. Audited by `FactoryIdentityAuditTests`.
+- Soft / Velvet / Warm / Whisper / Silk / Round / Mellow → dirt mix ≤0.22, res ≤ band mid (acid exempt), width lower half.
+- Dark / Noir / Muted → cutoff ≤1400 Hz (non-formant).
+- Bright / Crystal / Glass / Air → cutoff ≥2200 Hz, res ≥ band mid (not bass).
+- Wide / Super / Cloud / Horizon → width upper third (wins over Soft).
+- Hard / Growl / Screamer / Grit / Dirty / Overdrive → dirt ≥0.28 on bass/lead/brass.
+- Drift / Motion / Morph / Wobble → strongest live mod ≥0.40.
+- Factory names unique across factory, expansion and MPE banks.
