@@ -2,7 +2,7 @@
 //  FactoryCategoryMustHaveTests.swift
 //  SYNT_37 audit: category gesture must-haves (docs/PRESET_TASTE.md) —
 //  bass mono+sub, lead fast, pad/strings slow+clean, keys short, pluck short.
-//  Init / Default / Template exempt. FX / Brass / Arp report-only.
+//  Init / Default / Template exempt. SYNT_38: FX pad-like ≤3 hard; Brass/Arp ≥70%.
 //
 
 import Foundation
@@ -44,13 +44,24 @@ struct FactoryCategoryMustHaveTests {
             if p.release > 0.55 + e { m.append("rel \(p.release)") }
         case .fx:
             if p.attack >= 0.15 && p.release >= 0.60 { m.append("pad-like") }
-        case .brass, .arp:
-            break
+        case .brass:
+            // SYNT_38: fast bite or filter swell; dirt capped. No unison requirement (chord-safety).
+            if !(p.attack <= 0.12 + e || p.filterEnvelopeAmount >= 0.40 - e) { m.append("slow atk \(p.attack) no fenv") }
+            let cap: Float = FactoryAuthoring.has(p, ["soft", "velvet"]) ? 0.22 : 0.30
+            if dirt(p) > cap + e { m.append("dirt \(dirt(p))") }
+        case .arp:
+            // SYNT_38: tight attack, echo or live motion, short sustain.
+            if p.attack > 0.08 + e { m.append("atk \(p.attack)") }
+            let echoOK = p.delayMix >= 0.12 - e
+            if !(echoOK || FactoryAuthoring.strongestMotion(p) >= 0.30 - e) { m.append("no echo/motion") }
+            if p.sustain > 0.55 + e { m.append("sus \(p.sustain)") }
         }
         return m
     }
 
-    static let targets: [PresetCategory: Int] = [.bass: 85, .lead: 70, .pad: 80, .strings: 80, .keys: 80, .pluck: 90]
+    static let targets: [PresetCategory: Int] = [.bass: 85, .lead: 70, .pad: 80, .strings: 80, .keys: 80, .pluck: 90, .brass: 70, .arp: 70]
+    static let fxPadLikeMax = 3
+    static var fxPadLike: [String] { all.filter { $0.category == .fx && misses($0).contains("pad-like") }.map(\.name) }
 
     static func pct(_ c: PresetCategory) -> (n: Int, pct: Int) {
         let ps = all.filter { $0.category == c }
@@ -84,5 +95,10 @@ struct FactoryCategoryMustHaveTests {
             let r = Self.pct(c)
             #expect(r.pct >= t, "\(c.rawValue) must-have \(r.pct)% < \(t)%")
         }
+    }
+
+    @Test func fxPadLikeCapped() {
+        let names = Self.fxPadLike
+        #expect(names.count <= Self.fxPadLikeMax, "FX pad-like \(names.count) > \(Self.fxPadLikeMax): \(names)")
     }
 }
