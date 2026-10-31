@@ -415,6 +415,7 @@ extension FactoryAuthoring {
         antiDull(&p)
         periodicMotion(&p, index: i)
         warmDrift(&p, index: i, salt: salt)
+        filterBody(&p, index: i, salt: salt)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -830,6 +831,46 @@ extension FactoryAuthoring {
         }
         if !driftRange.contains(p.analogDrift) && p.filterType != .formant {
             p.analogDrift = driftSteps[(i + salt) % driftSteps.count]
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_45 filter-body cutoff bands (Hz) per category.
+    static func cutoffBand(_ c: PresetCategory) -> ClosedRange<Float>? {
+        switch c {
+        case .bass: return 400...1400
+        case .lead: return 800...3200
+        case .pad, .strings: return 1000...5000
+        case .keys: return 900...4000
+        case .pluck: return 800...3500
+        default: return nil
+        }
+    }
+
+    /// Curated comb (resonator) slots: metallic / flanged / cathedral names. FX, Keys, Pad, Pluck.
+    static let combNames: Set<String> = [
+        "Jet Flanger", "Gamelan Gong", "Alien Transmission",
+        "Tubular Cathedral", "Ice Temple Bell",
+        "Phase Cathedral", "Pulse Sweep Pad",
+        "Flange Harp",
+    ]
+
+    /// SYNT_45: runs after `warmDrift`. Values only.
+    /// Non-formant, non-Dark/Bright-named misses are clamped into the category cutoff band near
+    /// the nearest edge with an index-salted stagger (identity wins). Then curated slots flip to `.comb`;
+    /// the engine's comb tunes its delay from cutoff, so cutoff mod rows stay live.
+    static func filterBody(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let exempt = p.filterType == .formant || has(p, darkWords) || has(p, brightWords)
+        if !exempt, let b = cutoffBand(p.category), !b.contains(p.filterCutoff) {
+            let span = b.upperBound - b.lowerBound
+            let frac = Float((Double(i + salt + 1) * 0.618_033_988_75).truncatingRemainder(dividingBy: 1))
+            let off = (span * 0.04 + span * 0.08 * frac).rounded()
+            p.filterCutoff = p.filterCutoff < b.lowerBound ? b.lowerBound + off : b.upperBound - off
+        }
+        if combNames.contains(p.name) && p.filterType != .formant {
+            p.filterType = .comb
         }
     }
 }

@@ -2,7 +2,7 @@
 //  InitGoldenTests.swift
 //  Bit-exact render hashes for Init and every factory preset.
 //  Init stays 0xd1b3635203a4799e. Factory hashes were recaptured in SYNT_30
-//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors. Re-capture only on purpose.
+//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb. Re-capture only on purpose.
 //
 
 import Foundation
@@ -43,7 +43,7 @@ struct InitGoldenTests {
         "WT Pluck": 0xaa58ff07dd997fa5,
         "Muted Guitar": 0xf7b9fa22499d35e6,
         "Section Soft": 0x7e8f0ed8e74c0449,
-        "Cello Warm": 0xdf716c17209b7a6f,
+        "Cello Warm": 0xc76dad1864e0fe5b,
         "High Ensemble": 0x01e3b0646e1e22ff,
         "Tremolo Strings": 0xb5955e090317936f,
         "WT Orchestra": 0x4371f57f00a28fa2,
@@ -59,19 +59,19 @@ struct InitGoldenTests {
         "Vox Morph Lead": 0x92ca10a1e85ae3a9,
         "Delayed Vibrato": 0x6cd9aeb01e079a38,
         "Fifth Sync Lead": 0xbeba3bb1fa2d47a0,
-        "Phase Cathedral": 0x5f9151bd30aff4ff,
+        "Phase Cathedral": 0xf2f04c20279b6688,
         "Breathing Glass": 0x9fd606e4a9d9c011,
         "Tidal Pad": 0xfb1c6ee5a23b8acc,
         "Phaser Rhodes": 0x2f1824265370815e,
         "Wurli Tremolo": 0x7d91fa0b2b62bb81,
         "Velvet Clav": 0xdf5b3a5872d268b0,
         "Pan Ping Pluck": 0xb34d7d63053f5afb,
-        "Flange Harp": 0x25b7a6dbe65aab1c,
+        "Flange Harp": 0x16e804e12cf34707,
         "Bit Pluck Arp": 0xb83ae8e0297c9337,
         "Chamber Swell": 0x24d5fa7156000f16,
         "Phased Violins": 0x96b5dca0c3fd8699,
         "Siren Drift": 0xbfec0d2c633db391,
-        "Jet Flanger": 0x733cf87bfc09782e,
+        "Jet Flanger": 0x26f09116ef9353fe,
         "Random Bloom": 0xc973e7d0ed361444,
         // Library to 100 (2026-10-18), captured at first add.
         "Acid Squelch": 0x1ab5d62906bf79f6,
@@ -89,7 +89,7 @@ struct InitGoldenTests {
         "Soft Saw Pad": 0x54a9f5e40ed30152,
         "Sine Glass Pad": 0xa9a605a7b93126ed,
         "Dark Choir": 0xf26ad77c3df54641,
-        "Pulse Sweep Pad": 0xdb7a7381faa8e2e3,
+        "Pulse Sweep Pad": 0x13f363d5769dbac5,
         "Night Swell": 0x21123c84d6e12b3e,
         "Toy Piano": 0x17614ec7d8659ccf,
         "Digital EP": 0xa6ed4be7961a0f94,
@@ -103,7 +103,7 @@ struct InitGoldenTests {
         "Echo Pluck": 0xae052c575c5b6837,
         "Slow Violas": 0x982535609c4fcb54,
         "Pizzicato": 0x4baaef012ce3a943,
-        "Solo Cello": 0xb248d341fb96300d,
+        "Solo Cello": 0x42c0f6ba6481cbac,
         "String Machine": 0x90605eb4912eaf9b,
         "Brass Stab": 0xd17f909c97681e05,
         "Soft Horns": 0xebf4eb9c6411f80b,
