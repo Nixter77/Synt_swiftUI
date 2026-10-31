@@ -420,6 +420,7 @@ extension FactoryAuthoring {
         fxOrderFill(&p, index: i)
         monoBassStagger(&p, index: i, salt: salt)
         dirtDrive(&p, index: i, salt: salt)
+        haasMidSide(&p, index: i, salt: salt)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -926,5 +927,47 @@ extension FactoryAuthoring {
         let steps = Int(((hi - lo) / 0.02).rounded())
         let k = steps > 0 ? (i + salt) % (min(steps, 3) + 1) : 0
         p.distortionDrive = p.distortionDrive < lo ? lo + Float(k) * 0.02 : hi - Float(k) * 0.02
+    }
+}
+
+extension FactoryAuthoring {
+    static let midSideSteps: [Float] = [0.14, 0.18, 0.22, 0.26, 0.30, 0.34, 0.38]
+    static let haasSteps: [Float] = [2.5, 3.0, 3.5, 4.5, 5.0, 5.5, 6.0]
+
+    /// SYNT_48: runs after `dirtDrive`. Values only. Bass |ms| ≤ 0.05, no Haas added.
+    /// Pad/Keys/Strings: every other preset MidSide-on in [0.14, 0.38] (Wide upper half, Soft ≤ 0.26).
+    /// Lead: every third MidSide-on in [0.12, 0.30]. Pad+Strings Haas-on moves off the 4.0 ms
+    /// monoculture into salted 0.5 ms steps inside [2.0, 8.0]; Soft Haas ≤ 5.0.
+    static func haasMidSide(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let c = p.category
+        let soft = has(p, softWords)
+        if c == .bass {
+            p.stereoMidSide = max(-0.05, min(0.05, p.stereoMidSide))
+            return
+        }
+        let chord = c == .pad || c == .keys || c == .strings
+        if abs(p.stereoMidSide) < 0.12 {
+            if chord && i % 2 == 0 {
+                var steps = midSideSteps
+                if soft { steps = steps.filter { $0 <= 0.26 } } else if has(p, wideWords) { steps = steps.filter { $0 >= 0.30 } }
+                p.stereoMidSide = steps[(i / 2 + salt) % steps.count]
+                p.stereoEnabled = true
+            } else if c == .lead && i % 3 == 0 {
+                let steps: [Float] = [0.12, 0.18, 0.24, 0.30]
+                p.stereoMidSide = steps[(i / 3 + salt) % steps.count]
+                p.stereoEnabled = true
+            }
+        }
+        if soft { p.stereoMidSide = max(-0.28, min(0.28, p.stereoMidSide)) }
+        if (c == .pad || c == .strings) && p.stereoHaasMs >= 1.5 {
+            var steps = haasSteps
+            if soft { steps = steps.filter { $0 <= 5.0 } }
+            if abs(p.stereoHaasMs - 4.0) <= 0.25 && i % 3 != 0 || !(2.0...8.0).contains(p.stereoHaasMs) {
+                p.stereoHaasMs = steps[(i + salt) % steps.count]
+            }
+            if soft { p.stereoHaasMs = min(p.stereoHaasMs, 5.0) }
+            p.stereoEnabled = true
+        }
     }
 }
