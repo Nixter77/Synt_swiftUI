@@ -402,7 +402,8 @@ extension FactoryAuthoring {
         p.stereoEnabled = true
         p.stereoWidth = ((band.lo + (band.hi - band.lo) * Float(frac)) * 100).rounded() / 100
         if c == .bass && p.stereoMonoBassHz == 0 {
-            p.stereoMonoBassHz = 120
+            // SYNT_46: staggered 80–150 Hz instead of flat 120.
+            p.stereoMonoBassHz = monoBassSteps[(i + salt) % monoBassSteps.count]
         }
 
         // SYNT_33 — the name decides the sound.
@@ -416,6 +417,8 @@ extension FactoryAuthoring {
         periodicMotion(&p, index: i)
         warmDrift(&p, index: i, salt: salt)
         filterBody(&p, index: i, salt: salt)
+        fxOrderFill(&p, index: i)
+        monoBassStagger(&p, index: i, salt: salt)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -871,6 +874,37 @@ extension FactoryAuthoring {
         }
         if combNames.contains(p.name) && p.filterType != .formant {
             p.filterType = .comb
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_46 bass mono-below Hz stagger (all inside 80–150).
+    static let monoBassSteps: [Float] = [90, 105, 120, 135, 145]
+
+    /// SYNT_46: runs after `filterBody`. Values only — existing helper orders only.
+    /// Pad/Strings/Keys/Pluck had zero non-default fxOrder; every 9th slot (index 4, 13, 22)
+    /// on the default order gets a category helper (Pluck: every 5th — index 4, 9, 14). Bass/Lead/FX stay as authored.
+    static func fxOrderFill(_ p: inout SynthPreset, index i: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name),
+              p.fxOrder == FXSlotID.defaultOrder,
+              i % (p.category == .pluck ? 5 : 9) == 4 else { return }
+        switch p.category {
+        case .pad, .strings: p.fxOrder = orderVerbEarly
+        case .keys: p.fxOrder = (i / 9) % 2 == 0 ? orderVerbEarly : orderDelayFirst
+        case .pluck: p.fxOrder = orderDelayFirst
+        default: break
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_46: Bass flat-120 (authored or zero-filled) and out-of-band mono-below Hz move to a
+    /// salted 80–150 step so the bank spreads over ≥3 10 Hz buckets. Non-bass untouched.
+    static func monoBassStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard p.category == .bass, !["Init", "Default", "Template"].contains(p.name) else { return }
+        if p.stereoMonoBassHz == 120 || !(80...150).contains(p.stereoMonoBassHz) {
+            p.stereoMonoBassHz = monoBassSteps[(i + salt) % monoBassSteps.count]
         }
     }
 }

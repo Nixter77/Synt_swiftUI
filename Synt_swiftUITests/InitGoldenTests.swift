@@ -2,7 +2,7 @@
 //  InitGoldenTests.swift
 //  Bit-exact render hashes for Init and every factory preset.
 //  Init stays 0xd1b3635203a4799e. Factory hashes were recaptured in SYNT_30
-//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb. Re-capture only on purpose.
+//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb; SYNT_46 after fxOrder fills + monoBass stagger. Re-capture only on purpose.
 //
 
 import Foundation
@@ -15,9 +15,9 @@ struct InitGoldenTests {
     static let golden: [String: UInt64] = [
         "Init": 0xd1b3635203a4799e,
         "Clean Sub": 0xfeae190612ede12c,
-        "Velvet Acid": 0x5e98680614ec2134,
+        "Velvet Acid": 0x1334ad4033c16eea,
         "Round Reese": 0xdbb0bc1a1f252a57,
-        "Wavetable Growl": 0x7f5d79b11207a88f,
+        "Wavetable Growl": 0x73f62bf1221d1fb1,
         "Muted Funk": 0x4e16d3f326b30ec5,
         "Soft 808": 0x1e57572ea495bdb9,
         "Silk Lead": 0x1892cb8f9ab8b8a5,
@@ -53,9 +53,9 @@ struct InitGoldenTests {
         "Deep Drone": 0xb4797193ef54f7aa,
         "Space Pluck FX": 0x9c1bda7f8c872325,
         // Showcase library (2026-10-13), captured at first add.
-        "Rubber Wobble": 0x66aeb015df6f38ea,
+        "Rubber Wobble": 0x610734bf68492dab,
         "PWM Sub Pulse": 0x94224be28dd621ec,
-        "Snap Resonator": 0xba982227e0e17b22,
+        "Snap Resonator": 0x39609533ad70060b,
         "Vox Morph Lead": 0x92ca10a1e85ae3a9,
         "Delayed Vibrato": 0x6cd9aeb01e079a38,
         "Fifth Sync Lead": 0xbeba3bb1fa2d47a0,
@@ -74,12 +74,12 @@ struct InitGoldenTests {
         "Jet Flanger": 0x26f09116ef9353fe,
         "Random Bloom": 0xc973e7d0ed361444,
         // Library to 100 (2026-10-18), captured at first add.
-        "Acid Squelch": 0x1ab5d62906bf79f6,
+        "Acid Squelch": 0x43be78f411d8e07f,
         "Hollow Pulse Bass": 0x1d97bd9e153605ef,
         "Fat Unison Bass": 0x9be5651b7cc1af43,
         "Finger Pluck Bass": 0x1ffd084a7416cea9,
-        "Wavefold Bass": 0xbf5e1f3f9aede807,
-        "Dub Wobble": 0xb532070ced3e9067,
+        "Wavefold Bass": 0x1851dc7645a79934,
+        "Dub Wobble": 0xb84172ba3dab485a,
         "Chip Square Lead": 0x3caa95aa978d2f07,
         "Glide Saw Lead": 0x3d40fcb612453a22,
         "Breathy Flute": 0xb6aa7b1b5f43dadb,
@@ -90,7 +90,7 @@ struct InitGoldenTests {
         "Sine Glass Pad": 0xa9a605a7b93126ed,
         "Dark Choir": 0xf26ad77c3df54641,
         "Pulse Sweep Pad": 0x13f363d5769dbac5,
-        "Night Swell": 0x21123c84d6e12b3e,
+        "Night Swell": 0x63de5a9e275ce6e7,
         "Toy Piano": 0x17614ec7d8659ccf,
         "Digital EP": 0xa6ed4be7961a0f94,
         "Rotary Organ": 0x5dccdc7afe09788f,
@@ -117,7 +117,7 @@ struct InitGoldenTests {
         "Laser Zap": 0x830cb28b1fd7c4f2,
         "Wind Gust": 0x6d1737d1f932dab6,
         // Stage 8 demos, captured when the three patches were added.
-        "Serial Glass Bass": 0x53f178f2989e3fb5,
+        "Serial Glass Bass": 0x824219f160f6175e,
         "Vowel Ah Lead": 0x3cc486a5c98a3ba5,
         "MSEG Drift": 0x2e712decc132c46f,
     ]
