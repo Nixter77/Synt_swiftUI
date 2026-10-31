@@ -414,6 +414,7 @@ extension FactoryAuthoring {
         categoryGesture(&p)
         antiDull(&p)
         periodicMotion(&p, index: i)
+        warmDrift(&p, index: i, salt: salt)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -805,6 +806,30 @@ extension FactoryAuthoring {
         }
         if let d = matrixDest, let s = source, p.modMatrix.count < 16 {
             p.modMatrix.append(mod(s, d, depth))
+        }
+    }
+}
+
+// MARK: - SYNT_44 warm + analog drift pass
+
+extension FactoryAuthoring {
+    static let driftRange: ClosedRange<Float> = 0.05...0.20
+    static let driftSteps: [Float] = [0.08, 0.10, 0.12, 0.14, 0.16]
+
+    /// SYNT_44: runs after `periodicMotion`. Values only.
+    /// Character: Pad/Bass `.off` → `.warm`, Lead `.off` → `.warm`; Bright/Crystal/Glass/Air-named → `.bright`;
+    /// Hard-named bass/lead keep `.off`. Drift: Bass/Lead/Pad outside [0.05, 0.20] get a staggered
+    /// 0.08–0.16 value (formant slots skipped); any factory drift above 0.20 is capped to 0.20.
+    static func warmDrift(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let c = p.category
+        if p.analogDrift > driftRange.upperBound { p.analogDrift = driftRange.upperBound }
+        guard c == .pad || c == .bass || c == .lead else { return }
+        if p.character == .off && !(c != .pad && has(p, hardWords)) {
+            p.character = has(p, brightWords) ? .bright : .warm
+        }
+        if !driftRange.contains(p.analogDrift) && p.filterType != .formant {
+            p.analogDrift = driftSteps[(i + salt) % driftSteps.count]
         }
     }
 }
