@@ -422,6 +422,7 @@ extension FactoryAuthoring {
         dirtDrive(&p, index: i, salt: salt)
         haasMidSide(&p, index: i, salt: salt)
         dirtDriveSpread(&p, index: i, salt: salt)
+        filterEnvCategory(&p, index: i, salt: salt)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -988,5 +989,27 @@ extension FactoryAuthoring {
         else if has(p, hardWords) && isDirtCategory(p.category) { steps = [0.22, 0.24, 0.26, 0.28] }
         else { steps = [0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26, 0.28] }
         p.distortionDrive = steps[(i * 5 + salt) % steps.count]
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_50: runs after `dirtDriveSpread`. Values only. Character A left Lead/Pluck/Keys at the
+    /// `i % 5 < 2` upper share (~40%); slot `i % 5 == 2` now also lifts into a salted 0.05-step
+    /// stagger inside [0.50, 0.65]. Soft-named upper envs settle in [0.50, 0.58]; Acid stays ≥0.55.
+    /// Formant, negative (closing) envs and Init/Default/Template are untouched.
+    static func filterEnvCategory(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name),
+              p.filterType != .formant, p.filterEnvelopeAmount >= 0 else { return }
+        let soft = has(p, softWords)
+        let acid = p.name.localizedCaseInsensitiveContains("acid")
+        let liftCats: [PresetCategory] = [.lead, .pluck, .keys]
+        if liftCats.contains(p.category) && i % 5 == 2 && p.filterEnvelopeAmount < 0.50 {
+            let steps: [Float] = soft ? [0.58, 0.54, 0.50] : [0.50, 0.55, 0.60, 0.65]
+            p.filterEnvelopeAmount = steps[(i / 5 + salt) % steps.count]
+        }
+        if soft && !acid && p.filterEnvelopeAmount > 0.58 {
+            let steps: [Float] = [0.52, 0.55, 0.58]
+            p.filterEnvelopeAmount = steps[(i + salt) % steps.count]
+        }
     }
 }
