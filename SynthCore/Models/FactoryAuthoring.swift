@@ -412,6 +412,7 @@ extension FactoryAuthoring {
         velocity(&p, index: i, salt: salt)
         loudness(&p)
         categoryGesture(&p)
+        antiDull(&p)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -716,6 +717,40 @@ extension FactoryAuthoring {
         case .fx:
             // SYNT_38: pad-like FX (slow attack + long tail) → shorter tail unless the name is a drone/shimmer bed.
             if p.attack >= 0.15 && p.release >= 0.60 && !has(p, ["shimmer", "drone"]) { p.release = 0.55 }
+        }
+    }
+}
+
+// MARK: - SYNT_41 anti-dull / lead vibrato
+
+extension FactoryAuthoring {
+    /// SYNT_41: runs after `categoryGesture`. Leads without pitch vibrato get a gentle
+    /// free-running sine LFO → pitch (depth 0.10–0.12, ~5 Hz) on a free LFO slot.
+    /// Never touches unison, dirt, res, width or master. Soft names stay at 0.10.
+    static func antiDull(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .lead else { return }
+        let lfoPitch = p.modMatrix.contains { ($0.source == .lfo1 || $0.source == .lfo2)
+            && pitchDestinations.contains($0.destination) && abs($0.amount) >= 0.10 }
+        if lfoPitch { return }
+        if (p.lfoEnabled && p.lfoTarget == .pitch && p.lfoDepth >= 0.10)
+            || (p.lfo2Enabled && p.lfo2Target == .pitch && p.lfo2Depth >= 0.10) { return }
+        let depth: Float = has(p, softWords) ? 0.10 : 0.12
+        let lfo1Used = p.modMatrix.contains { $0.source == .lfo1 }
+        let lfo2Used = p.modMatrix.contains { $0.source == .lfo2 }
+        if !lfo1Used && (!p.lfoEnabled || p.lfoTarget == .none || p.lfoTarget == .pitch) {
+            p.lfoEnabled = true
+            p.lfoTarget = .pitch
+            p.lfoTempoSync = false
+            p.lfoWaveform = .sine
+            p.lfoRate = 5.2
+            p.lfoDepth = max(depth, p.lfoTarget == .pitch ? min(p.lfoDepth, 0.14) : depth)
+        } else if !lfo2Used && (!p.lfo2Enabled || p.lfo2Target == .none || p.lfo2Target == .pitch) {
+            p.lfo2Enabled = true
+            p.lfo2Target = .pitch
+            p.lfo2TempoSync = false
+            p.lfo2Waveform = .sine
+            p.lfo2Rate = 5.2
+            p.lfo2Depth = depth
         }
     }
 }
