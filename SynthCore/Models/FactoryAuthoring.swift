@@ -419,6 +419,7 @@ extension FactoryAuthoring {
         filterBody(&p, index: i, salt: salt)
         fxOrderFill(&p, index: i)
         monoBassStagger(&p, index: i, salt: salt)
+        dirtDrive(&p, index: i, salt: salt)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -489,9 +490,10 @@ extension FactoryAuthoring {
             if isDirtCategory(c) {
                 p.distortionEnabled = true
                 p.distortionMix = min(0.35, max(p.distortionMix, 0.30))
-                p.distortionDrive = max(p.distortionDrive, 0.26)
+                p.distortionDrive = min(0.28, max(p.distortionDrive, 0.26))
             } else if p.distortionEnabled {
-                p.distortionDrive = max(p.distortionDrive, 0.30)
+                // SYNT_47: was max(drive, 0.30) — out of the tasty band.
+                p.distortionDrive = min(0.28, max(p.distortionDrive, 0.26))
             }
         }
         if has(p, motionWords) && strongestMotion(p) < 0.40 {
@@ -906,5 +908,23 @@ extension FactoryAuthoring {
         if p.stereoMonoBassHz == 120 || !(80...150).contains(p.stereoMonoBassHz) {
             p.stereoMonoBassHz = monoBassSteps[(i + salt) % monoBassSteps.count]
         }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_47: runs after `monoBassStagger`. Values only. Dirt-on (enabled && mix ≥ 0.12) drive
+    /// lands in the tasty band [0.10, 0.28]; Soft-named ≤ 0.22; Hard-named dirt cats [0.22, 0.28];
+    /// pads/strings [0.10, 0.18]. Misses get a salted 0.02-step stagger inside their band.
+    static func dirtDrive(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name),
+              p.distortionEnabled, p.distortionMix >= 0.12 else { return }
+        var lo: Float = 0.10, hi: Float = 0.28
+        if p.category == .pad || p.category == .strings { hi = 0.18 }
+        if has(p, softWords) { hi = min(hi, 0.22) }
+        else if has(p, hardWords) && isDirtCategory(p.category) { lo = 0.22 }
+        guard !(lo...hi).contains(p.distortionDrive) else { return }
+        let steps = Int(((hi - lo) / 0.02).rounded())
+        let k = steps > 0 ? (i + salt) % (min(steps, 3) + 1) : 0
+        p.distortionDrive = p.distortionDrive < lo ? lo + Float(k) * 0.02 : hi - Float(k) * 0.02
     }
 }
