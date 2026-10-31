@@ -413,6 +413,7 @@ extension FactoryAuthoring {
         loudness(&p)
         categoryGesture(&p)
         antiDull(&p)
+        periodicMotion(&p, index: i)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -751,6 +752,59 @@ extension FactoryAuthoring {
             p.lfo2Waveform = .sine
             p.lfo2Rate = 5.2
             p.lfo2Depth = depth
+        }
+    }
+}
+
+// MARK: - SYNT_43 periodic motion
+
+extension FactoryAuthoring {
+    static let periodicSources: Set<ModSource> = [.lfo1, .lfo2, .mseg, .mseg2, .smoothRandom]
+
+    /// LFO/MSEG/smoothRandom ≥0.30 on a non-pitch, live destination (velocity/env/key do not count).
+    static func hasPeriodicMotion(_ p: SynthPreset) -> Bool {
+        for e in p.modMatrix where periodicSources.contains(e.source) && abs(e.amount) >= 0.30 {
+            if isDeadRow(e) || isFormantDeadRow(e, p) || pitchDestinations.contains(e.destination) { continue }
+            if (e.source == .mseg && p.mseg.points.isEmpty) || (e.source == .mseg2 && p.mseg2.points.isEmpty) { continue }
+            return true
+        }
+        func direct(_ on: Bool, _ t: LFOTarget, _ d: Float) -> Bool {
+            on && t != .none && t != .pitch && d >= 0.30 && !(p.filterType == .formant && t == .filter)
+        }
+        return direct(p.lfoEnabled, p.lfoTarget, p.lfoDepth) || direct(p.lfo2Enabled, p.lfo2Target, p.lfo2Depth)
+    }
+
+    /// SYNT_43: runs after `antiDull`. Misses get a free LFO (LFO2 first, so lead vibrato on LFO1 stays)
+    /// moving timbre: formant → vowel, wavetable → WT morph 1, keys alternate cutoff / tremolo, else cutoff.
+    /// Pad/strings are already covered by the slow pad motion; never touches unison, dirt, res, width.
+    static func periodicMotion(_ p: inout SynthPreset, index i: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let c = p.category
+        guard c != .pad && c != .strings && c != .fx, !hasPeriodicMotion(p) else { return }
+        let depth: Float = 0.32
+        let formant = p.filterType == .formant
+        let wavetable = p.osc1Waveform == .wavetable
+        let tremolo = c == .keys && i % 2 == 1 && !formant
+        let rate: Float = tremolo ? 3.5 : (c == .brass ? 0.5 : [0.6, 0.9, 1.3, 1.8][i % 4])
+        let matrixDest: ModDestination? = formant ? .vowel : (wavetable ? .wtMorph1 : nil)
+        let target: LFOTarget = matrixDest != nil ? .none : (tremolo ? .amplitude : .filter)
+        let lfo2Free = !p.modMatrix.contains { $0.source == .lfo2 } && (!p.lfo2Enabled || p.lfo2Target == .none)
+        let lfo1Free = !p.modMatrix.contains { $0.source == .lfo1 } && (!p.lfoEnabled || p.lfoTarget == .none)
+        var source: ModSource?
+        if lfo2Free {
+            p.lfo2Enabled = true; p.lfo2Target = target; p.lfo2TempoSync = false
+            p.lfo2Waveform = .sine; p.lfo2Rate = rate; p.lfo2Depth = depth
+            source = .lfo2
+        } else if lfo1Free {
+            p.lfoEnabled = true; p.lfoTarget = target; p.lfoTempoSync = false
+            p.lfoWaveform = .sine; p.lfoRate = rate; p.lfoDepth = depth
+            source = .lfo1
+        } else if p.modMatrix.count < 16 {
+            p.modMatrix.append(mod(.lfo2, matrixDest ?? .cutoff, depth))
+            return
+        }
+        if let d = matrixDest, let s = source, p.modMatrix.count < 16 {
+            p.modMatrix.append(mod(s, d, depth))
         }
     }
 }
