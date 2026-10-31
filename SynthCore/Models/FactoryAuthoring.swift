@@ -421,6 +421,7 @@ extension FactoryAuthoring {
         monoBassStagger(&p, index: i, salt: salt)
         dirtDrive(&p, index: i, salt: salt)
         haasMidSide(&p, index: i, salt: salt)
+        dirtDriveSpread(&p, index: i, salt: salt)
 
         // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
         if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
@@ -969,5 +970,23 @@ extension FactoryAuthoring {
             if soft { p.stereoHaasMs = min(p.stereoHaasMs, 5.0) }
             p.stereoEnabled = true
         }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_49: runs after `haasMidSide`. Values only. SYNT_47 left a 0.22 monoculture; dirt-on
+    /// drives in 0.22±0.01 restagger to salted 0.02 steps inside their identity band
+    /// (Soft [0.12, 0.22], Hard dirt cats [0.22, 0.28], pad/strings [0.12, 0.18], else [0.14, 0.28]).
+    /// Already-diverse drives are left alone; dirt is never enabled here.
+    static func dirtDriveSpread(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name),
+              p.distortionEnabled, p.distortionMix >= 0.12,
+              abs(p.distortionDrive - 0.22) <= 0.011 else { return }
+        let steps: [Float]
+        if p.category == .pad || p.category == .strings { steps = [0.12, 0.14, 0.16, 0.18] }
+        else if has(p, softWords) { steps = [0.12, 0.14, 0.16, 0.18, 0.20, 0.22] }
+        else if has(p, hardWords) && isDirtCategory(p.category) { steps = [0.22, 0.24, 0.26, 0.28] }
+        else { steps = [0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26, 0.28] }
+        p.distortionDrive = steps[(i * 5 + salt) % steps.count]
     }
 }
