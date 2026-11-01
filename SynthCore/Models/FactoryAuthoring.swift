@@ -440,6 +440,7 @@ extension FactoryAuthoring {
         dspReverbEnable(&p)
         pluckDelayTempoSync(&p)
         arpDelayTempoSync(&p)
+        resonanceUpperLift(&p, index: i, salt: salt)
     }
 }
 
@@ -1042,5 +1043,26 @@ extension FactoryAuthoring {
     static func arpDelayTempoSync(_ p: inout SynthPreset) {
         guard !["Init", "Default", "Template"].contains(p.name), p.category == .arp, p.delayMix >= 0.12 else { return }
         p.delayTempoSync = true
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_54: runs after `arpDelayTempoSync`. Values only — touches `filterResonance` alone.
+    /// Lead / Strings non-Soft, non-formant presets sitting just under the category upper third
+    /// (within 0.05) are lifted into it with an index stagger (Lead 0.54–0.66, Strings 0.34–0.43),
+    /// so the upper-third share reaches ≥45% without lifting Soft identity or raising ceilings.
+    static func resonanceUpperLift(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.filterType != .formant,
+              !has(p, softWords) else { return }
+        let (threshold, lo, hi): (Float, Float, Float)
+        switch p.category {
+        case .lead: (threshold, lo, hi) = (0.53, 0.54, 0.66)
+        case .strings: (threshold, lo, hi) = (0.33, 0.34, 0.43)
+        default: return
+        }
+        guard p.filterResonance < threshold, p.filterResonance >= threshold - 0.05 - 0.001 else { return }
+        let cents = Int((p.filterResonance * 100).rounded())
+        let v = lo + (hi - lo) * stagger(i + cents, salt, 0.381_966_011)
+        p.filterResonance = (v * 100).rounded() / 100
     }
 }
