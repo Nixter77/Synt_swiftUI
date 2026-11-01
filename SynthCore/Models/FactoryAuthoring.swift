@@ -437,6 +437,7 @@ extension FactoryAuthoring {
             }
         }
         if wetCount() > 2 && p.phaserEnabled { p.phaserEnabled = false }
+        dspReverbEnable(&p)
     }
 }
 
@@ -1011,5 +1012,15 @@ extension FactoryAuthoring {
             let steps: [Float] = [0.52, 0.55, 0.58]
             p.filterEnvelopeAmount = steps[(i + salt) % steps.count]
         }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_51: runs last (after `filterEnvCategory` and the engine carry limits). Values only.
+    /// Any non-Init preset that carries `reverbMix > 0` routes it through the DSP reverb, so the
+    /// tail is not lost in fxOrder / matrix paths. Flag only — `reverbMix` is never raised.
+    static func dspReverbEnable(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.reverbMix > 0 else { return }
+        p.dspReverbEnabled = true
     }
 }
