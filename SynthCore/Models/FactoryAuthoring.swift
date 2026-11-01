@@ -438,6 +438,7 @@ extension FactoryAuthoring {
         }
         if wetCount() > 2 && p.phaserEnabled { p.phaserEnabled = false }
         dspReverbEnable(&p)
+        pluckDelayTempoSync(&p)
     }
 }
 
@@ -1022,5 +1023,14 @@ extension FactoryAuthoring {
     static func dspReverbEnable(_ p: inout SynthPreset) {
         guard !["Init", "Default", "Template"].contains(p.name), p.reverbMix > 0 else { return }
         p.dspReverbEnabled = true
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_52: runs after `dspReverbEnable`. Values only. Pluck presets that already carry
+    /// `delayMix >= 0.12` tempo-sync the delay (Character D, like Lead). Flag only — `delayMix` is never raised.
+    static func pluckDelayTempoSync(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .pluck, p.delayMix >= 0.12 else { return }
+        p.delayTempoSync = true
     }
 }
