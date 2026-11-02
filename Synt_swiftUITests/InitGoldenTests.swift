@@ -2,7 +2,7 @@
 //  InitGoldenTests.swift
 //  Bit-exact render hashes for Init and every factory preset.
 //  Init stays 0xd1b3635203a4799e. Factory hashes were recaptured in SYNT_30
-//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb; SYNT_46 after fxOrder fills + monoBass stagger; SYNT_48 after Haas stagger + MidSide uptake; SYNT_50 after filterEnv category lift + Soft upper cap; SYNT_51 after dspReverbEnabled gate (reverbMix > 0); SYNT_55 after Pad LFO-rate stagger. Re-capture only on purpose.
+//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb; SYNT_46 after fxOrder fills + monoBass stagger; SYNT_48 after Haas stagger + MidSide uptake; SYNT_50 after filterEnv category lift + Soft upper cap; SYNT_51 after dspReverbEnabled gate (reverbMix > 0); SYNT_55 after Pad LFO-rate stagger; SYNT_56 after Strings LFO-rate stagger. Re-capture only on purpose.
 //
 
 import Foundation
@@ -42,11 +42,11 @@ struct InitGoldenTests {
         "Kalimba Soft": 0xdaea4c81e2b10aed,
         "WT Pluck": 0x9a71b4515f7ba26a,
         "Muted Guitar": 0x2dfd687300eb6d3c,
-        "Section Soft": 0x5a43a38594c42219,
-        "Cello Warm": 0xfc79b1c53b7d96ac,
-        "High Ensemble": 0x58420f0d40aff5a8,
-        "Tremolo Strings": 0xf29f9ac142d1aeb6,
-        "WT Orchestra": 0xde5e285ef6b944ff,
+        "Section Soft": 0x61e5bd334d0fa2d1,
+        "Cello Warm": 0xf16c23bb0bf04ff8,
+        "High Ensemble": 0xbf5ce588058bb7ba,
+        "Tremolo Strings": 0x688c000bfcb673ed,
+        "WT Orchestra": 0xef125cd485c0f565,
         "Shimmer Rise": 0x64027a1f845d1fd6,
         "Noise Sweep": 0x6ce017fae185f547,
         "Glitch Arp": 0xb95cbf3010f044b5,
@@ -68,8 +68,8 @@ struct InitGoldenTests {
         "Pan Ping Pluck": 0x11760c07b282d78e,
         "Flange Harp": 0x976dfd5728fd3367,
         "Bit Pluck Arp": 0xbc440a791b0d40ad,
-        "Chamber Swell": 0xf6bab21d29ed7c5a,
-        "Phased Violins": 0x22c9ce249302e724,
+        "Chamber Swell": 0x1c51ee1e21d4184a,
+        "Phased Violins": 0xe794caeb1b5201a7,
         "Siren Drift": 0xbfec0d2c633db391,
         "Jet Flanger": 0x26f09116ef9353fe,
         "Random Bloom": 0xc973e7d0ed361444,
@@ -101,10 +101,10 @@ struct InitGoldenTests {
         "Harp Glimmer": 0xceb4d6993dcbcec5,
         "Muted Synth Pluck": 0x496916a99359d129,
         "Echo Pluck": 0xea11cd7e3da3b721,
-        "Slow Violas": 0x992c7d45c292ac60,
-        "Pizzicato": 0x3ca95ba07834c1a0,
-        "Solo Cello": 0x42c0f6ba6481cbac,
-        "String Machine": 0xa23af17d7c3f45ea,
+        "Slow Violas": 0x45cc095af2c50,
+        "Pizzicato": 0x91b51f627af86634,
+        "Solo Cello": 0xf4e335dc5bfff6db,
+        "String Machine": 0x977a0de14bb15bbb,
         "Brass Stab": 0x15704baee205b9fc,
         "Soft Horns": 0xbdbd669184725efb,
         "Trumpet Lead": 0x9d257ccb45263abf,

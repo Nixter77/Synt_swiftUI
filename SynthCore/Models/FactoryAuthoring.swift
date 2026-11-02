@@ -442,6 +442,7 @@ extension FactoryAuthoring {
         arpDelayTempoSync(&p)
         resonanceUpperLift(&p, index: i, salt: salt)
         padLfoRateStagger(&p, index: i, salt: salt)
+        stringsLfoRateStagger(&p, index: i, salt: salt)
     }
 }
 
@@ -1078,6 +1079,34 @@ extension FactoryAuthoring {
         func slow(_ r: Float) -> Bool { (0.05...0.30).contains(r) }
         let n = padLfoRateLadder.count
         let v = padLfoRateLadder[min(n - 1, Int(stagger(i, salt, 0.618_033_988) * Float(n)))]
+        if p.lfoEnabled && p.lfoTarget == .filter && p.filterType != .formant && p.lfoDepth >= 0.30 && slow(p.lfoRate) {
+            p.lfoRate = v; return
+        }
+        if p.lfo2Enabled && p.lfo2Target == .filter && p.filterType != .formant && p.lfo2Depth >= 0.30 && slow(p.lfo2Rate) {
+            p.lfo2Rate = v; return
+        }
+        let dests: Set<ModDestination> = p.filterType == .formant ? [.vowel] : [.cutoff, .wtMorph1, .wtMorph2, .vowel]
+        for e in p.modMatrix where dests.contains(e.destination) && abs(e.amount) >= 0.30 {
+            switch e.source {
+            case .lfo1 where !p.lfoTempoSync && slow(p.lfoRate): p.lfoRate = v; return
+            case .lfo2 where !p.lfo2TempoSync && slow(p.lfo2Rate): p.lfo2Rate = v; return
+            case .mseg where !p.mseg.points.isEmpty && slow(p.mseg.rateHz): p.mseg.rateHz = v; return
+            case .mseg2 where !p.mseg2.points.isEmpty && slow(p.mseg2.rateHz): p.mseg2.rateHz = v; return
+            default: continue
+            }
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_56: runs after `padLfoRateStagger`. Values only — same carrier walk as Pad, Strings only;
+    /// rewrites only the rate of the slow-motion carrier onto a ladder in 0.07…0.27. Pad untouched.
+    static let stringsLfoRateLadder: [Float] = [0.07, 0.09, 0.11, 0.13, 0.17, 0.19, 0.22, 0.27]
+    static func stringsLfoRateStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .strings else { return }
+        func slow(_ r: Float) -> Bool { (0.05...0.30).contains(r) }
+        let n = stringsLfoRateLadder.count
+        let v = stringsLfoRateLadder[min(n - 1, Int(stagger(i, salt, 0.414_213_562) * Float(n)))]
         if p.lfoEnabled && p.lfoTarget == .filter && p.filterType != .formant && p.lfoDepth >= 0.30 && slow(p.lfoRate) {
             p.lfoRate = v; return
         }
