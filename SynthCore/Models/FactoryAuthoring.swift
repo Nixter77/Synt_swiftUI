@@ -406,47 +406,11 @@ extension FactoryAuthoring {
             p.stereoMonoBassHz = monoBassSteps[(i + salt) % monoBassSteps.count]
         }
 
-        // SYNT_33 — the name decides the sound.
-        contrast(&p, index: i, salt: salt, upper: upper, acid: acid)
-        weakSpots(&p, index: i, upper: upper)
-        identity(&p, index: i, salt: salt, acid: acid)
-        velocity(&p, index: i, salt: salt)
-        loudness(&p)
-        categoryGesture(&p)
-        antiDull(&p)
-        periodicMotion(&p, index: i)
-        warmDrift(&p, index: i, salt: salt)
-        filterBody(&p, index: i, salt: salt)
-        fxOrderFill(&p, index: i)
-        monoBassStagger(&p, index: i, salt: salt)
-        dirtDrive(&p, index: i, salt: salt)
-        haasMidSide(&p, index: i, salt: salt)
-        dirtDriveSpread(&p, index: i, salt: salt)
-        filterEnvCategory(&p, index: i, salt: salt)
-
-        // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
-        if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
-        func wetCount() -> Int {
-            (p.reverbMix > 0.05 ? 1 : 0) + (p.chorusMix > 0.05 ? 1 : 0)
-                + (p.delayMix > 0.05 ? 1 : 0) + (p.phaserEnabled ? 1 : 0)
-        }
-        if wetCount() > 2 {
-            switch c {
-            case .pad, .strings, .keys: if p.delayMix > 0.05 { p.delayMix = 0 }
-            default: if p.chorusMix > 0.05 { p.chorusMix = 0 }
-            }
-        }
-        if wetCount() > 2 && p.phaserEnabled { p.phaserEnabled = false }
-        dspReverbEnable(&p)
-        pluckDelayTempoSync(&p)
-        arpDelayTempoSync(&p)
-        resonanceUpperLift(&p, index: i, salt: salt)
-        padLfoRateStagger(&p, index: i, salt: salt)
-        stringsLfoRateStagger(&p, index: i, salt: salt)
-        keysPluckMasterStagger(&p, index: i, salt: salt)
-        bassLeadMasterStagger(&p, index: i, salt: salt)
-        keysPluckMotionDepthStagger(&p, index: i, salt: salt)
-        bassLeadMotionDepthStagger(&p, index: i, salt: salt)
+        // SYNT_33+ — the name decides the sound. Ordered pass list (order is load-bearing).
+        let ctx = PassContext(index: i, salt: salt, upper: upper, acid: acid)
+        for pass in passes { pass.apply(&p, ctx) }
+        // Final carry caps after every pass, so late stagger passes cannot skip them.
+        engineLimits(&p)
     }
 }
 
@@ -1197,5 +1161,68 @@ extension FactoryAuthoring {
             guard periodicSources.contains(e.source), !pitchDestinations.contains(e.destination), near(e.amount) else { continue }
             p.modMatrix[k].amount = e.amount < 0 ? -d : d
         }
+    }
+}
+
+// MARK: - Ordered character pass list
+
+extension FactoryAuthoring {
+    struct PassContext {
+        let index: Int
+        let salt: Int
+        let upper: Bool
+        let acid: Bool
+    }
+
+    struct Pass {
+        let name: String
+        let apply: (inout SynthPreset, PassContext) -> Void
+    }
+
+    /// Runs in this exact order after the inline SYNT_32 floors in `character`.
+    static let passes: [Pass] = [
+        Pass(name: "contrast") { contrast(&$0, index: $1.index, salt: $1.salt, upper: $1.upper, acid: $1.acid) },
+        Pass(name: "weakSpots") { weakSpots(&$0, index: $1.index, upper: $1.upper) },
+        Pass(name: "identity") { identity(&$0, index: $1.index, salt: $1.salt, acid: $1.acid) },
+        Pass(name: "velocity") { velocity(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "loudness") { p, _ in loudness(&p) },
+        Pass(name: "categoryGesture") { p, _ in categoryGesture(&p) },
+        Pass(name: "antiDull") { p, _ in antiDull(&p) },
+        Pass(name: "periodicMotion") { periodicMotion(&$0, index: $1.index) },
+        Pass(name: "warmDrift") { warmDrift(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "filterBody") { filterBody(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "fxOrderFill") { fxOrderFill(&$0, index: $1.index) },
+        Pass(name: "monoBassStagger") { monoBassStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "dirtDrive") { dirtDrive(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "haasMidSide") { haasMidSide(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "dirtDriveSpread") { dirtDriveSpread(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "filterEnvCategory") { filterEnvCategory(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "engineLimits") { p, _ in engineLimits(&p) },
+        Pass(name: "dspReverbEnable") { p, _ in dspReverbEnable(&p) },
+        Pass(name: "pluckDelayTempoSync") { p, _ in pluckDelayTempoSync(&p) },
+        Pass(name: "arpDelayTempoSync") { p, _ in arpDelayTempoSync(&p) },
+        Pass(name: "resonanceUpperLift") { resonanceUpperLift(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "padLfoRateStagger") { padLfoRateStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "stringsLfoRateStagger") { stringsLfoRateStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "keysPluckMasterStagger") { keysPluckMasterStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "bassLeadMasterStagger") { bassLeadMasterStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "keysPluckMotionDepthStagger") { keysPluckMotionDepthStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "bassLeadMotionDepthStagger") { bassLeadMotionDepthStagger(&$0, index: $1.index, salt: $1.salt) },
+    ]
+
+    /// Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
+    static func engineLimits(_ p: inout SynthPreset) {
+        if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
+        func wetCount(_ p: SynthPreset) -> Int {
+            (p.reverbMix > 0.05 ? 1 : 0) + (p.chorusMix > 0.05 ? 1 : 0)
+                + (p.delayMix > 0.05 ? 1 : 0) + (p.phaserEnabled ? 1 : 0)
+        }
+        if wetCount(p) > 2 {
+            switch p.category {
+            case .pad, .strings, .keys: if p.delayMix > 0.05 { p.delayMix = 0 }
+            default: if p.chorusMix > 0.05 { p.chorusMix = 0 }
+            }
+        }
+        if wetCount(p) > 2 && p.phaserEnabled { p.phaserEnabled = false }
     }
 }
