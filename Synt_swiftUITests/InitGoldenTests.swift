@@ -2,7 +2,7 @@
 //  InitGoldenTests.swift
 //  Bit-exact render hashes for Init and every factory preset.
 //  Init stays 0xd1b3635203a4799e. Factory hashes were recaptured in SYNT_30
-//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb; SYNT_46 after fxOrder fills + monoBass stagger; SYNT_48 after Haas stagger + MidSide uptake; SYNT_50 after filterEnv category lift + Soft upper cap; SYNT_51 after dspReverbEnabled gate (reverbMix > 0); SYNT_55 after Pad LFO-rate stagger; SYNT_56 after Strings LFO-rate stagger; SYNT_57 after Keys/Pluck master stagger. Re-capture only on purpose.
+//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb; SYNT_46 after fxOrder fills + monoBass stagger; SYNT_48 after Haas stagger + MidSide uptake; SYNT_50 after filterEnv category lift + Soft upper cap; SYNT_51 after dspReverbEnabled gate (reverbMix > 0); SYNT_55 after Pad LFO-rate stagger; SYNT_56 after Strings LFO-rate stagger; SYNT_57 after Keys/Pluck master stagger; SYNT_58 after Bass/Lead master stagger. Re-capture only on purpose.
 //
 
 import Foundation
@@ -14,18 +14,18 @@ import Testing
 struct InitGoldenTests {
     static let golden: [String: UInt64] = [
         "Init": 0xd1b3635203a4799e,
-        "Clean Sub": 0x24586193cc4d8240,
+        "Clean Sub": 0xae3b5b7bcf13a6a0,
         "Velvet Acid": 0x1334ad4033c16eea,
-        "Round Reese": 0xeeb65d8da0b0ba4b,
-        "Wavetable Growl": 0xafba4108e7608e97,
-        "Muted Funk": 0x16be30bcefb35d9f,
-        "Soft 808": 0xf952e143c7835c4,
+        "Round Reese": 0x4331ba2251e100fd,
+        "Wavetable Growl": 0x181ec62e6d2cb41,
+        "Muted Funk": 0x76a3a80cc25f088b,
+        "Soft 808": 0x5e1d193c6c7f2e82,
         "Silk Lead": 0xb06426c3e219604a,
-        "Crystal Lead": 0x7a7de04c676a1cd3,
-        "Warm Mono": 0xe2753a6053c4adb6,
-        "Arp Cascade": 0x7570cde8b9b13f26,
-        "Supersaw Soft": 0x56a199a6452f0c5e,
-        "PWM Whisper": 0xc11dd531e7c354be,
+        "Crystal Lead": 0xa3b86494a765be33,
+        "Warm Mono": 0x749588a066ec2619,
+        "Arp Cascade": 0xf14afe63cf8b6d4,
+        "Supersaw Soft": 0x7fdb795e59a0bb8c,
+        "PWM Whisper": 0x7b919a9e269a9dcd,
         "Cloud Bed": 0x2ab8a6fe7a209427,
         "Glass Horizon": 0x2e793409c68fe085,
         "Analog Drift": 0xe19f0a5884526397,
@@ -53,12 +53,12 @@ struct InitGoldenTests {
         "Deep Drone": 0xb4797193ef54f7aa,
         "Space Pluck FX": 0x9c1bda7f8c872325,
         // Showcase library (2026-10-13), captured at first add.
-        "Rubber Wobble": 0xd4aaeed1ec7b4bd0,
-        "PWM Sub Pulse": 0x2ea81a8ea86087f1,
-        "Snap Resonator": 0xc156f481cfc1df77,
-        "Vox Morph Lead": 0xe8ce8d4774e31161,
-        "Delayed Vibrato": 0x7834bbe1b4cee79b,
-        "Fifth Sync Lead": 0xf1cb6d92fee42095,
+        "Rubber Wobble": 0x7a386b2f8bd5a139,
+        "PWM Sub Pulse": 0xc9401acf4d63b950,
+        "Snap Resonator": 0x8dd86787861980bb,
+        "Vox Morph Lead": 0x751f60b7a0644c8c,
+        "Delayed Vibrato": 0xe9ebaaab60c9dfb4,
+        "Fifth Sync Lead": 0x72e744ff7d587c1a,
         "Phase Cathedral": 0xe487aeb17ee21ed7,
         "Breathing Glass": 0x604eb82e8599f41d,
         "Tidal Pad": 0xc7fbcec5d8f37e04,
@@ -75,17 +75,17 @@ struct InitGoldenTests {
         "Random Bloom": 0xc973e7d0ed361444,
         // Library to 100 (2026-10-18), captured at first add.
         "Acid Squelch": 0xe7094f780a6b9b8c,
-        "Hollow Pulse Bass": 0x1d3b36f4bb935f3d,
-        "Fat Unison Bass": 0x5e15997cc72f07ac,
-        "Finger Pluck Bass": 0x3443504ef7c4c03e,
-        "Wavefold Bass": 0xa0009750881fbaf7,
+        "Hollow Pulse Bass": 0xe82fbf32c32c1f8f,
+        "Fat Unison Bass": 0x7eb07562da345763,
+        "Finger Pluck Bass": 0x9e51022afc99c900,
+        "Wavefold Bass": 0x4338c034cecb5999,
         "Dub Wobble": 0x482b5b3e287a4837,
-        "Chip Square Lead": 0x90e8177760a56af4,
-        "Glide Saw Lead": 0x4299531865fe3cb,
-        "Breathy Flute": 0x12ec2d66cbb2bbfa,
+        "Chip Square Lead": 0x56a02370732b1092,
+        "Glide Saw Lead": 0xbc8fc8a7234240b4,
+        "Breathy Flute": 0x816dc6f5f4813c8f,
         "Overdrive Lead": 0xbbe6f98e2bca0fb9,
-        "Whistle Lead": 0xa25db299ae714a1e,
-        "Nasal Band Lead": 0x9069a3de4d63e9ec,
+        "Whistle Lead": 0xec4fd6a0d20c95cc,
+        "Nasal Band Lead": 0xe5ead7717d908fac,
         "Soft Saw Pad": 0xcafbb3985c717b0f,
         "Sine Glass Pad": 0x18a01ff696948d5,
         "Dark Choir": 0x93245f5b5f2ea603,
@@ -117,8 +117,8 @@ struct InitGoldenTests {
         "Laser Zap": 0x830cb28b1fd7c4f2,
         "Wind Gust": 0x6d1737d1f932dab6,
         // Stage 8 demos, captured when the three patches were added.
-        "Serial Glass Bass": 0xb3932976c1419edb,
-        "Vowel Ah Lead": 0xef885decd262e86d,
+        "Serial Glass Bass": 0xb5f9ca94de351b7e,
+        "Vowel Ah Lead": 0xeda1c0a7f22a3f9b,
         "MSEG Drift": 0x2e712decc132c46f,
     ]
 

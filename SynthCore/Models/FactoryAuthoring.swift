@@ -444,6 +444,7 @@ extension FactoryAuthoring {
         padLfoRateStagger(&p, index: i, salt: salt)
         stringsLfoRateStagger(&p, index: i, salt: salt)
         keysPluckMasterStagger(&p, index: i, salt: salt)
+        bassLeadMasterStagger(&p, index: i, salt: salt)
     }
 }
 
@@ -1137,5 +1138,22 @@ extension FactoryAuthoring {
         let ladder = isLoudnessSoft(p) ? keysPluckMasterSoftLadder : keysPluckMasterLadder
         let n = ladder.count
         p.masterVolume = ladder[min(n - 1, Int(stagger(i, salt, 0.732_050_808) * Float(n)))]
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_58: runs after `keysPluckMasterStagger`. Values only — Bass/Lead `masterVolume` only,
+    /// staggered inside loudness bands (Bass 0.58…0.65, Soft ≤ 0.61; Lead 0.52…0.62, Soft ≤ 0.57).
+    static let bassMasterLadder: [Float] = [0.58, 0.59, 0.60, 0.61, 0.62, 0.63, 0.64, 0.65]
+    static let bassMasterSoftLadder: [Float] = [0.58, 0.59, 0.60, 0.61]
+    static let leadMasterLadder: [Float] = [0.52, 0.53, 0.54, 0.55, 0.56, 0.57, 0.58, 0.59, 0.60, 0.61, 0.62]
+    static let leadMasterSoftLadder: [Float] = [0.52, 0.53, 0.54, 0.55, 0.56, 0.57]
+    static func bassLeadMasterStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .bass || p.category == .lead else { return }
+        let soft = isLoudnessSoft(p)
+        let ladder = p.category == .bass ? (soft ? bassMasterSoftLadder : bassMasterLadder)
+                                         : (soft ? leadMasterSoftLadder : leadMasterLadder)
+        let n = ladder.count
+        p.masterVolume = ladder[min(n - 1, Int(stagger(i, salt, 0.414_213_562) * Float(n)))]
     }
 }
