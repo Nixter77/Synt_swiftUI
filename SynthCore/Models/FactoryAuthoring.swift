@@ -402,28 +402,15 @@ extension FactoryAuthoring {
         p.stereoEnabled = true
         p.stereoWidth = ((band.lo + (band.hi - band.lo) * Float(frac)) * 100).rounded() / 100
         if c == .bass && p.stereoMonoBassHz == 0 {
-            p.stereoMonoBassHz = 120
+            // SYNT_46: staggered 80–150 Hz instead of flat 120.
+            p.stereoMonoBassHz = monoBassSteps[(i + salt) % monoBassSteps.count]
         }
 
-        // SYNT_33 — the name decides the sound.
-        contrast(&p, index: i, salt: salt, upper: upper, acid: acid)
-        weakSpots(&p, index: i, upper: upper)
-        identity(&p, index: i, salt: salt, acid: acid)
-        velocity(&p, index: i, salt: salt)
-
-        // Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
-        if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
-        func wetCount() -> Int {
-            (p.reverbMix > 0.05 ? 1 : 0) + (p.chorusMix > 0.05 ? 1 : 0)
-                + (p.delayMix > 0.05 ? 1 : 0) + (p.phaserEnabled ? 1 : 0)
-        }
-        if wetCount() > 2 {
-            switch c {
-            case .pad, .strings, .keys: if p.delayMix > 0.05 { p.delayMix = 0 }
-            default: if p.chorusMix > 0.05 { p.chorusMix = 0 }
-            }
-        }
-        if wetCount() > 2 && p.phaserEnabled { p.phaserEnabled = false }
+        // SYNT_33+ — the name decides the sound. Ordered pass list (order is load-bearing).
+        let ctx = PassContext(index: i, salt: salt, upper: upper, acid: acid)
+        for pass in passes { pass.apply(&p, ctx) }
+        // Final carry caps after every pass, so late stagger passes cannot skip them.
+        engineLimits(&p)
     }
 }
 
@@ -480,9 +467,10 @@ extension FactoryAuthoring {
             if isDirtCategory(c) {
                 p.distortionEnabled = true
                 p.distortionMix = min(0.35, max(p.distortionMix, 0.30))
-                p.distortionDrive = max(p.distortionDrive, 0.26)
+                p.distortionDrive = min(0.28, max(p.distortionDrive, 0.26))
             } else if p.distortionEnabled {
-                p.distortionDrive = max(p.distortionDrive, 0.30)
+                // SYNT_47: was max(drive, 0.30) — out of the tasty band.
+                p.distortionDrive = min(0.28, max(p.distortionDrive, 0.26))
             }
         }
         if has(p, motionWords) && strongestMotion(p) < 0.40 {
@@ -612,5 +600,629 @@ extension FactoryAuthoring {
         default:
             break
         }
+    }
+}
+
+// MARK: - SYNT_36 loudness hierarchy
+
+extension FactoryAuthoring {
+    /// PRESET_TASTE master bands. SYNT_37 S3: brass / arp 0.40–0.55.
+    static func loudnessBand(_ c: PresetCategory) -> (lo: Float, hi: Float)? {
+        switch c {
+        case .bass: return (0.58, 0.65)
+        case .lead: return (0.52, 0.62)
+        case .keys, .pluck: return (0.45, 0.55)
+        case .pad, .strings: return (0.32, 0.40)
+        case .fx: return (0.30, 0.55)
+        case .brass, .arp: return (0.40, 0.55)
+        }
+    }
+
+    static let loudnessSoftWords = ["soft", "velvet", "whisper", "silk", "round"]
+
+    static func isLoudnessSoft(_ p: SynthPreset) -> Bool { has(p, loudnessSoftWords) }
+
+    /// SYNT_36: runs after `velocity`. Nudges masterVolume into the category band (soft names in
+    /// the lower half, cap 0.75); on non-FX trims the loudest wet mix by ≤0.05 when the wet sum
+    /// exceeds 0.45, never below the SYNT_32 FX floors. Never touches dirt / res / cutoff.
+    static func loudness(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        func r2(_ x: Float) -> Float { (x * 100).rounded() / 100 }
+        var m = min(p.masterVolume, 0.75)
+        if let band = loudnessBand(p.category) {
+            var hi = band.hi
+            if isLoudnessSoft(p) { hi = ((band.lo + band.hi) / 2 * 100).rounded(.down) / 100 }
+            m = min(hi, max(band.lo, m))
+        }
+        p.masterVolume = r2(m)
+
+        guard p.category != .fx else { return }
+        let over = p.reverbMix + p.delayMix + p.chorusMix - 0.45
+        guard over > 1e-4 else { return }
+        let c = p.category
+        let padLike = c == .pad || c == .strings
+        let revFloor: Float = padLike ? 0.20 : 0.12
+        let choFloor: Float = (padLike || c == .keys) ? 0.14 : 0.12
+        let dlyFloor: Float = 0.12
+        let cut = min(0.05, over)
+        if p.reverbMix >= p.chorusMix && p.reverbMix >= p.delayMix {
+            p.reverbMix = r2(max(revFloor, p.reverbMix - cut))
+        } else if p.chorusMix >= p.delayMix {
+            p.chorusMix = r2(max(choFloor, p.chorusMix - cut))
+        } else {
+            p.delayMix = r2(max(dlyFloor, p.delayMix - cut))
+        }
+    }
+}
+
+// MARK: - SYNT_37 category gesture
+
+extension FactoryAuthoring {
+    /// SYNT_37: runs after `loudness`. Fills missing category must-haves (docs/PRESET_TASTE.md):
+    /// bass mono+sub, lead fast, pad/strings slow and clean, keys short, pluck short.
+    /// Only moves a value that misses its rule; never touches unison, master, res or cutoff.
+    /// Pizzicato strings keep their plucked gesture.
+    static func categoryGesture(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        func r3(_ x: Float) -> Float { (x * 1000).rounded() / 1000 }
+        let soft = has(p, softWords)
+        switch p.category {
+        case .bass:
+            if p.voiceMode == .poly { p.voiceMode = .mono }
+            if !has(p, ["slap", "pluck"]) && !(0.02...0.12).contains(p.portamento) {
+                p.portamento = min(0.12, max(0.02, p.portamento))
+            }
+            if p.subOscVolume < 0.08 && p.osc1Octave > -1 && p.osc2Octave > -1 { p.subOscVolume = 0.10 }
+        case .lead:
+            if p.attack > 0.08 && !(0.02...0.15).contains(p.portamento) {
+                p.attack = soft ? 0.08 : 0.05
+            }
+            if p.attack > 0.25 && p.portamento > 0.20 { p.portamento = 0.15 }
+        case .pad, .strings:
+            if has(p, ["pizz"]) { return }
+            if p.attack < 0.15 { p.attack = 0.15 }
+            if p.release < 0.60 { p.release = 0.60 }
+            if p.distortionEnabled && p.distortionMix > 0.10 { p.distortionEnabled = false }
+        case .keys:
+            if p.attack > 0.05 { p.attack = 0.05 }
+            p.release = r3(min(0.55, max(0.15, p.release)))
+            if p.sustain > 0.75 { p.sustain = 0.75 }
+        case .pluck:
+            if p.attack > 0.01 { p.attack = 0.01 }
+            if p.sustain > 0.25 { p.sustain = 0.25 }
+            if p.release > 0.55 { p.release = 0.55 }
+        case .brass:
+            // SYNT_38: dirt cap (no unison force — chord-safety).
+            let cap: Float = has(p, ["soft", "velvet"]) ? 0.22 : 0.30
+            if p.distortionEnabled && p.distortionMix > cap { p.distortionMix = cap }
+            if !(p.attack <= 0.12 || p.filterEnvelopeAmount >= 0.40) { p.attack = soft ? 0.12 : 0.08 }
+        case .arp:
+            if p.attack > 0.08 { p.attack = 0.08 }
+            if p.sustain > 0.55 { p.sustain = 0.55 }
+        case .fx:
+            // SYNT_38: pad-like FX (slow attack + long tail) → shorter tail unless the name is a drone/shimmer bed.
+            if p.attack >= 0.15 && p.release >= 0.60 && !has(p, ["shimmer", "drone"]) { p.release = 0.55 }
+        }
+    }
+}
+
+// MARK: - SYNT_41 anti-dull / lead vibrato
+
+extension FactoryAuthoring {
+    /// SYNT_41: runs after `categoryGesture`. Leads without pitch vibrato get a gentle
+    /// free-running sine LFO → pitch (depth 0.10–0.12, ~5 Hz) on a free LFO slot.
+    /// Never touches unison, dirt, res, width or master. Soft names stay at 0.10.
+    static func antiDull(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .lead else { return }
+        let lfoPitch = p.modMatrix.contains { ($0.source == .lfo1 || $0.source == .lfo2)
+            && pitchDestinations.contains($0.destination) && abs($0.amount) >= 0.10 }
+        if lfoPitch { return }
+        if (p.lfoEnabled && p.lfoTarget == .pitch && p.lfoDepth >= 0.10)
+            || (p.lfo2Enabled && p.lfo2Target == .pitch && p.lfo2Depth >= 0.10) { return }
+        let depth: Float = has(p, softWords) ? 0.10 : 0.12
+        let lfo1Used = p.modMatrix.contains { $0.source == .lfo1 }
+        let lfo2Used = p.modMatrix.contains { $0.source == .lfo2 }
+        if !lfo1Used && (!p.lfoEnabled || p.lfoTarget == .none || p.lfoTarget == .pitch) {
+            p.lfoEnabled = true
+            p.lfoTarget = .pitch
+            p.lfoTempoSync = false
+            p.lfoWaveform = .sine
+            p.lfoRate = 5.2
+            p.lfoDepth = max(depth, p.lfoTarget == .pitch ? min(p.lfoDepth, 0.14) : depth)
+        } else if !lfo2Used && (!p.lfo2Enabled || p.lfo2Target == .none || p.lfo2Target == .pitch) {
+            p.lfo2Enabled = true
+            p.lfo2Target = .pitch
+            p.lfo2TempoSync = false
+            p.lfo2Waveform = .sine
+            p.lfo2Rate = 5.2
+            p.lfo2Depth = depth
+        }
+    }
+}
+
+// MARK: - SYNT_43 periodic motion
+
+extension FactoryAuthoring {
+    static let periodicSources: Set<ModSource> = [.lfo1, .lfo2, .mseg, .mseg2, .smoothRandom]
+
+    /// LFO/MSEG/smoothRandom ≥0.30 on a non-pitch, live destination (velocity/env/key do not count).
+    static func hasPeriodicMotion(_ p: SynthPreset) -> Bool {
+        for e in p.modMatrix where periodicSources.contains(e.source) && abs(e.amount) >= 0.30 {
+            if isDeadRow(e) || isFormantDeadRow(e, p) || pitchDestinations.contains(e.destination) { continue }
+            if (e.source == .mseg && p.mseg.points.isEmpty) || (e.source == .mseg2 && p.mseg2.points.isEmpty) { continue }
+            return true
+        }
+        func direct(_ on: Bool, _ t: LFOTarget, _ d: Float) -> Bool {
+            on && t != .none && t != .pitch && d >= 0.30 && !(p.filterType == .formant && t == .filter)
+        }
+        return direct(p.lfoEnabled, p.lfoTarget, p.lfoDepth) || direct(p.lfo2Enabled, p.lfo2Target, p.lfo2Depth)
+    }
+
+    /// SYNT_43: runs after `antiDull`. Misses get a free LFO (LFO2 first, so lead vibrato on LFO1 stays)
+    /// moving timbre: formant → vowel, wavetable → WT morph 1, keys alternate cutoff / tremolo, else cutoff.
+    /// Pad/strings are already covered by the slow pad motion; never touches unison, dirt, res, width.
+    static func periodicMotion(_ p: inout SynthPreset, index i: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let c = p.category
+        guard c != .pad && c != .strings && c != .fx, !hasPeriodicMotion(p) else { return }
+        let depth: Float = 0.32
+        let formant = p.filterType == .formant
+        let wavetable = p.osc1Waveform == .wavetable
+        let tremolo = c == .keys && i % 2 == 1 && !formant
+        let rate: Float = tremolo ? 3.5 : (c == .brass ? 0.5 : [0.6, 0.9, 1.3, 1.8][i % 4])
+        let matrixDest: ModDestination? = formant ? .vowel : (wavetable ? .wtMorph1 : nil)
+        let target: LFOTarget = matrixDest != nil ? .none : (tremolo ? .amplitude : .filter)
+        let lfo2Free = !p.modMatrix.contains { $0.source == .lfo2 } && (!p.lfo2Enabled || p.lfo2Target == .none)
+        let lfo1Free = !p.modMatrix.contains { $0.source == .lfo1 } && (!p.lfoEnabled || p.lfoTarget == .none)
+        var source: ModSource?
+        if lfo2Free {
+            p.lfo2Enabled = true; p.lfo2Target = target; p.lfo2TempoSync = false
+            p.lfo2Waveform = .sine; p.lfo2Rate = rate; p.lfo2Depth = depth
+            source = .lfo2
+        } else if lfo1Free {
+            p.lfoEnabled = true; p.lfoTarget = target; p.lfoTempoSync = false
+            p.lfoWaveform = .sine; p.lfoRate = rate; p.lfoDepth = depth
+            source = .lfo1
+        } else if p.modMatrix.count < 16 {
+            p.modMatrix.append(mod(.lfo2, matrixDest ?? .cutoff, depth))
+            return
+        }
+        if let d = matrixDest, let s = source, p.modMatrix.count < 16 {
+            p.modMatrix.append(mod(s, d, depth))
+        }
+    }
+}
+
+// MARK: - SYNT_44 warm + analog drift pass
+
+extension FactoryAuthoring {
+    static let driftRange: ClosedRange<Float> = 0.05...0.20
+    static let driftSteps: [Float] = [0.08, 0.10, 0.12, 0.14, 0.16]
+
+    /// SYNT_44: runs after `periodicMotion`. Values only.
+    /// Character: Pad/Bass `.off` → `.warm`, Lead `.off` → `.warm`; Bright/Crystal/Glass/Air-named → `.bright`;
+    /// Hard-named bass/lead keep `.off`. Drift: Bass/Lead/Pad outside [0.05, 0.20] get a staggered
+    /// 0.08–0.16 value (formant slots skipped); any factory drift above 0.20 is capped to 0.20.
+    static func warmDrift(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let c = p.category
+        if p.analogDrift > driftRange.upperBound { p.analogDrift = driftRange.upperBound }
+        guard c == .pad || c == .bass || c == .lead else { return }
+        if p.character == .off && !(c != .pad && has(p, hardWords)) {
+            p.character = has(p, brightWords) ? .bright : .warm
+        }
+        if !driftRange.contains(p.analogDrift) && p.filterType != .formant {
+            p.analogDrift = driftSteps[(i + salt) % driftSteps.count]
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_45 filter-body cutoff bands (Hz) per category.
+    static func cutoffBand(_ c: PresetCategory) -> ClosedRange<Float>? {
+        switch c {
+        case .bass: return 400...1400
+        case .lead: return 800...3200
+        case .pad, .strings: return 1000...5000
+        case .keys: return 900...4000
+        case .pluck: return 800...3500
+        default: return nil
+        }
+    }
+
+    /// Curated comb (resonator) slots: metallic / flanged / cathedral names. FX, Keys, Pad, Pluck.
+    static let combNames: Set<String> = [
+        "Jet Flanger", "Gamelan Gong", "Alien Transmission",
+        "Tubular Cathedral", "Ice Temple Bell",
+        "Phase Cathedral", "Pulse Sweep Pad",
+        "Flange Harp",
+    ]
+
+    /// SYNT_45: runs after `warmDrift`. Values only.
+    /// Non-formant, non-Dark/Bright-named misses are clamped into the category cutoff band near
+    /// the nearest edge with an index-salted stagger (identity wins). Then curated slots flip to `.comb`;
+    /// the engine's comb tunes its delay from cutoff, so cutoff mod rows stay live.
+    static func filterBody(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let exempt = p.filterType == .formant || has(p, darkWords) || has(p, brightWords)
+        if !exempt, let b = cutoffBand(p.category), !b.contains(p.filterCutoff) {
+            let span = b.upperBound - b.lowerBound
+            let frac = Float((Double(i + salt + 1) * 0.618_033_988_75).truncatingRemainder(dividingBy: 1))
+            let off = (span * 0.04 + span * 0.08 * frac).rounded()
+            p.filterCutoff = p.filterCutoff < b.lowerBound ? b.lowerBound + off : b.upperBound - off
+        }
+        if combNames.contains(p.name) && p.filterType != .formant {
+            p.filterType = .comb
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_46 bass mono-below Hz stagger (all inside 80–150).
+    static let monoBassSteps: [Float] = [90, 105, 120, 135, 145]
+
+    /// SYNT_46: runs after `filterBody`. Values only — existing helper orders only.
+    /// Pad/Strings/Keys/Pluck had zero non-default fxOrder; every 9th slot (index 4, 13, 22)
+    /// on the default order gets a category helper (Pluck: every 5th — index 4, 9, 14). Bass/Lead/FX stay as authored.
+    static func fxOrderFill(_ p: inout SynthPreset, index i: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name),
+              p.fxOrder == FXSlotID.defaultOrder,
+              i % (p.category == .pluck ? 5 : 9) == 4 else { return }
+        switch p.category {
+        case .pad, .strings: p.fxOrder = orderVerbEarly
+        case .keys: p.fxOrder = (i / 9) % 2 == 0 ? orderVerbEarly : orderDelayFirst
+        case .pluck: p.fxOrder = orderDelayFirst
+        default: break
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_46: Bass flat-120 (authored or zero-filled) and out-of-band mono-below Hz move to a
+    /// salted 80–150 step so the bank spreads over ≥3 10 Hz buckets. Non-bass untouched.
+    static func monoBassStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard p.category == .bass, !["Init", "Default", "Template"].contains(p.name) else { return }
+        if p.stereoMonoBassHz == 120 || !(80...150).contains(p.stereoMonoBassHz) {
+            p.stereoMonoBassHz = monoBassSteps[(i + salt) % monoBassSteps.count]
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_47: runs after `monoBassStagger`. Values only. Dirt-on (enabled && mix ≥ 0.12) drive
+    /// lands in the tasty band [0.10, 0.28]; Soft-named ≤ 0.22; Hard-named dirt cats [0.22, 0.28];
+    /// pads/strings [0.10, 0.18]. Misses get a salted 0.02-step stagger inside their band.
+    static func dirtDrive(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name),
+              p.distortionEnabled, p.distortionMix >= 0.12 else { return }
+        var lo: Float = 0.10, hi: Float = 0.28
+        if p.category == .pad || p.category == .strings { hi = 0.18 }
+        if has(p, softWords) { hi = min(hi, 0.22) }
+        else if has(p, hardWords) && isDirtCategory(p.category) { lo = 0.22 }
+        guard !(lo...hi).contains(p.distortionDrive) else { return }
+        let steps = Int(((hi - lo) / 0.02).rounded())
+        let k = steps > 0 ? (i + salt) % (min(steps, 3) + 1) : 0
+        p.distortionDrive = p.distortionDrive < lo ? lo + Float(k) * 0.02 : hi - Float(k) * 0.02
+    }
+}
+
+extension FactoryAuthoring {
+    static let midSideSteps: [Float] = [0.14, 0.18, 0.22, 0.26, 0.30, 0.34, 0.38]
+    static let haasSteps: [Float] = [2.5, 3.0, 3.5, 4.5, 5.0, 5.5, 6.0]
+
+    /// SYNT_48: runs after `dirtDrive`. Values only. Bass |ms| ≤ 0.05, no Haas added.
+    /// Pad/Keys/Strings: every other preset MidSide-on in [0.14, 0.38] (Wide upper half, Soft ≤ 0.26).
+    /// Lead: every third MidSide-on in [0.12, 0.30]. Pad+Strings Haas-on moves off the 4.0 ms
+    /// monoculture into salted 0.5 ms steps inside [2.0, 8.0]; Soft Haas ≤ 5.0.
+    static func haasMidSide(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let c = p.category
+        let soft = has(p, softWords)
+        if c == .bass {
+            p.stereoMidSide = max(-0.05, min(0.05, p.stereoMidSide))
+            return
+        }
+        let chord = c == .pad || c == .keys || c == .strings
+        if abs(p.stereoMidSide) < 0.12 {
+            if chord && i % 2 == 0 {
+                var steps = midSideSteps
+                if soft { steps = steps.filter { $0 <= 0.26 } } else if has(p, wideWords) { steps = steps.filter { $0 >= 0.30 } }
+                p.stereoMidSide = steps[(i / 2 + salt) % steps.count]
+                p.stereoEnabled = true
+            } else if c == .lead && i % 3 == 0 {
+                let steps: [Float] = [0.12, 0.18, 0.24, 0.30]
+                p.stereoMidSide = steps[(i / 3 + salt) % steps.count]
+                p.stereoEnabled = true
+            }
+        }
+        if soft { p.stereoMidSide = max(-0.28, min(0.28, p.stereoMidSide)) }
+        if (c == .pad || c == .strings) && p.stereoHaasMs >= 1.5 {
+            var steps = haasSteps
+            if soft { steps = steps.filter { $0 <= 5.0 } }
+            if abs(p.stereoHaasMs - 4.0) <= 0.25 && i % 3 != 0 || !(2.0...8.0).contains(p.stereoHaasMs) {
+                p.stereoHaasMs = steps[(i + salt) % steps.count]
+            }
+            if soft { p.stereoHaasMs = min(p.stereoHaasMs, 5.0) }
+            p.stereoEnabled = true
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_49: runs after `haasMidSide`. Values only. SYNT_47 left a 0.22 monoculture; dirt-on
+    /// drives in 0.22±0.01 restagger to salted 0.02 steps inside their identity band
+    /// (Soft [0.12, 0.22], Hard dirt cats [0.22, 0.28], pad/strings [0.12, 0.18], else [0.14, 0.28]).
+    /// Already-diverse drives are left alone; dirt is never enabled here.
+    static func dirtDriveSpread(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name),
+              p.distortionEnabled, p.distortionMix >= 0.12,
+              abs(p.distortionDrive - 0.22) <= 0.011 else { return }
+        let steps: [Float]
+        if p.category == .pad || p.category == .strings { steps = [0.12, 0.14, 0.16, 0.18] }
+        else if has(p, softWords) { steps = [0.12, 0.14, 0.16, 0.18, 0.20, 0.22] }
+        else if has(p, hardWords) && isDirtCategory(p.category) { steps = [0.22, 0.24, 0.26, 0.28] }
+        else { steps = [0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26, 0.28] }
+        p.distortionDrive = steps[(i * 5 + salt) % steps.count]
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_50: runs after `dirtDriveSpread`. Values only. Character A left Lead/Pluck/Keys at the
+    /// `i % 5 < 2` upper share (~40%); slot `i % 5 == 2` now also lifts into a salted 0.05-step
+    /// stagger inside [0.50, 0.65]. Soft-named upper envs settle in [0.50, 0.58]; Acid stays ≥0.55.
+    /// Formant, negative (closing) envs and Init/Default/Template are untouched.
+    static func filterEnvCategory(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name),
+              p.filterType != .formant, p.filterEnvelopeAmount >= 0 else { return }
+        let soft = has(p, softWords)
+        let acid = p.name.localizedCaseInsensitiveContains("acid")
+        let liftCats: [PresetCategory] = [.lead, .pluck, .keys]
+        if liftCats.contains(p.category) && i % 5 == 2 && p.filterEnvelopeAmount < 0.50 {
+            let steps: [Float] = soft ? [0.58, 0.54, 0.50] : [0.50, 0.55, 0.60, 0.65]
+            p.filterEnvelopeAmount = steps[(i / 5 + salt) % steps.count]
+        }
+        if soft && !acid && p.filterEnvelopeAmount > 0.58 {
+            let steps: [Float] = [0.52, 0.55, 0.58]
+            p.filterEnvelopeAmount = steps[(i + salt) % steps.count]
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_51: runs last (after `filterEnvCategory` and the engine carry limits). Values only.
+    /// Any non-Init preset that carries `reverbMix > 0` routes it through the DSP reverb, so the
+    /// tail is not lost in fxOrder / matrix paths. Flag only — `reverbMix` is never raised.
+    static func dspReverbEnable(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.reverbMix > 0 else { return }
+        p.dspReverbEnabled = true
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_52: runs after `dspReverbEnable`. Values only. Pluck presets that already carry
+    /// `delayMix >= 0.12` tempo-sync the delay (Character D, like Lead). Flag only — `delayMix` is never raised.
+    static func pluckDelayTempoSync(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .pluck, p.delayMix >= 0.12 else { return }
+        p.delayTempoSync = true
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_53: runs after `pluckDelayTempoSync`. Values only. Arp presets that already carry
+    /// `delayMix >= 0.12` tempo-sync the delay (Character D, like Lead/Pluck). Flag only — `delayMix` is never raised.
+    static func arpDelayTempoSync(_ p: inout SynthPreset) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .arp, p.delayMix >= 0.12 else { return }
+        p.delayTempoSync = true
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_54: runs after `arpDelayTempoSync`. Values only — touches `filterResonance` alone.
+    /// Lead / Strings non-Soft, non-formant presets sitting just under the category upper third
+    /// (within 0.05) are lifted into it with an index stagger (Lead 0.54–0.66, Strings 0.34–0.43),
+    /// so the upper-third share reaches ≥45% without lifting Soft identity or raising ceilings.
+    static func resonanceUpperLift(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.filterType != .formant,
+              !has(p, softWords) else { return }
+        let (threshold, lo, hi): (Float, Float, Float)
+        switch p.category {
+        case .lead: (threshold, lo, hi) = (0.53, 0.54, 0.66)
+        case .strings: (threshold, lo, hi) = (0.33, 0.34, 0.43)
+        default: return
+        }
+        guard p.filterResonance < threshold, p.filterResonance >= threshold - 0.05 - 0.001 else { return }
+        let cents = Int((p.filterResonance * 100).rounded())
+        let v = lo + (hi - lo) * stagger(i + cents, salt, 0.381_966_011)
+        p.filterResonance = (v * 100).rounded() / 100
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_55: runs after `resonanceUpperLift`. Values only — rewrites only the rate of the modulator
+    /// that already carries Pad slow motion (same order as the Character `slowPadMotion` check), onto a
+    /// deterministic ladder in 0.08…0.28 so no 0.01 bucket owns the category. Depth/targets/matrix untouched.
+    static let padLfoRateLadder: [Float] = [0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.24, 0.28]
+    static func padLfoRateStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .pad else { return }
+        func slow(_ r: Float) -> Bool { (0.05...0.30).contains(r) }
+        let n = padLfoRateLadder.count
+        let v = padLfoRateLadder[min(n - 1, Int(stagger(i, salt, 0.618_033_988) * Float(n)))]
+        if p.lfoEnabled && p.lfoTarget == .filter && p.filterType != .formant && p.lfoDepth >= 0.30 && slow(p.lfoRate) {
+            p.lfoRate = v; return
+        }
+        if p.lfo2Enabled && p.lfo2Target == .filter && p.filterType != .formant && p.lfo2Depth >= 0.30 && slow(p.lfo2Rate) {
+            p.lfo2Rate = v; return
+        }
+        let dests: Set<ModDestination> = p.filterType == .formant ? [.vowel] : [.cutoff, .wtMorph1, .wtMorph2, .vowel]
+        for e in p.modMatrix where dests.contains(e.destination) && abs(e.amount) >= 0.30 {
+            switch e.source {
+            case .lfo1 where !p.lfoTempoSync && slow(p.lfoRate): p.lfoRate = v; return
+            case .lfo2 where !p.lfo2TempoSync && slow(p.lfo2Rate): p.lfo2Rate = v; return
+            case .mseg where !p.mseg.points.isEmpty && slow(p.mseg.rateHz): p.mseg.rateHz = v; return
+            case .mseg2 where !p.mseg2.points.isEmpty && slow(p.mseg2.rateHz): p.mseg2.rateHz = v; return
+            default: continue
+            }
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_56: runs after `padLfoRateStagger`. Values only — same carrier walk as Pad, Strings only;
+    /// rewrites only the rate of the slow-motion carrier onto a ladder in 0.07…0.27. Pad untouched.
+    static let stringsLfoRateLadder: [Float] = [0.07, 0.09, 0.11, 0.13, 0.17, 0.19, 0.22, 0.27]
+    static func stringsLfoRateStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .strings else { return }
+        func slow(_ r: Float) -> Bool { (0.05...0.30).contains(r) }
+        let n = stringsLfoRateLadder.count
+        let v = stringsLfoRateLadder[min(n - 1, Int(stagger(i, salt, 0.414_213_562) * Float(n)))]
+        if p.lfoEnabled && p.lfoTarget == .filter && p.filterType != .formant && p.lfoDepth >= 0.30 && slow(p.lfoRate) {
+            p.lfoRate = v; return
+        }
+        if p.lfo2Enabled && p.lfo2Target == .filter && p.filterType != .formant && p.lfo2Depth >= 0.30 && slow(p.lfo2Rate) {
+            p.lfo2Rate = v; return
+        }
+        let dests: Set<ModDestination> = p.filterType == .formant ? [.vowel] : [.cutoff, .wtMorph1, .wtMorph2, .vowel]
+        for e in p.modMatrix where dests.contains(e.destination) && abs(e.amount) >= 0.30 {
+            switch e.source {
+            case .lfo1 where !p.lfoTempoSync && slow(p.lfoRate): p.lfoRate = v; return
+            case .lfo2 where !p.lfo2TempoSync && slow(p.lfo2Rate): p.lfo2Rate = v; return
+            case .mseg where !p.mseg.points.isEmpty && slow(p.mseg.rateHz): p.mseg.rateHz = v; return
+            case .mseg2 where !p.mseg2.points.isEmpty && slow(p.mseg2.rateHz): p.mseg2.rateHz = v; return
+            default: continue
+            }
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_57: runs after `stringsLfoRateStagger`. Values only — Keys/Pluck `masterVolume` only,
+    /// staggered inside the loudness band 0.45…0.55 (Soft names ≤ 0.50). Other categories untouched.
+    static let keysPluckMasterLadder: [Float] = [0.45, 0.46, 0.47, 0.48, 0.49, 0.50, 0.51, 0.52, 0.53]
+    static let keysPluckMasterSoftLadder: [Float] = [0.45, 0.46, 0.47, 0.48, 0.49, 0.50]
+    static func keysPluckMasterStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .keys || p.category == .pluck else { return }
+        let ladder = isLoudnessSoft(p) ? keysPluckMasterSoftLadder : keysPluckMasterLadder
+        let n = ladder.count
+        p.masterVolume = ladder[min(n - 1, Int(stagger(i, salt, 0.732_050_808) * Float(n)))]
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_58: runs after `keysPluckMasterStagger`. Values only — Bass/Lead `masterVolume` only,
+    /// staggered inside loudness bands (Bass 0.58…0.65, Soft ≤ 0.61; Lead 0.52…0.62, Soft ≤ 0.57).
+    static let bassMasterLadder: [Float] = [0.58, 0.59, 0.60, 0.61, 0.62, 0.63, 0.64, 0.65]
+    static let bassMasterSoftLadder: [Float] = [0.58, 0.59, 0.60, 0.61]
+    static let leadMasterLadder: [Float] = [0.52, 0.53, 0.54, 0.55, 0.56, 0.57, 0.58, 0.59, 0.60, 0.61, 0.62]
+    static let leadMasterSoftLadder: [Float] = [0.52, 0.53, 0.54, 0.55, 0.56, 0.57]
+    static func bassLeadMasterStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .bass || p.category == .lead else { return }
+        let soft = isLoudnessSoft(p)
+        let ladder = p.category == .bass ? (soft ? bassMasterSoftLadder : bassMasterLadder)
+                                         : (soft ? leadMasterSoftLadder : leadMasterLadder)
+        let n = ladder.count
+        p.masterVolume = ladder[min(n - 1, Int(stagger(i, salt, 0.414_213_562) * Float(n)))]
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_59: runs after `bassLeadMasterStagger`. Values only — Keys/Pluck periodic motion
+    /// depths sitting at ~0.32 (direct LFO depth on a live non-pitch target, or periodic matrix rows)
+    /// are moved onto a 0.30…0.42 ladder. Rate/target/source/destination never change; sign kept.
+    static let motionDepthLadder: [Float] = [0.30, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42]
+    static func keysPluckMotionDepthStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .keys || p.category == .pluck else { return }
+        let n = motionDepthLadder.count
+        let d = motionDepthLadder[min(n - 1, Int(stagger(i, salt, 0.236_067_977) * Float(n)))]
+        func near(_ x: Float) -> Bool { abs(abs(x) - 0.32) < 0.005 }
+        func live(_ t: LFOTarget) -> Bool { t != .none && t != .pitch && !(p.filterType == .formant && t == .filter) }
+        if p.lfoEnabled && live(p.lfoTarget) && near(p.lfoDepth) { p.lfoDepth = d }
+        if p.lfo2Enabled && live(p.lfo2Target) && near(p.lfo2Depth) { p.lfo2Depth = d }
+        for k in p.modMatrix.indices {
+            let e = p.modMatrix[k]
+            guard periodicSources.contains(e.source), !pitchDestinations.contains(e.destination), near(e.amount) else { continue }
+            p.modMatrix[k].amount = e.amount < 0 ? -d : d
+        }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_60: runs after `keysPluckMotionDepthStagger`. Values only — Bass/Lead periodic motion
+    /// depths at ~0.32 move onto the 0.30…0.42 ladder. Rate/target/source/destination unchanged; sign kept.
+    static func bassLeadMotionDepthStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .bass || p.category == .lead else { return }
+        let n = motionDepthLadder.count
+        let d = motionDepthLadder[min(n - 1, Int(stagger(i, salt, 0.732_050_808) * Float(n)))]
+        func near(_ x: Float) -> Bool { abs(abs(x) - 0.32) < 0.005 }
+        func live(_ t: LFOTarget) -> Bool { t != .none && t != .pitch && !(p.filterType == .formant && t == .filter) }
+        if p.lfoEnabled && live(p.lfoTarget) && near(p.lfoDepth) { p.lfoDepth = d }
+        if p.lfo2Enabled && live(p.lfo2Target) && near(p.lfo2Depth) { p.lfo2Depth = d }
+        for k in p.modMatrix.indices {
+            let e = p.modMatrix[k]
+            guard periodicSources.contains(e.source), !pitchDestinations.contains(e.destination), near(e.amount) else { continue }
+            p.modMatrix[k].amount = e.amount < 0 ? -d : d
+        }
+    }
+}
+
+// MARK: - Ordered character pass list
+
+extension FactoryAuthoring {
+    struct PassContext {
+        let index: Int
+        let salt: Int
+        let upper: Bool
+        let acid: Bool
+    }
+
+    struct Pass {
+        let name: String
+        let apply: (inout SynthPreset, PassContext) -> Void
+    }
+
+    /// Runs in this exact order after the inline SYNT_32 floors in `character`.
+    static let passes: [Pass] = [
+        Pass(name: "contrast") { contrast(&$0, index: $1.index, salt: $1.salt, upper: $1.upper, acid: $1.acid) },
+        Pass(name: "weakSpots") { weakSpots(&$0, index: $1.index, upper: $1.upper) },
+        Pass(name: "identity") { identity(&$0, index: $1.index, salt: $1.salt, acid: $1.acid) },
+        Pass(name: "velocity") { velocity(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "loudness") { p, _ in loudness(&p) },
+        Pass(name: "categoryGesture") { p, _ in categoryGesture(&p) },
+        Pass(name: "antiDull") { p, _ in antiDull(&p) },
+        Pass(name: "periodicMotion") { periodicMotion(&$0, index: $1.index) },
+        Pass(name: "warmDrift") { warmDrift(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "filterBody") { filterBody(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "fxOrderFill") { fxOrderFill(&$0, index: $1.index) },
+        Pass(name: "monoBassStagger") { monoBassStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "dirtDrive") { dirtDrive(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "haasMidSide") { haasMidSide(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "dirtDriveSpread") { dirtDriveSpread(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "filterEnvCategory") { filterEnvCategory(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "engineLimits") { p, _ in engineLimits(&p) },
+        Pass(name: "dspReverbEnable") { p, _ in dspReverbEnable(&p) },
+        Pass(name: "pluckDelayTempoSync") { p, _ in pluckDelayTempoSync(&p) },
+        Pass(name: "arpDelayTempoSync") { p, _ in arpDelayTempoSync(&p) },
+        Pass(name: "resonanceUpperLift") { resonanceUpperLift(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "padLfoRateStagger") { padLfoRateStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "stringsLfoRateStagger") { stringsLfoRateStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "keysPluckMasterStagger") { keysPluckMasterStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "bassLeadMasterStagger") { bassLeadMasterStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "keysPluckMotionDepthStagger") { keysPluckMotionDepthStagger(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "bassLeadMotionDepthStagger") { bassLeadMotionDepthStagger(&$0, index: $1.index, salt: $1.salt) },
+    ]
+
+    /// Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
+    static func engineLimits(_ p: inout SynthPreset) {
+        if p.delayMix > 0.001 { p.delayFeedback = min(p.delayFeedback, 0.22) }
+        func wetCount(_ p: SynthPreset) -> Int {
+            (p.reverbMix > 0.05 ? 1 : 0) + (p.chorusMix > 0.05 ? 1 : 0)
+                + (p.delayMix > 0.05 ? 1 : 0) + (p.phaserEnabled ? 1 : 0)
+        }
+        if wetCount(p) > 2 {
+            switch p.category {
+            case .pad, .strings, .keys: if p.delayMix > 0.05 { p.delayMix = 0 }
+            default: if p.chorusMix > 0.05 { p.chorusMix = 0 }
+            }
+        }
+        if wetCount(p) > 2 && p.phaserEnabled { p.phaserEnabled = false }
     }
 }

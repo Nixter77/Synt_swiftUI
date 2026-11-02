@@ -44,6 +44,8 @@ Synt runs as a **standalone app** and as an **AUv3 instrument plugin** for Logic
 
 ## Repository layout
 
+Architecture notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ```
 Synt_swiftUI/            Standalone macOS app (SwiftUI)
 SyntAUv3/                AUv3 instrument extension
