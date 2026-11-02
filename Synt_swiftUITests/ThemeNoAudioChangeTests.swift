@@ -34,7 +34,7 @@ struct ThemeNoAudioChangeTests {
             for preset in presets {
                 let hash = InitGoldenTests.renderHash(preset)
                 #expect(
-                    hash == InitGoldenTests.golden[preset.name],
+                    hash == (InitGoldenTests.golden[preset.name] ?? FactoryGoldenTests.golden[preset.name]),
                     "\(preset.name) under \(id.rawValue) is 0x\(String(hash, radix: 16))"
                 )
                 hashes[preset.name] = hash
