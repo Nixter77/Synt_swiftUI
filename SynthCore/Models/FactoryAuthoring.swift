@@ -445,6 +445,7 @@ extension FactoryAuthoring {
         stringsLfoRateStagger(&p, index: i, salt: salt)
         keysPluckMasterStagger(&p, index: i, salt: salt)
         bassLeadMasterStagger(&p, index: i, salt: salt)
+        keysPluckMotionDepthStagger(&p, index: i, salt: salt)
     }
 }
 
@@ -1155,5 +1156,26 @@ extension FactoryAuthoring {
                                          : (soft ? leadMasterSoftLadder : leadMasterLadder)
         let n = ladder.count
         p.masterVolume = ladder[min(n - 1, Int(stagger(i, salt, 0.414_213_562) * Float(n)))]
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_59: runs after `bassLeadMasterStagger`. Values only — Keys/Pluck periodic motion
+    /// depths sitting at ~0.32 (direct LFO depth on a live non-pitch target, or periodic matrix rows)
+    /// are moved onto a 0.30…0.42 ladder. Rate/target/source/destination never change; sign kept.
+    static let motionDepthLadder: [Float] = [0.30, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42]
+    static func keysPluckMotionDepthStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .keys || p.category == .pluck else { return }
+        let n = motionDepthLadder.count
+        let d = motionDepthLadder[min(n - 1, Int(stagger(i, salt, 0.236_067_977) * Float(n)))]
+        func near(_ x: Float) -> Bool { abs(abs(x) - 0.32) < 0.005 }
+        func live(_ t: LFOTarget) -> Bool { t != .none && t != .pitch && !(p.filterType == .formant && t == .filter) }
+        if p.lfoEnabled && live(p.lfoTarget) && near(p.lfoDepth) { p.lfoDepth = d }
+        if p.lfo2Enabled && live(p.lfo2Target) && near(p.lfo2Depth) { p.lfo2Depth = d }
+        for k in p.modMatrix.indices {
+            let e = p.modMatrix[k]
+            guard periodicSources.contains(e.source), !pitchDestinations.contains(e.destination), near(e.amount) else { continue }
+            p.modMatrix[k].amount = e.amount < 0 ? -d : d
+        }
     }
 }
