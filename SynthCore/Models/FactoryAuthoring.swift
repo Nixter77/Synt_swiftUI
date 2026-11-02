@@ -443,6 +443,7 @@ extension FactoryAuthoring {
         resonanceUpperLift(&p, index: i, salt: salt)
         padLfoRateStagger(&p, index: i, salt: salt)
         stringsLfoRateStagger(&p, index: i, salt: salt)
+        keysPluckMasterStagger(&p, index: i, salt: salt)
     }
 }
 
@@ -1123,5 +1124,18 @@ extension FactoryAuthoring {
             default: continue
             }
         }
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_57: runs after `stringsLfoRateStagger`. Values only — Keys/Pluck `masterVolume` only,
+    /// staggered inside the loudness band 0.45…0.55 (Soft names ≤ 0.50). Other categories untouched.
+    static let keysPluckMasterLadder: [Float] = [0.45, 0.46, 0.47, 0.48, 0.49, 0.50, 0.51, 0.52, 0.53]
+    static let keysPluckMasterSoftLadder: [Float] = [0.45, 0.46, 0.47, 0.48, 0.49, 0.50]
+    static func keysPluckMasterStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .keys || p.category == .pluck else { return }
+        let ladder = isLoudnessSoft(p) ? keysPluckMasterSoftLadder : keysPluckMasterLadder
+        let n = ladder.count
+        p.masterVolume = ladder[min(n - 1, Int(stagger(i, salt, 0.732_050_808) * Float(n)))]
     }
 }
