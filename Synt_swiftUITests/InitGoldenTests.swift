@@ -2,7 +2,7 @@
 //  InitGoldenTests.swift
 //  Bit-exact render hashes for Init and every factory preset.
 //  Init stays 0xd1b3635203a4799e. Factory hashes were recaptured in SYNT_30
-//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb; SYNT_46 after fxOrder fills + monoBass stagger; SYNT_48 after Haas stagger + MidSide uptake; SYNT_50 after filterEnv category lift + Soft upper cap; SYNT_51 after dspReverbEnabled gate (reverbMix > 0). Re-capture only on purpose.
+//  after those preset bodies were rewritten; SYNT_35 re-captured non-Init after velocity floors; SYNT_36 after loudness floors; SYNT_37 after category gesture; SYNT_44 after warm/drift floors; SYNT_45 after cutoff bands + comb; SYNT_46 after fxOrder fills + monoBass stagger; SYNT_48 after Haas stagger + MidSide uptake; SYNT_50 after filterEnv category lift + Soft upper cap; SYNT_51 after dspReverbEnabled gate (reverbMix > 0); SYNT_55 after Pad LFO-rate stagger. Re-capture only on purpose.
 //
 
 import Foundation
@@ -26,12 +26,12 @@ struct InitGoldenTests {
         "Arp Cascade": 0x7570cde8b9b13f26,
         "Supersaw Soft": 0x56a199a6452f0c5e,
         "PWM Whisper": 0xc11dd531e7c354be,
-        "Cloud Bed": 0xc562abd20ad545f5,
-        "Glass Horizon": 0x6aa33609fde9f767,
-        "Analog Drift": 0x34171ee48ce5f3eb,
-        "Noir Pad": 0x37fd1b013c41141d,
-        "Air Choir": 0xf8bdbc416c20c207,
-        "Slow Motion": 0x19081db952d0f9d6,
+        "Cloud Bed": 0x2ab8a6fe7a209427,
+        "Glass Horizon": 0x2e793409c68fe085,
+        "Analog Drift": 0xe19f0a5884526397,
+        "Noir Pad": 0x65c9dc9e7f653ecb,
+        "Air Choir": 0x92ae04a8a706ee86,
+        "Slow Motion": 0xa176909fff483b98,
         "Soft EP": 0x809e0f434684804,
         "Organ Soft": 0x23f7d48e94815991,
         "Clav Tick": 0xb22e30f2b3c4a77d,
@@ -59,9 +59,9 @@ struct InitGoldenTests {
         "Vox Morph Lead": 0xe8ce8d4774e31161,
         "Delayed Vibrato": 0x7834bbe1b4cee79b,
         "Fifth Sync Lead": 0xf1cb6d92fee42095,
-        "Phase Cathedral": 0x432231a9370de8d2,
-        "Breathing Glass": 0x0dad23fa49fe36d4,
-        "Tidal Pad": 0x4e8d3cf8825e895b,
+        "Phase Cathedral": 0xe487aeb17ee21ed7,
+        "Breathing Glass": 0x604eb82e8599f41d,
+        "Tidal Pad": 0xc7fbcec5d8f37e04,
         "Phaser Rhodes": 0x62f9515f23ddc86d,
         "Wurli Tremolo": 0x8e7aa0488e41f264,
         "Velvet Clav": 0x5b6169630339aee1,
@@ -86,11 +86,11 @@ struct InitGoldenTests {
         "Overdrive Lead": 0xbbe6f98e2bca0fb9,
         "Whistle Lead": 0xa25db299ae714a1e,
         "Nasal Band Lead": 0x9069a3de4d63e9ec,
-        "Soft Saw Pad": 0x54a9f5e40ed30152,
-        "Sine Glass Pad": 0x224009a0d00d0b1d,
-        "Dark Choir": 0xa46d627a6e81cb68,
-        "Pulse Sweep Pad": 0x3fbf9b6a6671561b,
-        "Night Swell": 0x48002631c397d71e,
+        "Soft Saw Pad": 0xcafbb3985c717b0f,
+        "Sine Glass Pad": 0x18a01ff696948d5,
+        "Dark Choir": 0x93245f5b5f2ea603,
+        "Pulse Sweep Pad": 0x442258a34c32363a,
+        "Night Swell": 0x707b8e258fc7b661,
         "Toy Piano": 0x8aaa355b49f78615,
         "Digital EP": 0x6d930a17688af5d6,
         "Rotary Organ": 0x3cad753b424e8c97,

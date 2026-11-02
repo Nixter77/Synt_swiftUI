@@ -441,6 +441,7 @@ extension FactoryAuthoring {
         pluckDelayTempoSync(&p)
         arpDelayTempoSync(&p)
         resonanceUpperLift(&p, index: i, salt: salt)
+        padLfoRateStagger(&p, index: i, salt: salt)
     }
 }
 
@@ -1064,5 +1065,34 @@ extension FactoryAuthoring {
         let cents = Int((p.filterResonance * 100).rounded())
         let v = lo + (hi - lo) * stagger(i + cents, salt, 0.381_966_011)
         p.filterResonance = (v * 100).rounded() / 100
+    }
+}
+
+extension FactoryAuthoring {
+    /// SYNT_55: runs after `resonanceUpperLift`. Values only — rewrites only the rate of the modulator
+    /// that already carries Pad slow motion (same order as the Character `slowPadMotion` check), onto a
+    /// deterministic ladder in 0.08…0.28 so no 0.01 bucket owns the category. Depth/targets/matrix untouched.
+    static let padLfoRateLadder: [Float] = [0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.24, 0.28]
+    static func padLfoRateStagger(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name), p.category == .pad else { return }
+        func slow(_ r: Float) -> Bool { (0.05...0.30).contains(r) }
+        let n = padLfoRateLadder.count
+        let v = padLfoRateLadder[min(n - 1, Int(stagger(i, salt, 0.618_033_988) * Float(n)))]
+        if p.lfoEnabled && p.lfoTarget == .filter && p.filterType != .formant && p.lfoDepth >= 0.30 && slow(p.lfoRate) {
+            p.lfoRate = v; return
+        }
+        if p.lfo2Enabled && p.lfo2Target == .filter && p.filterType != .formant && p.lfo2Depth >= 0.30 && slow(p.lfo2Rate) {
+            p.lfo2Rate = v; return
+        }
+        let dests: Set<ModDestination> = p.filterType == .formant ? [.vowel] : [.cutoff, .wtMorph1, .wtMorph2, .vowel]
+        for e in p.modMatrix where dests.contains(e.destination) && abs(e.amount) >= 0.30 {
+            switch e.source {
+            case .lfo1 where !p.lfoTempoSync && slow(p.lfoRate): p.lfoRate = v; return
+            case .lfo2 where !p.lfo2TempoSync && slow(p.lfo2Rate): p.lfo2Rate = v; return
+            case .mseg where !p.mseg.points.isEmpty && slow(p.mseg.rateHz): p.mseg.rateHz = v; return
+            case .mseg2 where !p.mseg2.points.isEmpty && slow(p.mseg2.rateHz): p.mseg2.rateHz = v; return
+            default: continue
+            }
+        }
     }
 }
