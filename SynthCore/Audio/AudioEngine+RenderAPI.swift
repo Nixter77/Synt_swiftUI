@@ -86,7 +86,7 @@ extension AudioEngine {
                 // Schedule full: releases must never be lost (stuck notes). Apply
                 // them now, a few samples early; drop only non-release events.
                 switch command {
-                case .keyUp, .allNotesOff, .clearAll, .setSustain(false), .mpeKeyUp:
+                case .keyUp, .noteOff, .allNotesOff, .clearAll, .setSustain(false), .mpeKeyUp:
                     handleCommand(command)
                 default:
                     break
@@ -107,6 +107,22 @@ extension AudioEngine {
         }
         let offset = Int32(max(0, sampleOffset))
         midiSchedule[midiScheduleCount] = ScheduledMIDI(offset: offset, command: .setAddressedParameter(id: id, value: value))
+        midiScheduleCount += 1
+    }
+
+    /// Audio thread. A command already decoded (MIDI 2 note velocity). Same 512-slot schedule as `enqueueMIDI`.
+    public func enqueueScheduled(_ command: AudioCommand, sampleOffset: Int) {
+        guard midiScheduleCount < 512 else {
+            switch command {
+            case .keyUp, .noteOff, .allNotesOff, .clearAll, .setSustain(false), .mpeKeyUp:
+                handleCommand(command)
+            default:
+                break
+            }
+            return
+        }
+        let offset = Int32(max(0, sampleOffset))
+        midiSchedule[midiScheduleCount] = ScheduledMIDI(offset: offset, command: command)
         midiScheduleCount += 1
     }
 
@@ -235,11 +251,11 @@ extension AudioEngine {
                 return .mpeKeyDown(midiNote: Int(note), velocity: velocity, channel: channel)
             }
             return .keyDown(midiNote: Int(note), velocity: velocity)
-        case let .noteOff(note, channel):
+        case let .noteOff(note, velocity, channel):
             if mpeEnabled && isMPEMemberChannel(channel, zone: zone, memberCount: memberCount) {
-                return .mpeKeyUp(midiNote: Int(note), channel: channel)
+                return .mpeKeyUp(midiNote: Int(note), channel: channel, releaseVelocity: velocity)
             }
-            return .keyUp(midiNote: Int(note))
+            return .keyUp(midiNote: Int(note), releaseVelocity: velocity)
         case let .pitchBend(value, channel):
             if mpeEnabled && isMPEMemberChannel(channel, zone: zone, memberCount: memberCount) {
                 return .mpePitchBend(channel: channel, value: value)

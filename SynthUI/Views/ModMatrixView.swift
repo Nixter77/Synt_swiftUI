@@ -210,6 +210,7 @@ struct ModMatrixView: View {
         case .mpePitchBend: polarity = "MPE Pitch Bend is per-voice bipolar."
         case .mpePressure: polarity = "MPE Pressure is per-voice 0…1."
         case .mpeTimbre: polarity = "MPE Timbre (CC74) is per-voice 0…1."
+        case .releaseVelocity: polarity = "Release Velocity is 0…1. It stays at 0.5 until the key lifts."
         }
         let action: String
         switch row.destination {

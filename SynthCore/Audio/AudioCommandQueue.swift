@@ -15,7 +15,7 @@ import Synchronization
 
 public enum AudioCommand: Equatable {
     case noteOn(midiNote: Int, velocity: Float)
-    case noteOff(midiNote: Int)
+    case noteOff(midiNote: Int, releaseVelocity: Float)
     case clearAll
     case arpKeyDown(midiNote: Int)
     case arpKeyUp(midiNote: Int)
@@ -27,7 +27,7 @@ public enum AudioCommand: Equatable {
     /// MIDI key. The audio thread routes it to the arp or a voice (it owns arp mode).
     case keyDown(midiNote: Int, velocity: Float)
     /// MIDI key up. Goes to the arp if the arp holds the key, otherwise note off.
-    case keyUp(midiNote: Int)
+    case keyUp(midiNote: Int, releaseVelocity: Float)
     /// New patch: zero the render-owned DSP state (filters, chorus, drive, EQ,
     /// phaser, LFO, smoothers). Apple Delay/Reverb are reset on main via the AU API.
     case resetPatchState
@@ -57,7 +57,7 @@ public enum AudioCommand: Equatable {
     case setFXOrder(table: FXOrderTable)
     /// MPE (MIDI Polyphonic Expression) commands
     case mpeKeyDown(midiNote: Int, velocity: Float, channel: UInt8)
-    case mpeKeyUp(midiNote: Int, channel: UInt8)
+    case mpeKeyUp(midiNote: Int, channel: UInt8, releaseVelocity: Float)
     case mpePitchBend(channel: UInt8, value: Float)
     case mpePressure(channel: UInt8, value: Float)
     case mpeTimbre(channel: UInt8, value: Float)
@@ -143,7 +143,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
 
         // Ring full: park critical work on atomics (producer never stores tail).
         switch command {
-        case .noteOff(let midiNote):
+        case .noteOff(let midiNote, _):
             orNoteOffBit(clampedMIDI(midiNote))
             return true
         case .arpKeyUp(let midiNote):
@@ -158,8 +158,9 @@ public final class AudioCommandQueue: @unchecked Sendable {
         case .resetPatchState:
             pendingResetPatch.store(true, ordering: .releasing)
             return true
-        case .keyUp(let midiNote):
+        case .keyUp(let midiNote, _):
             // Route is unknown here. Park both; each is a no-op if that side is idle.
+            // Release velocity does not fit in the bitset, so the drain uses neutral 0.5.
             orNoteOffBit(clampedMIDI(midiNote))
             orArpKeyUpBit(clampedMIDI(midiNote))
             return true
@@ -179,7 +180,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
         case .midiStop:
             pendingMIDITransport.store(3, ordering: .releasing)
             return true
-        case .mpeKeyUp(let midiNote, let channel):
+        case .mpeKeyUp(let midiNote, let channel, _):
             orMpeKeyUpBit(clampedMIDI(midiNote), channel: Int(channel & 15))
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
@@ -355,7 +356,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
                 limit: limit,
                 count: count,
                 body: body,
-                make: { AudioCommand.noteOff(midiNote: $0) },
+                make: { AudioCommand.noteOff(midiNote: $0, releaseVelocity: 0.5) },
                 restoreLo: { [self] rem in self.orNoteOffBitRangeLo(rem) },
                 restoreHi: { [self] rem in self.orNoteOffBitRangeHi(rem) }
             )
@@ -406,7 +407,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
                     limit: limit,
                     count: count,
                     body: body,
-                    make: { AudioCommand.mpeKeyUp(midiNote: $0, channel: UInt8(ch)) },
+                    make: { AudioCommand.mpeKeyUp(midiNote: $0, channel: UInt8(ch), releaseVelocity: 0.5) },
                     restoreLo: { [self] rem in self.orMpeKeyUpBitRangeLo(rem, channel: ch) },
                     restoreHi: { [self] rem in self.orMpeKeyUpBitRangeHi(rem, channel: ch) }
                 )

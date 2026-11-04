@@ -217,7 +217,8 @@ private enum DynamicsProbe {
 struct DynamicsProbeTests {
     @Test func legacyVelGainMatchesFormulaAndTracksAmount() {
         let velocities: [Float] = [0, 0.15, 0.37, 0.8, 1]
-        for curve in VelocityCurve.allCases {
+        let legacyCurves: [VelocityCurve] = [.linear, .exponential, .logarithmic]
+        for curve in legacyCurves {
             for amount: Float in [0, 0.5, 1] {
                 for velocity in velocities {
                     let gain = AudioEngine.legacyVelocityGain(velocity: velocity, curve: curve, toVolume: amount)
@@ -231,6 +232,8 @@ struct DynamicsProbeTests {
                     case .logarithmic:
                         let clamped = max(0.0, min(1.0, velocity))
                         curved = max(0.15, sqrt(clamped))
+                    case .decibel:
+                        curved = 1
                     }
                     let expected = 1.0 - amount * (1.0 - curved)
                     #expect(gain.bitPattern == expected.bitPattern)

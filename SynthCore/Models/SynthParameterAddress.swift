@@ -149,6 +149,12 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case mpePitchBendRange = 164
     case mpeZone = 165
     case mpeMemberChannelCount = 166
+    /// SYNT_62. Append-only. 0 keeps the legacy velocity law.
+    case velocityRangeDb = 167
+    case velocityCurveShape = 168
+    case globalVoiceSourcePolicy = 169
+    case arpUsesInputVelocity = 170
+    case legatoUpdatesVelocity = 171
 
     public var identifier: String {
         switch self {
@@ -278,6 +284,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .mpePitchBendRange: return "mpePitchBendRange"
         case .mpeZone: return "mpeZone"
         case .mpeMemberChannelCount: return "mpeMemberChannelCount"
+        case .velocityRangeDb: return "velocityRangeDb"
+        case .velocityCurveShape: return "velocityCurveShape"
+        case .globalVoiceSourcePolicy: return "globalVoiceSourcePolicy"
+        case .arpUsesInputVelocity: return "arpUsesInputVelocity"
+        case .legatoUpdatesVelocity: return "legatoUpdatesVelocity"
         }
     }
 
@@ -409,6 +420,11 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .mpePitchBendRange: return "MPE Bend Range"
         case .mpeZone: return "MPE Zone"
         case .mpeMemberChannelCount: return "MPE Member Channels"
+        case .velocityRangeDb: return "Velocity Range"
+        case .velocityCurveShape: return "Velocity Shape"
+        case .globalVoiceSourcePolicy: return "Global Voice Source"
+        case .arpUsesInputVelocity: return "Arp Input Velocity"
+        case .legatoUpdatesVelocity: return "Legato Velocity"
         }
     }
 
@@ -436,6 +452,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryHornFast, .rotaryDrumFast: return 1
         case .rotaryDrumSlow: return 0.15
         case .rotaryAccel: return 0.2
+        case .velocityCurveShape: return -1
         default: return 0
         }
     }
@@ -446,7 +463,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .osc1Octave, .osc2Octave: return 2
         case .osc1PulseWidth, .osc2PulseWidth: return 0.95
         case .osc1Waveform, .osc2Waveform, .lfoWaveform, .lfo2Waveform, .osc1WavetableIndex, .osc2WavetableIndex: return 5
-        case .noiseColor, .velocityCurve, .monoPriority, .transientOutput: return 2
+        case .noiseColor, .monoPriority, .transientOutput, .globalVoiceSourcePolicy: return 2
+        case .velocityCurve: return 3
         case .glideMode, .glideLegatoOnly: return 1
         case .lfoMode, .lfo2Mode: return 2
         case .lfoStartPhase, .lfo2StartPhase: return 360
@@ -477,6 +495,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .mpePitchBendRange: return 96
         case .mpeZone: return 1
         case .mpeMemberChannelCount: return 15
+        case .velocityRangeDb: return 60
+        case .velocityCurveShape: return 1
         default: return 1
         }
     }

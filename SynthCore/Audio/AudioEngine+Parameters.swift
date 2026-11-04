@@ -186,6 +186,18 @@ extension AudioEngine {
         case .velocityToVolume:
             cachedVelocityToVolume = v
             refreshActiveVelocityGains()
+        case .velocityRangeDb:
+            cachedVelocityRangeDb = v
+            refreshActiveVelocityGains()
+        case .velocityCurveShape:
+            cachedVelocityCurveShape = v
+            refreshActiveVelocityGains()
+        case .globalVoiceSourcePolicy:
+            cachedGlobalVoiceSourcePolicy = SynthCore.globalVoiceSourceFromFloat(v)
+        case .arpUsesInputVelocity:
+            cachedArpUsesInputVelocity = v >= 0.5
+        case .legatoUpdatesVelocity:
+            cachedLegatoUpdatesVelocity = v >= 0.5
         case .modEnvAttack: modEnvelope.attack = v
         case .modEnvDecay: modEnvelope.decay = v
         case .modEnvSustain: modEnvelope.sustain = v
@@ -324,8 +336,19 @@ extension AudioEngine {
             case .linear: return 0
             case .exponential: return 1
             case .logarithmic: return 2
+            case .decibel: return 3
             }
         case .velocityToVolume: return cachedVelocityToVolume
+        case .velocityRangeDb: return cachedVelocityRangeDb
+        case .velocityCurveShape: return cachedVelocityCurveShape
+        case .globalVoiceSourcePolicy:
+            switch cachedGlobalVoiceSourcePolicy {
+            case .loudest: return 0
+            case .lastPlayed: return 1
+            case .highest: return 2
+            }
+        case .arpUsesInputVelocity: return cachedArpUsesInputVelocity ? 1 : 0
+        case .legatoUpdatesVelocity: return cachedLegatoUpdatesVelocity ? 1 : 0
         case .modEnvAttack: return modEnvelope.attack
         case .modEnvDecay: return modEnvelope.decay
         case .modEnvSustain: return modEnvelope.sustain
@@ -494,6 +517,11 @@ extension AudioEngine {
             case .arpLatch: preset.arpLatch = v >= 0.5
             case .velocityCurve: preset.velocityCurve = SynthCore.velocityCurveFromFloat(v)
             case .velocityToVolume: preset.velocityToVolume = v
+            case .velocityRangeDb: preset.velocityRangeDb = v
+            case .velocityCurveShape: preset.velocityCurveShape = v
+            case .globalVoiceSourcePolicy: preset.globalVoiceSourcePolicy = SynthCore.globalVoiceSourceFromFloat(v)
+            case .arpUsesInputVelocity: preset.arpUsesInputVelocity = v >= 0.5
+            case .legatoUpdatesVelocity: preset.legatoUpdatesVelocity = v >= 0.5
             case .modEnvAttack: preset.modEnvAttack = v
             case .modEnvDecay: preset.modEnvDecay = v
             case .modEnvSustain: preset.modEnvSustain = v

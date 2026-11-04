@@ -355,6 +355,18 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedVoiceMode: VoiceMode = .poly
     public var cachedVelocityCurve: VelocityCurve = .linear
     public var cachedVelocityToVolume: Float = 1.0
+    public var cachedVelocityRangeDb: Float = 0
+    public var cachedVelocityCurveShape: Float = 0
+    public var cachedGlobalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest
+    public var cachedArpUsesInputVelocity: Bool = false
+    public var cachedLegatoUpdatesVelocity: Bool = false
+    /// Pressed-key velocities for the arp. Allocated once. Index is the MIDI note.
+    public var arpNoteVelocities = [Float](repeating: 0, count: 128)
+    /// Slot written by the latest `createVoice`. −1 when none.
+    public var lastTriggeredSlot: Int = -1
+    /// One-pole coeff for legato `velGain` (tau 4 ms). Recomputed only when the sample rate changes.
+    var velGainGlideCoeff: Float = 1
+    var velGainGlideSampleRate: Double = 0
     public var cachedGlideMode: GlideMode = .time
     public var cachedGlideLegatoOnly: Bool = false
     public var cachedMonoPriority: MonoPriority = .last
@@ -1111,11 +1123,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         updatePressedKeys { $0.insert(midiNote) }
     }
 
-    public func noteOff(midiNote: Int) {
+    public func noteOff(midiNote: Int, releaseVelocity: Float = 0.5) {
         if preset.arpMode != .off {
             _ = commandQueue.push(.arpKeyUp(midiNote: midiNote))
         } else {
-            _ = commandQueue.push(.noteOff(midiNote: midiNote))
+            _ = commandQueue.push(.noteOff(midiNote: midiNote, releaseVelocity: releaseVelocity))
         }
         updatePressedKeys { $0.remove(midiNote) }
     }
@@ -1132,11 +1144,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         midiKeys.insert(midiNote)
     }
 
-    public func midiNoteOff(midiNote: Int, channel: UInt8 = 0) {
+    public func midiNoteOff(midiNote: Int, channel: UInt8 = 0, releaseVelocity: Float = 0.5) {
         if isStandaloneMPEMember(channel) {
-            _ = midiQueue.push(.mpeKeyUp(midiNote: midiNote, channel: channel))
+            _ = midiQueue.push(.mpeKeyUp(midiNote: midiNote, channel: channel, releaseVelocity: releaseVelocity))
         } else {
-            _ = midiQueue.push(.keyUp(midiNote: midiNote))
+            _ = midiQueue.push(.keyUp(midiNote: midiNote, releaseVelocity: releaseVelocity))
         }
         midiKeys.remove(midiNote)
     }

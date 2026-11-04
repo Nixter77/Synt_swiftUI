@@ -141,7 +141,8 @@ public extension AudioEngine {
         mseg2: Float = 0,
         mpePitchBend: Float = 0,
         mpePressure: Float = 0,
-        mpeTimbre: Float = 0
+        mpeTimbre: Float = 0,
+        releaseVelocity: Float = 0.5
     ) -> Float {
         switch source {
         case .lfo1: return lfo
@@ -171,6 +172,7 @@ public extension AudioEngine {
         case .mpePitchBend: return mpePitchBend
         case .mpePressure: return mpePressure
         case .mpeTimbre: return mpeTimbre
+        case .releaseVelocity: return releaseVelocity
         }
     }
 
@@ -341,12 +343,13 @@ public extension AudioEngine {
         }
 
         // Global destinations (cutoff, resonance, LFO rate/depth) share one source
-        // per sample. Env and velocity come from the loudest active voice.
+        // per sample. `.loudest` is the old scan. Other policies run only when selected.
         // LFO self-modulation uses the previous sample so this one can still advance.
         var matrixWantsLFO = false
         var matrixWantsLFO2 = false
         var globalEnv: Float = 0
         var globalVel: Float = 0
+        var globalRelease: Float = 0.5
         var globalKeyTrack: Float = 0
         var globalMpeBend: Float = 0
         var globalMpePres: Float = 0
@@ -357,17 +360,64 @@ public extension AudioEngine {
         var delayMixMod: Float = 0
         var reverbMixMod: Float = 0
         if modCount > 0 {
-            var loudest: Float = -1
-            for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
-                let env = voices[i].envelopeValue
-                if env >= loudest {
-                    loudest = env
-                    globalEnv = env
-                    globalVel = voices[i].velocity
-                    globalKeyTrack = Float(voices[i].midiNote - 60) / 12.0
-                    globalMpeBend = voices[i].smoothedMpePitchBend
-                    globalMpePres = voices[i].smoothedMpePressure
-                    globalMpeTimb = voices[i].smoothedMpeTimbre
+            switch cachedGlobalVoiceSourcePolicy {
+            case .loudest:
+                var loudest: Float = -1
+                for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
+                    let env = voices[i].envelopeValue
+                    if env >= loudest {
+                        loudest = env
+                        globalEnv = env
+                        globalVel = voices[i].velocity
+                        globalRelease = voices[i].releaseVelocity
+                        globalKeyTrack = Float(voices[i].midiNote - 60) / 12.0
+                        globalMpeBend = voices[i].smoothedMpePitchBend
+                        globalMpePres = voices[i].smoothedMpePressure
+                        globalMpeTimb = voices[i].smoothedMpeTimbre
+                    }
+                }
+            case .lastPlayed:
+                let slot = lastTriggeredSlot
+                if slot >= 0, slot < AudioEngine.maxVoices, voices[slot].isActive {
+                    globalEnv = voices[slot].envelopeValue
+                    globalVel = voices[slot].velocity
+                    globalRelease = voices[slot].releaseVelocity
+                    globalKeyTrack = Float(voices[slot].midiNote - 60) / 12.0
+                    globalMpeBend = voices[slot].smoothedMpePitchBend
+                    globalMpePres = voices[slot].smoothedMpePressure
+                    globalMpeTimb = voices[slot].smoothedMpeTimbre
+                } else {
+                    var loudest: Float = -1
+                    for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
+                        let env = voices[i].envelopeValue
+                        if env >= loudest {
+                            loudest = env
+                            globalEnv = env
+                            globalVel = voices[i].velocity
+                            globalRelease = voices[i].releaseVelocity
+                            globalKeyTrack = Float(voices[i].midiNote - 60) / 12.0
+                            globalMpeBend = voices[i].smoothedMpePitchBend
+                            globalMpePres = voices[i].smoothedMpePressure
+                            globalMpeTimb = voices[i].smoothedMpeTimbre
+                        }
+                    }
+                }
+            case .highest:
+                var bestNote = Int.min
+                var found = false
+                for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
+                    let note = voices[i].midiNote
+                    if !found || note >= bestNote {
+                        found = true
+                        bestNote = note
+                        globalEnv = voices[i].envelopeValue
+                        globalVel = voices[i].velocity
+                        globalRelease = voices[i].releaseVelocity
+                        globalKeyTrack = Float(note - 60) / 12.0
+                        globalMpeBend = voices[i].smoothedMpePitchBend
+                        globalMpePres = voices[i].smoothedMpePressure
+                        globalMpeTimb = voices[i].smoothedMpeTimbre
+                    }
                 }
             }
             for m in 0..<modCount {
@@ -388,7 +438,8 @@ public extension AudioEngine {
                     mseg2: mseg2Value,
                     mpePitchBend: globalMpeBend,
                     mpePressure: globalMpePres,
-                    mpeTimbre: globalMpeTimb
+                    mpeTimbre: globalMpeTimb,
+                    releaseVelocity: globalRelease
                 )
                 let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
@@ -480,7 +531,8 @@ public extension AudioEngine {
                     mseg2: mseg2Value,
                     mpePitchBend: globalMpeBend,
                     mpePressure: globalMpePres,
-                    mpeTimbre: globalMpeTimb
+                    mpeTimbre: globalMpeTimb,
+                    releaseVelocity: globalRelease
                 )
                 let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
@@ -708,7 +760,8 @@ public extension AudioEngine {
                         mseg2: mseg2Value,
                         mpePitchBend: v.smoothedMpePitchBend,
                         mpePressure: v.smoothedMpePressure,
-                        mpeTimbre: v.smoothedMpeTimbre
+                        mpeTimbre: v.smoothedMpeTimbre,
+                        releaseVelocity: v.releaseVelocity
                     )
                     let modVal = modulatedAmount(entry, slot: m, source: sourceVal)
                     switch entry.destination {
@@ -951,6 +1004,18 @@ public extension AudioEngine {
                 if v.phase2 < 0 { v.phase2 += AudioMath.twoPi }
             }
 
+            if v.velGain != v.velGainTarget {
+                if velGainGlideSampleRate != sampleRate {
+                    velGainGlideSampleRate = sampleRate
+                    velGainGlideCoeff = sampleRate > 0
+                        ? Float(1 - exp(-1.0 / (sampleRate * 0.004)))
+                        : 1
+                }
+                v.velGain += velGainGlideCoeff * (v.velGainTarget - v.velGain)
+                if abs(v.velGain - v.velGainTarget) < 1e-5 {
+                    v.velGain = v.velGainTarget
+                }
+            }
             var amplitude = sample * envelopeValue * v.velGain
             amplitude *= max(0.0, 1.0 + ampMod)
             amplitude *= AudioMath.voiceGain * v.unisonScale
@@ -1590,25 +1655,27 @@ public extension AudioEngine {
                 clearMPEControllerOverridesRT()
             case .keyDown(let midiNote, let velocity):
                 if cachedArpMode != .off {
+                    let idx = midiNote < 0 ? 0 : min(127, midiNote)
+                    arpNoteVelocities[idx] = velocity
                     handleCommand(.arpKeyDown(midiNote: midiNote))
                 } else {
                     handleNoteOn(midiNote: midiNote, velocity: velocity)
                 }
-            case .keyUp(let midiNote):
+            case .keyUp(let midiNote, let releaseVelocity):
                 // Follow where the key went, so an arp toggle mid-hold cannot strand it.
                 if heldKeysForArp.contains(midiNote) {
                     handleCommand(.arpKeyUp(midiNote: midiNote))
                 } else {
-                    handleNoteOff(midiNote: midiNote)
+                    handleNoteOff(midiNote: midiNote, releaseVelocity: releaseVelocity)
                 }
             case .noteOn(let midiNote, let velocity):
                 handleNoteOn(midiNote: midiNote, velocity: velocity)
-            case .noteOff(let midiNote):
-                handleNoteOff(midiNote: midiNote)
+            case .noteOff(let midiNote, let releaseVelocity):
+                handleNoteOff(midiNote: midiNote, releaseVelocity: releaseVelocity)
             case .mpeKeyDown(let midiNote, let velocity, let channel):
                 handleNoteOn(midiNote: midiNote, velocity: velocity, channel: channel)
-            case .mpeKeyUp(let midiNote, let channel):
-                handleNoteOff(midiNote: midiNote, channel: channel)
+            case .mpeKeyUp(let midiNote, let channel, let releaseVelocity):
+                handleNoteOff(midiNote: midiNote, channel: channel, releaseVelocity: releaseVelocity)
             case .mpePitchBend(let channel, let value):
                 let ch = Int(channel & 15)
                 mpeChannelStates[ch].pitchBend = value
@@ -1691,6 +1758,8 @@ public extension AudioEngine {
                 latchedKeysForArp.removeAll()
                 playedKeysForArp.removeAll(keepingCapacity: true)
                 arp.reset()
+                for n in 0..<128 { arpNoteVelocities[n] = 0 }
+                lastTriggeredSlot = -1
                 arpGateSamplesLeft = 0
                 arpStepIndex = 0
                 seqMirror.heldNote = -1
@@ -1896,7 +1965,7 @@ public extension AudioEngine {
             trimAbandonedTails()
             return
         }
-        createVoice(midiNote: newNote, velocity: 0.8)
+        createVoice(midiNote: newNote, velocity: arpInputVelocity(for: newNote))
         let gateFrac = Double(max(0.1, min(1.0, cachedArpGateLength)))
         arpGateSamplesLeft = max(1, Int((stepDuration * gateFrac).rounded(.down)))
         trimAbandonedTails()

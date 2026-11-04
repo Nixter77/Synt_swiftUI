@@ -115,6 +115,11 @@ public struct RTPresetSnapshot: Sendable {
     public var arpLatch: Bool = false
     public var velocityCurve: VelocityCurve = .linear
     public var velocityToVolume: Float = 1.0
+    public var velocityRangeDb: Float = 0
+    public var velocityCurveShape: Float = 0
+    public var globalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest
+    public var arpUsesInputVelocity: Bool = false
+    public var legatoUpdatesVelocity: Bool = false
     public var glideMode: GlideMode = .time
     public var glideLegatoOnly: Bool = false
     public var monoPriority: MonoPriority = .last
@@ -334,6 +339,11 @@ public struct RTPresetSnapshot: Sendable {
         arpLatch = preset.arpLatch
         velocityCurve = preset.velocityCurve
         velocityToVolume = preset.velocityToVolume
+        velocityRangeDb = max(0, min(60, preset.velocityRangeDb))
+        velocityCurveShape = max(-1, min(1, preset.velocityCurveShape))
+        globalVoiceSourcePolicy = preset.globalVoiceSourcePolicy
+        arpUsesInputVelocity = preset.arpUsesInputVelocity
+        legatoUpdatesVelocity = preset.legatoUpdatesVelocity
         glideMode = preset.glideMode
         glideLegatoOnly = preset.glideLegatoOnly
         monoPriority = preset.monoPriority

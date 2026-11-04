@@ -258,19 +258,37 @@ public extension AudioEngine {
 
             let randVal = Float(seed) / Float(UInt32.max) * 2.0 - 1.0
             voices[slot].randomValue = randVal
-            voices[slot].velGain = Self.legacyVelocityGain(
+            let gain = Self.legacyVelocityGain(
                 velocity: velocity,
                 curve: cachedVelocityCurve,
-                toVolume: cachedVelocityToVolume
+                toVolume: cachedVelocityToVolume,
+                rangeDb: cachedVelocityRangeDb,
+                curveShape: cachedVelocityCurveShape
             )
+            voices[slot].velGain = gain
+            voices[slot].velGainTarget = gain
+            lastTriggeredSlot = slot
 
             activeVoiceCountRT += 1
         }
     }
 
     /// Legacy `.linear` / `.exponential` / `.logarithmic` amp law, including the 0.15 floor.
-    /// Computed at note-on. Identical expression to the old per-sample switch.
-    static func legacyVelocityGain(velocity: Float, curve: VelocityCurve, toVolume: Float) -> Float {
+    /// `.decibel` uses `rangeDb` and `curveShape`. The other curves ignore those arguments,
+    /// so a call that passes the defaults is the old expression.
+    static func legacyVelocityGain(
+        velocity: Float,
+        curve: VelocityCurve,
+        toVolume: Float,
+        rangeDb: Float = 0,
+        curveShape: Float = 0
+    ) -> Float {
+        if curve == .decibel {
+            let v = max(0, min(1, velocity))
+            let shaped = decibelVelocityShape(v, curveShape: curveShape)
+            let gainDb = -rangeDb * toVolume * (1 - shaped)
+            return pow(10, gainDb / 20)
+        }
         let curved: Float
         switch curve {
         case .linear:
@@ -281,20 +299,36 @@ public extension AudioEngine {
         case .logarithmic:
             let clamped = max(0.0, min(1.0, velocity))
             curved = max(0.15, sqrt(clamped))
+        case .decibel:
+            curved = 1
         }
         return 1.0 - toVolume * (1.0 - curved)
+    }
+
+    /// Power curve for the decibel law. shape −1 → exponent 0.125, 0 → 1, +1 → 8.
+    static func decibelVelocityShape(_ velocity: Float, curveShape: Float) -> Float {
+        let v = max(0, min(1, velocity))
+        let exponent = exp2(3 * curveShape)
+        if exponent == 1 { return v }
+        return pow(v, exponent)
     }
 
     /// Held notes pick up a curve or amount edit on the next sample, as the old per-sample path did.
     func refreshActiveVelocityGains() {
         let curve = cachedVelocityCurve
         let amount = cachedVelocityToVolume
+        let rangeDb = cachedVelocityRangeDb
+        let shape = cachedVelocityCurveShape
         for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
-            voices[i].velGain = Self.legacyVelocityGain(
+            let gain = Self.legacyVelocityGain(
                 velocity: voices[i].velocity,
                 curve: curve,
-                toVolume: amount
+                toVolume: amount,
+                rangeDb: rangeDb,
+                curveShape: shape
             )
+            voices[i].velGain = gain
+            voices[i].velGainTarget = gain
         }
     }
 
@@ -314,6 +348,27 @@ public extension AudioEngine {
                 }
             }
         }
+    }
+
+    /// Flag off: the historical arp velocity. Flag on: the pressed key, or the same pitch class in another octave, else 0.8.
+    func arpInputVelocity(for note: Int) -> Float {
+        guard cachedArpUsesInputVelocity else { return 0.8 }
+        let n = note < 0 ? 0 : min(127, note)
+        let direct = arpNoteVelocities[n]
+        if direct > 0 { return direct }
+        var down = n - 12
+        while down >= 0 {
+            let stored = arpNoteVelocities[down]
+            if stored > 0 { return stored }
+            down -= 12
+        }
+        var up = n + 12
+        while up < 128 {
+            let stored = arpNoteVelocities[up]
+            if stored > 0 { return stored }
+            up += 12
+        }
+        return 0.8
     }
 
     func uniqueActiveMIDINoteCountExcluding(midiNote: Int) -> Int {
@@ -386,12 +441,15 @@ public extension AudioEngine {
         return nil
     }
 
-    func internalNoteOff(midiNote: Int, channel: UInt8 = 0) {
+    func internalNoteOff(midiNote: Int, channel: UInt8 = 0, releaseVelocity: Float? = nil) {
         if sustainPedalDown {
             setSustainBit(midiNote)
+            if let releaseVelocity {
+                rememberReleaseVelocity(midiNote, channel: channel, releaseVelocity: releaseVelocity)
+            }
             return
         }
-        releaseHeldNote(midiNote, channel: channel)
+        releaseHeldNote(midiNote, channel: channel, releaseVelocity: releaseVelocity)
     }
 
     func retuneActiveVoicesLegato(to midiNote: Int, velocity: Float) {
@@ -417,6 +475,16 @@ public extension AudioEngine {
             }
 
             voices[i].midiNote = midiNote
+            if cachedLegatoUpdatesVelocity {
+                voices[i].velocity = velocity
+                voices[i].velGainTarget = Self.legacyVelocityGain(
+                    velocity: velocity,
+                    curve: cachedVelocityCurve,
+                    toVolume: cachedVelocityToVolume,
+                    rangeDb: cachedVelocityRangeDb,
+                    curveShape: cachedVelocityCurveShape
+                )
+            }
             voices[i].targetFrequency = targetFreq
             let semitoneInterval: Float
             if voices[i].currentFrequency > 0 {
@@ -485,19 +553,20 @@ public extension AudioEngine {
         }
     }
 
-    func handleNoteOff(midiNote: Int, channel: UInt8 = 0) {
+    func handleNoteOff(midiNote: Int, channel: UInt8 = 0, releaseVelocity: Float = 0.5) {
         switch cachedVoiceMode {
         case .poly:
-            internalNoteOff(midiNote: midiNote, channel: channel)
+            internalNoteOff(midiNote: midiNote, channel: channel, releaseVelocity: releaseVelocity)
 
         case .mono:
             if !monoNoteStackContains(midiNote) {
                 // Key went down in another mode (e.g. Poly): plain release.
-                internalNoteOff(midiNote: midiNote, channel: channel)
+                internalNoteOff(midiNote: midiNote, channel: channel, releaseVelocity: releaseVelocity)
                 return
             }
             if sustainPedalDown {
                 setSustainBit(midiNote)
+                rememberReleaseVelocity(midiNote, channel: channel, releaseVelocity: releaseVelocity)
                 return
             }
             clearSustainBit(midiNote)
@@ -514,18 +583,19 @@ public extension AudioEngine {
                     }
                     createVoice(midiNote: prev.note, velocity: prev.velocity, hadHeldNotes: true, channel: channel)
                 } else {
-                    releaseHeldNote(midiNote, channel: channel)
+                    releaseHeldNote(midiNote, channel: channel, releaseVelocity: releaseVelocity)
                 }
             }
 
         case .legato:
             if !monoNoteStackContains(midiNote) {
                 // Key went down in another mode (e.g. Poly): plain release.
-                internalNoteOff(midiNote: midiNote, channel: channel)
+                internalNoteOff(midiNote: midiNote, channel: channel, releaseVelocity: releaseVelocity)
                 return
             }
             if sustainPedalDown {
                 setSustainBit(midiNote)
+                rememberReleaseVelocity(midiNote, channel: channel, releaseVelocity: releaseVelocity)
                 return
             }
             clearSustainBit(midiNote)
@@ -537,8 +607,17 @@ public extension AudioEngine {
                 if let prev = activeAfter {
                     retuneActiveVoicesLegato(to: prev.note, velocity: prev.velocity)
                 } else {
-                    releaseHeldNote(midiNote, channel: channel)
+                    releaseHeldNote(midiNote, channel: channel, releaseVelocity: releaseVelocity)
                 }
+            }
+        }
+    }
+
+    func rememberReleaseVelocity(_ midiNote: Int, channel: UInt8, releaseVelocity: Float) {
+        for i in 0..<AudioEngine.maxVoices {
+            let channelMatch = !cachedMpeEnabled || channel < 1 || voices[i].midiChannel == channel
+            if voices[i].isActive && voices[i].midiNote == midiNote && channelMatch && !voices[i].isReleasing {
+                voices[i].releaseVelocity = releaseVelocity
             }
         }
     }
@@ -659,12 +738,15 @@ public extension AudioEngine {
         }
     }
 
-    func releaseHeldNote(_ midiNote: Int, channel: UInt8 = 0) {
+    func releaseHeldNote(_ midiNote: Int, channel: UInt8 = 0, releaseVelocity: Float? = nil) {
         let serial = releaseSerialRT
         var released = false
         for i in 0..<AudioEngine.maxVoices {
             let channelMatch = !cachedMpeEnabled || channel < 1 || voices[i].midiChannel == channel
             if voices[i].isActive && voices[i].midiNote == midiNote && channelMatch && !voices[i].isReleasing {
+                if let releaseVelocity {
+                    voices[i].releaseVelocity = releaseVelocity
+                }
                 voices[i].isReleasing = true
                 voices[i].releaseSerial = serial
                 voices[i].releaseStartValue = voices[i].envelopeValue

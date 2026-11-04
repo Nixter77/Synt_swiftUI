@@ -40,20 +40,20 @@ final class Stage13MPETests: XCTestCase {
     func testMIDICommandParsingLegacyVsMPE() {
         // When MPE is disabled: all channels route to standard commands
         let noteOnMsg = MIDIMessage.noteOn(note: 60, velocity: 0.8, channel: 1)
-        let noteOffMsg = MIDIMessage.noteOff(note: 60, channel: 1)
+        let noteOffMsg = MIDIMessage.noteOff(note: 60, velocity: 0.5, channel: 1)
         let bendMsg = MIDIMessage.pitchBend(0.5, channel: 1)
         let pressureMsg = MIDIMessage.channelPressure(0.7, channel: 1)
         let cc74Msg = MIDIMessage.controlChange(controller: 74, value: 64, channel: 1)
 
         XCTAssertEqual(AudioEngine.command(for: noteOnMsg, mpeEnabled: false), .keyDown(midiNote: 60, velocity: 0.8))
-        XCTAssertEqual(AudioEngine.command(for: noteOffMsg, mpeEnabled: false), .keyUp(midiNote: 60))
+        XCTAssertEqual(AudioEngine.command(for: noteOffMsg, mpeEnabled: false), .keyUp(midiNote: 60, releaseVelocity: 0.5))
         XCTAssertEqual(AudioEngine.command(for: bendMsg, mpeEnabled: false), .setPitchBend(0.5))
         XCTAssertEqual(AudioEngine.command(for: pressureMsg, mpeEnabled: false), .setAftertouch(0.7))
         XCTAssertEqual(AudioEngine.command(for: cc74Msg, mpeEnabled: false), .controlChange(cc: 74, value: 64))
 
         // When MPE is enabled: member channel 1 routes to MPE commands
         XCTAssertEqual(AudioEngine.command(for: noteOnMsg, mpeEnabled: true), .mpeKeyDown(midiNote: 60, velocity: 0.8, channel: 1))
-        XCTAssertEqual(AudioEngine.command(for: noteOffMsg, mpeEnabled: true), .mpeKeyUp(midiNote: 60, channel: 1))
+        XCTAssertEqual(AudioEngine.command(for: noteOffMsg, mpeEnabled: true), .mpeKeyUp(midiNote: 60, channel: 1, releaseVelocity: 0.5))
         XCTAssertEqual(AudioEngine.command(for: bendMsg, mpeEnabled: true), .mpePitchBend(channel: 1, value: 0.5))
         XCTAssertEqual(AudioEngine.command(for: pressureMsg, mpeEnabled: true), .mpePressure(channel: 1, value: 0.7))
         let expectedTimbre = Float(64) / 127.0
@@ -115,7 +115,7 @@ final class Stage13MPETests: XCTestCase {
         XCTAssertEqual(engine.voices[idxA].mpePitchBendMultiplier, expectedMulA, accuracy: 1e-6)
 
         // Note off for note A on channel 1 only releases note A
-        engine.handleCommand(.mpeKeyUp(midiNote: 60, channel: 1))
+        engine.handleCommand(.mpeKeyUp(midiNote: 60, channel: 1, releaseVelocity: 0.5))
         XCTAssertTrue(engine.voices[idxA].isReleasing)
         XCTAssertFalse(engine.voices[idxB].isReleasing)
     }

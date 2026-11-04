@@ -13,7 +13,7 @@ import Foundation
 public enum MIDIMessage: Equatable {
     /// Velocity 1…127 mapped to 0…1. Velocity 0 is decoded as `.noteOff`.
     case noteOn(note: UInt8, velocity: Float, channel: UInt8)
-    case noteOff(note: UInt8, channel: UInt8)
+    case noteOff(note: UInt8, velocity: Float, channel: UInt8)
     /// -1…1, center (8192) = 0.
     case pitchBend(Float, channel: UInt8)
     /// CC1, 0…1.
@@ -63,9 +63,9 @@ public enum MIDIDecode {
         case 0x90:
             return d2 > 0
                 ? .noteOn(note: d1, velocity: Float(d2) / 127, channel: channel)
-                : .noteOff(note: d1, channel: channel)
+                : .noteOff(note: d1, velocity: 0.5, channel: channel)
         case 0x80:
-            return .noteOff(note: d1, channel: channel)
+            return .noteOff(note: d1, velocity: Float(d2) / 127, channel: channel)
         case 0xA0:
             return .polyPressure(note: d1, pressure: Float(d2) / 127.0, channel: channel)
         case 0xC0:

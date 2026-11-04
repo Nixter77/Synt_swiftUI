@@ -584,7 +584,8 @@ enum SyntParameterTree {
         let lfoTargets = ["Pitch", "Filter", "Amplitude", "Pan", "None"]
         let lfoModes = ["Free", "Retrigger", "One-Shot"]
         let noise = ["White", "Pink", "Brown"]
-        let velCurves = ["Linear", "Exponential", "Logarithmic"]
+        let velCurves = ["Linear", "Exponential", "Logarithmic", "Decibel"]
+        let voiceSources = ["Loudest", "Last", "Highest"]
         let glideModes = ["Time", "Rate"]
         let monoPriorities = ["Last", "Low", "High"]
         let filter2Routes = ["Serial", "Parallel", "Off"]
@@ -735,6 +736,11 @@ enum SyntParameterTree {
                 toggleKnob(.arpLatch),
                 indexedKnob(.velocityCurve, velCurves),
                 knob(.velocityToVolume),
+                knob(.velocityRangeDb, unit: .decibels),
+                knob(.velocityCurveShape),
+                indexedKnob(.globalVoiceSourcePolicy, voiceSources),
+                toggleKnob(.arpUsesInputVelocity),
+                toggleKnob(.legatoUpdatesVelocity),
                 indexedKnob(.glideMode, glideModes),
                 toggleKnob(.glideLegatoOnly),
                 indexedKnob(.monoPriority, monoPriorities),
@@ -968,7 +974,19 @@ final class SyntRenderContext {
                     count = Self.midi1Length(status)
                 case 0x4 where w + 1 < wordCount:
                     let data = words.load(fromByteOffset: (w + 1) * 4, as: UInt32.self)
-                    (bytes, count) = Self.midi2ToMidi1(word, data)
+                    if let message = Self.midi2NoteMessage(word, data) {
+                        if let command = AudioEngine.command(
+                            for: message,
+                            mpeEnabled: engine.cachedMpeEnabled,
+                            zone: engine.cachedMpeZone,
+                            memberCount: engine.cachedMpeMemberChannelCount
+                        ) {
+                            engine.enqueueScheduled(command, sampleOffset: offset)
+                        }
+                        count = 0
+                    } else {
+                        (bytes, count) = Self.midi2ToMidi1(word, data)
+                    }
                 default:
                     break
                 }
@@ -1008,6 +1026,32 @@ final class SyntRenderContext {
             default: return 1
             }
         default: return 0
+        }
+    }
+
+    /// Top 16 bits of a MIDI 2.0 velocity word, as 0…1. `0x8000 / 65535` is just over 0.5.
+    static func midi2Velocity16(_ word1: UInt32) -> Float {
+        Float(word1 >> 16) / 65535
+    }
+
+    /// MIDI 2.0 channel-voice note on/off with the 16-bit velocity kept.
+    /// Any other opcode returns nil so the caller still uses `midi2ToMidi1`.
+    static func midi2NoteMessage(_ word0: UInt32, _ word1: UInt32) -> MIDIMessage? {
+        guard (word0 >> 28) & 0xF == 0x4 else { return nil }
+        let opcode = UInt8((word0 >> 20) & 0xF)
+        let channel = UInt8((word0 >> 16) & 0xF)
+        let note = UInt8((word0 >> 8) & 0x7F)
+        let vel16 = word1 >> 16
+        switch opcode {
+        case 0x9:
+            if vel16 == 0 {
+                return .noteOff(note: note, velocity: 0.5, channel: channel)
+            }
+            return .noteOn(note: note, velocity: midi2Velocity16(word1), channel: channel)
+        case 0x8:
+            return .noteOff(note: note, velocity: midi2Velocity16(word1), channel: channel)
+        default:
+            return nil
         }
     }
 

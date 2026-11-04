@@ -45,6 +45,10 @@ public struct ActiveNote {
     /// curve or velocity-to-volume amount changes). Same formula as the old
     /// per-sample path, so a held note with a fixed curve is bit-identical.
     public var velGain: Float = 1.0
+    /// Glide target for `velGain`. Equal to `velGain` except while legato velocity is smoothing.
+    public var velGainTarget: Float = 1.0
+    /// Note-off velocity, 0…1. Neutral until the key lifts.
+    public var releaseVelocity: Float = 0.5
     public var phase: Double = 0.0
     public var phase2: Double = 0.0
     public var subPhase: Double = 0.0
@@ -140,6 +144,7 @@ public struct ActiveNote {
         self.isActive = true
         self.midiNote = midiNote
         self.velocity = velocity
+        self.releaseVelocity = 0.5
         let keptPhase = phase
         let keptPhase2 = phase2
         let keptSubPhase = subPhase

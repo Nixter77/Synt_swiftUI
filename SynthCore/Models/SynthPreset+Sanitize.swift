@@ -173,6 +173,11 @@ public extension SynthPreset {
         if !ArpeggiatorMode.allCases.contains(p.arpMode) { p.arpMode = .off }
         if !VelocityCurve.allCases.contains(p.velocityCurve) { p.velocityCurve = .linear }
         p.velocityToVolume = f(p.velocityToVolume, 0.0, 1.0, 1.0)
+        p.velocityRangeDb = f(p.velocityRangeDb, 0, 60, 0)
+        p.velocityCurveShape = f(p.velocityCurveShape, -1, 1, 0)
+        if !GlobalVoiceSourcePolicy.allCases.contains(p.globalVoiceSourcePolicy) {
+            p.globalVoiceSourcePolicy = .loudest
+        }
         p.modEnvAttack = f(p.modEnvAttack, 0.001, 10.0, 0.01)
         p.modEnvDecay = f(p.modEnvDecay, 0.001, 10.0, 0.2)
         p.modEnvSustain = f(p.modEnvSustain, 0.0, 1.0, 0.0)

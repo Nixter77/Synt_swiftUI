@@ -37,7 +37,7 @@ struct Synt_swiftUITests {
         let queue = AudioCommandQueue(capacity: 4)
 
         #expect(queue.push(.noteOn(midiNote: 60, velocity: 0.5)))
-        #expect(queue.push(.noteOff(midiNote: 60)))
+        #expect(queue.push(.noteOff(midiNote: 60, releaseVelocity: 0.5)))
         #expect(queue.count == 2)
 
         guard let first = queue.pop() else {
@@ -55,7 +55,7 @@ struct Synt_swiftUITests {
             Issue.record("Expected second command")
             return
         }
-        if case let .noteOff(midiNote) = second {
+        if case let .noteOff(midiNote, _) = second {
             #expect(midiNote == 60)
         } else {
             Issue.record("Expected noteOff as second command")
@@ -92,12 +92,12 @@ struct Synt_swiftUITests {
         #expect(!queue.push(.noteOn(midiNote: 62, velocity: 1.0)))
 
         // Critical noteOff must succeed via side-channel (producer never advances tail)
-        #expect(queue.push(.noteOff(midiNote: 61)))
+        #expect(queue.push(.noteOff(midiNote: 61, releaseVelocity: 0.5)))
         #expect(queue.hasPendingNoteOffForTesting(61))
 
         var sawNoteOff = false
         queue.drain(limit: 16) { cmd in
-            if case .noteOff(let n) = cmd, n == 61 {
+            if case .noteOff(let n, _) = cmd, n == 61 {
                 sawNoteOff = true
             }
         }
@@ -206,12 +206,12 @@ struct Synt_swiftUITests {
             for i in 0..<iterations {
                 _ = queue.push(.noteOn(midiNote: i % 12 + 48, velocity: 0.5))
                 if i % 7 == 0 {
-                    if queue.push(.noteOff(midiNote: noteOffNote)) {
+                    if queue.push(.noteOff(midiNote: noteOffNote, releaseVelocity: 0.5)) {
                         criticalPushOK.increment()
                     }
                 }
             }
-            if queue.push(.noteOff(midiNote: noteOffNote)) {
+            if queue.push(.noteOff(midiNote: noteOffNote, releaseVelocity: 0.5)) {
                 criticalPushOK.increment()
             }
         }
@@ -219,7 +219,7 @@ struct Synt_swiftUITests {
         let consumer = Task.detached {
             for _ in 0..<(iterations * 2) {
                 queue.drain(limit: 32) { cmd in
-                    if case .noteOff(let n) = cmd, n == noteOffNote {
+                    if case .noteOff(let n, _) = cmd, n == noteOffNote {
                         noteOffSeen.increment()
                     }
                 }
@@ -233,7 +233,7 @@ struct Synt_swiftUITests {
         // Drain anything remaining after both tasks finish
         for _ in 0..<128 {
             queue.drain(limit: 64) { cmd in
-                if case .noteOff(let n) = cmd, n == noteOffNote {
+                if case .noteOff(let n, _) = cmd, n == noteOffNote {
                     noteOffSeen.increment()
                 }
             }
@@ -256,14 +256,14 @@ struct Synt_swiftUITests {
         #expect(q.push(.noteOn(midiNote: 61, velocity: 1)))
         #expect(q.push(.noteOn(midiNote: 62, velocity: 1)))
         #expect(!q.push(.noteOn(midiNote: 63, velocity: 1)))
-        #expect(q.push(.noteOff(midiNote: 60)))
+        #expect(q.push(.noteOff(midiNote: 60, releaseVelocity: 0.5)))
         #expect(q.hasPendingNoteOffForTesting(60))
 
         var saw = false
         q.drain(limit: 1) { _ in }
         _ = q.push(.noteOn(midiNote: 64, velocity: 1))
         q.drain(limit: 16) { cmd in
-            if case .noteOff(let n) = cmd, n == 60 { saw = true }
+            if case .noteOff(let n, _) = cmd, n == 60 { saw = true }
         }
         #expect(saw)
         #expect(!q.hasPendingNoteOffForTesting(60))

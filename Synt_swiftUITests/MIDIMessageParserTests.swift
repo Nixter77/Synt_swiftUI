@@ -18,8 +18,8 @@ struct MIDIMessageParserTests {
     @Test func noteOnOffAndVelocityZeroIsOff() {
         var p = MIDIByteParser()
         #expect(p.parse([0x90, 60, 127]) == [.noteOn(note: 60, velocity: 1, channel: 0)])
-        #expect(p.parse([0x93, 64, 0]) == [.noteOff(note: 64, channel: 3)])
-        #expect(p.parse([0x8F, 72, 40]) == [.noteOff(note: 72, channel: 15)])
+        #expect(p.parse([0x93, 64, 0]) == [.noteOff(note: 64, velocity: 0.5, channel: 3)])
+        #expect(p.parse([0x8F, 72, 40]) == [.noteOff(note: 72, velocity: Float(40) / 127, channel: 15)])
     }
 
     @Test func velocityMapsLinearlyToAmplitude() {
@@ -57,7 +57,7 @@ struct MIDIMessageParserTests {
             .noteOn(note: 60, velocity: Float(100) / 127, channel: 0),
             .clock,
             .noteOn(note: 64, velocity: Float(100) / 127, channel: 0),
-            .noteOff(note: 67, channel: 0),
+            .noteOff(note: 67, velocity: 0.5, channel: 0),
         ])
         // Data bytes with no status are ignored; program change is 1 data byte.
         var q = MIDIByteParser()
@@ -68,8 +68,8 @@ struct MIDIMessageParserTests {
 
     @Test func umpChannelVoiceWords() {
         #expect(MIDIDecode.ump(0x2090_3C7F) == .noteOn(note: 60, velocity: 1, channel: 0))
-        #expect(MIDIDecode.ump(0x2095_3C00) == .noteOff(note: 60, channel: 5))
-        #expect(MIDIDecode.ump(0x2080_3C40) == .noteOff(note: 60, channel: 0))
+        #expect(MIDIDecode.ump(0x2095_3C00) == .noteOff(note: 60, velocity: 0.5, channel: 5))
+        #expect(MIDIDecode.ump(0x2080_3C40) == .noteOff(note: 60, velocity: Float(0x40) / 127, channel: 0))
         #expect(MIDIDecode.ump(0x20E0_0040) == .pitchBend(0, channel: 0))
         #expect(MIDIDecode.ump(0x20B0_4000 | 127) == .sustain(down: true, channel: 0))
         #expect(MIDIDecode.ump(0x20B0_7B00) == .allNotesOff(channel: 0))
@@ -174,7 +174,7 @@ struct MIDIMessageParserTests {
         #expect(queue.push(.allNotesOff))           // parked on the side channel
         var offs = Set<Int>()
         queue.drain(limit: 1000) { cmd in
-            if case let .noteOff(n) = cmd { offs.insert(n) }
+            if case let .noteOff(n, _) = cmd { offs.insert(n) }
         }
         #expect(offs.count == 128)
     }

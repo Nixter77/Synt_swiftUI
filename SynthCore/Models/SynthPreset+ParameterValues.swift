@@ -137,6 +137,11 @@ extension SynthPreset {
         case .mpePitchBendRange: return mpePitchBendRange
         case .mpeZone: return mpeZone == .upper ? 1 : 0
         case .mpeMemberChannelCount: return Float(mpeMemberChannelCount)
+        case .velocityRangeDb: return velocityRangeDb
+        case .velocityCurveShape: return velocityCurveShape
+        case .globalVoiceSourcePolicy: return globalVoiceSourceIndex(globalVoiceSourcePolicy)
+        case .arpUsesInputVelocity: return arpUsesInputVelocity ? 1 : 0
+        case .legatoUpdatesVelocity: return legatoUpdatesVelocity ? 1 : 0
         }
     }
 
@@ -269,6 +274,11 @@ extension SynthPreset {
         case .mpePitchBendRange: mpePitchBendRange = value
         case .mpeZone: mpeZone = value >= 0.5 ? .upper : .lower
         case .mpeMemberChannelCount: mpeMemberChannelCount = Int(value.rounded())
+        case .velocityRangeDb: velocityRangeDb = value
+        case .velocityCurveShape: velocityCurveShape = value
+        case .globalVoiceSourcePolicy: globalVoiceSourcePolicy = SynthCore.globalVoiceSourceFromFloat(value)
+        case .arpUsesInputVelocity: arpUsesInputVelocity = value >= 0.5
+        case .legatoUpdatesVelocity: legatoUpdatesVelocity = value >= 0.5
         }
     }
 
@@ -401,6 +411,7 @@ private func velocityCurveIndex(_ curve: VelocityCurve) -> Float {
     case .linear: return 0
     case .exponential: return 1
     case .logarithmic: return 2
+    case .decibel: return 3
     }
 }
 
@@ -408,7 +419,24 @@ public func velocityCurveFromFloat(_ value: Float) -> VelocityCurve {
     switch Int(value.rounded()) {
     case 1: return .exponential
     case 2: return .logarithmic
+    case 3: return .decibel
     default: return .linear
+    }
+}
+
+private func globalVoiceSourceIndex(_ policy: GlobalVoiceSourcePolicy) -> Float {
+    switch policy {
+    case .loudest: return 0
+    case .lastPlayed: return 1
+    case .highest: return 2
+    }
+}
+
+public func globalVoiceSourceFromFloat(_ value: Float) -> GlobalVoiceSourcePolicy {
+    switch Int(value.rounded()) {
+    case 1: return .lastPlayed
+    case 2: return .highest
+    default: return .loudest
     }
 }
 

@@ -226,6 +226,16 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     // Stage 3: Velocity, Mod Envelope, Glide, Mono
     public var velocityCurve: VelocityCurve = .linear
     public var velocityToVolume: Float = 1.0
+    /// SYNT_62. 0 keeps the legacy 0.15-floor law. Used only when `velocityCurve == .decibel`.
+    public var velocityRangeDb: Float = 0
+    /// SYNT_62. −1 log … 0 lin … +1 exp. Ignored unless the curve is `.decibel`.
+    public var velocityCurveShape: Float = 0
+    /// Which voice feeds global (shared-filter) modulation. `.loudest` is the old scan.
+    public var globalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest
+    /// When false, arp ticks stay at velocity 0.8.
+    public var arpUsesInputVelocity: Bool = false
+    /// When false, legato retune does not touch velocity or `velGain`.
+    public var legatoUpdatesVelocity: Bool = false
     public var modEnvAttack: Float = 0.01
     public var modEnvDecay: Float = 0.2
     public var modEnvSustain: Float = 0.0
@@ -433,6 +443,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case transientEnabled, transientAttack, transientSustain, transientOutput, transientMix
         case userWavetableName, userWavetableData
         case mpeEnabled, mpePitchBendRange, mpeZone, mpeMemberChannelCount
+        case velocityRangeDb, velocityCurveShape, globalVoiceSourcePolicy
+        case arpUsesInputVelocity, legatoUpdatesVelocity
     }
 
     public init(
@@ -576,7 +588,12 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         mpeEnabled: Bool = false,
         mpePitchBendRange: Float = 48.0,
         mpeZone: MPEZone = .lower,
-        mpeMemberChannelCount: Int = 15
+        mpeMemberChannelCount: Int = 15,
+        velocityRangeDb: Float = 0,
+        velocityCurveShape: Float = 0,
+        globalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest,
+        arpUsesInputVelocity: Bool = false,
+        legatoUpdatesVelocity: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -719,6 +736,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.mpePitchBendRange = mpePitchBendRange
         self.mpeZone = mpeZone
         self.mpeMemberChannelCount = mpeMemberChannelCount
+        self.velocityRangeDb = velocityRangeDb
+        self.velocityCurveShape = velocityCurveShape
+        self.globalVoiceSourcePolicy = globalVoiceSourcePolicy
+        self.arpUsesInputVelocity = arpUsesInputVelocity
+        self.legatoUpdatesVelocity = legatoUpdatesVelocity
     }
 
     public init(from decoder: Decoder) throws {
@@ -949,6 +971,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         // failing the whole preset.
         mpeZone = c.tolerant(MPEZone.self, forKey: .mpeZone) ?? .lower
         mpeMemberChannelCount = try c.decodeIfPresent(Int.self, forKey: .mpeMemberChannelCount) ?? 15
+        velocityRangeDb = try c.decodeIfPresent(Float.self, forKey: .velocityRangeDb) ?? 0
+        velocityCurveShape = try c.decodeIfPresent(Float.self, forKey: .velocityCurveShape) ?? 0
+        globalVoiceSourcePolicy = c.tolerant(GlobalVoiceSourcePolicy.self, forKey: .globalVoiceSourcePolicy) ?? .loudest
+        arpUsesInputVelocity = try c.decodeIfPresent(Bool.self, forKey: .arpUsesInputVelocity) ?? false
+        legatoUpdatesVelocity = try c.decodeIfPresent(Bool.self, forKey: .legatoUpdatesVelocity) ?? false
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -1151,6 +1178,14 @@ public enum ModSource: String, CaseIterable, Codable {
     case mpePitchBend = "MPE Pitch Bend"
     case mpePressure = "MPE Pressure"
     case mpeTimbre = "MPE Timbre"
+    /// Note-off velocity, 0…1. Neutral 0.5 until the key lifts. Appended so earlier sources keep their order.
+    case releaseVelocity = "Release Velocity"
+}
+
+public enum GlobalVoiceSourcePolicy: String, CaseIterable, Codable, Sendable {
+    case loudest = "Loudest"
+    case lastPlayed = "Last Played"
+    case highest = "Highest"
 }
 
 public enum MPEZone: String, CaseIterable, Codable, Sendable {
@@ -1162,6 +1197,8 @@ public enum VelocityCurve: String, CaseIterable, Codable, Sendable {
     case linear = "Linear"
     case exponential = "Exponential"
     case logarithmic = "Logarithmic"
+    /// dB law. `velocityRangeDb == 0` makes every velocity gain 1.
+    case decibel = "Decibel"
 }
 
 public enum GlideMode: String, CaseIterable, Codable, Sendable {
