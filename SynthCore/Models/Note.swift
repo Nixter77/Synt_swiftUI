@@ -49,6 +49,24 @@ public struct ActiveNote {
     public var velGainTarget: Float = 1.0
     /// Note-off velocity, 0…1. Neutral until the key lifts.
     public var releaseVelocity: Float = 0.5
+    /// Segment time multipliers. 1 is the authored time. Filled at note-on.
+    public var attackScale: Float = 1
+    public var decayScale: Float = 1
+    public var releaseScale: Float = 1
+    /// Matrix time multipliers, latched when that stage starts. 1 when no route.
+    public var ampAttackMul: Float = 1
+    public var ampDecayMul: Float = 1
+    public var ampReleaseMul: Float = 1
+    public var filterAttackMul: Float = 1
+    public var filterDecayMul: Float = 1
+    public var filterReleaseMul: Float = 1
+    /// `.finished` so the first attack sample can latch a matrix time.
+    public var latchedAmpPhase: EnvelopePhase = .finished
+    public var latchedFilterPhase: EnvelopePhase = .finished
+    /// 0.5 ms de-click used only when short attack is enabled. 0 leaves amplitude alone.
+    public var microFadeRemaining: Int = 0
+    public var microFadeGain: Float = 1
+    public var microFadeStep: Float = 0
     public var phase: Double = 0.0
     public var phase2: Double = 0.0
     public var subPhase: Double = 0.0
@@ -145,6 +163,20 @@ public struct ActiveNote {
         self.midiNote = midiNote
         self.velocity = velocity
         self.releaseVelocity = 0.5
+        self.attackScale = 1
+        self.decayScale = 1
+        self.releaseScale = 1
+        self.ampAttackMul = 1
+        self.ampDecayMul = 1
+        self.ampReleaseMul = 1
+        self.filterAttackMul = 1
+        self.filterDecayMul = 1
+        self.filterReleaseMul = 1
+        self.latchedAmpPhase = .finished
+        self.latchedFilterPhase = .finished
+        self.microFadeRemaining = 0
+        self.microFadeGain = 1
+        self.microFadeStep = 0
         let keptPhase = phase
         let keptPhase2 = phase2
         let keptSubPhase = subPhase
@@ -303,4 +335,8 @@ public enum EnvelopePhase {
     case sustain
     case release
     case finished
+    /// Silent wait before attack. Skipped when delay is 0.
+    case delay
+    /// Holds full level between attack and decay. Skipped when hold is 0.
+    case hold
 }

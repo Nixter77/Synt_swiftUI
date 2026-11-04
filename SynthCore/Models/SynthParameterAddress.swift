@@ -155,6 +155,22 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case globalVoiceSourcePolicy = 169
     case arpUsesInputVelocity = 170
     case legatoUpdatesVelocity = 171
+    /// SYNT_63. Append-only. Defaults keep the legacy contour.
+    case filterAttackCurve = 172
+    case filterDecayCurve = 173
+    case filterReleaseCurve = 174
+    case envelopeModel = 175
+    case ampDelay = 176
+    case ampHold = 177
+    case filterEnvDelay = 178
+    case filterEnvHold = 179
+    case velToAttack = 180
+    case velToDecay = 181
+    case releaseVelToRelease = 182
+    case envKeyTrack = 183
+    case ampRetriggerMode = 184
+    case keepUnisonThroughTails = 185
+    case shortAttackEnabled = 186
 
     public var identifier: String {
         switch self {
@@ -289,6 +305,21 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .globalVoiceSourcePolicy: return "globalVoiceSourcePolicy"
         case .arpUsesInputVelocity: return "arpUsesInputVelocity"
         case .legatoUpdatesVelocity: return "legatoUpdatesVelocity"
+        case .filterAttackCurve: return "filterAttackCurve"
+        case .filterDecayCurve: return "filterDecayCurve"
+        case .filterReleaseCurve: return "filterReleaseCurve"
+        case .envelopeModel: return "envelopeModel"
+        case .ampDelay: return "ampDelay"
+        case .ampHold: return "ampHold"
+        case .filterEnvDelay: return "filterEnvDelay"
+        case .filterEnvHold: return "filterEnvHold"
+        case .velToAttack: return "velToAttack"
+        case .velToDecay: return "velToDecay"
+        case .releaseVelToRelease: return "releaseVelToRelease"
+        case .envKeyTrack: return "envKeyTrack"
+        case .ampRetriggerMode: return "ampRetriggerMode"
+        case .keepUnisonThroughTails: return "keepUnisonThroughTails"
+        case .shortAttackEnabled: return "shortAttackEnabled"
         }
     }
 
@@ -425,6 +456,21 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .globalVoiceSourcePolicy: return "Global Voice Source"
         case .arpUsesInputVelocity: return "Arp Input Velocity"
         case .legatoUpdatesVelocity: return "Legato Velocity"
+        case .filterAttackCurve: return "Filter Attack Curve"
+        case .filterDecayCurve: return "Filter Decay Curve"
+        case .filterReleaseCurve: return "Filter Release Curve"
+        case .envelopeModel: return "Envelope Model"
+        case .ampDelay: return "Amp Delay"
+        case .ampHold: return "Amp Hold"
+        case .filterEnvDelay: return "Filter Delay"
+        case .filterEnvHold: return "Filter Hold"
+        case .velToAttack: return "Vel to Attack"
+        case .velToDecay: return "Vel to Decay"
+        case .releaseVelToRelease: return "Release Vel to Release"
+        case .envKeyTrack: return "Env Key Track"
+        case .ampRetriggerMode: return "Amp Retrigger"
+        case .keepUnisonThroughTails: return "Keep Unison Tails"
+        case .shortAttackEnabled: return "Short Attack"
         }
     }
 
@@ -453,6 +499,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryDrumSlow: return 0.15
         case .rotaryAccel: return 0.2
         case .velocityCurveShape: return -1
+        case .filterAttackCurve, .filterDecayCurve, .filterReleaseCurve: return -1
+        case .velToAttack, .velToDecay, .releaseVelToRelease, .envKeyTrack: return -1
         default: return 0
         }
     }
@@ -464,6 +512,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .osc1PulseWidth, .osc2PulseWidth: return 0.95
         case .osc1Waveform, .osc2Waveform, .lfoWaveform, .lfo2Waveform, .osc1WavetableIndex, .osc2WavetableIndex: return 5
         case .noiseColor, .monoPriority, .transientOutput, .globalVoiceSourcePolicy: return 2
+        case .envelopeModel, .ampRetriggerMode: return 2
         case .velocityCurve: return 3
         case .glideMode, .glideLegatoOnly: return 1
         case .lfoMode, .lfo2Mode: return 2
@@ -497,6 +546,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .mpeMemberChannelCount: return 15
         case .velocityRangeDb: return 60
         case .velocityCurveShape: return 1
+        case .filterAttackCurve, .filterDecayCurve, .filterReleaseCurve: return 1
+        case .velToAttack, .velToDecay, .releaseVelToRelease, .envKeyTrack: return 1
+        case .ampDelay, .ampHold, .filterEnvDelay, .filterEnvHold: return 4
         default: return 1
         }
     }

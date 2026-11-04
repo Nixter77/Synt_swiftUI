@@ -121,6 +121,106 @@ public final class CleanBus {
 }
 
 public extension AudioEngine {
+    /// Samples matrix rows that move envelope times. Called only when the preset has one.
+    func latchEnvTime(
+        _ voice: inout ActiveNote,
+        slots: UnsafePointer<RTModSlot>,
+        count: Int,
+        lfo: Float,
+        lfo2: Float,
+        aftertouch: Float,
+        smoothRandom: Float,
+        mseg: Float,
+        mseg2: Float
+    ) {
+        if voice.envelopePhase != voice.latchedAmpPhase {
+            voice.latchedAmpPhase = voice.envelopePhase
+            if let dest = Self.envTimeDestination(phase: voice.envelopePhase, filter: false) {
+                let mul = envTimeMultiplier(
+                    dest, voice: voice, slots: slots, count: count,
+                    lfo: lfo, lfo2: lfo2, aftertouch: aftertouch,
+                    smoothRandom: smoothRandom, mseg: mseg, mseg2: mseg2
+                )
+                switch voice.envelopePhase {
+                case .attack, .delay, .hold: voice.ampAttackMul = mul
+                case .decay: voice.ampDecayMul = mul
+                case .release: voice.ampReleaseMul = mul
+                case .sustain, .finished: break
+                }
+            }
+        }
+        if voice.filterEnvelopePhase != voice.latchedFilterPhase {
+            voice.latchedFilterPhase = voice.filterEnvelopePhase
+            if let dest = Self.envTimeDestination(phase: voice.filterEnvelopePhase, filter: true) {
+                let mul = envTimeMultiplier(
+                    dest, voice: voice, slots: slots, count: count,
+                    lfo: lfo, lfo2: lfo2, aftertouch: aftertouch,
+                    smoothRandom: smoothRandom, mseg: mseg, mseg2: mseg2
+                )
+                switch voice.filterEnvelopePhase {
+                case .attack, .delay, .hold: voice.filterAttackMul = mul
+                case .decay: voice.filterDecayMul = mul
+                case .release: voice.filterReleaseMul = mul
+                case .sustain, .finished: break
+                }
+            }
+        }
+    }
+
+    static func envTimeDestination(phase: EnvelopePhase, filter: Bool) -> ModDestination? {
+        switch phase {
+        case .attack, .delay, .hold: return filter ? .filterAttack : .ampAttack
+        case .decay: return filter ? .filterDecay : .ampDecay
+        case .release: return filter ? .filterRelease : .ampRelease
+        case .sustain, .finished: return nil
+        }
+    }
+
+    func envTimeMultiplier(
+        _ destination: ModDestination,
+        voice: ActiveNote,
+        slots: UnsafePointer<RTModSlot>,
+        count: Int,
+        lfo: Float,
+        lfo2: Float,
+        aftertouch: Float,
+        smoothRandom: Float,
+        mseg: Float,
+        mseg2: Float
+    ) -> Float {
+        var sum: Float = 0
+        let key = Float(voice.midiNote - 60) / 12
+        for slot in 0..<count {
+            let entry = slots[slot]
+            if entry.destination != destination { continue }
+            let source = matrixSource(
+                entry.source,
+                lfo: lfo,
+                lfo2: lfo2,
+                env: voice.envelopeValue,
+                velocity: voice.velocity,
+                modWheel: modWheel,
+                keyTrack: key,
+                env2: voice.filterEnvelopeValue,
+                aftertouch: max(aftertouch, voice.polyAftertouch),
+                modEnv: voice.modEnvelopeValue,
+                pitchBend: pitchBendSmoothed,
+                random: voice.randomValue,
+                sampleAndHold: self.lfo.lastRandomValue,
+                smoothRandom: smoothRandom,
+                mseg: mseg,
+                mseg2: mseg2,
+                mpePitchBend: voice.smoothedMpePitchBend,
+                mpePressure: voice.smoothedMpePressure,
+                mpeTimbre: voice.smoothedMpeTimbre,
+                releaseVelocity: voice.releaseVelocity
+            )
+            sum += modulatedAmount(entry, slot: slot, source: source)
+        }
+        if sum == 0 { return 1 }
+        return exp2(max(-2, min(2, sum)))
+    }
+
     @inline(__always)
     func matrixSource(
         _ source: ModSource,
@@ -445,7 +545,7 @@ public extension AudioEngine {
                 switch entry.destination {
                 case .lfoRate: rateMod += modVal
                 case .lfoDepth: depthMod += modVal
-                case .pitch1, .pitch2, .cutoff, .resonance, .amp, .pan, .pwm1, .pwm2, .mix, .wtMorph1, .wtMorph2, .finePitch, .fm, .chorusMix, .delayMix, .reverbMix, .vowel:
+                case .pitch1, .pitch2, .cutoff, .resonance, .amp, .pan, .pwm1, .pwm2, .mix, .wtMorph1, .wtMorph2, .finePitch, .fm, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
                     break
                 }
             }
@@ -544,7 +644,7 @@ public extension AudioEngine {
                 case .delayMix: delayMixMod += modVal
                 case .reverbMix: reverbMixMod += modVal
                 case .vowel: vowelMod += modVal
-                case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix, .finePitch, .fm:
+                case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix, .finePitch, .fm, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
                     break
                 }
             }
@@ -684,6 +784,19 @@ public extension AudioEngine {
             let velValue = v.velocity
 
             let releaseOverride: Float? = v.fastRelease ? ADSREnvelope.fastReleaseSeconds : nil
+            if cachedEnvTimeMod {
+                latchEnvTime(
+                    &v,
+                    slots: modSlots,
+                    count: modCount,
+                    lfo: matrixLFO,
+                    lfo2: matrixLFO2,
+                    aftertouch: currentAftertouch,
+                    smoothRandom: smoothRandomValue,
+                    mseg: msegValue,
+                    mseg2: mseg2Value
+                )
+            }
             let envelopeValue = envelope.process(
                 currentValue: v.envelopeValue,
                 phase: &v.envelopePhase,
@@ -691,7 +804,10 @@ public extension AudioEngine {
                 releaseStartValue: v.releaseStartValue,
                 isReleasing: v.isReleasing,
                 sampleRate: sampleRate,
-                releaseOverride: releaseOverride
+                releaseOverride: releaseOverride,
+                attackScale: v.attackScale * v.ampAttackMul,
+                decayScale: v.decayScale * v.ampDecayMul,
+                releaseScale: v.releaseScale * v.ampReleaseMul
             )
             v.envelopeValue = envelopeValue
 
@@ -704,7 +820,10 @@ public extension AudioEngine {
                     releaseStartValue: v.filterReleaseStartLevel,
                     isReleasing: v.isReleasing,
                     sampleRate: sampleRate,
-                    releaseOverride: releaseOverride
+                    releaseOverride: releaseOverride,
+                    attackScale: v.attackScale * v.filterAttackMul,
+                    decayScale: v.decayScale * v.filterDecayMul,
+                    releaseScale: v.releaseScale * v.filterReleaseMul
                 )
                 v.filterEnvelopeValue = filterEnvVal
             } else {
@@ -719,7 +838,10 @@ public extension AudioEngine {
                 releaseStartValue: v.modReleaseStartLevel,
                 isReleasing: v.isReleasing,
                 sampleRate: sampleRate,
-                releaseOverride: releaseOverride
+                releaseOverride: releaseOverride,
+                attackScale: v.attackScale,
+                decayScale: v.decayScale,
+                releaseScale: v.releaseScale
             )
             v.modEnvelopeValue = modEnvVal
 
@@ -754,7 +876,7 @@ public extension AudioEngine {
                         modEnv: modEnvVal,
                         pitchBend: pitchBendSmoothed,
                         random: v.randomValue,
-                        sampleAndHold: lfo.lastRandomValue,
+                        sampleAndHold: self.lfo.lastRandomValue,
                         smoothRandom: smoothRandomValue,
                         mseg: msegValue,
                         mseg2: mseg2Value,
@@ -774,7 +896,7 @@ public extension AudioEngine {
                     case .mix: mixMod += modVal
                     case .finePitch: fineMod += modVal
                     case .fm: fmMod += modVal
-                    case .cutoff, .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel:
+                    case .cutoff, .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
                         break
                     }
                 }
@@ -1017,6 +1139,12 @@ public extension AudioEngine {
                 }
             }
             var amplitude = sample * envelopeValue * v.velGain
+            if cachedShortAttack, v.microFadeRemaining > 0 {
+                amplitude *= v.microFadeGain
+                v.microFadeGain += v.microFadeStep
+                if v.microFadeGain > 1 { v.microFadeGain = 1 }
+                v.microFadeRemaining -= 1
+            }
             amplitude *= max(0.0, 1.0 + ampMod)
             amplitude *= AudioMath.voiceGain * v.unisonScale
             if lfoEnabled && lfoTarget == .amplitude && lfo.stereoPhaseOffsetDegrees == 0 {

@@ -631,6 +631,21 @@ enum SyntParameterTree {
                 knob(.modEnvDecay, unit: .seconds),
                 knob(.modEnvSustain),
                 knob(.modEnvRelease, unit: .seconds),
+                knob(.filterAttackCurve),
+                knob(.filterDecayCurve),
+                knob(.filterReleaseCurve),
+                indexedKnob(.envelopeModel, ["Legacy", "Analog", "Digital"]),
+                knob(.ampDelay, unit: .seconds),
+                knob(.ampHold, unit: .seconds),
+                knob(.filterEnvDelay, unit: .seconds),
+                knob(.filterEnvHold, unit: .seconds),
+                knob(.velToAttack),
+                knob(.velToDecay),
+                knob(.releaseVelToRelease),
+                knob(.envKeyTrack),
+                indexedKnob(.ampRetriggerMode, ["From Current", "From Zero", "Legato"]),
+                toggleKnob(.keepUnisonThroughTails),
+                toggleKnob(.shortAttackEnabled),
             ]
         )
         let filter = AUParameterTree.createGroup(

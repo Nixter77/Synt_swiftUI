@@ -48,6 +48,12 @@ public final class LiveModulationSnapshot: @unchecked Sendable {
         case .delayMix: return 16
         case .reverbMix: return 17
         case .vowel: return 18
+        case .ampAttack: return 19
+        case .ampDecay: return 20
+        case .ampRelease: return 21
+        case .filterAttack: return 22
+        case .filterDecay: return 23
+        case .filterRelease: return 24
         }
     }
 

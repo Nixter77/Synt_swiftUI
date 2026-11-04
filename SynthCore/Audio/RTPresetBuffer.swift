@@ -120,6 +120,22 @@ public struct RTPresetSnapshot: Sendable {
     public var globalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest
     public var arpUsesInputVelocity: Bool = false
     public var legatoUpdatesVelocity: Bool = false
+    public var filterAttackCurve: Float = 0
+    public var filterDecayCurve: Float = 0
+    public var filterReleaseCurve: Float = 0
+    public var envelopeModel: EnvelopeModel = .legacy
+    public var ampDelay: Float = 0
+    public var ampHold: Float = 0
+    public var filterEnvDelay: Float = 0
+    public var filterEnvHold: Float = 0
+    public var velToAttack: Float = 0
+    public var velToDecay: Float = 0
+    public var releaseVelToRelease: Float = 0
+    public var envKeyTrack: Float = 0
+    public var ampRetriggerMode: AmpRetriggerMode = .fromCurrent
+    public var keepUnisonThroughTails: Bool = false
+    public var shortAttackEnabled: Bool = false
+    public var hasEnvTimeMod: Bool = false
     public var glideMode: GlideMode = .time
     public var glideLegatoOnly: Bool = false
     public var monoPriority: MonoPriority = .last
@@ -344,6 +360,29 @@ public struct RTPresetSnapshot: Sendable {
         globalVoiceSourcePolicy = preset.globalVoiceSourcePolicy
         arpUsesInputVelocity = preset.arpUsesInputVelocity
         legatoUpdatesVelocity = preset.legatoUpdatesVelocity
+        filterAttackCurve = max(-1, min(1, preset.filterAttackCurve))
+        filterDecayCurve = max(-1, min(1, preset.filterDecayCurve))
+        filterReleaseCurve = max(-1, min(1, preset.filterReleaseCurve))
+        envelopeModel = preset.envelopeModel
+        ampDelay = max(0, min(4, preset.ampDelay))
+        ampHold = max(0, min(4, preset.ampHold))
+        filterEnvDelay = max(0, min(4, preset.filterEnvDelay))
+        filterEnvHold = max(0, min(4, preset.filterEnvHold))
+        velToAttack = max(-1, min(1, preset.velToAttack))
+        velToDecay = max(-1, min(1, preset.velToDecay))
+        releaseVelToRelease = max(-1, min(1, preset.releaseVelToRelease))
+        envKeyTrack = max(-1, min(1, preset.envKeyTrack))
+        ampRetriggerMode = preset.ampRetriggerMode
+        keepUnisonThroughTails = preset.keepUnisonThroughTails
+        shortAttackEnabled = preset.shortAttackEnabled
+        hasEnvTimeMod = preset.modMatrix.contains { entry in
+            switch entry.destination {
+            case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+                return true
+            default:
+                return false
+            }
+        }
         glideMode = preset.glideMode
         glideLegatoOnly = preset.glideLegatoOnly
         monoPriority = preset.monoPriority

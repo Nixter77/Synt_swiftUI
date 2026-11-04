@@ -198,6 +198,37 @@ extension AudioEngine {
             cachedArpUsesInputVelocity = v >= 0.5
         case .legatoUpdatesVelocity:
             cachedLegatoUpdatesVelocity = v >= 0.5
+        case .filterAttackCurve: filterEnvelope.attackCurve = v
+        case .filterDecayCurve: filterEnvelope.decayCurve = v
+        case .filterReleaseCurve: filterEnvelope.releaseCurve = v
+        case .envelopeModel:
+            cachedEnvelopeModel = envelopeModelFromFloat(v)
+            envelope.model = cachedEnvelopeModel
+            filterEnvelope.model = cachedEnvelopeModel
+            modEnvelope.model = cachedEnvelopeModel
+        case .ampDelay:
+            cachedAmpDelay = v
+            envelope.delay = v
+        case .ampHold:
+            cachedAmpHold = v
+            envelope.hold = v
+        case .filterEnvDelay:
+            cachedFilterEnvDelay = v
+            filterEnvelope.delay = v
+        case .filterEnvHold:
+            cachedFilterEnvHold = v
+            filterEnvelope.hold = v
+        case .velToAttack: cachedVelToAttack = v
+        case .velToDecay: cachedVelToDecay = v
+        case .releaseVelToRelease: cachedReleaseVelToRelease = v
+        case .envKeyTrack: cachedEnvKeyTrack = v
+        case .ampRetriggerMode: cachedAmpRetriggerMode = ampRetriggerFromFloat(v)
+        case .keepUnisonThroughTails: cachedKeepUnisonThroughTails = v >= 0.5
+        case .shortAttackEnabled:
+            cachedShortAttack = v >= 0.5
+            envelope.allowShortAttack = cachedShortAttack
+            filterEnvelope.allowShortAttack = cachedShortAttack
+            modEnvelope.allowShortAttack = cachedShortAttack
         case .modEnvAttack: modEnvelope.attack = v
         case .modEnvDecay: modEnvelope.decay = v
         case .modEnvSustain: modEnvelope.sustain = v
@@ -349,6 +380,31 @@ extension AudioEngine {
             }
         case .arpUsesInputVelocity: return cachedArpUsesInputVelocity ? 1 : 0
         case .legatoUpdatesVelocity: return cachedLegatoUpdatesVelocity ? 1 : 0
+        case .filterAttackCurve: return filterEnvelope.attackCurve
+        case .filterDecayCurve: return filterEnvelope.decayCurve
+        case .filterReleaseCurve: return filterEnvelope.releaseCurve
+        case .envelopeModel:
+            switch cachedEnvelopeModel {
+            case .legacy: return 0
+            case .analog: return 1
+            case .digital: return 2
+            }
+        case .ampDelay: return cachedAmpDelay
+        case .ampHold: return cachedAmpHold
+        case .filterEnvDelay: return cachedFilterEnvDelay
+        case .filterEnvHold: return cachedFilterEnvHold
+        case .velToAttack: return cachedVelToAttack
+        case .velToDecay: return cachedVelToDecay
+        case .releaseVelToRelease: return cachedReleaseVelToRelease
+        case .envKeyTrack: return cachedEnvKeyTrack
+        case .ampRetriggerMode:
+            switch cachedAmpRetriggerMode {
+            case .fromCurrent: return 0
+            case .fromZero: return 1
+            case .legatoNoRetrigger: return 2
+            }
+        case .keepUnisonThroughTails: return cachedKeepUnisonThroughTails ? 1 : 0
+        case .shortAttackEnabled: return cachedShortAttack ? 1 : 0
         case .modEnvAttack: return modEnvelope.attack
         case .modEnvDecay: return modEnvelope.decay
         case .modEnvSustain: return modEnvelope.sustain
@@ -522,6 +578,21 @@ extension AudioEngine {
             case .globalVoiceSourcePolicy: preset.globalVoiceSourcePolicy = SynthCore.globalVoiceSourceFromFloat(v)
             case .arpUsesInputVelocity: preset.arpUsesInputVelocity = v >= 0.5
             case .legatoUpdatesVelocity: preset.legatoUpdatesVelocity = v >= 0.5
+            case .filterAttackCurve: preset.filterAttackCurve = v
+            case .filterDecayCurve: preset.filterDecayCurve = v
+            case .filterReleaseCurve: preset.filterReleaseCurve = v
+            case .envelopeModel: preset.envelopeModel = envelopeModelFromFloat(v)
+            case .ampDelay: preset.ampDelay = v
+            case .ampHold: preset.ampHold = v
+            case .filterEnvDelay: preset.filterEnvDelay = v
+            case .filterEnvHold: preset.filterEnvHold = v
+            case .velToAttack: preset.velToAttack = v
+            case .velToDecay: preset.velToDecay = v
+            case .releaseVelToRelease: preset.releaseVelToRelease = v
+            case .envKeyTrack: preset.envKeyTrack = v
+            case .ampRetriggerMode: preset.ampRetriggerMode = ampRetriggerFromFloat(v)
+            case .keepUnisonThroughTails: preset.keepUnisonThroughTails = v >= 0.5
+            case .shortAttackEnabled: preset.shortAttackEnabled = v >= 0.5
             case .modEnvAttack: preset.modEnvAttack = v
             case .modEnvDecay: preset.modEnvDecay = v
             case .modEnvSustain: preset.modEnvSustain = v

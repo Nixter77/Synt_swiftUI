@@ -178,6 +178,19 @@ public extension SynthPreset {
         if !GlobalVoiceSourcePolicy.allCases.contains(p.globalVoiceSourcePolicy) {
             p.globalVoiceSourcePolicy = .loudest
         }
+        p.filterAttackCurve = f(p.filterAttackCurve, -1, 1, 0)
+        p.filterDecayCurve = f(p.filterDecayCurve, -1, 1, 0)
+        p.filterReleaseCurve = f(p.filterReleaseCurve, -1, 1, 0)
+        if !EnvelopeModel.allCases.contains(p.envelopeModel) { p.envelopeModel = .legacy }
+        p.ampDelay = f(p.ampDelay, 0, 4, 0)
+        p.ampHold = f(p.ampHold, 0, 4, 0)
+        p.filterEnvDelay = f(p.filterEnvDelay, 0, 4, 0)
+        p.filterEnvHold = f(p.filterEnvHold, 0, 4, 0)
+        p.velToAttack = f(p.velToAttack, -1, 1, 0)
+        p.velToDecay = f(p.velToDecay, -1, 1, 0)
+        p.releaseVelToRelease = f(p.releaseVelToRelease, -1, 1, 0)
+        p.envKeyTrack = f(p.envKeyTrack, -1, 1, 0)
+        if !AmpRetriggerMode.allCases.contains(p.ampRetriggerMode) { p.ampRetriggerMode = .fromCurrent }
         p.modEnvAttack = f(p.modEnvAttack, 0.001, 10.0, 0.01)
         p.modEnvDecay = f(p.modEnvDecay, 0.001, 10.0, 0.2)
         p.modEnvSustain = f(p.modEnvSustain, 0.0, 1.0, 0.0)

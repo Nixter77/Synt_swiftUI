@@ -142,6 +142,21 @@ extension SynthPreset {
         case .globalVoiceSourcePolicy: return globalVoiceSourceIndex(globalVoiceSourcePolicy)
         case .arpUsesInputVelocity: return arpUsesInputVelocity ? 1 : 0
         case .legatoUpdatesVelocity: return legatoUpdatesVelocity ? 1 : 0
+        case .filterAttackCurve: return filterAttackCurve
+        case .filterDecayCurve: return filterDecayCurve
+        case .filterReleaseCurve: return filterReleaseCurve
+        case .envelopeModel: return envelopeModelIndex(envelopeModel)
+        case .ampDelay: return ampDelay
+        case .ampHold: return ampHold
+        case .filterEnvDelay: return filterEnvDelay
+        case .filterEnvHold: return filterEnvHold
+        case .velToAttack: return velToAttack
+        case .velToDecay: return velToDecay
+        case .releaseVelToRelease: return releaseVelToRelease
+        case .envKeyTrack: return envKeyTrack
+        case .ampRetriggerMode: return ampRetriggerIndex(ampRetriggerMode)
+        case .keepUnisonThroughTails: return keepUnisonThroughTails ? 1 : 0
+        case .shortAttackEnabled: return shortAttackEnabled ? 1 : 0
         }
     }
 
@@ -279,6 +294,21 @@ extension SynthPreset {
         case .globalVoiceSourcePolicy: globalVoiceSourcePolicy = SynthCore.globalVoiceSourceFromFloat(value)
         case .arpUsesInputVelocity: arpUsesInputVelocity = value >= 0.5
         case .legatoUpdatesVelocity: legatoUpdatesVelocity = value >= 0.5
+        case .filterAttackCurve: filterAttackCurve = value
+        case .filterDecayCurve: filterDecayCurve = value
+        case .filterReleaseCurve: filterReleaseCurve = value
+        case .envelopeModel: envelopeModel = envelopeModelFromFloat(value)
+        case .ampDelay: ampDelay = value
+        case .ampHold: ampHold = value
+        case .filterEnvDelay: filterEnvDelay = value
+        case .filterEnvHold: filterEnvHold = value
+        case .velToAttack: velToAttack = value
+        case .velToDecay: velToDecay = value
+        case .releaseVelToRelease: releaseVelToRelease = value
+        case .envKeyTrack: envKeyTrack = value
+        case .ampRetriggerMode: ampRetriggerMode = ampRetriggerFromFloat(value)
+        case .keepUnisonThroughTails: keepUnisonThroughTails = value >= 0.5
+        case .shortAttackEnabled: shortAttackEnabled = value >= 0.5
         }
     }
 
@@ -429,6 +459,38 @@ private func globalVoiceSourceIndex(_ policy: GlobalVoiceSourcePolicy) -> Float 
     case .loudest: return 0
     case .lastPlayed: return 1
     case .highest: return 2
+    }
+}
+
+private func envelopeModelIndex(_ model: EnvelopeModel) -> Float {
+    switch model {
+    case .legacy: return 0
+    case .analog: return 1
+    case .digital: return 2
+    }
+}
+
+public func envelopeModelFromFloat(_ value: Float) -> EnvelopeModel {
+    switch Int(value.rounded()) {
+    case 1: return .analog
+    case 2: return .digital
+    default: return .legacy
+    }
+}
+
+private func ampRetriggerIndex(_ mode: AmpRetriggerMode) -> Float {
+    switch mode {
+    case .fromCurrent: return 0
+    case .fromZero: return 1
+    case .legatoNoRetrigger: return 2
+    }
+}
+
+public func ampRetriggerFromFloat(_ value: Float) -> AmpRetriggerMode {
+    switch Int(value.rounded()) {
+    case 1: return .fromZero
+    case 2: return .legatoNoRetrigger
+    default: return .fromCurrent
     }
 }
 

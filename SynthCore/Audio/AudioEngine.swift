@@ -360,6 +360,19 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedGlobalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest
     public var cachedArpUsesInputVelocity: Bool = false
     public var cachedLegatoUpdatesVelocity: Bool = false
+    public var cachedEnvelopeModel: EnvelopeModel = .legacy
+    public var cachedAmpDelay: Float = 0
+    public var cachedAmpHold: Float = 0
+    public var cachedFilterEnvDelay: Float = 0
+    public var cachedFilterEnvHold: Float = 0
+    public var cachedVelToAttack: Float = 0
+    public var cachedVelToDecay: Float = 0
+    public var cachedReleaseVelToRelease: Float = 0
+    public var cachedEnvKeyTrack: Float = 0
+    public var cachedAmpRetriggerMode: AmpRetriggerMode = .fromCurrent
+    public var cachedKeepUnisonThroughTails: Bool = false
+    public var cachedShortAttack: Bool = false
+    public var cachedEnvTimeMod: Bool = false
     /// Pressed-key velocities for the arp. Allocated once. Index is the MIDI note.
     public var arpNoteVelocities = [Float](repeating: 0, count: 128)
     /// Slot written by the latest `createVoice`. −1 when none.

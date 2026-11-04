@@ -236,6 +236,29 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var arpUsesInputVelocity: Bool = false
     /// When false, legato retune does not touch velocity or `velGain`.
     public var legatoUpdatesVelocity: Bool = false
+    /// SYNT_63. Filter-envelope segment curves. 0 keeps the legacy one-pole.
+    public var filterAttackCurve: Float = 0
+    public var filterDecayCurve: Float = 0
+    public var filterReleaseCurve: Float = 0
+    /// `.legacy` is the shipped one-pole / pow law. Analog and digital stay off it.
+    public var envelopeModel: EnvelopeModel = .legacy
+    /// Delay and hold in seconds. 0 skips the stage.
+    public var ampDelay: Float = 0
+    public var ampHold: Float = 0
+    public var filterEnvDelay: Float = 0
+    public var filterEnvHold: Float = 0
+    /// −1…1. 0 leaves the segment time unchanged. Positive shortens a harder hit.
+    public var velToAttack: Float = 0
+    public var velToDecay: Float = 0
+    public var releaseVelToRelease: Float = 0
+    /// 0 leaves times alone. Positive shortens notes above C4.
+    public var envKeyTrack: Float = 0
+    /// `.fromCurrent` is the existing fast-release-and-retrigger.
+    public var ampRetriggerMode: AmpRetriggerMode = .fromCurrent
+    /// When false, a releasing tail still collapses unison.
+    public var keepUnisonThroughTails: Bool = false
+    /// When false, attack stays floored at 4 ms in every model.
+    public var shortAttackEnabled: Bool = false
     public var modEnvAttack: Float = 0.01
     public var modEnvDecay: Float = 0.2
     public var modEnvSustain: Float = 0.0
@@ -445,6 +468,11 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case mpeEnabled, mpePitchBendRange, mpeZone, mpeMemberChannelCount
         case velocityRangeDb, velocityCurveShape, globalVoiceSourcePolicy
         case arpUsesInputVelocity, legatoUpdatesVelocity
+        case filterAttackCurve, filterDecayCurve, filterReleaseCurve
+        case envelopeModel
+        case ampDelay, ampHold, filterEnvDelay, filterEnvHold
+        case velToAttack, velToDecay, releaseVelToRelease, envKeyTrack
+        case ampRetriggerMode, keepUnisonThroughTails, shortAttackEnabled
     }
 
     public init(
@@ -593,7 +621,22 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         velocityCurveShape: Float = 0,
         globalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest,
         arpUsesInputVelocity: Bool = false,
-        legatoUpdatesVelocity: Bool = false
+        legatoUpdatesVelocity: Bool = false,
+        filterAttackCurve: Float = 0,
+        filterDecayCurve: Float = 0,
+        filterReleaseCurve: Float = 0,
+        envelopeModel: EnvelopeModel = .legacy,
+        ampDelay: Float = 0,
+        ampHold: Float = 0,
+        filterEnvDelay: Float = 0,
+        filterEnvHold: Float = 0,
+        velToAttack: Float = 0,
+        velToDecay: Float = 0,
+        releaseVelToRelease: Float = 0,
+        envKeyTrack: Float = 0,
+        ampRetriggerMode: AmpRetriggerMode = .fromCurrent,
+        keepUnisonThroughTails: Bool = false,
+        shortAttackEnabled: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -741,6 +784,21 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.globalVoiceSourcePolicy = globalVoiceSourcePolicy
         self.arpUsesInputVelocity = arpUsesInputVelocity
         self.legatoUpdatesVelocity = legatoUpdatesVelocity
+        self.filterAttackCurve = filterAttackCurve
+        self.filterDecayCurve = filterDecayCurve
+        self.filterReleaseCurve = filterReleaseCurve
+        self.envelopeModel = envelopeModel
+        self.ampDelay = ampDelay
+        self.ampHold = ampHold
+        self.filterEnvDelay = filterEnvDelay
+        self.filterEnvHold = filterEnvHold
+        self.velToAttack = velToAttack
+        self.velToDecay = velToDecay
+        self.releaseVelToRelease = releaseVelToRelease
+        self.envKeyTrack = envKeyTrack
+        self.ampRetriggerMode = ampRetriggerMode
+        self.keepUnisonThroughTails = keepUnisonThroughTails
+        self.shortAttackEnabled = shortAttackEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -976,6 +1034,21 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         globalVoiceSourcePolicy = c.tolerant(GlobalVoiceSourcePolicy.self, forKey: .globalVoiceSourcePolicy) ?? .loudest
         arpUsesInputVelocity = try c.decodeIfPresent(Bool.self, forKey: .arpUsesInputVelocity) ?? false
         legatoUpdatesVelocity = try c.decodeIfPresent(Bool.self, forKey: .legatoUpdatesVelocity) ?? false
+        filterAttackCurve = try c.decodeIfPresent(Float.self, forKey: .filterAttackCurve) ?? 0
+        filterDecayCurve = try c.decodeIfPresent(Float.self, forKey: .filterDecayCurve) ?? 0
+        filterReleaseCurve = try c.decodeIfPresent(Float.self, forKey: .filterReleaseCurve) ?? 0
+        envelopeModel = c.tolerant(EnvelopeModel.self, forKey: .envelopeModel) ?? .legacy
+        ampDelay = try c.decodeIfPresent(Float.self, forKey: .ampDelay) ?? 0
+        ampHold = try c.decodeIfPresent(Float.self, forKey: .ampHold) ?? 0
+        filterEnvDelay = try c.decodeIfPresent(Float.self, forKey: .filterEnvDelay) ?? 0
+        filterEnvHold = try c.decodeIfPresent(Float.self, forKey: .filterEnvHold) ?? 0
+        velToAttack = try c.decodeIfPresent(Float.self, forKey: .velToAttack) ?? 0
+        velToDecay = try c.decodeIfPresent(Float.self, forKey: .velToDecay) ?? 0
+        releaseVelToRelease = try c.decodeIfPresent(Float.self, forKey: .releaseVelToRelease) ?? 0
+        envKeyTrack = try c.decodeIfPresent(Float.self, forKey: .envKeyTrack) ?? 0
+        ampRetriggerMode = c.tolerant(AmpRetriggerMode.self, forKey: .ampRetriggerMode) ?? .fromCurrent
+        keepUnisonThroughTails = try c.decodeIfPresent(Bool.self, forKey: .keepUnisonThroughTails) ?? false
+        shortAttackEnabled = try c.decodeIfPresent(Bool.self, forKey: .shortAttackEnabled) ?? false
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -1188,6 +1261,23 @@ public enum GlobalVoiceSourcePolicy: String, CaseIterable, Codable, Sendable {
     case highest = "Highest"
 }
 
+/// Amp / filter / mod contour. `.legacy` is the shipped law.
+public enum EnvelopeModel: String, CaseIterable, Codable, Sendable {
+    case legacy = "Legacy"
+    case analog = "Analog"
+    case digital = "Digital"
+}
+
+/// What a second hit does to a note that is already sounding.
+public enum AmpRetriggerMode: String, CaseIterable, Codable, Sendable {
+    /// Fast-release the old partials and start a new voice. The shipped path.
+    case fromCurrent = "From Current"
+    /// Restart the same partials from silence.
+    case fromZero = "From Zero"
+    /// Keep the sounding envelope and ignore the second hit.
+    case legatoNoRetrigger = "Legato"
+}
+
 public enum MPEZone: String, CaseIterable, Codable, Sendable {
     case lower = "Lower"
     case upper = "Upper"
@@ -1244,6 +1334,13 @@ public enum ModDestination: String, CaseIterable, Codable {
     case reverbMix = "Reverb Mix"
     /// Formant vowel, 0…4. Appended so earlier destinations keep their order.
     case vowel = "Vowel"
+    /// Segment times. Sampled when the stage starts. Appended so earlier destinations keep their order.
+    case ampAttack = "Amp Attack Time"
+    case ampDecay = "Amp Decay Time"
+    case ampRelease = "Amp Release Time"
+    case filterAttack = "Filter Attack Time"
+    case filterDecay = "Filter Decay Time"
+    case filterRelease = "Filter Release Time"
 
     public var menuTitle: String {
         switch self {
@@ -1266,6 +1363,12 @@ public enum ModDestination: String, CaseIterable, Codable {
         case .delayMix: return "Delay"
         case .reverbMix: return "Reverb"
         case .vowel: return "Vowel"
+        case .ampAttack: return "Amp Attack"
+        case .ampDecay: return "Amp Decay"
+        case .ampRelease: return "Amp Release"
+        case .filterAttack: return "Flt Attack"
+        case .filterDecay: return "Flt Decay"
+        case .filterRelease: return "Flt Release"
         }
     }
 
@@ -1295,6 +1398,8 @@ public enum ModDestination: String, CaseIterable, Codable {
             return String(format: "%+.0f %%", amount * 100)
         case .vowel:
             return String(format: "%+.2f", amount * 4)
+        case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+            return String(format: "%+.0f %% time", amount * 100)
         }
     }
 }
