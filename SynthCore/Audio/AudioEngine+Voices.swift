@@ -258,8 +258,43 @@ public extension AudioEngine {
 
             let randVal = Float(seed) / Float(UInt32.max) * 2.0 - 1.0
             voices[slot].randomValue = randVal
+            voices[slot].velGain = Self.legacyVelocityGain(
+                velocity: velocity,
+                curve: cachedVelocityCurve,
+                toVolume: cachedVelocityToVolume
+            )
 
             activeVoiceCountRT += 1
+        }
+    }
+
+    /// Legacy `.linear` / `.exponential` / `.logarithmic` amp law, including the 0.15 floor.
+    /// Computed at note-on. Identical expression to the old per-sample switch.
+    static func legacyVelocityGain(velocity: Float, curve: VelocityCurve, toVolume: Float) -> Float {
+        let curved: Float
+        switch curve {
+        case .linear:
+            curved = max(0.15, min(1.0, velocity))
+        case .exponential:
+            let clamped = max(0.0, min(1.0, velocity))
+            curved = max(0.15, clamped * clamped)
+        case .logarithmic:
+            let clamped = max(0.0, min(1.0, velocity))
+            curved = max(0.15, sqrt(clamped))
+        }
+        return 1.0 - toVolume * (1.0 - curved)
+    }
+
+    /// Held notes pick up a curve or amount edit on the next sample, as the old per-sample path did.
+    func refreshActiveVelocityGains() {
+        let curve = cachedVelocityCurve
+        let amount = cachedVelocityToVolume
+        for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
+            voices[i].velGain = Self.legacyVelocityGain(
+                velocity: voices[i].velocity,
+                curve: curve,
+                toVolume: amount
+            )
         }
     }
 

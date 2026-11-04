@@ -41,6 +41,10 @@ public struct ActiveNote {
     public var isActive: Bool = false
     public var midiNote: Int = 0
     public var velocity: Float = 0
+    /// Amp scale from the legacy velocity curve. Filled at note-on (and when the
+    /// curve or velocity-to-volume amount changes). Same formula as the old
+    /// per-sample path, so a held note with a fixed curve is bit-identical.
+    public var velGain: Float = 1.0
     public var phase: Double = 0.0
     public var phase2: Double = 0.0
     public var subPhase: Double = 0.0

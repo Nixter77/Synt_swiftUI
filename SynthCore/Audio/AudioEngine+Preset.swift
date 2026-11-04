@@ -458,6 +458,7 @@ public extension AudioEngine {
         cachedArpLatch = snap.arpLatch
         cachedVelocityCurve = snap.velocityCurve
         cachedVelocityToVolume = snap.velocityToVolume
+        refreshActiveVelocityGains()
         cachedGlideMode = snap.glideMode
         cachedGlideLegatoOnly = snap.glideLegatoOnly
         cachedMonoPriority = snap.monoPriority

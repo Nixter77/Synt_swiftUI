@@ -41,7 +41,30 @@ public struct ADSREnvelope {
         self.releaseCurve = releaseCurve
     }
 
-    public func process(
+    // Lazy one-pole coefficients. Recomputed only when the segment time or sample
+    // rate changes. `exp` of the same Double arguments, so the Float matches the
+    // old per-sample call. CC smoothing changes `attack`/`decay`/`release` on the
+    // audio thread; a changed Float misses the cache and refills it.
+    private struct OnePoleCoeff {
+        var sampleRate: Double = -1
+        var timeSeconds: Double = -1
+        var value: Float = 0
+        @inline(__always)
+        mutating func coeff(timeSeconds t: Double, sampleRate sr: Double) -> Float {
+            if sampleRate != sr || timeSeconds != t {
+                sampleRate = sr
+                timeSeconds = t
+                let deltaTime = 1.0 / sr
+                value = Float(exp(-5.0 * deltaTime / t))
+            }
+            return value
+        }
+    }
+    private var attackCoeff = OnePoleCoeff()
+    private var decayCoeff = OnePoleCoeff()
+    private var releaseCoeff = OnePoleCoeff()
+
+    public mutating func process(
         currentValue: Float,
         phase: inout EnvelopePhase,
         time: inout Double,
@@ -66,7 +89,7 @@ public struct ADSREnvelope {
             if attackCurve == 0.0 {
                 // Smooth raise: 1 - e^(-k t/T) reaches ~1 at t≈T (k≈5)
                 let a = Double(attackT)
-                let coeff = Float(exp(-5.0 * deltaTime / a))
+                let coeff = attackCoeff.coeff(timeSeconds: a, sampleRate: sampleRate)
                 value = 1.0 - (1.0 - value) * coeff
                 time += deltaTime
                 if time >= a || value >= 0.999 {
@@ -110,7 +133,7 @@ public struct ADSREnvelope {
                     phase = .sustain
                     time = 0.0
                 } else {
-                    let coefficient = Float(exp(-5.0 * deltaTime / d))
+                    let coefficient = decayCoeff.coeff(timeSeconds: d, sampleRate: sampleRate)
                     value = sustain + (value - sustain) * coefficient
                     time += deltaTime
                     if time >= d || abs(value - sustain) < 0.0005 {
@@ -153,7 +176,7 @@ public struct ADSREnvelope {
                     value = 0.0
                     phase = .finished
                 } else {
-                    let coefficient = Float(exp(-5.0 * deltaTime / r))
+                    let coefficient = releaseCoeff.coeff(timeSeconds: r, sampleRate: sampleRate)
                     value = value * coefficient
                     time += deltaTime
                     if time >= r || value < 0.0002 {

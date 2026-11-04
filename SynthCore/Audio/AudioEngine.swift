@@ -498,6 +498,10 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let liveModulation = LiveModulationSnapshot()
     public var lastRenderedSampleL: Float = 0.0
     public var lastRenderedSampleR: Float = 0.0
+    /// SYNT_61 D0. `preInsert` tap: voices × 0.65 × master, before CleanBus.
+    /// Written every sample. Does not feed the output.
+    public var dynamicsPreCleanBusL: Float = 0
+    public var dynamicsPreCleanBusR: Float = 0
     public let frequencyShifter = DSPFrequencyShifter()
     public var cachedFrequencyShifterEnabled: Bool = false
     public var cachedFrequencyShifterShiftHz: Float = 0.0

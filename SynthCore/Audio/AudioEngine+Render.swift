@@ -951,19 +951,7 @@ public extension AudioEngine {
                 if v.phase2 < 0 { v.phase2 += AudioMath.twoPi }
             }
 
-            let curvedVel: Float
-            switch cachedVelocityCurve {
-            case .linear:
-                curvedVel = max(0.15, min(1.0, velValue))
-            case .exponential:
-                let clamped = max(0.0, min(1.0, velValue))
-                curvedVel = max(0.15, clamped * clamped)
-            case .logarithmic:
-                let clamped = max(0.0, min(1.0, velValue))
-                curvedVel = max(0.15, sqrt(clamped))
-            }
-            let effectiveVel = 1.0 - cachedVelocityToVolume * (1.0 - curvedVel)
-            var amplitude = sample * envelopeValue * effectiveVel
+            var amplitude = sample * envelopeValue * v.velGain
             amplitude *= max(0.0, 1.0 + ampMod)
             amplitude *= AudioMath.voiceGain * v.unisonScale
             if lfoEnabled && lfoTarget == .amplitude && lfo.stereoPhaseOffsetDegrees == 0 {
@@ -1252,6 +1240,8 @@ public extension AudioEngine {
         // Parallel sends tap pre-insert (post-HPF dry) or post-insert. Level 0 skips the buses.
         let preInsertL = outL
         let preInsertR = outR
+        dynamicsPreCleanBusL = preInsertL
+        dynamicsPreCleanBusR = preInsertR
 
         // EQ before the rider. A boost after it walked straight into the ceiling
         // and rasped; the rider now holds that extra level with one linear gain.

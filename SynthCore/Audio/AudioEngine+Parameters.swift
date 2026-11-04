@@ -180,8 +180,12 @@ extension AudioEngine {
         case .arpLatch:
             cachedArpLatch = v >= 0.5
             arp.latch = cachedArpLatch
-        case .velocityCurve: cachedVelocityCurve = SynthCore.velocityCurveFromFloat(v)
-        case .velocityToVolume: cachedVelocityToVolume = v
+        case .velocityCurve:
+            cachedVelocityCurve = SynthCore.velocityCurveFromFloat(v)
+            refreshActiveVelocityGains()
+        case .velocityToVolume:
+            cachedVelocityToVolume = v
+            refreshActiveVelocityGains()
         case .modEnvAttack: modEnvelope.attack = v
         case .modEnvDecay: modEnvelope.decay = v
         case .modEnvSustain: modEnvelope.sustain = v
