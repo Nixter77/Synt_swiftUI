@@ -1,6 +1,6 @@
 //
 //  FactoryVelocitySoftHardTests.swift
-//  SYNT_35 S3: vel 100 is louder than vel 30 on Soft and Hard factory presets.
+//  SYNT_35 S3, strengthened in SYNT_66: vel 100 is louder than vel 30.
 //
 
 import Foundation
@@ -40,7 +40,7 @@ struct FactoryVelocitySoftHardTests {
         for p in ps {
             let lo = Self.rms(p, velocity: 0.30), hi = Self.rms(p, velocity: 1.0)
             lines.append(String(format: "SYNT_35 SOFTHARD | %@ | %@ | v30 %.4f | v100 %.4f", p.category.rawValue, p.name, lo, hi))
-            #expect(hi > lo * 1.05, "\(p.name) v100 \(hi) ≤ v30 \(lo)")
+            #expect(hi > lo * 1.50, "\(p.name) v100 \(hi) ≤ 1.50× v30 \(lo)")
         }
         print(lines.joined(separator: "\n"))
         try? lines.joined(separator: "\n").write(toFile: "/tmp/synt35_softhard.txt", atomically: true, encoding: .utf8)

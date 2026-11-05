@@ -1137,9 +1137,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     public func noteOn(midiNote: Int, velocity: Float = 1.0) {
-        // Read preset only on non-audio path; push RT-safe command
+        // Read preset only on non-audio path; push RT-safe command.
+        // Arp must go through keyDown so the velocity is stored for arpInputVelocity.
+        // arpKeyDown alone drops it and every arp tick falls back to 0.8.
         if preset.arpMode != .off {
-            _ = commandQueue.push(.arpKeyDown(midiNote: midiNote))
+            _ = commandQueue.push(.keyDown(midiNote: midiNote, velocity: velocity))
         } else {
             _ = commandQueue.push(.noteOn(midiNote: midiNote, velocity: velocity))
         }

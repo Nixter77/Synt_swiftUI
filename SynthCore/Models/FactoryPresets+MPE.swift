@@ -92,7 +92,7 @@ public extension SynthPreset {
         p.modMatrix = [
             A.mod(.mpeTimbre, .wtMorph1, 0.65),
             A.mod(.mpePressure, .cutoff, 0.28),
-            A.mod(.mpePressure, .fm, 0.14)
+            A.mod(.mpePressure, .fm, 0.15)
         ]
         p.mpeEnabled = true
         p.mpePitchBendRange = 48
