@@ -43,6 +43,10 @@ public enum AudioCommand: Equatable {
     case setAftertouch(Float)
     /// Polyphonic Aftertouch (Key Pressure 0…1)
     case setPolyAftertouch(midiNote: Int, pressure: Float)
+    /// CC7 Volume, 0…1. Not critical: a full ring drops one move.
+    case setChannelVolume(Float)
+    /// CC11 Expression, 0…1.
+    case setExpression(Float)
     /// MIDI timing clock, 24 per quarter note. Not critical: a full ring drops one tick.
     case midiClock
     /// MIDI 0xFA. Critical so a full ring cannot lose the downbeat.
@@ -69,6 +73,7 @@ public enum AudioCommand: Equatable {
              .midiStart, .midiContinue, .midiStop, .mpeKeyUp:
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
+             .setChannelVolume, .setExpression,
              .midiClock, .setAddressedParameter, .setFXOrder,
              .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre, .mpeControlChange, .clearMPEControllerOverrides:
             return false
@@ -184,6 +189,7 @@ public final class AudioCommandQueue: @unchecked Sendable {
             orMpeKeyUpBit(clampedMIDI(midiNote), channel: Int(channel & 15))
             return true
         case .noteOn, .arpKeyDown, .setPitchBend, .setModWheel, .keyDown, .controlChange, .setAftertouch, .setPolyAftertouch,
+             .setChannelVolume, .setExpression,
              .midiClock, .setAddressedParameter, .setFXOrder,
              .mpeKeyDown, .mpePitchBend, .mpePressure, .mpeTimbre, .mpeControlChange, .clearMPEControllerOverrides:
             return false

@@ -175,6 +175,8 @@ public extension SynthPreset {
         p.velocityToVolume = f(p.velocityToVolume, 0.0, 1.0, 1.0)
         p.velocityRangeDb = f(p.velocityRangeDb, 0, 60, 0)
         p.velocityCurveShape = f(p.velocityCurveShape, -1, 1, 0)
+        p.aftertouchCurve = f(p.aftertouchCurve, -1, 1, 0)
+        p.aftertouchDeadzone = f(p.aftertouchDeadzone, 0, 0.3, 0)
         if !GlobalVoiceSourcePolicy.allCases.contains(p.globalVoiceSourcePolicy) {
             p.globalVoiceSourcePolicy = .loudest
         }

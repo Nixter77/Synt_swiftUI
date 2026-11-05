@@ -115,7 +115,8 @@ import Testing
         #expect(LiveModulationSnapshot.slot(for: .unisonDetune) == 31)
         #expect(SynthParameterAddress.combUsesVoiceCutoff.rawValue == 187)
         #expect(SynthParameterAddress.perVoiceCutoffSources.rawValue == 188)
-        #expect(SynthParameterAddress.allCases.last == .perVoiceCutoffSources)
+        #expect(SynthParameterAddress.aftertouchDeadzone.rawValue == 191)
+        #expect(SynthParameterAddress.allCases.last == .aftertouchDeadzone)
     }
 
     @Test func velocityToDriveRaisesTheCentroid() {

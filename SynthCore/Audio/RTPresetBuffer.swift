@@ -137,6 +137,9 @@ public struct RTPresetSnapshot: Sendable {
     public var shortAttackEnabled: Bool = false
     public var combUsesVoiceCutoff: Bool = false
     public var perVoiceCutoffSources: Bool = false
+    public var respondToExpressionCC: Bool = false
+    public var aftertouchCurve: Float = 0
+    public var aftertouchDeadzone: Float = 0
     public var hasEnvTimeMod: Bool = false
     public var glideMode: GlideMode = .time
     public var glideLegatoOnly: Bool = false
@@ -379,6 +382,9 @@ public struct RTPresetSnapshot: Sendable {
         shortAttackEnabled = preset.shortAttackEnabled
         combUsesVoiceCutoff = preset.combUsesVoiceCutoff
         perVoiceCutoffSources = preset.perVoiceCutoffSources
+        respondToExpressionCC = preset.respondToExpressionCC
+        aftertouchCurve = max(-1, min(1, preset.aftertouchCurve))
+        aftertouchDeadzone = max(0, min(0.3, preset.aftertouchDeadzone))
         hasEnvTimeMod = preset.modMatrix.contains { entry in
             switch entry.destination {
             case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:

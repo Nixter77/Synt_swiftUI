@@ -159,6 +159,9 @@ extension SynthPreset {
         case .shortAttackEnabled: return shortAttackEnabled ? 1 : 0
         case .combUsesVoiceCutoff: return combUsesVoiceCutoff ? 1 : 0
         case .perVoiceCutoffSources: return perVoiceCutoffSources ? 1 : 0
+        case .respondToExpressionCC: return respondToExpressionCC ? 1 : 0
+        case .aftertouchCurve: return aftertouchCurve
+        case .aftertouchDeadzone: return aftertouchDeadzone
         }
     }
 
@@ -313,6 +316,9 @@ extension SynthPreset {
         case .shortAttackEnabled: shortAttackEnabled = value >= 0.5
         case .combUsesVoiceCutoff: combUsesVoiceCutoff = value >= 0.5
         case .perVoiceCutoffSources: perVoiceCutoffSources = value >= 0.5
+        case .respondToExpressionCC: respondToExpressionCC = value >= 0.5
+        case .aftertouchCurve: aftertouchCurve = value
+        case .aftertouchDeadzone: aftertouchDeadzone = value
         }
     }
 

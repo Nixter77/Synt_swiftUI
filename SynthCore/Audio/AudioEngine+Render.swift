@@ -203,7 +203,7 @@ public extension AudioEngine {
                 modWheel: modWheel,
                 keyTrack: key,
                 env2: voice.filterEnvelopeValue,
-                aftertouch: max(aftertouch, voice.polyAftertouch),
+                aftertouch: max(aftertouch, shapeAftertouch(voice.polyAftertouch)),
                 modEnv: voice.modEnvelopeValue,
                 pitchBend: pitchBendSmoothed,
                 random: voice.randomValue,
@@ -579,6 +579,8 @@ public extension AudioEngine {
         var globalMpeBend: Float = 0
         var globalMpePres: Float = 0
         var globalMpeTimb: Float = 0
+        var globalPoly: Float = 0
+        var globalAftertouch = currentAftertouch
         var rateMod: Float = 0
         var depthMod: Float = 0
         var chorusMixMod: Float = 0
@@ -599,6 +601,7 @@ public extension AudioEngine {
                         globalMpeBend = voices[i].smoothedMpePitchBend
                         globalMpePres = voices[i].smoothedMpePressure
                         globalMpeTimb = voices[i].smoothedMpeTimbre
+                        globalPoly = voices[i].polyAftertouch
                     }
                 }
             case .lastPlayed:
@@ -611,6 +614,7 @@ public extension AudioEngine {
                     globalMpeBend = voices[slot].smoothedMpePitchBend
                     globalMpePres = voices[slot].smoothedMpePressure
                     globalMpeTimb = voices[slot].smoothedMpeTimbre
+                    globalPoly = voices[slot].polyAftertouch
                 } else {
                     var loudest: Float = -1
                     for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
@@ -624,6 +628,7 @@ public extension AudioEngine {
                             globalMpeBend = voices[i].smoothedMpePitchBend
                             globalMpePres = voices[i].smoothedMpePressure
                             globalMpeTimb = voices[i].smoothedMpeTimbre
+                            globalPoly = voices[i].polyAftertouch
                         }
                     }
                 }
@@ -642,9 +647,11 @@ public extension AudioEngine {
                         globalMpeBend = voices[i].smoothedMpePitchBend
                         globalMpePres = voices[i].smoothedMpePressure
                         globalMpeTimb = voices[i].smoothedMpeTimbre
+                        globalPoly = voices[i].polyAftertouch
                     }
                 }
             }
+            globalAftertouch = max(currentAftertouch, shapeAftertouch(globalPoly))
             for m in 0..<modCount {
                 let entry = modSlots[m]
                 if entry.source == .lfo1 { matrixWantsLFO = true }
@@ -658,7 +665,7 @@ public extension AudioEngine {
                     velocity: globalVel,
                     modWheel: modWheel,
                     keyTrack: globalKeyTrack,
-                    aftertouch: currentAftertouch,
+                    aftertouch: globalAftertouch,
                     smoothRandom: smoothRandomValue,
                     mseg: msegValue,
                     mseg2: mseg2Value,
@@ -751,7 +758,7 @@ public extension AudioEngine {
                     velocity: globalVel,
                     modWheel: modWheel,
                     keyTrack: globalKeyTrack,
-                    aftertouch: currentAftertouch,
+                    aftertouch: globalAftertouch,
                     smoothRandom: smoothRandomValue,
                     mseg: msegValue,
                     mseg2: mseg2Value,
@@ -1013,7 +1020,7 @@ public extension AudioEngine {
                         modWheel: modWheel,
                         keyTrack: keyTrackVal,
                         env2: filterEnvVal,
-                        aftertouch: max(currentAftertouch, v.polyAftertouch),
+                        aftertouch: max(currentAftertouch, shapeAftertouch(v.polyAftertouch)),
                         modEnv: modEnvVal,
                         pitchBend: pitchBendSmoothed,
                         random: v.randomValue,
@@ -1629,6 +1636,14 @@ public extension AudioEngine {
         let headroom: Float = 0.65
         var outL = mixedSampleL * smoothedMasterVolume * headroom
         var outR = mixedSampleR * smoothedMasterVolume * headroom
+        // Flag off skips the smoother and the multiply, so goldens stay bit-exact.
+        if cachedRespondToExpressionCC {
+            let expression = expressionGain()
+            if expression != 1 {
+                outL *= expression
+                outR *= expression
+            }
+        }
         if cachedSceneHPF {
             let high = sceneHPF.process(
                 left: outL,
@@ -1944,6 +1959,7 @@ public extension AudioEngine {
     }
 
     /// ~5 ms one-pole toward aftertouch target. Idle aftertouch stays 0 and skips work.
+    /// Curve and deadzone are applied once on the smoothed value. Both zero is identity.
     func advanceAftertouch() -> Float {
         let target = aftertouchTarget
         if target == 0 && aftertouchSmoothed == 0 {
@@ -1954,7 +1970,69 @@ public extension AudioEngine {
         if abs(target - aftertouchSmoothed) < 0.00002 {
             aftertouchSmoothed = target
         }
-        return aftertouchSmoothed
+        return shapeAftertouch(aftertouchSmoothed)
+    }
+
+    /// Deadzone, then the same power law as the matrix curve. Identity when both are 0.
+    @inline(__always)
+    func shapeAftertouch(_ raw: Float) -> Float {
+        let deadzone = cachedAftertouchDeadzone
+        let curve = cachedAftertouchCurve
+        if deadzone == 0 && curve == 0 { return raw }
+        var x = raw
+        if deadzone > 0 {
+            if x <= deadzone { return 0 }
+            let span = 1 - deadzone
+            x = span > 0 ? (x - deadzone) / span : 0
+        }
+        if curve == 0 || x == 0 || x == 1 { return x }
+        return pow(x, exp2(-3 * curve))
+    }
+
+    /// CC byte from a 0…1 controller. `rounded` so n/127 round-trips for n = 0…127.
+    static func midiControllerByte(_ value: Float) -> UInt8 {
+        let clamped = min(1, max(0, value))
+        return UInt8((clamped * 127).rounded())
+    }
+
+    /// 5 ms one-pole on a 0…1 controller that rests at 1. Idle unity does no work.
+    @inline(__always)
+    func advanceUnityController(target: Float, smoothed: inout Float) -> Float {
+        if target == 1 && smoothed == 1 { return 1 }
+        let coeff = midiSmoothingCoeff()
+        smoothed += (target - smoothed) * coeff
+        if abs(target - smoothed) < 0.00002 {
+            smoothed = target
+        }
+        return smoothed
+    }
+
+    /// GM volume: gain = (cc/127)^2, which is 40·log10. Both controllers multiply.
+    func expressionGain() -> Float {
+        let volume = advanceUnityController(target: channelVolumeTarget, smoothed: &channelVolumeSmoothed)
+        let expression = advanceUnityController(target: expressionTarget, smoothed: &expressionSmoothed)
+        if volume == 1 && expression == 1 { return 1 }
+        return volume * volume * expression * expression
+    }
+
+    /// Learn wins. Otherwise the preset flag stores the 0…1 target. Flag off is a no-op.
+    func applyExpressionController(cc: UInt8, value: Float, target: inout Float) {
+        guard value.isFinite else { return }
+        let raw = Self.midiControllerByte(value)
+        if (rtCCMap + Int(cc & 127)).pointee.load(ordering: .acquiring) >= 0 {
+            applyPlainCCRT(cc: cc, value: raw)
+            return
+        }
+        if cachedRespondToExpressionCC {
+            target = min(1, max(0, value))
+        }
+    }
+
+    func resetExpressionControllersRT() {
+        channelVolumeTarget = 1
+        channelVolumeSmoothed = 1
+        expressionTarget = 1
+        expressionSmoothed = 1
     }
 
     /// SYNT_27 P2-1: adopts snapshot, matrix and MSEG 1/2 together or not at all. If a writer
@@ -2066,6 +2144,10 @@ public extension AudioEngine {
                     }
                 }
                 // Poly pressure is per-voice only; channel aftertouch owns aftertouchTarget.
+            case .setChannelVolume(let value):
+                applyExpressionController(cc: 7, value: value, target: &channelVolumeTarget)
+            case .setExpression(let value):
+                applyExpressionController(cc: 11, value: value, target: &expressionTarget)
             case .setSustain(let down):
                 setSustainPedal(down: down)
             case .controlChange(let cc, let value):
@@ -2094,6 +2176,7 @@ public extension AudioEngine {
                 cachedPitchBendMultiplierRange = 0
                 aftertouchTarget = 0
                 aftertouchSmoothed = 0
+                resetExpressionControllersRT()
                 cachedMacro1 = 0
                 cachedMacro2 = 0
                 cachedMacro3 = 0

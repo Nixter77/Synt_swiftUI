@@ -298,6 +298,12 @@ final class MIDIHandler: ObservableObject {
         case let .modWheel(value, _):
             audioEngine?.midiModWheel(value)
             activity.touch()
+        case let .channelVolume(value, _):
+            audioEngine?.midiChannelVolume(value)
+            activity.touch()
+        case let .expression(value, _):
+            audioEngine?.midiExpression(value)
+            activity.touch()
         case let .sustain(down, _):
             audioEngine?.midiSustainPedal(down: down)
             activity.touch()

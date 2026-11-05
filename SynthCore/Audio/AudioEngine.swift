@@ -374,6 +374,9 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedShortAttack: Bool = false
     public var cachedCombUsesVoiceCutoff: Bool = false
     public var cachedPerVoiceCutoffSources: Bool = false
+    public var cachedRespondToExpressionCC: Bool = false
+    public var cachedAftertouchCurve: Float = 0
+    public var cachedAftertouchDeadzone: Float = 0
     public var cachedEnvTimeMod: Bool = false
     /// Pressed-key velocities for the arp. Allocated once. Index is the MIDI note.
     public var arpNoteVelocities = [Float](repeating: 0, count: 128)
@@ -569,6 +572,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var modWheel: Float = 0
     public var aftertouchTarget: Float = 0
     public var aftertouchSmoothed: Float = 0
+    /// CC7 / CC11, 0…1. Idle is MIDI 127 so a missing controller stays at unity.
+    public var channelVolumeTarget: Float = 1
+    public var channelVolumeSmoothed: Float = 1
+    public var expressionTarget: Float = 1
+    public var expressionSmoothed: Float = 1
     public var cachedLfoDepth: Float = 0.5
     public var cachedLfo2Depth: Float = 0.5
     public var sustainPedalDown = false
@@ -1179,6 +1187,14 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     public func midiModWheel(_ amount: Float) {
         _ = midiQueue.push(.setModWheel(min(1, max(0, amount))))
+    }
+
+    public func midiChannelVolume(_ amount: Float) {
+        _ = midiQueue.push(.setChannelVolume(min(1, max(0, amount))))
+    }
+
+    public func midiExpression(_ amount: Float) {
+        _ = midiQueue.push(.setExpression(min(1, max(0, amount))))
     }
 
     public func midiAftertouch(_ amount: Float, channel: UInt8 = 0) {

@@ -800,6 +800,7 @@ public extension AudioEngine {
         pitchBendTarget = 0
         aftertouchTarget = 0
         aftertouchSmoothed = 0
+        resetExpressionControllersRT()
         cachedMacro1 = 0
         cachedMacro2 = 0
         cachedMacro3 = 0

@@ -45,7 +45,9 @@ struct MIDIMessageParserTests {
         #expect(p.parse([0xB0, 64, 64]) == [.sustain(down: true, channel: 0)])
         #expect(p.parse([0xB0, 123, 0]) == [.allNotesOff(channel: 0)])
         #expect(p.parse([0xB0, 120, 0]) == [.allSoundOff(channel: 0)])
-        #expect(p.parse([0xB0, 7, 100]) == [.controlChange(controller: 7, value: 100, channel: 0)])
+        #expect(p.parse([0xB0, 7, 100]) == [.channelVolume(Float(100) / 127, channel: 0)])
+        #expect(p.parse([0xB0, 11, 64]) == [.expression(Float(64) / 127, channel: 0)])
+        #expect(p.parse([0xB0, 74, 10]) == [.controlChange(controller: 74, value: 10, channel: 0)])
     }
 
     @Test func runningStatusRealtimeAndSysEx() {
@@ -73,6 +75,8 @@ struct MIDIMessageParserTests {
         #expect(MIDIDecode.ump(0x20E0_0040) == .pitchBend(0, channel: 0))
         #expect(MIDIDecode.ump(0x20B0_4000 | 127) == .sustain(down: true, channel: 0))
         #expect(MIDIDecode.ump(0x20B0_7B00) == .allNotesOff(channel: 0))
+        #expect(MIDIDecode.ump(0x20B0_0764) == .channelVolume(Float(100) / 127, channel: 0))
+        #expect(MIDIDecode.ump(0x20B1_0B40) == .expression(Float(64) / 127, channel: 1))
         // Group nibble is ignored; non-MIDI-1.0 types are ignored.
         #expect(MIDIDecode.ump(0x2390_3C7F) == .noteOn(note: 60, velocity: 1, channel: 0))
         #expect(MIDIDecode.ump(0x10F8_0000) == .ignored)

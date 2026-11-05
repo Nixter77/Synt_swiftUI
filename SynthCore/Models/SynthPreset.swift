@@ -263,6 +263,12 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var combUsesVoiceCutoff: Bool = false
     /// Env 2, mod env, random, and release velocity move cutoff on each voice.
     public var perVoiceCutoffSources: Bool = false
+    /// CC7 and CC11 scale the master only when this is on. Off is a no-op.
+    public var respondToExpressionCC: Bool = false
+    /// −1…1. 0 leaves channel and poly aftertouch linear.
+    public var aftertouchCurve: Float = 0
+    /// 0…0.3. Pressure at or below this reads as silence.
+    public var aftertouchDeadzone: Float = 0
     public var modEnvAttack: Float = 0.01
     public var modEnvDecay: Float = 0.2
     public var modEnvSustain: Float = 0.0
@@ -478,6 +484,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case velToAttack, velToDecay, releaseVelToRelease, envKeyTrack
         case ampRetriggerMode, keepUnisonThroughTails, shortAttackEnabled
         case combUsesVoiceCutoff, perVoiceCutoffSources
+        case respondToExpressionCC, aftertouchCurve, aftertouchDeadzone
     }
 
     public init(
@@ -1056,6 +1063,9 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         shortAttackEnabled = try c.decodeIfPresent(Bool.self, forKey: .shortAttackEnabled) ?? false
         combUsesVoiceCutoff = try c.decodeIfPresent(Bool.self, forKey: .combUsesVoiceCutoff) ?? false
         perVoiceCutoffSources = try c.decodeIfPresent(Bool.self, forKey: .perVoiceCutoffSources) ?? false
+        respondToExpressionCC = try c.decodeIfPresent(Bool.self, forKey: .respondToExpressionCC) ?? false
+        aftertouchCurve = try c.decodeIfPresent(Float.self, forKey: .aftertouchCurve) ?? 0
+        aftertouchDeadzone = try c.decodeIfPresent(Float.self, forKey: .aftertouchDeadzone) ?? 0
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

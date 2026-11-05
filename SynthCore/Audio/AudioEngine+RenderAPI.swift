@@ -263,6 +263,10 @@ extension AudioEngine {
             return .setPitchBend(value)
         case let .modWheel(value, _):
             return .setModWheel(value)
+        case let .channelVolume(value, _):
+            return .setChannelVolume(value)
+        case let .expression(value, _):
+            return .setExpression(value)
         case let .sustain(down, _):
             return .setSustain(down)
         case .allNotesOff:

@@ -231,6 +231,9 @@ extension AudioEngine {
             modEnvelope.allowShortAttack = cachedShortAttack
         case .combUsesVoiceCutoff: cachedCombUsesVoiceCutoff = v >= 0.5
         case .perVoiceCutoffSources: cachedPerVoiceCutoffSources = v >= 0.5
+        case .respondToExpressionCC: cachedRespondToExpressionCC = v >= 0.5
+        case .aftertouchCurve: cachedAftertouchCurve = v
+        case .aftertouchDeadzone: cachedAftertouchDeadzone = v
         case .modEnvAttack: modEnvelope.attack = v
         case .modEnvDecay: modEnvelope.decay = v
         case .modEnvSustain: modEnvelope.sustain = v
@@ -409,6 +412,9 @@ extension AudioEngine {
         case .shortAttackEnabled: return cachedShortAttack ? 1 : 0
         case .combUsesVoiceCutoff: return cachedCombUsesVoiceCutoff ? 1 : 0
         case .perVoiceCutoffSources: return cachedPerVoiceCutoffSources ? 1 : 0
+        case .respondToExpressionCC: return cachedRespondToExpressionCC ? 1 : 0
+        case .aftertouchCurve: return cachedAftertouchCurve
+        case .aftertouchDeadzone: return cachedAftertouchDeadzone
         case .modEnvAttack: return modEnvelope.attack
         case .modEnvDecay: return modEnvelope.decay
         case .modEnvSustain: return modEnvelope.sustain
@@ -599,6 +605,9 @@ extension AudioEngine {
             case .shortAttackEnabled: preset.shortAttackEnabled = v >= 0.5
             case .combUsesVoiceCutoff: preset.combUsesVoiceCutoff = v >= 0.5
             case .perVoiceCutoffSources: preset.perVoiceCutoffSources = v >= 0.5
+            case .respondToExpressionCC: preset.respondToExpressionCC = v >= 0.5
+            case .aftertouchCurve: preset.aftertouchCurve = v
+            case .aftertouchDeadzone: preset.aftertouchDeadzone = v
             case .modEnvAttack: preset.modEnvAttack = v
             case .modEnvDecay: preset.modEnvDecay = v
             case .modEnvSustain: preset.modEnvSustain = v

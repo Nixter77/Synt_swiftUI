@@ -18,6 +18,10 @@ public enum MIDIMessage: Equatable {
     case pitchBend(Float, channel: UInt8)
     /// CC1, 0…1.
     case modWheel(Float, channel: UInt8)
+    /// CC7 Volume, 0…1. Native only when the preset flag is on and learn is free.
+    case channelVolume(Float, channel: UInt8)
+    /// CC11 Expression, 0…1. Same gate as channel volume.
+    case expression(Float, channel: UInt8)
     /// CC64, down when value ≥ 64.
     case sustain(down: Bool, channel: UInt8)
     /// CC123 (and the mode messages CC124–127, which imply it).
@@ -77,6 +81,8 @@ public enum MIDIDecode {
         case 0xB0:
             switch d1 {
             case 1: return .modWheel(Float(d2) / 127, channel: channel)
+            case 7: return .channelVolume(Float(d2) / 127, channel: channel)
+            case 11: return .expression(Float(d2) / 127, channel: channel)
             case 64: return .sustain(down: d2 >= 64, channel: channel)
             case 120: return .allSoundOff(channel: channel)
             case 123, 124, 125, 126, 127: return .allNotesOff(channel: channel)

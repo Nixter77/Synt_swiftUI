@@ -174,6 +174,10 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     /// SYNT_64. Append-only. Both default off so factory comb and cutoff rows stay put.
     case combUsesVoiceCutoff = 187
     case perVoiceCutoffSources = 188
+    /// SYNT_65. Append-only. Off leaves CC7 and CC11 as ignored controllers.
+    case respondToExpressionCC = 189
+    case aftertouchCurve = 190
+    case aftertouchDeadzone = 191
 
     public var identifier: String {
         switch self {
@@ -325,6 +329,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .shortAttackEnabled: return "shortAttackEnabled"
         case .combUsesVoiceCutoff: return "combUsesVoiceCutoff"
         case .perVoiceCutoffSources: return "perVoiceCutoffSources"
+        case .respondToExpressionCC: return "respondToExpressionCC"
+        case .aftertouchCurve: return "aftertouchCurve"
+        case .aftertouchDeadzone: return "aftertouchDeadzone"
         }
     }
 
@@ -478,6 +485,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .shortAttackEnabled: return "Short Attack"
         case .combUsesVoiceCutoff: return "Comb Voice Cutoff"
         case .perVoiceCutoffSources: return "Per-Voice Cutoff Sources"
+        case .respondToExpressionCC: return "Expression CC"
+        case .aftertouchCurve: return "Aftertouch Curve"
+        case .aftertouchDeadzone: return "Aftertouch Deadzone"
         }
     }
 
@@ -505,7 +515,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryHornFast, .rotaryDrumFast: return 1
         case .rotaryDrumSlow: return 0.15
         case .rotaryAccel: return 0.2
-        case .velocityCurveShape: return -1
+        case .velocityCurveShape, .aftertouchCurve: return -1
         case .filterAttackCurve, .filterDecayCurve, .filterReleaseCurve: return -1
         case .velToAttack, .velToDecay, .releaseVelToRelease, .envKeyTrack: return -1
         default: return 0
@@ -556,6 +566,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .filterAttackCurve, .filterDecayCurve, .filterReleaseCurve: return 1
         case .velToAttack, .velToDecay, .releaseVelToRelease, .envKeyTrack: return 1
         case .ampDelay, .ampHold, .filterEnvDelay, .filterEnvHold: return 4
+        case .aftertouchDeadzone: return 0.3
         default: return 1
         }
     }
