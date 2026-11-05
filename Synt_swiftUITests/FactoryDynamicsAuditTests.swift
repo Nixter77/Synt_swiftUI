@@ -28,15 +28,29 @@ struct FactoryDynamicsAuditTests {
             if p.velocityCurve != .decibel { misses.append("\(p.name) curve") }
             if p.velocityToVolume < 1 { misses.append("\(p.name) toVolume \(p.velocityToVolume)") }
             if p.velocityCurveShape != 0 { misses.append("\(p.name) shape") }
+            if p.envelopeModel == .legacy { misses.append("\(p.name) envModel legacy") }
+            if !p.respondToExpressionCC { misses.append("\(p.name) CC11 off") }
+            if !(0.25...0.40).contains(p.aftertouchCurve) { misses.append("\(p.name) atCurve \(p.aftertouchCurve)") }
+            if !(0.04...0.06).contains(p.aftertouchDeadzone) { misses.append("\(p.name) atDeadzone \(p.aftertouchDeadzone)") }
+            if p.unisonVoices > 1 && !p.keepUnisonThroughTails { misses.append("\(p.name) keepUnison off") }
+            if (p.voiceMode == .mono || p.voiceMode == .legato) && !p.legatoUpdatesVelocity { misses.append("\(p.name) legatoVel off") }
+            if p.voiceMode == .legato && p.ampRetriggerMode != .legatoNoRetrigger { misses.append("\(p.name) legatoRetrigger") }
+            if p.globalVoiceSourcePolicy == .loudest && p.category != .bass { misses.append("\(p.name) globalPolicy loudest") }
+            if !(0.08...0.40).contains(p.envKeyTrack) { misses.append("\(p.name) keyTrack \(p.envKeyTrack)") }
+            if !(0.15...0.35).contains(p.releaseVelToRelease) { misses.append("\(p.name) relVelToRel \(p.releaseVelToRelease)") }
             switch p.category {
             case .keys, .pluck, .bass, .lead:
                 if !(24...36).contains(p.velocityRangeDb) { misses.append("\(p.name) range \(p.velocityRangeDb)") }
                 if p.velToAttack != 0.20 { misses.append("\(p.name) velToAttack \(p.velToAttack)") }
                 if p.filterDecayCurve != -0.35 { misses.append("\(p.name) decayCurve \(p.filterDecayCurve)") }
+                if p.filterReleaseCurve != -0.25 { misses.append("\(p.name) relCurve \(p.filterReleaseCurve)") }
+                if !(-0.16 ... -0.08).contains(p.velToDecay) { misses.append("\(p.name) velToDecay \(p.velToDecay)") }
                 if Self.row(p, .velocity, .drive) < 0.15 { misses.append("\(p.name) drive \(Self.row(p, .velocity, .drive)) matrix \(p.modMatrix.count)") }
             case .pad, .strings:
                 if !(13...18).contains(p.velocityRangeDb) { misses.append("\(p.name) range \(p.velocityRangeDb)") }
                 if p.velToAttack != 0.15 { misses.append("\(p.name) velToAttack \(p.velToAttack)") }
+                if p.filterAttackCurve != 0.25 { misses.append("\(p.name) attCurve \(p.filterAttackCurve)") }
+                if p.filterReleaseCurve != -0.20 { misses.append("\(p.name) relCurve \(p.filterReleaseCurve)") }
                 if !p.respondToExpressionCC { misses.append("\(p.name) CC11 off") }
             case .brass:
                 if !(24...36).contains(p.velocityRangeDb) { misses.append("\(p.name) range \(p.velocityRangeDb)") }
@@ -45,6 +59,7 @@ struct FactoryDynamicsAuditTests {
                 if p.velocityToEnvAmount < 0.55 { misses.append("\(p.name) velEnv \(p.velocityToEnvAmount)") }
             case .arp:
                 if !(20...32).contains(p.velocityRangeDb) { misses.append("\(p.name) range \(p.velocityRangeDb)") }
+                if p.velToAttack != 0.18 { misses.append("\(p.name) velToAttack \(p.velToAttack)") }
                 if Self.row(p, .velocity, .drive) < 0.15 { misses.append("\(p.name) drive \(Self.row(p, .velocity, .drive)) matrix \(p.modMatrix.count)") }
                 if p.filterType != .formant && Self.row(p, .velocity, .cutoff) < 0.20 && p.velocityToCutoff < 0.28 {
                     misses.append("\(p.name) arp cutoff")

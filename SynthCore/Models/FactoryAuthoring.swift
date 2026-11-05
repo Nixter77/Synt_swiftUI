@@ -1309,17 +1309,68 @@ extension FactoryAuthoring {
             decibel(24, 36, 0.414_213_562)
             p.velToAttack = 0.20
             p.filterDecayCurve = -0.35
+            p.filterReleaseCurve = -0.25
             ensureRow(.velocity, .drive, 0.15, 0.35, 0.236_067_977)
             ensureBright(lo: 0.50, hi: 0.68, k: 0.381_966_011)
-            if p.category == .pluck { p.envKeyTrack = spread(0.20, 0.40, 0.561_552_813) }
+            switch p.category {
+            case .pluck:
+                p.envelopeModel = .digital
+                p.shortAttackEnabled = p.attack <= 0.010
+                p.envKeyTrack = spread(0.20, 0.40, 0.561_552_813)
+                p.velToDecay = -spread(0.08, 0.16, 0.302_775_638)
+                p.releaseVelToRelease = spread(0.20, 0.35, 0.618_033_989)
+                if p.filterEnvHold < 0.004 {
+                    p.filterEnvHold = r3(0.004 + 0.004 * stagger(i, salt, 0.414_213_562))
+                }
+            case .keys:
+                let digitalKeys = p.fmAmount > 0 || p.osc1Waveform == .wavetable || has(p, ["digital", "bell", "harpsi", "toy", "clav"])
+                p.envelopeModel = digitalKeys ? .digital : .analog
+                p.shortAttackEnabled = p.attack <= 0.010
+                p.envKeyTrack = spread(0.15, 0.30, 0.561_552_813)
+                p.velToDecay = -spread(0.08, 0.16, 0.302_775_638)
+                p.releaseVelToRelease = spread(0.20, 0.35, 0.618_033_989)
+            case .bass:
+                let digitalBass = p.osc1Waveform == .wavetable || p.transientEnabled
+                p.envelopeModel = digitalBass ? .digital : .analog
+                p.shortAttackEnabled = p.attack <= 0.008
+                p.envKeyTrack = spread(0.10, 0.22, 0.561_552_813)
+                p.velToDecay = -spread(0.08, 0.16, 0.302_775_638)
+                p.releaseVelToRelease = spread(0.15, 0.25, 0.618_033_989)
+                if has(p, ["808", "sub", "slap", "snap"]) && p.filterEnvHold < 0.008 {
+                    p.filterEnvHold = r3(0.008 + 0.008 * stagger(i, salt, 0.707_106_781))
+                }
+            case .lead:
+                p.envelopeModel = p.osc1Waveform == .wavetable ? .digital : .analog
+                p.shortAttackEnabled = p.attack <= 0.008
+                p.envKeyTrack = spread(0.10, 0.20, 0.561_552_813)
+                p.velToDecay = -spread(0.08, 0.16, 0.302_775_638)
+                p.releaseVelToRelease = spread(0.15, 0.28, 0.618_033_989)
+            default:
+                break
+            }
         case .pad, .strings:
             decibel(13, 18, 0.732_050_808)
             p.velToAttack = 0.15
             p.respondToExpressionCC = true
+            p.envelopeModel = (p.osc1Waveform == .wavetable || p.transientEnabled) ? .digital : .analog
+            p.filterAttackCurve = 0.25
+            p.filterReleaseCurve = -0.20
+            p.envKeyTrack = spread(0.08, 0.16, 0.561_552_813)
+            p.releaseVelToRelease = spread(0.18, 0.30, 0.618_033_989)
+            if p.attack >= 0.15 && p.filterEnvDelay < 0.012 && p.filterEnvelopeAmount > 0.15 {
+                p.filterEnvDelay = r3(0.012 + 0.018 * stagger(i, salt, 0.414_213_562))
+            }
             ensureBright(lo: 0.48, hi: 0.64, k: 0.302_775_638)
         case .brass:
             decibel(24, 36, 0.618_033_989)
             p.velToAttack = spread(0.24, 0.34, 0.381_966_011)
+            p.envelopeModel = .analog
+            p.filterAttackCurve = 0.25
+            p.filterDecayCurve = -0.25
+            p.filterReleaseCurve = -0.20
+            p.envKeyTrack = spread(0.12, 0.22, 0.561_552_813)
+            p.velToDecay = -spread(0.06, 0.12, 0.302_775_638)
+            p.releaseVelToRelease = spread(0.15, 0.25, 0.618_033_989)
             let hold = r3(0.020 + 0.020 * stagger(i, salt, 0.707_106_781))
             if p.ampHold < 0.020 { p.ampHold = hold }
             if p.filterEnvHold < 0.020 { p.filterEnvHold = hold }
@@ -1327,6 +1378,14 @@ extension FactoryAuthoring {
             ensureBright(lo: 0.50, hi: 0.68, k: 0.414_213_562)
         case .arp:
             decibel(20, 32, 0.236_067_977)
+            p.envelopeModel = .digital
+            p.shortAttackEnabled = !p.transientEnabled && p.attack <= 0.010
+            p.velToAttack = 0.18
+            p.velToDecay = -spread(0.06, 0.12, 0.302_775_638)
+            p.envKeyTrack = spread(0.15, 0.28, 0.561_552_813)
+            p.releaseVelToRelease = spread(0.18, 0.30, 0.618_033_989)
+            p.filterDecayCurve = -0.30
+            p.filterReleaseCurve = -0.25
             ensureRow(.velocity, .drive, 0.15, 0.35, 0.561_552_813)
             if p.filterType != .formant {
                 ensureRow(.velocity, .cutoff, 0.20, 0.35, 0.302_775_638)
@@ -1335,7 +1394,77 @@ extension FactoryAuthoring {
         default:
             break
         }
+
+        // Playability, voice allocation, and expression dynamics across all non-FX categories:
+        p.respondToExpressionCC = true
+        p.aftertouchCurve = spread(0.25, 0.40, 0.302_775_638)
+        p.aftertouchDeadzone = r2(0.04 + 0.02 * stagger(i, salt, 0.561_552_813))
+        if p.unisonVoices > 1 {
+            p.keepUnisonThroughTails = true
+        }
+        if p.voiceMode == .legato || p.voiceMode == .mono {
+            p.legatoUpdatesVelocity = true
+            p.globalVoiceSourcePolicy = .lastPlayed
+            if p.voiceMode == .legato {
+                p.ampRetriggerMode = .legatoNoRetrigger
+            }
+        } else {
+            switch p.category {
+            case .lead, .keys, .pluck, .arp, .brass:
+                p.globalVoiceSourcePolicy = .highest
+            case .pad, .strings:
+                p.globalVoiceSourcePolicy = (i + salt) % 2 == 0 ? .lastPlayed : .highest
+            default:
+                break
+            }
+        }
         if p.arpMode != .off { p.arpUsesInputVelocity = true }
+        // With shortAttackEnabled + faster velToAttack + filterEnvHold on fast plucks/keys/bass,
+        // the post-CleanBus differential transient shaper sees a steeper 3-note chord edge;
+        // scale transientOutput to 0.72 so 3-note chords stay well below the 0.60 / 0.90 ceilings.
+        if p.transientEnabled && p.transientAttack > 0 {
+            p.transientOutput = min(p.transientOutput, 0.72)
+        }
+
+        // Shape progressive drive bite via negative curveShape (concave, exponent > 1) on velocity -> drive rows,
+        // and add expressive aftertouch / releaseVelocity / viaSource matrix modulation where slots permit.
+        let driveCurve = -spread(0.15, 0.28, 0.414_213_562)
+        for idx in p.modMatrix.indices {
+            if p.modMatrix[idx].source == .velocity && p.modMatrix[idx].destination == .drive && p.modMatrix[idx].curveShape == 0 {
+                p.modMatrix[idx].curveShape = driveCurve
+            }
+        }
+        // Release velocity damper shaping in matrix for Keys, Pluck, Strings, Pad (non-MPE; MPE adds .ampRelease below)
+        if !p.mpeEnabled,
+           [.keys, .pluck, .strings, .pad].contains(p.category),
+           !p.modMatrix.contains(where: { $0.source == .releaseVelocity }),
+           p.modMatrix.count < 15 {
+            let relDest: ModDestination = (p.category == .pluck || p.category == .keys) ? .ampRelease : .filterRelease
+            let relAmt = -max(0.18, spread(0.18, 0.32, 0.707_106_781))
+            p.modMatrix.append(mod(.releaseVelocity, relDest, relAmt, curveShape: -0.20))
+        }
+        // Aftertouch expressive routing (via velocity) where a slot is open
+        if !p.mpeEnabled,
+           !p.modMatrix.contains(where: { $0.source == .aftertouch }),
+           p.modMatrix.count < 16 {
+            let atAmt = max(0.18, spread(0.18, 0.32, 0.236_067_977))
+            let atDest: ModDestination
+            let viaSrc: ModSource?
+            if p.filterType == .formant {
+                atDest = .vowel
+                viaSrc = .velocity
+            } else if p.unisonVoices > 1 && (p.category == .lead || p.category == .brass || p.category == .bass) {
+                atDest = .unisonDetune
+                viaSrc = .velocity
+            } else if p.filterEnvelopeAmount >= 0.35 && (p.category == .pluck || p.category == .keys || p.category == .arp) {
+                atDest = .filterEnvAmount
+                viaSrc = .velocity
+            } else {
+                atDest = .cutoff
+                viaSrc = .velocity
+            }
+            p.modMatrix.append(mod(.aftertouch, atDest, atAmt, curveShape: -0.20, via: viaSrc))
+        }
 
         guard p.mpeEnabled else { return }
         ensureRow(.mpePressure, .amp, 0.22, 0.35, 0.414_213_562)
