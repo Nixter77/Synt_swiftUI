@@ -160,7 +160,9 @@ public extension AudioEngine {
     }
 
     /// Fixed-pool allocation (audio thread). No Dictionary / heap ids.
-    func createVoice(midiNote: Int, velocity: Float, hadHeldNotes: Bool = false, channel: UInt8 = 0) {
+    /// The external label stays `velocity`. The body sees the touch-shaped value.
+    func createVoice(midiNote: Int, velocity rawVelocity: Float, hadHeldNotes: Bool = false, channel: UInt8 = 0) {
+        let velocity = keyboardTouchVelocity(rawVelocity)
         clearSustainBit(midiNote)
         if cachedAmpRetriggerMode != .fromCurrent, reuseSameNote(midiNote: midiNote, velocity: velocity, channel: channel) {
             return
@@ -356,7 +358,7 @@ public extension AudioEngine {
     /// Legacy `.linear` / `.exponential` / `.logarithmic` amp law, including the 0.15 floor.
     /// `.decibel` uses `rangeDb` and `curveShape`. The other curves ignore those arguments,
     /// so a call that passes the defaults is the old expression.
-    static func legacyVelocityGain(
+    public static func legacyVelocityGain(
         velocity: Float,
         curve: VelocityCurve,
         toVolume: Float,
@@ -551,7 +553,8 @@ public extension AudioEngine {
         releaseHeldNote(midiNote, channel: channel, releaseVelocity: releaseVelocity)
     }
 
-    func retuneActiveVoicesLegato(to midiNote: Int, velocity: Float) {
+    func retuneActiveVoicesLegato(to midiNote: Int, velocity rawVelocity: Float) {
+        let velocity = keyboardTouchVelocity(rawVelocity)
         let baseFreq = noteToFrequency(midiNote)
         var anyFound = false
 
@@ -600,7 +603,8 @@ public extension AudioEngine {
         lastPlayedFrequency = baseFreq
 
         if !anyFound {
-            createVoice(midiNote: midiNote, velocity: velocity)
+            // createVoice shapes again. Pass the raw key so Light/Heavy apply once.
+            createVoice(midiNote: midiNote, velocity: rawVelocity)
         }
     }
 

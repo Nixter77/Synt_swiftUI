@@ -1318,6 +1318,15 @@ public enum VelocityCurve: String, CaseIterable, Codable, Sendable {
     case logarithmic = "Logarithmic"
     /// dB law. `velocityRangeDb == 0` makes every velocity gain 1.
     case decibel = "Decibel"
+
+    public var shortTitle: String {
+        switch self {
+        case .linear: return "Lin"
+        case .exponential: return "Exp"
+        case .logarithmic: return "Log"
+        case .decibel: return "dB"
+        }
+    }
 }
 
 public enum GlideMode: String, CaseIterable, Codable, Sendable {

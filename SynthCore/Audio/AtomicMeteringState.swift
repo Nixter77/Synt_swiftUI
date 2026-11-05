@@ -13,6 +13,12 @@ public final class AtomicMeteringState: @unchecked Sendable {
     // Atomic storage for levels (stored as UInt32 bit patterns for atomic ops)
     private let outputLevelBits = Atomic<UInt32>(0)
     private let peakLevelBits = Atomic<UInt32>(0)
+    /// Last raw key velocity, release velocity, and aftertouch. 0 means no event yet.
+    private let inputVelocityBits = Atomic<UInt32>(0)
+    private let releaseVelocityBits = Atomic<UInt32>(0)
+    private let aftertouchBits = Atomic<UInt32>(0)
+    /// Velocity after the app touch curve. The amp graph draws its dot here.
+    private let playedVelocityBits = Atomic<UInt32>(0)
 
     // Lock-free ring buffer for scope / spectrum output data
     public static let defaultScopeBufferSize = 512
@@ -57,6 +63,26 @@ public final class AtomicMeteringState: @unchecked Sendable {
         peakLevelBits.store(value.bitPattern, ordering: .relaxed)
     }
 
+    @inline(__always)
+    public func setInputVelocity(_ value: Float) {
+        inputVelocityBits.store(value.bitPattern, ordering: .relaxed)
+    }
+
+    @inline(__always)
+    public func setReleaseVelocity(_ value: Float) {
+        releaseVelocityBits.store(value.bitPattern, ordering: .relaxed)
+    }
+
+    @inline(__always)
+    public func setAftertouch(_ value: Float) {
+        aftertouchBits.store(value.bitPattern, ordering: .relaxed)
+    }
+
+    @inline(__always)
+    public func setPlayedVelocity(_ value: Float) {
+        playedVelocityBits.store(value.bitPattern, ordering: .relaxed)
+    }
+
     public func writeScopeBuffer(_ data: UnsafeBufferPointer<Float>) {
         // A short copy would leave a stale tail and publish a torn frame.
         guard data.count >= scopeBufferSize, let base = data.baseAddress else { return }
@@ -97,6 +123,26 @@ public final class AtomicMeteringState: @unchecked Sendable {
     @inline(__always)
     public func getPeakLevel() -> Float {
         Float(bitPattern: peakLevelBits.load(ordering: .relaxed))
+    }
+
+    @inline(__always)
+    public func getInputVelocity() -> Float {
+        Float(bitPattern: inputVelocityBits.load(ordering: .relaxed))
+    }
+
+    @inline(__always)
+    public func getReleaseVelocity() -> Float {
+        Float(bitPattern: releaseVelocityBits.load(ordering: .relaxed))
+    }
+
+    @inline(__always)
+    public func getAftertouch() -> Float {
+        Float(bitPattern: aftertouchBits.load(ordering: .relaxed))
+    }
+
+    @inline(__always)
+    public func getPlayedVelocity() -> Float {
+        Float(bitPattern: playedVelocityBits.load(ordering: .relaxed))
     }
 
     public func readScopeBuffer() -> [Float] {

@@ -158,6 +158,19 @@ struct ModMatrixView: View {
                 .accessibilityIdentifier("modCurve")
             }
             HStack(spacing: 6) {
+                MatrixCurveControl(shape: entry.curveShape)
+                Picker("Via", selection: entry.viaSource) {
+                    Text("—").tag(Optional<ModSource>.none)
+                    ForEach(ModSource.allCases, id: \.self) { source in
+                        Text(source.rawValue).tag(Optional(source))
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(maxWidth: 78)
+                .accessibilityIdentifier("modVia")
+                .help(row.viaSource.map { "Via \($0.rawValue)" } ?? "Via off")
+
                 KnobView(
                     value: entry.amount,
                     range: -1...1,
@@ -223,7 +236,14 @@ struct ModMatrixView: View {
         default:
             action = "\(row.source.rawValue) → \(row.destination.menuTitle) \(row.destination.formatAmount(row.amount))."
         }
-        return "\(action) \(polarity)"
+        var extra = ""
+        if row.curveShape != 0 {
+            extra += " Curve shape \(String(format: "%+.2f", row.curveShape))."
+        }
+        if let via = row.viaSource {
+            extra += " Via \(via.rawValue)."
+        }
+        return "\(action) \(polarity)\(extra)"
     }
 
     private func addEntry() {
@@ -233,5 +253,46 @@ struct ModMatrixView: View {
 
     private func removeEntry(_ id: UUID) {
         preset.modMatrix.removeAll { $0.id == id }
+    }
+}
+
+/// `y = x ^ 2^(−3·shape)`. Drag up bends the row toward a fast start.
+struct MatrixCurveControl: View {
+    @Environment(\.theme) private var theme
+    @Binding var shape: Float
+    @State private var dragStart: Float?
+
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            let steps = 12
+            let exponent = exp2(-3 * shape)
+            for i in 0...steps {
+                let x = Float(i) / Float(steps)
+                let y = pow(x, exponent)
+                let point = CGPoint(
+                    x: CGFloat(x) * size.width,
+                    y: size.height - CGFloat(y) * size.height
+                )
+                if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            context.stroke(path, with: .color(theme.aMod), lineWidth: 1.5)
+        }
+        .frame(width: 28, height: 18)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { gesture in
+                    if dragStart == nil { dragStart = shape }
+                    let base = dragStart ?? shape
+                    let next = base + Float(-gesture.translation.height) / 48
+                    shape = min(1, max(-1, next))
+                }
+                .onEnded { _ in
+                    dragStart = nil
+                }
+        )
+        .accessibilityIdentifier("modCurveShape")
+        .help(String(format: "Curve shape %+.2f", shape))
     }
 }

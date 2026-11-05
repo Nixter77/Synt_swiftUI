@@ -1636,8 +1636,8 @@ public extension AudioEngine {
         let headroom: Float = 0.65
         var outL = mixedSampleL * smoothedMasterVolume * headroom
         var outR = mixedSampleR * smoothedMasterVolume * headroom
-        // Flag off skips the smoother and the multiply, so goldens stay bit-exact.
-        if cachedRespondToExpressionCC {
+        // Both flags off skips the smoother and the multiply, so goldens stay bit-exact.
+        if cachedRespondToExpressionCC || cachedGlobalExpressionCC {
             let expression = expressionGain()
             if expression != 1 {
                 outL *= expression
@@ -2023,7 +2023,7 @@ public extension AudioEngine {
             applyPlainCCRT(cc: cc, value: raw)
             return
         }
-        if cachedRespondToExpressionCC {
+        if cachedRespondToExpressionCC || cachedGlobalExpressionCC {
             target = min(1, max(0, value))
         }
     }
@@ -2082,6 +2082,7 @@ public extension AudioEngine {
             case .clearMPEControllerOverrides:
                 clearMPEControllerOverridesRT()
             case .keyDown(let midiNote, let velocity):
+                meteringState.setInputVelocity(velocity)
                 if cachedArpMode != .off {
                     let idx = midiNote < 0 ? 0 : min(127, midiNote)
                     arpNoteVelocities[idx] = velocity
@@ -2090,6 +2091,7 @@ public extension AudioEngine {
                     handleNoteOn(midiNote: midiNote, velocity: velocity)
                 }
             case .keyUp(let midiNote, let releaseVelocity):
+                meteringState.setReleaseVelocity(releaseVelocity)
                 // Follow where the key went, so an arp toggle mid-hold cannot strand it.
                 if heldKeysForArp.contains(midiNote) {
                     handleCommand(.arpKeyUp(midiNote: midiNote))
@@ -2097,12 +2099,16 @@ public extension AudioEngine {
                     handleNoteOff(midiNote: midiNote, releaseVelocity: releaseVelocity)
                 }
             case .noteOn(let midiNote, let velocity):
+                meteringState.setInputVelocity(velocity)
                 handleNoteOn(midiNote: midiNote, velocity: velocity)
             case .noteOff(let midiNote, let releaseVelocity):
+                meteringState.setReleaseVelocity(releaseVelocity)
                 handleNoteOff(midiNote: midiNote, releaseVelocity: releaseVelocity)
             case .mpeKeyDown(let midiNote, let velocity, let channel):
+                meteringState.setInputVelocity(velocity)
                 handleNoteOn(midiNote: midiNote, velocity: velocity, channel: channel)
             case .mpeKeyUp(let midiNote, let channel, let releaseVelocity):
+                meteringState.setReleaseVelocity(releaseVelocity)
                 handleNoteOff(midiNote: midiNote, channel: channel, releaseVelocity: releaseVelocity)
             case .mpePitchBend(let channel, let value):
                 let ch = Int(channel & 15)
@@ -2136,8 +2142,10 @@ public extension AudioEngine {
             case .setModWheel(let amount):
                 modWheel = amount
             case .setAftertouch(let amount):
+                meteringState.setAftertouch(amount)
                 aftertouchTarget = amount
             case .setPolyAftertouch(let midiNote, let pressure):
+                meteringState.setAftertouch(pressure)
                 for i in 0..<AudioEngine.maxVoices {
                     if voices[i].isActive && voices[i].midiNote == midiNote {
                         voices[i].polyAftertouch = pressure

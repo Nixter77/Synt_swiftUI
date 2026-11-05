@@ -17,6 +17,10 @@ final class SynthRuntime {
 
     private init() {
         engine = AudioEngine()
+        // The test host builds this runtime too. Saved touch must not move goldens.
+        if !RuntimeEnvironment.isUnitTestHost {
+            PerformanceSettings.applyStored(to: engine)
+        }
         midi = MIDIHandler(audioEngine: engine)
     }
 }
@@ -237,6 +241,7 @@ struct ContentView: View {
                     .lineLimit(1)
 
                 MIDIStatusView(midi: midiHandler, activity: midiHandler.activity)
+                DynamicsStatusReadout(metering: audioEngine.meteringState)
             }
             .fixedSize(horizontal: true, vertical: false)
 
@@ -247,6 +252,16 @@ struct ContentView: View {
 
             Menu {
                 Toggle("Program Change", isOn: $audioEngine.respondsToProgramChange)
+                PerformanceSettingsToggles(
+                    touch: $audioEngine.keyboardTouch,
+                    respondToExpression: $audioEngine.globalExpressionCC,
+                    onChange: {
+                        PerformanceSettings.save(
+                            touch: audioEngine.keyboardTouch,
+                            expression: audioEngine.globalExpressionCC
+                        )
+                    }
+                )
             } label: {
                 Image(systemName: "gearshape")
                     .foregroundColor(theme.textDim)

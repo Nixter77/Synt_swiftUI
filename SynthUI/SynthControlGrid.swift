@@ -15,6 +15,7 @@ final class PanelFrameRecorder {
 struct SynthControlGrid: View {
     private var preset: Binding<SynthPreset>
     private var audioEngine: AudioEngine?
+    private var metering: AtomicMeteringState?
     var layout: PluginLayout
     var recorder: PanelFrameRecorder?
 
@@ -24,13 +25,15 @@ struct SynthControlGrid: View {
             get: { audioEngine.preset },
             set: { audioEngine.preset = $0 }
         )
+        self.metering = audioEngine.meteringState
         self.layout = layout
         self.recorder = recorder
     }
 
-    init(preset: Binding<SynthPreset>, layout: PluginLayout = .compact, recorder: PanelFrameRecorder? = nil) {
+    init(preset: Binding<SynthPreset>, layout: PluginLayout = .compact, recorder: PanelFrameRecorder? = nil, metering: AtomicMeteringState? = nil) {
         self.preset = preset
         self.audioEngine = nil
+        self.metering = metering
         self.layout = layout
         self.recorder = recorder
     }
@@ -48,7 +51,7 @@ struct SynthControlGrid: View {
                 OscillatorView(preset: preset, oscillatorNumber: 2, audioEngine: audioEngine)
             }
             panel("adsr") {
-                ADSRView(preset: preset)
+                ADSRView(preset: preset, metering: audioEngine?.meteringState ?? metering)
             }
             panel("filter") {
                 FilterView(preset: preset)

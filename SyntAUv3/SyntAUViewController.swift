@@ -119,6 +119,24 @@ final class AUParameterSurface: ObservableObject {
         }
     }
 
+    var keyboardTouch: KeyboardTouch {
+        get { audioUnit.keyboardTouch }
+        set {
+            audioUnit.keyboardTouch = newValue
+            objectWillChange.send()
+        }
+    }
+
+    var globalExpressionCC: Bool {
+        get { audioUnit.globalExpressionCC }
+        set {
+            audioUnit.globalExpressionCC = newValue
+            objectWillChange.send()
+        }
+    }
+
+    var meteringState: AtomicMeteringState { audioUnit.meteringState }
+
     init(audioUnit: SyntAudioUnit) {
         self.audioUnit = audioUnit
         self.liveModulation = audioUnit.liveModulation
@@ -230,12 +248,14 @@ private struct PluginScreen: View {
                         get: { surface.preset },
                         set: { surface.userSetPreset($0) }
                     ),
-                    layout: surface.layout
+                    layout: surface.layout,
+                    metering: surface.meteringState
                 )
                 .environment(\.liveModulation, surface.liveModulation)
                 .frame(width: max(geo.size.width, 1), height: max(geo.size.height, 1), alignment: .top)
 
                 HStack(spacing: 4) {
+                    DynamicsStatusReadout(metering: surface.meteringState)
                     Menu {
                         ForEach(PluginZoom.allCases, id: \.self) { zoom in
                             Button("\(zoom.rawValue)%") { surface.setZoom(zoom) }
@@ -257,6 +277,22 @@ private struct PluginScreen: View {
                             get: { surface.respondsToProgramChange },
                             set: { surface.respondsToProgramChange = $0 }
                         ))
+                        PerformanceSettingsToggles(
+                            touch: Binding(
+                                get: { surface.keyboardTouch },
+                                set: { surface.keyboardTouch = $0 }
+                            ),
+                            respondToExpression: Binding(
+                                get: { surface.globalExpressionCC },
+                                set: { surface.globalExpressionCC = $0 }
+                            ),
+                            onChange: {
+                                PerformanceSettings.save(
+                                    touch: surface.keyboardTouch,
+                                    expression: surface.globalExpressionCC
+                                )
+                            }
+                        )
                         if let summary = surface.mpeOverrideSummary {
                             Divider()
                             Text(summary)

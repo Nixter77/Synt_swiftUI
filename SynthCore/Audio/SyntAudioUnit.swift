@@ -47,6 +47,10 @@ public final class SyntAudioUnit: AUAudioUnit {
         outputBus = try AUAudioUnitBus(format: format)
         outputBus.maximumChannelCount = 2
         let core = AudioEngine(coreOnly: true, audioUnitHosted: true)
+        // Tests construct a unit per case. A saved Heavy touch must not move goldens.
+        if !RuntimeEnvironment.isUnitTestHost {
+            PerformanceSettings.applyStored(to: core)
+        }
         engine = core
         let store = AddressedParameterStore()
         parameters = store
@@ -121,6 +125,15 @@ public final class SyntAudioUnit: AUAudioUnit {
         get { engine.respondsToProgramChange }
         set { engine.respondsToProgramChange = newValue }
     }
+    public var keyboardTouch: KeyboardTouch {
+        get { engine.keyboardTouch }
+        set { engine.keyboardTouch = newValue }
+    }
+    public var globalExpressionCC: Bool {
+        get { engine.globalExpressionCC }
+        set { engine.globalExpressionCC = newValue }
+    }
+    public var meteringState: AtomicMeteringState { engine.meteringState }
     private static let stateProgramChangeKey = "syntRespondsToProgramChange"
     private static let stateChromeKey = "syntUIChrome"
 
@@ -319,6 +332,8 @@ public final class SyntAudioUnit: AUAudioUnit {
             }
             state[Self.stateIndexKey] = PresetBrowser.index(of: snapshot) ?? -1
             state[Self.stateProgramChangeKey] = respondsToProgramChange
+            state[PerformanceSettings.touchStateKey] = keyboardTouch.rawValue
+            state[PerformanceSettings.expressionStateKey] = globalExpressionCC
             if let chrome = try? JSONEncoder().encode(PluginChromeState(zoom: uiZoom, layout: uiLayout)) {
                 state[Self.stateChromeKey] = chrome
             }
@@ -335,6 +350,7 @@ public final class SyntAudioUnit: AUAudioUnit {
             if let flag = newValue[Self.stateProgramChangeKey] as? Bool {
                 respondsToProgramChange = flag
             }
+            applyPerformanceSettings(newValue)
             applyChrome(newValue)
             guard let data = newValue[Self.statePresetKey] as? Data,
                   let preset = try? JSONDecoder().decode(SynthPreset.self, from: data) else {
@@ -342,6 +358,29 @@ public final class SyntAudioUnit: AUAudioUnit {
                 return
             }
             adoptPreset(preset)
+        }
+    }
+
+    /// Missing touch / expression keys keep the current value. They are not preset fields.
+    private func applyPerformanceSettings(_ state: [String: Any]) {
+        var touch = keyboardTouch
+        var expression = globalExpressionCC
+        var present = false
+        if let raw = state[PerformanceSettings.touchStateKey] as? Int,
+           let mode = KeyboardTouch(rawValue: raw) {
+            touch = mode
+            present = true
+        }
+        if let flag = state[PerformanceSettings.expressionStateKey] as? Bool {
+            expression = flag
+            present = true
+        }
+        guard present else { return }
+        keyboardTouch = touch
+        globalExpressionCC = expression
+        // The test host is the app, so a fullState round-trip must not stick in UserDefaults.
+        if !RuntimeEnvironment.isUnitTestHost {
+            PerformanceSettings.save(touch: touch, expression: expression)
         }
     }
 

@@ -335,6 +335,27 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedFXOrder: FXOrderTable = FXOrderTable()
     /// Host or user preference for MIDI Program Change events.
     @Published public var respondsToProgramChange: Bool = false
+    /// App setting, not a preset field. The audio thread reads the atomic.
+    /// Normal is the identity, so Init and factory goldens stay put.
+    private let keyboardTouchRaw = Atomic<Int>(KeyboardTouch.normal.rawValue)
+    @Published public var keyboardTouch: KeyboardTouch = .normal {
+        didSet { keyboardTouchRaw.store(keyboardTouch.rawValue, ordering: .releasing) }
+    }
+    /// App-wide CC7/CC11. Off leaves the preset flag as the only gate.
+    /// didSet does not run for the initial false, so the cache starts false.
+    public var cachedGlobalExpressionCC = false
+    @Published public var globalExpressionCC = false {
+        didSet { cachedGlobalExpressionCC = globalExpressionCC }
+    }
+
+    /// Touch curve once, before the preset curve. Normal returns the same bits.
+    func keyboardTouchVelocity(_ velocity: Float) -> Float {
+        let raw = keyboardTouchRaw.load(ordering: .acquiring)
+        let touch = KeyboardTouch(rawValue: raw) ?? .normal
+        let shaped = touch.shape(velocity)
+        meteringState.setPlayedVelocity(shaped)
+        return shaped
+    }
     public static let maxActiveRamps = 8
     public var activeRamps = [ActiveParameterRamp](repeating: ActiveParameterRamp(), count: maxActiveRamps)
     public var hasActiveRamps = false
