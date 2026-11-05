@@ -15,6 +15,10 @@ public struct RTModSlot {
     public var destination: ModDestination
     public var amount: Float
     public var curve: ModCurve = .linear
+    /// −1…1. Zero keeps a linear row off the lookup table.
+    public var curveShape: Float = 0
+    /// Nil skips the via multiply. The audio thread reads this with no allocation.
+    public var viaSource: ModSource? = nil
     public var tableBank: Int = 0
 }
 
@@ -68,14 +72,17 @@ public final class RTModMatrix: @unchecked Sendable {
             let n = min(Self.capacity, entries.count)
             for i in 0..<n {
                 let curve = entries[i].curve
-                if curve != .linear {
-                    fillTable(bank: bank, slot: i, curve: curve)
+                let shape = min(1, max(-1, entries[i].curveShape))
+                if curve != .linear || shape != 0 {
+                    fillTable(bank: bank, slot: i, curve: curve, shape: shape)
                 }
                 base[i] = RTModSlot(
                     source: entries[i].source,
                     destination: entries[i].destination,
                     amount: entries[i].amount,
                     curve: curve,
+                    curveShape: shape,
+                    viaSource: entries[i].viaSource,
                     tableBank: bank
                 )
             }
@@ -107,12 +114,25 @@ public final class RTModMatrix: @unchecked Sendable {
         return a + (c - a) * frac
     }
 
-    private func fillTable(bank: Int, slot: Int, curve: ModCurve) {
+    /// Vital power curve. `shape == 0` is identity. Called from `publish` only.
+    public static func powerShape(_ s: Float, shape: Float) -> Float {
+        let mag = abs(s)
+        if mag == 0 || !mag.isFinite { return 0 }
+        let clamped = min(1, max(-1, shape))
+        let sign: Float = s < 0 ? -1 : 1
+        return sign * pow(mag, exp2(-3 * clamped))
+    }
+
+    private func fillTable(bank: Int, slot: Int, curve: ModCurve, shape: Float) {
         let base = (bank * Self.capacity + slot) * Self.tableSize
         let last = Float(Self.tableSize - 1)
         for i in 0..<Self.tableSize {
             let x = Float(i) / last * 2 - 1
-            tables[base + i] = curve.remap(x)
+            var y = curve.remap(x)
+            if shape != 0 {
+                y = Self.powerShape(y, shape: shape)
+            }
+            tables[base + i] = y
         }
     }
 

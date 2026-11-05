@@ -659,6 +659,8 @@ enum SyntParameterTree {
                 knob(.filterEnvelopeAmount),
                 knob(.velocityToCutoff),
                 knob(.filterKeyTracking),
+                toggleKnob(.combUsesVoiceCutoff),
+                toggleKnob(.perVoiceCutoffSources),
             ]
         )
         let lfo = AUParameterTree.createGroup(

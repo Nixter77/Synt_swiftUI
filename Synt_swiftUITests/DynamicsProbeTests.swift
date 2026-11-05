@@ -9,7 +9,7 @@ import Foundation
 import Testing
 @testable import Synt_swiftUI
 
-private enum DynamicsProbe {
+enum DynamicsProbe {
     static let sampleRate = 44_100.0
     static let totalFrames = 13_230 // 300 ms
     static let rmsStart = 2_205 // 50 ms

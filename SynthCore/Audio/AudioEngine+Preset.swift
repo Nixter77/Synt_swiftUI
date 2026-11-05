@@ -488,6 +488,8 @@ public extension AudioEngine {
         cachedAmpRetriggerMode = snap.ampRetriggerMode
         cachedKeepUnisonThroughTails = snap.keepUnisonThroughTails
         cachedShortAttack = snap.shortAttackEnabled
+        cachedCombUsesVoiceCutoff = snap.combUsesVoiceCutoff
+        cachedPerVoiceCutoffSources = snap.perVoiceCutoffSources
         cachedEnvTimeMod = snap.hasEnvTimeMod
         refreshActiveVelocityGains()
         cachedGlideMode = snap.glideMode

@@ -372,6 +372,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedAmpRetriggerMode: AmpRetriggerMode = .fromCurrent
     public var cachedKeepUnisonThroughTails: Bool = false
     public var cachedShortAttack: Bool = false
+    public var cachedCombUsesVoiceCutoff: Bool = false
+    public var cachedPerVoiceCutoffSources: Bool = false
     public var cachedEnvTimeMod: Bool = false
     /// Pressed-key velocities for the arp. Allocated once. Index is the MIDI note.
     public var arpNoteVelocities = [Float](repeating: 0, count: 128)

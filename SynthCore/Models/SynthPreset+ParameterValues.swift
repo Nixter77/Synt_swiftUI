@@ -157,6 +157,8 @@ extension SynthPreset {
         case .ampRetriggerMode: return ampRetriggerIndex(ampRetriggerMode)
         case .keepUnisonThroughTails: return keepUnisonThroughTails ? 1 : 0
         case .shortAttackEnabled: return shortAttackEnabled ? 1 : 0
+        case .combUsesVoiceCutoff: return combUsesVoiceCutoff ? 1 : 0
+        case .perVoiceCutoffSources: return perVoiceCutoffSources ? 1 : 0
         }
     }
 
@@ -309,6 +311,8 @@ extension SynthPreset {
         case .ampRetriggerMode: ampRetriggerMode = ampRetriggerFromFloat(value)
         case .keepUnisonThroughTails: keepUnisonThroughTails = value >= 0.5
         case .shortAttackEnabled: shortAttackEnabled = value >= 0.5
+        case .combUsesVoiceCutoff: combUsesVoiceCutoff = value >= 0.5
+        case .perVoiceCutoffSources: perVoiceCutoffSources = value >= 0.5
         }
     }
 

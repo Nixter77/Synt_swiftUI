@@ -259,6 +259,10 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var keepUnisonThroughTails: Bool = false
     /// When false, attack stays floored at 4 ms in every model.
     public var shortAttackEnabled: Bool = false
+    /// Comb follows the per-voice cutoff law. Off keeps the shipped bare comb cutoff.
+    public var combUsesVoiceCutoff: Bool = false
+    /// Env 2, mod env, random, and release velocity move cutoff on each voice.
+    public var perVoiceCutoffSources: Bool = false
     public var modEnvAttack: Float = 0.01
     public var modEnvDecay: Float = 0.2
     public var modEnvSustain: Float = 0.0
@@ -473,6 +477,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case ampDelay, ampHold, filterEnvDelay, filterEnvHold
         case velToAttack, velToDecay, releaseVelToRelease, envKeyTrack
         case ampRetriggerMode, keepUnisonThroughTails, shortAttackEnabled
+        case combUsesVoiceCutoff, perVoiceCutoffSources
     }
 
     public init(
@@ -1049,6 +1054,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         ampRetriggerMode = c.tolerant(AmpRetriggerMode.self, forKey: .ampRetriggerMode) ?? .fromCurrent
         keepUnisonThroughTails = try c.decodeIfPresent(Bool.self, forKey: .keepUnisonThroughTails) ?? false
         shortAttackEnabled = try c.decodeIfPresent(Bool.self, forKey: .shortAttackEnabled) ?? false
+        combUsesVoiceCutoff = try c.decodeIfPresent(Bool.self, forKey: .combUsesVoiceCutoff) ?? false
+        perVoiceCutoffSources = try c.decodeIfPresent(Bool.self, forKey: .perVoiceCutoffSources) ?? false
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -1181,23 +1188,31 @@ public struct ModMatrixEntry: Codable, Hashable, Identifiable {
     public var destination: ModDestination
     public var amount: Float
     public var curve: ModCurve = .linear
+    /// −1…1. Zero with a linear curve stays off the lookup table.
+    public var curveShape: Float = 0
+    /// Scales `amount`. Nil leaves the row unchanged.
+    public var viaSource: ModSource? = nil
 
     public init(
         id: UUID = UUID(),
         source: ModSource,
         destination: ModDestination,
         amount: Float,
-        curve: ModCurve = .linear
+        curve: ModCurve = .linear,
+        curveShape: Float = 0,
+        viaSource: ModSource? = nil
     ) {
         self.id = id
         self.source = source
         self.destination = destination
         self.amount = amount
         self.curve = curve
+        self.curveShape = curveShape
+        self.viaSource = viaSource
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, source, destination, amount, curve
+        case id, source, destination, amount, curve, curveShape, viaSource
     }
 
     public init(from decoder: Decoder) throws {
@@ -1207,6 +1222,8 @@ public struct ModMatrixEntry: Codable, Hashable, Identifiable {
         destination = try c.decode(ModDestination.self, forKey: .destination)
         amount = try c.decodeIfPresent(Float.self, forKey: .amount) ?? 0
         curve = try c.decodeIfPresent(ModCurve.self, forKey: .curve) ?? .linear
+        curveShape = try c.decodeIfPresent(Float.self, forKey: .curveShape) ?? 0
+        viaSource = try c.decodeIfPresent(ModSource.self, forKey: .viaSource)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -1216,6 +1233,8 @@ public struct ModMatrixEntry: Codable, Hashable, Identifiable {
         try c.encode(destination, forKey: .destination)
         try c.encode(amount, forKey: .amount)
         try c.encode(curve, forKey: .curve)
+        try c.encode(curveShape, forKey: .curveShape)
+        try c.encodeIfPresent(viaSource, forKey: .viaSource)
     }
 }
 
@@ -1341,6 +1360,14 @@ public enum ModDestination: String, CaseIterable, Codable {
     case filterAttack = "Filter Attack Time"
     case filterDecay = "Filter Decay Time"
     case filterRelease = "Filter Release Time"
+    /// Per-voice timbre. Appended so earlier destinations keep their order.
+    case drive = "Drive"
+    case osc1Level = "Osc1 Level"
+    case osc2Level = "Osc2 Level"
+    case subLevel = "Sub Level"
+    case noiseLevel = "Noise Level"
+    case filterEnvAmount = "Filter Env Amount"
+    case unisonDetune = "Unison Detune"
 
     public var menuTitle: String {
         switch self {
@@ -1369,6 +1396,13 @@ public enum ModDestination: String, CaseIterable, Codable {
         case .filterAttack: return "Flt Attack"
         case .filterDecay: return "Flt Decay"
         case .filterRelease: return "Flt Release"
+        case .drive: return "Drive"
+        case .osc1Level: return "Osc 1"
+        case .osc2Level: return "Osc 2"
+        case .subLevel: return "Sub"
+        case .noiseLevel: return "Noise"
+        case .filterEnvAmount: return "Flt Env"
+        case .unisonDetune: return "Uni Detune"
         }
     }
 
@@ -1400,6 +1434,10 @@ public enum ModDestination: String, CaseIterable, Codable {
             return String(format: "%+.2f", amount * 4)
         case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
             return String(format: "%+.0f %% time", amount * 100)
+        case .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount:
+            return String(format: "%+.0f %%", amount * 100)
+        case .unisonDetune:
+            return String(format: "%+.0f ct", amount * 50)
         }
     }
 }
@@ -1413,8 +1451,22 @@ public enum PresetAuthoring {
     /// Every destination is applied by the render.
     public static let liveDestinations: Set<ModDestination> = Set(ModDestination.allCases)
 
-    public static func mod(_ source: ModSource, _ dest: ModDestination, _ amount: Float) -> ModMatrixEntry {
-        ModMatrixEntry(source: source, destination: dest, amount: amount)
+    public static func mod(
+        _ source: ModSource,
+        _ dest: ModDestination,
+        _ amount: Float,
+        curve: ModCurve = .linear,
+        curveShape: Float = 0,
+        via: ModSource? = nil
+    ) -> ModMatrixEntry {
+        ModMatrixEntry(
+            source: source,
+            destination: dest,
+            amount: amount,
+            curve: curve,
+            curveShape: curveShape,
+            viaSource: via
+        )
     }
 }
 

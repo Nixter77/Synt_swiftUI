@@ -229,6 +229,8 @@ extension AudioEngine {
             envelope.allowShortAttack = cachedShortAttack
             filterEnvelope.allowShortAttack = cachedShortAttack
             modEnvelope.allowShortAttack = cachedShortAttack
+        case .combUsesVoiceCutoff: cachedCombUsesVoiceCutoff = v >= 0.5
+        case .perVoiceCutoffSources: cachedPerVoiceCutoffSources = v >= 0.5
         case .modEnvAttack: modEnvelope.attack = v
         case .modEnvDecay: modEnvelope.decay = v
         case .modEnvSustain: modEnvelope.sustain = v
@@ -405,6 +407,8 @@ extension AudioEngine {
             }
         case .keepUnisonThroughTails: return cachedKeepUnisonThroughTails ? 1 : 0
         case .shortAttackEnabled: return cachedShortAttack ? 1 : 0
+        case .combUsesVoiceCutoff: return cachedCombUsesVoiceCutoff ? 1 : 0
+        case .perVoiceCutoffSources: return cachedPerVoiceCutoffSources ? 1 : 0
         case .modEnvAttack: return modEnvelope.attack
         case .modEnvDecay: return modEnvelope.decay
         case .modEnvSustain: return modEnvelope.sustain
@@ -593,6 +597,8 @@ extension AudioEngine {
             case .ampRetriggerMode: preset.ampRetriggerMode = ampRetriggerFromFloat(v)
             case .keepUnisonThroughTails: preset.keepUnisonThroughTails = v >= 0.5
             case .shortAttackEnabled: preset.shortAttackEnabled = v >= 0.5
+            case .combUsesVoiceCutoff: preset.combUsesVoiceCutoff = v >= 0.5
+            case .perVoiceCutoffSources: preset.perVoiceCutoffSources = v >= 0.5
             case .modEnvAttack: preset.modEnvAttack = v
             case .modEnvDecay: preset.modEnvDecay = v
             case .modEnvSustain: preset.modEnvSustain = v

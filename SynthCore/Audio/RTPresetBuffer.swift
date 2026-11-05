@@ -135,6 +135,8 @@ public struct RTPresetSnapshot: Sendable {
     public var ampRetriggerMode: AmpRetriggerMode = .fromCurrent
     public var keepUnisonThroughTails: Bool = false
     public var shortAttackEnabled: Bool = false
+    public var combUsesVoiceCutoff: Bool = false
+    public var perVoiceCutoffSources: Bool = false
     public var hasEnvTimeMod: Bool = false
     public var glideMode: GlideMode = .time
     public var glideLegatoOnly: Bool = false
@@ -375,6 +377,8 @@ public struct RTPresetSnapshot: Sendable {
         ampRetriggerMode = preset.ampRetriggerMode
         keepUnisonThroughTails = preset.keepUnisonThroughTails
         shortAttackEnabled = preset.shortAttackEnabled
+        combUsesVoiceCutoff = preset.combUsesVoiceCutoff
+        perVoiceCutoffSources = preset.perVoiceCutoffSources
         hasEnvTimeMod = preset.modMatrix.contains { entry in
             switch entry.destination {
             case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:

@@ -25,7 +25,9 @@ struct ShowcasePresetTests {
         let dests = Set(ps.flatMap { $0.modMatrix.map(\.destination) })
         let expectedDests = Set(ModDestination.allCases.filter {
             switch $0 {
-            case .wtMorph1, .wtMorph2, .finePitch, .fm, .chorusMix, .delayMix, .reverbMix, .vowel:
+            case .wtMorph1, .wtMorph2, .finePitch, .fm, .chorusMix, .delayMix, .reverbMix, .vowel,
+                 .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease,
+                 .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount, .unisonDetune:
                 return false
             default:
                 return true

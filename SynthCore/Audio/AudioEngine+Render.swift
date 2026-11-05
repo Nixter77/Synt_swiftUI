@@ -193,8 +193,9 @@ public extension AudioEngine {
         for slot in 0..<count {
             let entry = slots[slot]
             if entry.destination != destination { continue }
-            let source = matrixSource(
-                entry.source,
+            sum += rowAmount(
+                entry,
+                slot: slot,
                 lfo: lfo,
                 lfo2: lfo2,
                 env: voice.envelopeValue,
@@ -215,7 +216,6 @@ public extension AudioEngine {
                 mpeTimbre: voice.smoothedMpeTimbre,
                 releaseVelocity: voice.releaseVelocity
             )
-            sum += modulatedAmount(entry, slot: slot, source: source)
         }
         if sum == 0 { return 1 }
         return exp2(max(-2, min(2, sum)))
@@ -276,16 +276,141 @@ public extension AudioEngine {
         }
     }
 
-    /// Linear rows multiply the raw source. Other curves read the bank published off the audio thread.
+    /// Linear rows with a flat shape multiply the raw source. Any other row reads the bank
+    /// published off the audio thread. `pow` stays in `RTModMatrix.publish`.
     @inline(__always)
     func modulatedAmount(_ entry: RTModSlot, slot: Int, source: Float) -> Float {
         let shaped: Float
-        if entry.curve == .linear {
+        if entry.curve == .linear && entry.curveShape == 0 {
             shaped = source
         } else {
             shaped = rtModMatrix.lookup(bank: entry.tableBank, slot: slot, source: source)
         }
         return shaped * entry.amount
+    }
+
+    /// `amount_eff = amount · via` when a via source is set. A nil via skips the multiply.
+    @inline(__always)
+    func rowAmount(
+        _ entry: RTModSlot,
+        slot: Int,
+        lfo: Float,
+        lfo2: Float,
+        env: Float,
+        velocity: Float,
+        modWheel: Float,
+        keyTrack: Float,
+        env2: Float = 0,
+        aftertouch: Float = 0,
+        modEnv: Float = 0,
+        pitchBend: Float = 0,
+        random: Float = 0,
+        sampleAndHold: Float = 0,
+        smoothRandom: Float = 0,
+        mseg: Float = 0,
+        mseg2: Float = 0,
+        mpePitchBend: Float = 0,
+        mpePressure: Float = 0,
+        mpeTimbre: Float = 0,
+        releaseVelocity: Float = 0.5
+    ) -> Float {
+        let source = matrixSource(
+            entry.source,
+            lfo: lfo,
+            lfo2: lfo2,
+            env: env,
+            velocity: velocity,
+            modWheel: modWheel,
+            keyTrack: keyTrack,
+            env2: env2,
+            aftertouch: aftertouch,
+            modEnv: modEnv,
+            pitchBend: pitchBend,
+            random: random,
+            sampleAndHold: sampleAndHold,
+            smoothRandom: smoothRandom,
+            mseg: mseg,
+            mseg2: mseg2,
+            mpePitchBend: mpePitchBend,
+            mpePressure: mpePressure,
+            mpeTimbre: mpeTimbre,
+            releaseVelocity: releaseVelocity
+        )
+        let shaped = modulatedAmount(entry, slot: slot, source: source)
+        guard let via = entry.viaSource else { return shaped }
+        let viaValue = matrixSource(
+            via,
+            lfo: lfo,
+            lfo2: lfo2,
+            env: env,
+            velocity: velocity,
+            modWheel: modWheel,
+            keyTrack: keyTrack,
+            env2: env2,
+            aftertouch: aftertouch,
+            modEnv: modEnv,
+            pitchBend: pitchBend,
+            random: random,
+            sampleAndHold: sampleAndHold,
+            smoothRandom: smoothRandom,
+            mseg: mseg,
+            mseg2: mseg2,
+            mpePitchBend: mpePitchBend,
+            mpePressure: mpePressure,
+            mpeTimbre: mpeTimbre,
+            releaseVelocity: releaseVelocity
+        )
+        return shaped * viaValue
+    }
+
+    @inline(__always)
+    static func isPerVoiceCutoffSource(_ source: ModSource) -> Bool {
+        switch source {
+        case .env2, .modEnv, .random, .releaseVelocity: return true
+        default: return false
+        }
+    }
+
+    /// Shared per-voice cutoff law. Extra mods are skipped when they are zero, so the
+    /// biquad and ladder paths stay the shipped product.
+    @inline(__always)
+    func voiceCutoffHz(
+        base: Float,
+        envAmt: Float,
+        filterEnvMod: Float,
+        filterEnvVal: Float,
+        velToEnvAmt: Float,
+        velocity: Float,
+        keyTrk: Float,
+        midiNote: Int,
+        velToCutoff: Float,
+        drift: Float,
+        driftMul: Float,
+        maxCutoff: Float,
+        voiceCutoffMod: Float
+    ) -> Float {
+        var c = base
+        var envAmt = envAmt
+        if filterEnvMod != 0 { envAmt += filterEnvMod }
+        if velToEnvAmt != 0 {
+            envAmt *= max(0.0, 1.0 + (velocity - 1.0) * velToEnvAmt)
+        }
+        if envAmt != 0 {
+            c *= pow(2, envAmt * filterEnvVal * 4)
+        }
+        if keyTrk != 0 {
+            c *= pow(2, Float(midiNote - 60) / 12 * keyTrk)
+        }
+        if velToCutoff > 0 {
+            c *= pow(2, (velocity - 1.0) * velToCutoff * 3.0)
+        }
+        if drift > 0 {
+            c *= driftMul
+        }
+        if voiceCutoffMod != 0 {
+            c *= pow(2, voiceCutoffMod * 4)
+        }
+        return max(20, min(maxCutoff, c))
     }
 
     /// One step clock for every voice. Runs only while the gate is enabled.
@@ -524,8 +649,9 @@ public extension AudioEngine {
                 let entry = modSlots[m]
                 if entry.source == .lfo1 { matrixWantsLFO = true }
                 if entry.source == .lfo2 { matrixWantsLFO2 = true }
-                let src = matrixSource(
-                    entry.source,
+                let modVal = rowAmount(
+                    entry,
+                    slot: m,
                     lfo: lastMatrixLFO,
                     lfo2: lastMatrixLFO2,
                     env: globalEnv,
@@ -541,11 +667,10 @@ public extension AudioEngine {
                     mpeTimbre: globalMpeTimb,
                     releaseVelocity: globalRelease
                 )
-                let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
                 case .lfoRate: rateMod += modVal
                 case .lfoDepth: depthMod += modVal
-                case .pitch1, .pitch2, .cutoff, .resonance, .amp, .pan, .pwm1, .pwm2, .mix, .wtMorph1, .wtMorph2, .finePitch, .fm, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+                case .pitch1, .pitch2, .cutoff, .resonance, .amp, .pan, .pwm1, .pwm2, .mix, .wtMorph1, .wtMorph2, .finePitch, .fm, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease, .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount, .unisonDetune:
                     break
                 }
             }
@@ -617,8 +742,9 @@ public extension AudioEngine {
         if modCount > 0 {
             for m in 0..<modCount {
                 let entry = modSlots[m]
-                let src = matrixSource(
-                    entry.source,
+                let modVal = rowAmount(
+                    entry,
+                    slot: m,
                     lfo: matrixLFO,
                     lfo2: matrixLFO2,
                     env: globalEnv,
@@ -634,9 +760,12 @@ public extension AudioEngine {
                     mpeTimbre: globalMpeTimb,
                     releaseVelocity: globalRelease
                 )
-                let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
-                case .cutoff: cutoffMod += modVal
+                case .cutoff:
+                    if cachedPerVoiceCutoffSources && Self.isPerVoiceCutoffSource(entry.source) {
+                        break
+                    }
+                    cutoffMod += modVal
                 case .resonance: resonanceMod += modVal
                 case .wtMorph1: wtMorphMod1 += modVal
                 case .wtMorph2: wtMorphMod2 += modVal
@@ -644,7 +773,7 @@ public extension AudioEngine {
                 case .delayMix: delayMixMod += modVal
                 case .reverbMix: reverbMixMod += modVal
                 case .vowel: vowelMod += modVal
-                case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix, .finePitch, .fm, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+                case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix, .finePitch, .fm, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease, .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount, .unisonDetune:
                     break
                 }
             }
@@ -738,6 +867,13 @@ public extension AudioEngine {
         var hlMix: Float = 0
         var hlFine: Float = 0
         var hlFm: Float = 0
+        var hlDrive: Float = 0
+        var hlOsc1: Float = 0
+        var hlOsc2: Float = 0
+        var hlSub: Float = 0
+        var hlNoise: Float = 0
+        var hlFilterEnv: Float = 0
+        var hlUni: Float = 0
 
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
         // SYNT_22 Stage 2: one (trivial, ARC-free) copy of each Oscillator per sample instead of one
@@ -769,10 +905,6 @@ public extension AudioEngine {
             } else {
                 v.currentFrequency = v.targetFrequency
             }
-
-            let voiceSeed = (noiseBase &+ UInt32(i) &* 747_796_405 &+ 2_891_336_453) &* 1_664_525 &+ 1_013_904_223
-            let rawNoise = Float(voiceSeed) / Float(UInt32.max) * 2.0 - 1.0
-            let noiseValue = v.filterNoise(rawNoise, color: cachedNoiseColor)
 
             let baseFrequency = v.currentFrequency
             var osc1Freq = baseFrequency
@@ -854,6 +986,14 @@ public extension AudioEngine {
             var mixMod: Float = 0
             var fineMod: Float = 0
             var fmMod: Float = 0
+            var driveMod: Float = 0
+            var osc1LevelMod: Float = 0
+            var osc2LevelMod: Float = 0
+            var subLevelMod: Float = 0
+            var noiseLevelMod: Float = 0
+            var filterEnvMod: Float = 0
+            var unisonDetuneMod: Float = 0
+            var voiceCutoffMod: Float = 0
 
             v.smoothedMpePitchBend += (v.mpePitchBend - v.smoothedMpePitchBend) * 0.05
             v.smoothedMpePressure += (v.mpePressure - v.smoothedMpePressure) * 0.05
@@ -863,8 +1003,9 @@ public extension AudioEngine {
             if modCount > 0 {
                 for m in 0..<modCount {
                     let entry = modSlots[m]
-                    let sourceVal = matrixSource(
-                        entry.source,
+                    let modVal = rowAmount(
+                        entry,
+                        slot: m,
                         lfo: matrixLFO,
                         lfo2: matrixLFO2,
                         env: envelopeValue,
@@ -885,7 +1026,6 @@ public extension AudioEngine {
                         mpeTimbre: v.smoothedMpeTimbre,
                         releaseVelocity: v.releaseVelocity
                     )
-                    let modVal = modulatedAmount(entry, slot: m, source: sourceVal)
                     switch entry.destination {
                     case .pitch1: pitchMod1 += modVal
                     case .pitch2: pitchMod2 += modVal
@@ -896,7 +1036,18 @@ public extension AudioEngine {
                     case .mix: mixMod += modVal
                     case .finePitch: fineMod += modVal
                     case .fm: fmMod += modVal
-                    case .cutoff, .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+                    case .drive: driveMod += modVal
+                    case .osc1Level: osc1LevelMod += modVal
+                    case .osc2Level: osc2LevelMod += modVal
+                    case .subLevel: subLevelMod += modVal
+                    case .noiseLevel: noiseLevelMod += modVal
+                    case .filterEnvAmount: filterEnvMod += modVal
+                    case .unisonDetune: unisonDetuneMod += modVal
+                    case .cutoff:
+                        if cachedPerVoiceCutoffSources && Self.isPerVoiceCutoffSource(entry.source) {
+                            voiceCutoffMod += modVal
+                        }
+                    case .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
                         break
                     }
                 }
@@ -959,6 +1110,24 @@ public extension AudioEngine {
             }
             osc1Freq = max(20.0, min(sampleRate * 0.45, osc1Freq))
             osc2Freq = max(20.0, min(sampleRate * 0.45, osc2Freq))
+            if unisonDetuneMod != 0 && v.partialCount > 1 {
+                let center = Float(v.partial) - Float(v.partialCount - 1) * 0.5
+                let cents = center * unisonDetuneMod * 50
+                if cents != 0 {
+                    let mul = pow(2.0, Double(cents) / 1200.0)
+                    osc1Freq *= mul
+                    osc2Freq *= mul
+                }
+            }
+
+            let voiceSeed = (noiseBase &+ UInt32(i) &* 747_796_405 &+ 2_891_336_453) &* 1_664_525 &+ 1_013_904_223
+            let rawNoise = Float(voiceSeed) / Float(UInt32.max) * 2.0 - 1.0
+            let noiseValue: Float
+            if noiseLevelMod != 0 || osc1.waveform == .noise || osc2.waveform == .noise {
+                noiseValue = v.filterNoise(rawNoise, color: cachedNoiseColor)
+            } else {
+                noiseValue = 0
+            }
 
             let phaseInc1 = AudioMath.twoPi * osc1Freq / sampleRate
             var phaseInc2 = AudioMath.twoPi * osc2Freq / sampleRate
@@ -1075,14 +1244,19 @@ public extension AudioEngine {
                     pullWavetable: false
                 )
             }
-            var sample = s1
+            let s1Out = osc1LevelMod == 0 ? s1 : s1 * max(0, 1 + osc1LevelMod)
+            let s2Out = osc2LevelMod == 0 ? s2 : s2 * max(0, 1 + osc2LevelMod)
+            var sample = s1Out
             if cachedOsc2Enabled {
                 if mixMod != 0 {
                     let bias = max(-1, min(1, mixMod))
-                    sample = (s1 * (1 - bias) + s2 * (1 + bias)) * 0.5
+                    sample = (s1Out * (1 - bias) + s2Out * (1 + bias)) * 0.5
                 } else {
-                    sample = (s1 + s2) * 0.5
+                    sample = (s1Out + s2Out) * 0.5
                 }
+            }
+            if noiseLevelMod != 0 {
+                sample += noiseValue * noiseLevelMod
             }
 
             if cachedRingModAmount > 0 {
@@ -1090,7 +1264,8 @@ public extension AudioEngine {
                 sample = sample * (1.0 - cachedRingModAmount) + ring * cachedRingModAmount
             }
 
-            if subVol > 0 {
+            let voiceSub = subLevelMod == 0 ? subVol : max(0, subVol + subLevelMod)
+            if voiceSub > 0 {
                 let subSample: Float
                 let normSub = v.subPhase / AudioMath.twoPi
                 switch subWave {
@@ -1103,7 +1278,7 @@ public extension AudioEngine {
                 default:
                     subSample = Float(sin(v.subPhase))
                 }
-                sample = (sample + subSample * subVol) / (1.0 + subVol * 0.4)
+                sample = (sample + subSample * voiceSub) / (1.0 + voiceSub * 0.4)
 
                 let subFreq = osc1Freq * (subOctave == -2 ? 0.25 : 0.5)
                 let subInc = AudioMath.twoPi * subFreq / sampleRate
@@ -1156,26 +1331,25 @@ public extension AudioEngine {
             if !amplitude.isFinite { amplitude = 0 }
             let preFilterAmplitude = amplitude
             var voiceCoeffs = filterCoeffs
-            if perVoiceFilter {
+            let voiceDrive = driveMod == 0 ? cachedFilterDrive : max(0, min(1, cachedFilterDrive + driveMod))
+            let voiceFilterLive = perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0
+            if voiceFilterLive {
                 if v.filterControlTick & 3 == 0 {
-                    var c = voiceFilterBaseCutoff
-                    var envAmt = filterEnvAmt
-                    if velToEnvAmt != 0 {
-                        envAmt *= max(0.0, 1.0 + (v.velocity - 1.0) * velToEnvAmt)
-                    }
-                    if envAmt != 0 {
-                        c *= pow(2, envAmt * filterEnvVal * 4)
-                    }
-                    if filterKeyTrk != 0 {
-                        c *= pow(2, Float(v.midiNote - 60) / 12 * filterKeyTrk)
-                    }
-                    if velToCutoff > 0 {
-                        c *= pow(2, (v.velocity - 1.0) * velToCutoff * 3.0)
-                    }
-                    if cachedAnalogDrift > 0 {
-                        c *= v.driftCutoffMul
-                    }
-                    c = max(20, min(voiceFilterMaxCutoff, c))
+                    let c = voiceCutoffHz(
+                        base: voiceFilterBaseCutoff,
+                        envAmt: filterEnvAmt,
+                        filterEnvMod: filterEnvMod,
+                        filterEnvVal: filterEnvVal,
+                        velToEnvAmt: velToEnvAmt,
+                        velocity: v.velocity,
+                        keyTrk: filterKeyTrk,
+                        midiNote: v.midiNote,
+                        velToCutoff: velToCutoff,
+                        drift: cachedAnalogDrift,
+                        driftMul: v.driftCutoffMul,
+                        maxCutoff: voiceFilterMaxCutoff,
+                        voiceCutoffMod: voiceCutoffMod
+                    )
                     v.voiceFilterCoeffs = CachedBiquadFilter.coefficients(
                         type: voiceFilterType,
                         cutoff: c,
@@ -1193,9 +1367,34 @@ public extension AudioEngine {
                 amplitude = formed.isFinite ? formed : 0
             } else if voiceFilterType == .comb {
                 let comb = voiceCombPtr[i].takeUnretainedValue()
-                var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
-                if perVoiceFilter {
-                    c = max(20, min(voiceFilterMaxCutoff, c))
+                let c: Float
+                if cachedCombUsesVoiceCutoff {
+                    let base = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                    if perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0 {
+                        c = voiceCutoffHz(
+                            base: base,
+                            envAmt: filterEnvAmt,
+                            filterEnvMod: filterEnvMod,
+                            filterEnvVal: filterEnvVal,
+                            velToEnvAmt: velToEnvAmt,
+                            velocity: v.velocity,
+                            keyTrk: filterKeyTrk,
+                            midiNote: v.midiNote,
+                            velToCutoff: velToCutoff,
+                            drift: cachedAnalogDrift,
+                            driftMul: v.driftCutoffMul,
+                            maxCutoff: voiceFilterMaxCutoff,
+                            voiceCutoffMod: voiceCutoffMod
+                        )
+                    } else {
+                        c = base
+                    }
+                } else {
+                    var bare = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                    if perVoiceFilter {
+                        bare = max(20, min(voiceFilterMaxCutoff, bare))
+                    }
+                    c = bare
                 }
                 let combed = comb.process(amplitude, cutoff: c, resonance: voiceFilterResonance, sampleRate: Float(sampleRate))
                 amplitude = combed.isFinite ? combed : 0
@@ -1209,35 +1408,36 @@ public extension AudioEngine {
                 if !fed.isFinite {
                     amplitude = .nan
                 } else if voiceFilterType == .ladder {
-                    var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
-                    if perVoiceFilter {
-                        var envAmt = filterEnvAmt
-                        if velToEnvAmt != 0 {
-                            envAmt *= max(0.0, 1.0 + (v.velocity - 1.0) * velToEnvAmt)
-                        }
-                        if envAmt != 0 {
-                            c *= pow(2, envAmt * filterEnvVal * 4)
-                        }
-                        if filterKeyTrk != 0 {
-                            c *= pow(2, Float(v.midiNote - 60) / 12 * filterKeyTrk)
-                        }
-                        if velToCutoff > 0 {
-                            c *= pow(2, (v.velocity - 1.0) * velToCutoff * 3.0)
-                        }
-                        if cachedAnalogDrift > 0 {
-                            c *= v.driftCutoffMul
-                        }
-                        c = max(20, min(voiceFilterMaxCutoff, c))
+                    let cutoffBase = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                    let c: Float
+                    if perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0 {
+                        c = voiceCutoffHz(
+                            base: cutoffBase,
+                            envAmt: filterEnvAmt,
+                            filterEnvMod: filterEnvMod,
+                            filterEnvVal: filterEnvVal,
+                            velToEnvAmt: velToEnvAmt,
+                            velocity: v.velocity,
+                            keyTrk: filterKeyTrk,
+                            midiNote: v.midiNote,
+                            velToCutoff: velToCutoff,
+                            drift: cachedAnalogDrift,
+                            driftMul: v.driftCutoffMul,
+                            maxCutoff: voiceFilterMaxCutoff,
+                            voiceCutoffMod: voiceCutoffMod
+                        )
+                    } else {
+                        c = cutoffBase
                     }
                     amplitude = v.ladder.process(
                         fed,
                         cutoff: c,
                         resonance: voiceFilterResonance,
-                        drive: cachedFilterDrive,
+                        drive: voiceDrive,
                         sampleRate: Float(sampleRate)
                     )
-                } else if cachedFilterDrive != 0 {
-                    let driven = AudioMath.fastTanh(fed * (1 + cachedFilterDrive * 8))
+                } else if voiceDrive != 0 {
+                    let driven = AudioMath.fastTanh(fed * (1 + voiceDrive * 8))
                     amplitude = v.filter.process(driven, coeffs: voiceCoeffs)
                 } else {
                     let filtered = v.filter.process(fed, coeffs: voiceCoeffs)
@@ -1255,35 +1455,36 @@ public extension AudioEngine {
                     v.filter.reset()
                 }
             } else if voiceFilterType == .ladder {
-                var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
-                if perVoiceFilter {
-                    var envAmt = filterEnvAmt
-                    if velToEnvAmt != 0 {
-                        envAmt *= max(0.0, 1.0 + (v.velocity - 1.0) * velToEnvAmt)
-                    }
-                    if envAmt != 0 {
-                        c *= pow(2, envAmt * filterEnvVal * 4)
-                    }
-                    if filterKeyTrk != 0 {
-                        c *= pow(2, Float(v.midiNote - 60) / 12 * filterKeyTrk)
-                    }
-                    if velToCutoff > 0 {
-                        c *= pow(2, (v.velocity - 1.0) * velToCutoff * 3.0)
-                    }
-                    if cachedAnalogDrift > 0 {
-                        c *= v.driftCutoffMul
-                    }
-                    c = max(20, min(voiceFilterMaxCutoff, c))
+                let cutoffBase = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                let c: Float
+                if perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0 {
+                    c = voiceCutoffHz(
+                        base: cutoffBase,
+                        envAmt: filterEnvAmt,
+                        filterEnvMod: filterEnvMod,
+                        filterEnvVal: filterEnvVal,
+                        velToEnvAmt: velToEnvAmt,
+                        velocity: v.velocity,
+                        keyTrk: filterKeyTrk,
+                        midiNote: v.midiNote,
+                        velToCutoff: velToCutoff,
+                        drift: cachedAnalogDrift,
+                        driftMul: v.driftCutoffMul,
+                        maxCutoff: voiceFilterMaxCutoff,
+                        voiceCutoffMod: voiceCutoffMod
+                    )
+                } else {
+                    c = cutoffBase
                 }
                 amplitude = v.ladder.process(
                     amplitude,
                     cutoff: c,
                     resonance: voiceFilterResonance,
-                    drive: cachedFilterDrive,
+                    drive: voiceDrive,
                     sampleRate: Float(sampleRate)
                 )
-            } else if cachedFilterDrive != 0 {
-                let driven = AudioMath.fastTanh(amplitude * (1 + cachedFilterDrive * 8))
+            } else if voiceDrive != 0 {
+                let driven = AudioMath.fastTanh(amplitude * (1 + voiceDrive * 8))
                 amplitude = v.filter.process(driven, coeffs: voiceCoeffs)
             } else {
                 amplitude = v.filter.process(amplitude, coeffs: voiceCoeffs)
@@ -1375,6 +1576,13 @@ public extension AudioEngine {
                 hlMix = mixMod
                 hlFine = fineMod
                 hlFm = fmMod
+                hlDrive = driveMod
+                hlOsc1 = osc1LevelMod
+                hlOsc2 = osc2LevelMod
+                hlSub = subLevelMod
+                hlNoise = noiseLevelMod
+                hlFilterEnv = filterEnvMod
+                hlUni = unisonDetuneMod
             }
             voices[i] = v
         }
@@ -1389,6 +1597,13 @@ public extension AudioEngine {
             liveModulation.store(hlMix, for: .mix)
             liveModulation.store(hlFine, for: .finePitch)
             liveModulation.store(hlFm, for: .fm)
+            liveModulation.store(hlDrive, for: .drive)
+            liveModulation.store(hlOsc1, for: .osc1Level)
+            liveModulation.store(hlOsc2, for: .osc2Level)
+            liveModulation.store(hlSub, for: .subLevel)
+            liveModulation.store(hlNoise, for: .noiseLevel)
+            liveModulation.store(hlFilterEnv, for: .filterEnvAmount)
+            liveModulation.store(hlUni, for: .unisonDetune)
         } else {
             liveModulation.store(0, for: .pitch1)
             liveModulation.store(0, for: .pitch2)
@@ -1399,6 +1614,13 @@ public extension AudioEngine {
             liveModulation.store(0, for: .mix)
             liveModulation.store(0, for: .finePitch)
             liveModulation.store(0, for: .fm)
+            liveModulation.store(0, for: .drive)
+            liveModulation.store(0, for: .osc1Level)
+            liveModulation.store(0, for: .osc2Level)
+            liveModulation.store(0, for: .subLevel)
+            liveModulation.store(0, for: .noiseLevel)
+            liveModulation.store(0, for: .filterEnvAmount)
+            liveModulation.store(0, for: .unisonDetune)
         }
 
         if !mixedSampleL.isFinite { mixedSampleL = 0 }

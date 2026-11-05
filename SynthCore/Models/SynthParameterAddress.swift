@@ -171,6 +171,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case ampRetriggerMode = 184
     case keepUnisonThroughTails = 185
     case shortAttackEnabled = 186
+    /// SYNT_64. Append-only. Both default off so factory comb and cutoff rows stay put.
+    case combUsesVoiceCutoff = 187
+    case perVoiceCutoffSources = 188
 
     public var identifier: String {
         switch self {
@@ -320,6 +323,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .ampRetriggerMode: return "ampRetriggerMode"
         case .keepUnisonThroughTails: return "keepUnisonThroughTails"
         case .shortAttackEnabled: return "shortAttackEnabled"
+        case .combUsesVoiceCutoff: return "combUsesVoiceCutoff"
+        case .perVoiceCutoffSources: return "perVoiceCutoffSources"
         }
     }
 
@@ -471,6 +476,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .ampRetriggerMode: return "Amp Retrigger"
         case .keepUnisonThroughTails: return "Keep Unison Tails"
         case .shortAttackEnabled: return "Short Attack"
+        case .combUsesVoiceCutoff: return "Comb Voice Cutoff"
+        case .perVoiceCutoffSources: return "Per-Voice Cutoff Sources"
         }
     }
 

@@ -18,8 +18,22 @@ enum FactoryAuthoring {
     static let orderDirtLast: [FXSlotID] = [.eq, .phaser, .chorus, .delay, .reverb, .distortion]
     static let orderVerbEarly: [FXSlotID] = [.reverb, .eq, .distortion, .phaser, .chorus, .delay]
 
-    static func mod(_ source: ModSource, _ destination: ModDestination, _ amount: Float) -> ModMatrixEntry {
-        ModMatrixEntry(source: source, destination: destination, amount: amount)
+    static func mod(
+        _ source: ModSource,
+        _ destination: ModDestination,
+        _ amount: Float,
+        curve: ModCurve = .linear,
+        curveShape: Float = 0,
+        via: ModSource? = nil
+    ) -> ModMatrixEntry {
+        ModMatrixEntry(
+            source: source,
+            destination: destination,
+            amount: amount,
+            curve: curve,
+            curveShape: curveShape,
+            viaSource: via
+        )
     }
 
     /// Three-point MSEG. Empty points would leave the generator idle.
