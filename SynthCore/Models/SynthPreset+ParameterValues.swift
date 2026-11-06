@@ -162,6 +162,7 @@ extension SynthPreset {
         case .respondToExpressionCC: return respondToExpressionCC ? 1 : 0
         case .aftertouchCurve: return aftertouchCurve
         case .aftertouchDeadzone: return aftertouchDeadzone
+        case .busGlueEnabled: return busGlueEnabled ? 1 : 0
         }
     }
 
@@ -319,6 +320,7 @@ extension SynthPreset {
         case .respondToExpressionCC: respondToExpressionCC = value >= 0.5
         case .aftertouchCurve: aftertouchCurve = value
         case .aftertouchDeadzone: aftertouchDeadzone = value
+        case .busGlueEnabled: busGlueEnabled = value >= 0.5
         }
     }
 

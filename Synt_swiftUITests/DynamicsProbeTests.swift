@@ -50,6 +50,7 @@ enum DynamicsProbe {
         engine.shimmer.reset()
         engine.rotary.reset()
         engine.transientShaper.reset()
+        engine.busGlueCompressor.reset()
         engine.sceneHPF.reset()
         engine.stereoTool.reset()
         engine.characterToneL.reset()
@@ -359,9 +360,48 @@ struct DynamicsProbeTests {
             ))
             print(lines.last!)
         }
+        // SYNT_68 D5: per-category ChordContrast / VelRange aggregates (voice=pre, output=post).
+        var catVelPre: [String: [Float]] = [:]
+        var catVelPost: [String: [Float]] = [:]
+        var catChordVoice: [String: [Float]] = [:]
+        var catChordOutput: [String: [Float]] = [:]
+        // Re-parse SUMMARY lines we already appended.
+        for line in lines where line.hasPrefix("SUMMARY ") {
+            let parts = line.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count >= 6 else { continue }
+            let name = String(parts[0].dropFirst("SUMMARY ".count))
+            guard let preset = presets.first(where: { $0.name == name }) else { continue }
+            let cat = preset.category.rawValue
+            if let v = Float(parts[1]) { catVelPre[cat, default: []].append(v) }
+            if let v = Float(parts[2]) { catVelPost[cat, default: []].append(v) }
+            if let v = Float(parts[4]) { catChordVoice[cat, default: []].append(v) }
+            if let v = Float(parts[5]) { catChordOutput[cat, default: []].append(v) }
+        }
+        lines.append("# SYNT_68 CATEGORY aggregates: cat | n | VelRange_voice_dB | VelRange_output_dB | velRatio | ChordContrast_voice_dB | ChordContrast_output_dB | chordRatio")
+        for cat in catVelPre.keys.sorted() {
+            let n = catVelPre[cat]!.count
+            func avg(_ xs: [Float]) -> Float { xs.reduce(0, +) / Float(xs.count) }
+            let vp = avg(catVelPre[cat]!)
+            let vpo = avg(catVelPost[cat] ?? [0])
+            let cv = avg(catChordVoice[cat] ?? [0])
+            let co = avg(catChordOutput[cat] ?? [0])
+            let vr = vp > 0.01 ? vpo / vp : 1
+            let cr = abs(cv) > 0.01 ? co / cv : 1
+            lines.append(String(
+                format: "CATEGORY %@ | %d | %.2f | %.2f | %.3f | %.2f | %.2f | %.3f",
+                cat, n, vp, vpo, vr, cv, co, cr
+            ))
+            print(lines.last!)
+        }
+
         let text = lines.joined(separator: "\n") + "\n"
         try? text.write(toFile: DynamicsProbe.dumpPath, atomically: true, encoding: .utf8)
         try? text.write(toFile: "/tmp/DYNAMICS_BASELINE_DUMP.txt", atomically: true, encoding: .utf8)
+        try? text.write(
+            toFile: "/Users/nikolay/gemini_projekts/Synt_swiftUI/docs/rounds/DYNAMICS_SYNT68_AFTER_DUMP.txt",
+            atomically: true,
+            encoding: .utf8
+        )
         #expect(FileManager.default.fileExists(atPath: DynamicsProbe.dumpPath))
         #expect(initMonotonic, "Init pre-bus RMS was not monotonic in the dump")
         print(String(format: "SYNT_61 worst pre-RMS dip %.2f dB on %@", worstDrop, worstName))

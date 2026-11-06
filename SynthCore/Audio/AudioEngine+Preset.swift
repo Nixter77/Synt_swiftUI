@@ -493,6 +493,13 @@ public extension AudioEngine {
         cachedRespondToExpressionCC = snap.respondToExpressionCC
         cachedAftertouchCurve = snap.aftertouchCurve
         cachedAftertouchDeadzone = snap.aftertouchDeadzone
+        cachedBusGlueEnabled = snap.busGlueEnabled
+        if snap.busGlueEnabled {
+            busGlueCompressor.configureBusGlueProfile()
+        } else {
+            busGlueCompressor.enabled = false
+            busGlueCompressor.reset()
+        }
         cachedEnvTimeMod = snap.hasEnvTimeMod
         refreshActiveVelocityGains()
         cachedGlideMode = snap.glideMode

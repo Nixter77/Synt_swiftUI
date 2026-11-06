@@ -29,6 +29,7 @@ struct FlagsOffInvarianceTests {
             #expect(!p.dspReverbEnabled)
             #expect(!p.sceneHPFEnabled)
             #expect(!p.oscSyncEnabled)
+            #expect(!p.busGlueEnabled)
         }
     }
 

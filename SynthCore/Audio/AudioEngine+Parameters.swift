@@ -234,6 +234,15 @@ extension AudioEngine {
         case .respondToExpressionCC: cachedRespondToExpressionCC = v >= 0.5
         case .aftertouchCurve: cachedAftertouchCurve = v
         case .aftertouchDeadzone: cachedAftertouchDeadzone = v
+        case .busGlueEnabled:
+            let on = v >= 0.5
+            cachedBusGlueEnabled = on
+            if on {
+                busGlueCompressor.configureBusGlueProfile()
+            } else {
+                busGlueCompressor.enabled = false
+                busGlueCompressor.reset()
+            }
         case .modEnvAttack: modEnvelope.attack = v
         case .modEnvDecay: modEnvelope.decay = v
         case .modEnvSustain: modEnvelope.sustain = v
@@ -415,6 +424,7 @@ extension AudioEngine {
         case .respondToExpressionCC: return cachedRespondToExpressionCC ? 1 : 0
         case .aftertouchCurve: return cachedAftertouchCurve
         case .aftertouchDeadzone: return cachedAftertouchDeadzone
+        case .busGlueEnabled: return cachedBusGlueEnabled ? 1 : 0
         case .modEnvAttack: return modEnvelope.attack
         case .modEnvDecay: return modEnvelope.decay
         case .modEnvSustain: return modEnvelope.sustain
@@ -608,6 +618,7 @@ extension AudioEngine {
             case .respondToExpressionCC: preset.respondToExpressionCC = v >= 0.5
             case .aftertouchCurve: preset.aftertouchCurve = v
             case .aftertouchDeadzone: preset.aftertouchDeadzone = v
+            case .busGlueEnabled: preset.busGlueEnabled = v >= 0.5
             case .modEnvAttack: preset.modEnvAttack = v
             case .modEnvDecay: preset.modEnvDecay = v
             case .modEnvSustain: preset.modEnvSustain = v

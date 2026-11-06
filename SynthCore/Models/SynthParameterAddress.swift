@@ -178,6 +178,8 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case respondToExpressionCC = 189
     case aftertouchCurve = 190
     case aftertouchDeadzone = 191
+    /// SYNT_68. Append-only. Off leaves the post-CleanBus bus-glue compressor inert.
+    case busGlueEnabled = 192
 
     public var identifier: String {
         switch self {
@@ -332,6 +334,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .respondToExpressionCC: return "respondToExpressionCC"
         case .aftertouchCurve: return "aftertouchCurve"
         case .aftertouchDeadzone: return "aftertouchDeadzone"
+        case .busGlueEnabled: return "busGlueEnabled"
         }
     }
 
@@ -488,6 +491,7 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .respondToExpressionCC: return "Expression CC"
         case .aftertouchCurve: return "Aftertouch Curve"
         case .aftertouchDeadzone: return "Aftertouch Deadzone"
+        case .busGlueEnabled: return "Bus Glue"
         }
     }
 

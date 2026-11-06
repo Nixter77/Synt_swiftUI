@@ -89,6 +89,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Leslie rotor. Skipped while `cachedRotaryEnabled` is false.
     public let rotary = DSPRotary(sampleRate: 44100)
     public let transientShaper = DSPTransientShaper(sampleRate: 44100)
+    /// SYNT_68 optional post-CleanBus bus glue. Off by default.
+    public let busGlueCompressor = Compressor(sampleRate: 44100)
     public let sceneHPF = SceneHPF()
 
     @Published public var isPlaying = false
@@ -398,6 +400,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedRespondToExpressionCC: Bool = false
     public var cachedAftertouchCurve: Float = 0
     public var cachedAftertouchDeadzone: Float = 0
+    public var cachedBusGlueEnabled: Bool = false
     public var cachedEnvTimeMod: Bool = false
     /// Pressed-key velocities for the arp. Allocated once. Index is the MIDI note.
     public var arpNoteVelocities = [Float](repeating: 0, count: 128)
@@ -1010,6 +1013,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         sendDelay.mix = 1
         rotary.setSampleRate(rate)
         transientShaper.setSampleRate(rateF)
+        busGlueCompressor.setSampleRate(rateF)
         shimmer.setSampleRate(rate)
         dspReverb.allocate(sampleRate: rate)
         sendReverb.allocate(sampleRate: rate)

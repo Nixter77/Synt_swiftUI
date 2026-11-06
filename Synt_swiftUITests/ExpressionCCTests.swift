@@ -104,7 +104,8 @@ struct ExpressionCCTests {
         #expect(SynthParameterAddress.aftertouchDeadzone.rawValue == 191)
         #expect(SynthParameterAddress.aftertouchDeadzone.min == 0)
         #expect(abs(SynthParameterAddress.aftertouchDeadzone.max - 0.3) < 1e-6)
-        #expect(SynthParameterAddress.allCases.last == .aftertouchDeadzone)
+        #expect(SynthParameterAddress.busGlueEnabled.rawValue == 192)
+        #expect(SynthParameterAddress.allCases.last == .busGlueEnabled)
 
         var preset = SynthPreset.defaultPreset
         #expect(preset.respondToExpressionCC == false)

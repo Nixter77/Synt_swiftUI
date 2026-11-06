@@ -158,8 +158,9 @@ struct DynamicsPerformanceSettingsTests {
         #expect(unit.keyboardTouch == .normal)
         #expect(!unit.globalExpressionCC)
         #expect(SyntAudioUnit.stateVersion == 1)
-        #expect(SynthParameterAddress.allCases.last == .aftertouchDeadzone)
         #expect(SynthParameterAddress.aftertouchDeadzone.rawValue == 191)
+        #expect(SynthParameterAddress.busGlueEnabled.rawValue == 192)
+        #expect(SynthParameterAddress.allCases.last == .busGlueEnabled)
 
         unit.keyboardTouch = .heavy
         unit.globalExpressionCC = true

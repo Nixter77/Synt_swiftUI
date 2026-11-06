@@ -177,6 +177,7 @@ public extension SynthPreset {
         p.velocityCurveShape = f(p.velocityCurveShape, -1, 1, 0)
         p.aftertouchCurve = f(p.aftertouchCurve, -1, 1, 0)
         p.aftertouchDeadzone = f(p.aftertouchDeadzone, 0, 0.3, 0)
+        // busGlueEnabled is Bool; leave as-is (default false)
         if !GlobalVoiceSourcePolicy.allCases.contains(p.globalVoiceSourcePolicy) {
             p.globalVoiceSourcePolicy = .loudest
         }

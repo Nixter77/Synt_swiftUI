@@ -1744,6 +1744,11 @@ public extension AudioEngine {
             )
         }
 
+        // SYNT_68: optional bus-glue compressor, post-CleanBus, default OFF.
+        if cachedBusGlueEnabled {
+            (outL, outR) = busGlueCompressor.processStereo(inputL: outL, inputR: outR)
+        }
+
         let sendSourceL = cachedSendPostInsert ? outL : preInsertL
         let sendSourceR = cachedSendPostInsert ? outR : preInsertR
 

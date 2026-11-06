@@ -269,6 +269,8 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     public var aftertouchCurve: Float = 0
     /// 0…0.3. Pressure at or below this reads as silence.
     public var aftertouchDeadzone: Float = 0
+    /// SYNT_68. Optional post-CleanBus bus-glue compressor. Off is bit-identical.
+    public var busGlueEnabled: Bool = false
     public var modEnvAttack: Float = 0.01
     public var modEnvDecay: Float = 0.2
     public var modEnvSustain: Float = 0.0
@@ -485,6 +487,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case ampRetriggerMode, keepUnisonThroughTails, shortAttackEnabled
         case combUsesVoiceCutoff, perVoiceCutoffSources
         case respondToExpressionCC, aftertouchCurve, aftertouchDeadzone
+        case busGlueEnabled
     }
 
     public init(
@@ -1066,6 +1069,7 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         respondToExpressionCC = try c.decodeIfPresent(Bool.self, forKey: .respondToExpressionCC) ?? false
         aftertouchCurve = try c.decodeIfPresent(Float.self, forKey: .aftertouchCurve) ?? 0
         aftertouchDeadzone = try c.decodeIfPresent(Float.self, forKey: .aftertouchDeadzone) ?? 0
+        busGlueEnabled = try c.decodeIfPresent(Bool.self, forKey: .busGlueEnabled) ?? false
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).

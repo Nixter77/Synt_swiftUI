@@ -116,7 +116,8 @@ import Testing
         #expect(SynthParameterAddress.combUsesVoiceCutoff.rawValue == 187)
         #expect(SynthParameterAddress.perVoiceCutoffSources.rawValue == 188)
         #expect(SynthParameterAddress.aftertouchDeadzone.rawValue == 191)
-        #expect(SynthParameterAddress.allCases.last == .aftertouchDeadzone)
+        #expect(SynthParameterAddress.busGlueEnabled.rawValue == 192)
+        #expect(SynthParameterAddress.allCases.last == .busGlueEnabled)
     }
 
     @Test func velocityToDriveRaisesTheCentroid() {

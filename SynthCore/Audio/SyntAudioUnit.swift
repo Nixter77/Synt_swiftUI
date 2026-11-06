@@ -58,6 +58,9 @@ public final class SyntAudioUnit: AUAudioUnit {
         adoptedPresetMirror = core.preset  // SYNT_27 P2-2: never empty, so no off-main engine.preset read
         try super.init(componentDescription: componentDescription, options: options)
         outputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outputBus])
+        if !RuntimeEnvironment.isUnitTestHost {
+            midi2ProtocolEnabled = PerformanceSettings.storedMIDI2Protocol()
+        }
         inputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .input, busses: [])
         maximumFramesToRender = 512
         // SYNT_26 R22-1: the AU flags and the one initial apply happen inside the engine's init
@@ -194,9 +197,15 @@ public final class SyntAudioUnit: AUAudioUnit {
         adoptPreset(loaded)
     }
 
-    /// MIDI 1.0 protocol. Hosts may still deliver either `.MIDI` byte events or a
-    /// `.midiEventList` of UMP packets (AVAudioEngine / Logic do the latter); both are parsed.
-    public override var audioUnitMIDIProtocol: MIDIProtocolID { ._1_0 }
+    /// SYNT_68. Setting-gated MIDI protocol. Default OFF → MIDI 1.0 (bit-identical host path).
+    /// When on, advertise MIDI 2.0; hosts may then send type-4 UMP. Logic manual = KEEP ME IN.
+    public var midi2ProtocolEnabled: Bool = false
+
+    /// Hosts may still deliver either `.MIDI` byte events or a `.midiEventList` of UMP
+    /// packets (AVAudioEngine / Logic do the latter); both are parsed. Default is MIDI 1.0.
+    public override var audioUnitMIDIProtocol: MIDIProtocolID {
+        midi2ProtocolEnabled ? ._2_0 : ._1_0
+    }
 
     public override var inputBusses: AUAudioUnitBusArray { inputBusArray }
     public override var outputBusses: AUAudioUnitBusArray { outputBusArray }
@@ -334,6 +343,7 @@ public final class SyntAudioUnit: AUAudioUnit {
             state[Self.stateProgramChangeKey] = respondsToProgramChange
             state[PerformanceSettings.touchStateKey] = keyboardTouch.rawValue
             state[PerformanceSettings.expressionStateKey] = globalExpressionCC
+            state[PerformanceSettings.midi2StateKey] = midi2ProtocolEnabled
             if let chrome = try? JSONEncoder().encode(PluginChromeState(zoom: uiZoom, layout: uiLayout)) {
                 state[Self.stateChromeKey] = chrome
             }
@@ -361,7 +371,7 @@ public final class SyntAudioUnit: AUAudioUnit {
         }
     }
 
-    /// Missing touch / expression keys keep the current value. They are not preset fields.
+    /// Missing touch / expression / MIDI2 keys keep the current value. They are not preset fields.
     private func applyPerformanceSettings(_ state: [String: Any]) {
         var touch = keyboardTouch
         var expression = globalExpressionCC
@@ -374,6 +384,12 @@ public final class SyntAudioUnit: AUAudioUnit {
         if let flag = state[PerformanceSettings.expressionStateKey] as? Bool {
             expression = flag
             present = true
+        }
+        if let flag = state[PerformanceSettings.midi2StateKey] as? Bool {
+            midi2ProtocolEnabled = flag
+            if !RuntimeEnvironment.isUnitTestHost {
+                PerformanceSettings.saveMIDI2Protocol(flag)
+            }
         }
         guard present else { return }
         keyboardTouch = touch
@@ -766,6 +782,7 @@ enum SyntParameterTree {
                 knob(.rotaryMix),
                 knob(.rotaryAccel, unit: .hertz),
                 toggleKnob(.transientEnabled),
+                toggleKnob(.busGlueEnabled),
                 knob(.transientAttack),
                 knob(.transientSustain),
                 knob(.transientOutput),

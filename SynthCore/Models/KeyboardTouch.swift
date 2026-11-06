@@ -39,8 +39,11 @@ public enum KeyboardTouch: Int, CaseIterable, Codable, Sendable {
 public enum PerformanceSettings {
     public static let touchDefaultsKey = "synt.keyboardTouch"
     public static let expressionDefaultsKey = "synt.globalExpressionCC"
+    /// SYNT_68. Setting-gated MIDI 2.0 AU protocol. Missing / false → MIDI 1.0.
+    public static let midi2DefaultsKey = "synt.midi2ProtocolEnabled"
     public static let touchStateKey = "syntKeyboardTouch"
     public static let expressionStateKey = "syntGlobalExpressionCC"
+    public static let midi2StateKey = "syntMIDI2ProtocolEnabled"
 
     /// A missing key is Normal. `integer(forKey:)` would return 0, which is Light.
     public static func storedTouch() -> KeyboardTouch {
@@ -53,6 +56,11 @@ public enum PerformanceSettings {
         UserDefaults.standard.bool(forKey: expressionDefaultsKey)
     }
 
+    /// A missing key is off (MIDI 1.0). Logic manual check = KEEP ME IN.
+    public static func storedMIDI2Protocol() -> Bool {
+        UserDefaults.standard.bool(forKey: midi2DefaultsKey)
+    }
+
     public static func applyStored(to engine: AudioEngine) {
         engine.keyboardTouch = storedTouch()
         engine.globalExpressionCC = storedExpression()
@@ -61,5 +69,9 @@ public enum PerformanceSettings {
     public static func save(touch: KeyboardTouch, expression: Bool) {
         UserDefaults.standard.set(touch.rawValue, forKey: touchDefaultsKey)
         UserDefaults.standard.set(expression, forKey: expressionDefaultsKey)
+    }
+
+    public static func saveMIDI2Protocol(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: midi2DefaultsKey)
     }
 }

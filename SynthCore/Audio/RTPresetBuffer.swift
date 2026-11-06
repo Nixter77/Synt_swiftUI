@@ -140,6 +140,7 @@ public struct RTPresetSnapshot: Sendable {
     public var respondToExpressionCC: Bool = false
     public var aftertouchCurve: Float = 0
     public var aftertouchDeadzone: Float = 0
+    public var busGlueEnabled: Bool = false
     public var hasEnvTimeMod: Bool = false
     public var glideMode: GlideMode = .time
     public var glideLegatoOnly: Bool = false
@@ -385,6 +386,7 @@ public struct RTPresetSnapshot: Sendable {
         respondToExpressionCC = preset.respondToExpressionCC
         aftertouchCurve = max(-1, min(1, preset.aftertouchCurve))
         aftertouchDeadzone = max(0, min(0.3, preset.aftertouchDeadzone))
+        busGlueEnabled = preset.busGlueEnabled
         hasEnvTimeMod = preset.modMatrix.contains { entry in
             switch entry.destination {
             case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
