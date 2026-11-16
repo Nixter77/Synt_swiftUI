@@ -10,6 +10,7 @@ import Testing
 struct EnvelopeAnalogModelTests {
     private let sampleRate = 48_000.0
 
+    @discardableResult
     private func step(
         _ env: inout ADSREnvelope,
         value: inout Float,

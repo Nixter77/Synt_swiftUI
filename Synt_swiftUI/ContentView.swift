@@ -416,10 +416,10 @@ struct EngineMetersView: View {
     var body: some View {
         HStack(spacing: 16) {
             StereoVUMeterView(
-                leftLevel: meters.outputLevel,
-                rightLevel: meters.outputLevel,
-                leftPeak: meters.peakLevel,
-                rightPeak: meters.peakLevel
+                leftLevel: meters.outputLevelL,
+                rightLevel: meters.outputLevelR,
+                leftPeak: meters.peakLevelL,
+                rightPeak: meters.peakLevelR
             )
             OscilloscopeView(metering: scope, isRunning: isRunning)
                 .frame(width: 160, height: 100)

@@ -358,7 +358,7 @@ public extension AudioEngine {
     /// Legacy `.linear` / `.exponential` / `.logarithmic` amp law, including the 0.15 floor.
     /// `.decibel` uses `rangeDb` and `curveShape`. The other curves ignore those arguments,
     /// so a call that passes the defaults is the old expression.
-    public static func legacyVelocityGain(
+    static func legacyVelocityGain(
         velocity: Float,
         curve: VelocityCurve,
         toVolume: Float,

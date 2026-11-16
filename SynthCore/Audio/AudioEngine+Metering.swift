@@ -45,7 +45,11 @@ public extension AudioEngine {
         }
         meters.ingest(
             output: meteringState.getOutputLevel(),
-            peak: meteringState.getPeakLevel()
+            peak: meteringState.getPeakLevel(),
+            outputL: meteringState.getOutputLevelL(),
+            outputR: meteringState.getOutputLevelR(),
+            peakL: meteringState.getPeakLevelL(),
+            peakR: meteringState.getPeakLevelR()
         )
     }
 }

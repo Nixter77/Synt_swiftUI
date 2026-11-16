@@ -18,28 +18,46 @@ struct FXChainView: View {
     @State private var draggedSlot: FXSlotID?
 
     var body: some View {
-        VStack(spacing: 10) {
-            sceneHPFCard
-            sendsCard
-            rotaryCard
-            transientCard
-            stereoCard
-            tranceCard
-            smoothCard
-            ForEach(preset.fxOrder, id: \.self) { slot in
-                slotCard(for: slot)
-                    .onDrag {
-                        draggedSlot = slot
-                        return NSItemProvider(object: slot.rawValue as NSString)
-                    }
-                    .onDrop(of: [.text, .plainText], delegate: FXSlotDropDelegate(
-                        item: slot,
-                        order: Binding(
-                            get: { preset.fxOrder },
-                            set: { updateOrder($0) }
-                        ),
-                        draggedItem: $draggedSlot
-                    ))
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 8) {
+                ForEach(preset.fxOrder, id: \.self) { slot in
+                    slotCard(for: slot)
+                        .onDrag {
+                            draggedSlot = slot
+                            return NSItemProvider(object: slot.rawValue as NSString)
+                        }
+                        .onDrop(of: [.text, .plainText], delegate: FXSlotDropDelegate(
+                            item: slot,
+                            order: Binding(
+                                get: { preset.fxOrder },
+                                set: { updateOrder($0) }
+                            ),
+                            draggedItem: $draggedSlot
+                        ))
+                }
+
+                HStack(spacing: 6) {
+                    Text("MASTER & MOD FX")
+                        .themeCaption(theme, size: 9, weight: .semibold)
+                        .foregroundColor(theme.textFaint)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(theme.border.opacity(0.6))
+                        .frame(height: 1)
+                }
+                .padding(.top, 2)
+                .padding(.horizontal, 2)
+
+                characterAndGlueCard
+                frequencyShifterCard
+                sendsCard
+                stereoCard
+                rotaryCard
+                transientCard
+                tranceCard
+                sceneHPFCard
+                smoothCard
             }
         }
     }
@@ -88,6 +106,50 @@ struct FXChainView: View {
     }
 
     private var presetBinding: Binding<SynthPreset> { $preset }
+
+    private var characterAndGlueCard: some View {
+        FXSlotCard(
+            title: "Character & Glue",
+            accent: theme.aFx,
+            storageName: "characterGlue",
+            startsExpanded: preset.character != .off || preset.busGlueEnabled
+        ) {
+            EmptyView()
+        } content: {
+            VStack(alignment: .leading, spacing: 8) {
+                ThemeSegmented(
+                    options: CharacterMode.allCases.map { (value: $0, title: $0.rawValue) },
+                    selection: $preset.character,
+                    accent: theme.aFx
+                )
+                HStack {
+                    Text("Bus Glue")
+                        .themeCaption(theme, size: 10)
+                        .foregroundColor(theme.textDim)
+                    Spacer()
+                    ThemeToggle(isOn: $preset.busGlueEnabled)
+                        .accessibilityIdentifier("busGlueToggle")
+                }
+            }
+        }
+    }
+
+    private var frequencyShifterCard: some View {
+        FXSlotCard(
+            title: "Freq Shifter",
+            enabled: $preset.frequencyShifterEnabled,
+            accent: theme.aFx,
+            storageName: "freqShifter",
+            startsExpanded: preset.frequencyShifterEnabled,
+            menu: { FXPresetMenu(kind: .frequencyShifter, preset: $preset) }
+        ) {
+            HStack(spacing: 8) {
+                KnobView(value: $preset.frequencyShifterShiftHz, range: -1000...1000, label: "Shift", format: "%.0f Hz")
+                KnobView(value: $preset.frequencyShifterFeedback, range: -0.95...0.95, label: "Fdbk")
+                KnobView(value: $preset.frequencyShifterMix, range: 0...1, label: "Mix")
+            }
+        }
+    }
 
     private var sceneHPFCard: some View {
         FXSlotCard(

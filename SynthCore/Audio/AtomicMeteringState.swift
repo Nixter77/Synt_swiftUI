@@ -13,6 +13,10 @@ public final class AtomicMeteringState: @unchecked Sendable {
     // Atomic storage for levels (stored as UInt32 bit patterns for atomic ops)
     private let outputLevelBits = Atomic<UInt32>(0)
     private let peakLevelBits = Atomic<UInt32>(0)
+    private let outputLevelLBits = Atomic<UInt32>(0)
+    private let outputLevelRBits = Atomic<UInt32>(0)
+    private let peakLevelLBits = Atomic<UInt32>(0)
+    private let peakLevelRBits = Atomic<UInt32>(0)
     /// Last raw key velocity, release velocity, and aftertouch. 0 means no event yet.
     private let inputVelocityBits = Atomic<UInt32>(0)
     private let releaseVelocityBits = Atomic<UInt32>(0)
@@ -61,6 +65,18 @@ public final class AtomicMeteringState: @unchecked Sendable {
     @inline(__always)
     public func setPeakLevel(_ value: Float) {
         peakLevelBits.store(value.bitPattern, ordering: .relaxed)
+    }
+
+    @inline(__always)
+    public func setOutputLevelStereo(left: Float, right: Float) {
+        outputLevelLBits.store(left.bitPattern, ordering: .relaxed)
+        outputLevelRBits.store(right.bitPattern, ordering: .relaxed)
+    }
+
+    @inline(__always)
+    public func setPeakLevelStereo(left: Float, right: Float) {
+        peakLevelLBits.store(left.bitPattern, ordering: .relaxed)
+        peakLevelRBits.store(right.bitPattern, ordering: .relaxed)
     }
 
     @inline(__always)
@@ -123,6 +139,26 @@ public final class AtomicMeteringState: @unchecked Sendable {
     @inline(__always)
     public func getPeakLevel() -> Float {
         Float(bitPattern: peakLevelBits.load(ordering: .relaxed))
+    }
+
+    @inline(__always)
+    public func getOutputLevelL() -> Float {
+        Float(bitPattern: outputLevelLBits.load(ordering: .relaxed))
+    }
+
+    @inline(__always)
+    public func getOutputLevelR() -> Float {
+        Float(bitPattern: outputLevelRBits.load(ordering: .relaxed))
+    }
+
+    @inline(__always)
+    public func getPeakLevelL() -> Float {
+        Float(bitPattern: peakLevelLBits.load(ordering: .relaxed))
+    }
+
+    @inline(__always)
+    public func getPeakLevelR() -> Float {
+        Float(bitPattern: peakLevelRBits.load(ordering: .relaxed))
     }
 
     @inline(__always)

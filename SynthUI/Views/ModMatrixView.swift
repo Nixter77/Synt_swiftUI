@@ -120,17 +120,27 @@ struct ModMatrixView: View {
 
                 Picker("Destination", selection: entry.destination) {
                     Section("Oscillator") {
-                        ForEach([ModDestination.pitch1, .pitch2, .pwm1, .pwm2, .wtMorph1, .wtMorph2, .mix, .finePitch, .fm], id: \.self) { dest in
+                        ForEach([ModDestination.pitch1, .pitch2, .pwm1, .pwm2, .wtMorph1, .wtMorph2, .mix, .finePitch, .fm, .osc1Level, .osc2Level, .subLevel, .noiseLevel], id: \.self) { dest in
                             Text(dest.menuTitle).tag(dest)
                         }
                     }
                     Section("Filter") {
-                        ForEach([ModDestination.cutoff, .resonance, .vowel], id: \.self) { dest in
+                        ForEach([ModDestination.cutoff, .resonance, .vowel, .drive, .filterEnvAmount], id: \.self) { dest in
+                            Text(dest.menuTitle).tag(dest)
+                        }
+                    }
+                    Section("Envelope") {
+                        ForEach([ModDestination.ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease], id: \.self) { dest in
                             Text(dest.menuTitle).tag(dest)
                         }
                     }
                     Section("Amp") {
                         ForEach([ModDestination.amp, .pan], id: \.self) { dest in
+                            Text(dest.menuTitle).tag(dest)
+                        }
+                    }
+                    Section("Unison") {
+                        ForEach([ModDestination.unisonDetune], id: \.self) { dest in
                             Text(dest.menuTitle).tag(dest)
                         }
                     }
@@ -233,6 +243,12 @@ struct ModMatrixView: View {
             action = "\(row.source.rawValue) moves pulse width. It acts only on Pulse."
         case .lfoRate:
             action = "\(row.source.rawValue) scales LFO rate by \(row.destination.formatAmount(row.amount))."
+        case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+            action = "\(row.source.rawValue) scales \(row.destination.menuTitle) by \(row.destination.formatAmount(row.amount)). Sampled at stage start."
+        case .drive:
+            action = "\(row.source.rawValue) drives per-voice saturation by \(row.destination.formatAmount(row.amount))."
+        case .unisonDetune:
+            action = "\(row.source.rawValue) shifts unison detune by \(row.destination.formatAmount(row.amount))."
         default:
             action = "\(row.source.rawValue) → \(row.destination.menuTitle) \(row.destination.formatAmount(row.amount))."
         }

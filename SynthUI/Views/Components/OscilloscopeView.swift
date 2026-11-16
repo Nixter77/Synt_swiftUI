@@ -18,6 +18,11 @@ public final class OutputSpectrumCalculator: @unchecked Sendable {
     private let log2n: vDSP_Length
     private let fftSetup: FFTSetup?
     private let window: [Float]
+    private let lock = NSLock()
+    private var windowed: [Float]
+    private var real: [Float]
+    private var imag: [Float]
+    private var result: [Float]
 
     public init() {
         let size = 512
@@ -26,6 +31,10 @@ public final class OutputSpectrumCalculator: @unchecked Sendable {
         window = (0..<size).map {
             Float(0.5 * (1.0 - cos(2.0 * Double.pi * Double($0) / Double(size - 1))))
         }
+        windowed = [Float](repeating: 0, count: size)
+        real = [Float](repeating: 0, count: size)
+        imag = [Float](repeating: 0, count: size)
+        result = [Float](repeating: 0, count: size / 2)
     }
 
     deinit {
@@ -36,32 +45,51 @@ public final class OutputSpectrumCalculator: @unchecked Sendable {
 
     public func computeMagnitudes(from buffer: [Float]) -> [Float] {
         guard let fftSetup, buffer.count >= n else { return [] }
-        var windowed = [Float](repeating: 0, count: n)
-        for i in 0..<n {
-            windowed[i] = buffer[i] * window[i]
-        }
+        lock.lock()
+        defer { lock.unlock() }
 
-        var real = windowed
-        var imag = [Float](repeating: 0, count: n)
-
-        return real.withUnsafeMutableBufferPointer { rBuf in
-            imag.withUnsafeMutableBufferPointer { iBuf in
-                var split = DSPSplitComplex(realp: rBuf.baseAddress!, imagp: iBuf.baseAddress!)
-                vDSP_fft_zip(fftSetup, &split, 1, log2n, FFTDirection(kFFTDirection_Forward))
-
-                let halfN = n / 2
-                var result = [Float](repeating: 0, count: halfN)
-                for k in 0..<halfN {
-                    let re = rBuf[k]
-                    let im = iBuf[k]
-                    let mag = sqrt(re * re + im * im) / Float(halfN)
-                    let db = 20.0 * log10(max(mag, 1.0e-3))
-                    let normalized = max(0.0, min(1.0, (db + 60.0) / 60.0))
-                    result[k] = normalized
+        let count = vDSP_Length(n)
+        buffer.withUnsafeBufferPointer { bBuf in
+            window.withUnsafeBufferPointer { wBuf in
+                windowed.withUnsafeMutableBufferPointer { winBuf in
+                    guard let bPtr = bBuf.baseAddress,
+                          let wPtr = wBuf.baseAddress,
+                          let winPtr = winBuf.baseAddress else { return }
+                    vDSP_vmul(bPtr, 1, wPtr, 1, winPtr, 1, count)
                 }
-                return result
             }
         }
+        windowed.withUnsafeBufferPointer { winBuf in
+            real.withUnsafeMutableBufferPointer { rBuf in
+                guard let winPtr = winBuf.baseAddress,
+                      let rPtr = rBuf.baseAddress else { return }
+                rPtr.update(from: winPtr, count: n)
+            }
+        }
+
+        real.withUnsafeMutableBufferPointer { rBuf in
+            imag.withUnsafeMutableBufferPointer { iBuf in
+                result.withUnsafeMutableBufferPointer { resBuf in
+                    guard let rPtr = rBuf.baseAddress,
+                          let iPtr = iBuf.baseAddress,
+                          let resPtr = resBuf.baseAddress else { return }
+                    vDSP_vclr(iPtr, 1, count)
+                    var split = DSPSplitComplex(realp: rPtr, imagp: iPtr)
+                    vDSP_fft_zip(fftSetup, &split, 1, log2n, FFTDirection(kFFTDirection_Forward))
+
+                    let halfN = n / 2
+                    for k in 0..<halfN {
+                        let re = rPtr[k]
+                        let im = iPtr[k]
+                        let mag = sqrt(re * re + im * im) / Float(halfN)
+                        let safeMag = mag.isFinite ? max(mag, 1.0e-3) : 1.0e-3
+                        let db = 20.0 * log10(safeMag)
+                        resPtr[k] = max(0.0, min(1.0, (db + 60.0) / 60.0))
+                    }
+                }
+            }
+        }
+        return result
     }
 }
 
@@ -74,6 +102,17 @@ struct OscilloscopeView: View {
     var isRunning: Bool = true
     @State var mode: OutputVisualizerMode = .scope
 
+    static func risingZeroCrossingIndex(in data: [Float], maxSearch: Int) -> Int {
+        let limit = min(maxSearch, data.count - 1)
+        guard limit > 0 else { return 0 }
+        for i in 0..<limit {
+            if data[i] <= 0 && data[i + 1] > 0 {
+                return i
+            }
+        }
+        return 0
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: theme.rSmall)
@@ -83,19 +122,45 @@ struct OscilloscopeView: View {
                 Canvas { context, size in
                     let data = metering.readScopeBuffer()
                     let count = data.count
-                    guard count > 1 else { return }
-
                     let strokeColor = lineColor ?? theme.scopeLine
 
                     if mode == .scope {
+                        let gridColor = theme.border
+                        var gridPath = Path()
+                        for frac in [0.25, 0.75] as [CGFloat] {
+                            let y = size.height * frac
+                            gridPath.move(to: CGPoint(x: 0, y: y))
+                            gridPath.addLine(to: CGPoint(x: size.width, y: y))
+                        }
+                        for frac in [0.25, 0.5, 0.75] as [CGFloat] {
+                            let x = size.width * frac
+                            gridPath.move(to: CGPoint(x: x, y: 0))
+                            gridPath.addLine(to: CGPoint(x: x, y: size.height))
+                        }
+                        context.stroke(gridPath, with: .color(gridColor.opacity(0.25)), lineWidth: 0.5)
+
                         let midY = size.height / 2.0
-                        let stepX = size.width / CGFloat(count - 1)
+                        var zeroPath = Path()
+                        zeroPath.move(to: CGPoint(x: 0, y: midY))
+                        zeroPath.addLine(to: CGPoint(x: size.width, y: midY))
+                        context.stroke(zeroPath, with: .color(gridColor.opacity(0.45)), lineWidth: 0.75)
+
+                        guard count > 1 else { return }
+
+                        let start = Self.risingZeroCrossingIndex(in: data, maxSearch: count / 2)
+                        let windowCount = max(2, count / 2)
+                        let end = min(count, start + windowCount)
+                        let visibleCount = end - start
+                        guard visibleCount > 1 else { return }
+
+                        let stepX = size.width / CGFloat(visibleCount - 1)
                         var path = Path()
-                        let start = min(1.0, max(-1.0, CGFloat(data[0])))
-                        path.move(to: CGPoint(x: 0, y: midY - start * midY))
-                        for i in 1..<count {
-                            let sample = min(1.0, max(-1.0, CGFloat(data[i])))
-                            path.addLine(to: CGPoint(x: CGFloat(i) * stepX, y: midY - sample * midY))
+                        let firstSample = data[start].isFinite ? min(1.0, max(-1.0, CGFloat(data[start]))) : 0
+                        path.move(to: CGPoint(x: 0, y: midY - firstSample * midY))
+                        for offset in 1..<visibleCount {
+                            let raw = data[start + offset]
+                            let sample = raw.isFinite ? min(1.0, max(-1.0, CGFloat(raw))) : 0
+                            path.addLine(to: CGPoint(x: CGFloat(offset) * stepX, y: midY - sample * midY))
                         }
                         context.stroke(
                             path,
@@ -103,6 +168,7 @@ struct OscilloscopeView: View {
                             style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                         )
                     } else {
+                        guard count > 1 else { return }
                         let mags = OutputSpectrumCalculator.shared.computeMagnitudes(from: data)
                         guard mags.count > 1 else { return }
                         let barCount = 48

@@ -20,23 +20,34 @@ public final class SceneHPF {
         y1L = 0
         x1R = 0
         y1R = 0
+        coeff = 0
         lastHz = -1
         lastRate = 0
     }
 
     public func process(left: Float, right: Float, hz: Float, sampleRate: Float) -> (Float, Float) {
-        let rate = max(sampleRate, 1)
-        let cutoff = min(max(hz, 20), rate * 0.45)
+        let inL: Float = left.isFinite ? left : 0
+        let inR: Float = right.isFinite ? right : 0
+        let safeRate: Float = sampleRate.isFinite ? sampleRate : 44_100
+        let safeHz: Float = hz.isFinite ? hz : 120
+        let rate = max(safeRate, 1)
+        let cutoff = min(max(safeHz, 20), rate * 0.45)
         if cutoff != lastHz || rate != lastRate {
             lastHz = cutoff
             lastRate = rate
             coeff = exp(-2 * Float.pi * cutoff / rate)
         }
-        let yL = coeff * (y1L + left - x1L)
-        let yR = coeff * (y1R + right - x1R)
-        x1L = left
+        var yL = coeff * (y1L + inL - x1L)
+        var yR = coeff * (y1R + inR - x1R)
+        if !yL.isFinite || !yR.isFinite {
+            reset()
+            return (0, 0)
+        }
+        if abs(yL) < 1e-15 { yL = 0 }
+        if abs(yR) < 1e-15 { yR = 0 }
+        x1L = inL
         y1L = yL
-        x1R = right
+        x1R = inR
         y1R = yR
         return (yL, yR)
     }

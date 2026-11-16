@@ -680,6 +680,10 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     // Level metering (audio-thread accumulators → AtomicMeteringState)
     public var currentLevel: Float = 0.0
     public var currentPeak: Float = 0.0
+    public var currentLevelL: Float = 0.0
+    public var currentLevelR: Float = 0.0
+    public var currentPeakL: Float = 0.0
+    public var currentPeakR: Float = 0.0
     public var sampleCounter: Int = 0
     public let levelUpdateInterval: Int = 2048
     public let levelDecay: Float = 0.95
@@ -1133,8 +1137,14 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         meters.resetDisplay()
         currentLevel = 0.0
         currentPeak = 0.0
+        currentLevelL = 0.0
+        currentLevelR = 0.0
+        currentPeakL = 0.0
+        currentPeakR = 0.0
         meteringState.setOutputLevel(0)
         meteringState.setPeakLevel(0)
+        meteringState.setOutputLevelStereo(left: 0, right: 0)
+        meteringState.setPeakLevelStereo(left: 0, right: 0)
     }
 
     public func pitchBend(_ normalized: Float) {
