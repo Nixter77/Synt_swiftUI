@@ -11,11 +11,16 @@ import Testing
 @testable import Synt_swiftUI
 
 @MainActor
+@Suite(.serialized)
 struct LibraryPresetTests {
     /// Below the soft clip (0.95) and the Chord-hiss "hot" peak.
     static let peakCeiling: Float = 0.90
     /// The loudest legacy 3-note chord peaks ≈ 0.51 (Muted Funk); new patches stay ≤ 0.60.
     static let newPatchChordCeiling: Float = 0.60
+    /// SYNT_68: parallel Testing hung ~450s on presetRendersCleanly (shared engine /
+    /// oversubscription). `@Suite(.serialized)` is the hang fix. Full sweep must
+    /// finish under this wall-time budget in CI.
+    static let parameterizedBudgetSeconds: Double = 120
 
     @Test func libraryHasExactlyOneHundredPresets() {
         #expect(SynthPreset.factoryPresets.count == 103)
@@ -64,8 +69,23 @@ struct LibraryPresetTests {
         }
     }
 
-    @Test(arguments: SynthPreset.factoryPresets.map(\.name))
-    func presetRendersCleanly(_ name: String) throws {
+    /// Same assertions as the former per-argument `presetRendersCleanly`, plus the
+    /// SYNT_68 <120s guard. One pass (no double work with a separate parameterized matrix).
+    @Test func presetRendersCleanly() throws {
+        let started = ContinuousClock.now
+        for name in SynthPreset.factoryPresets.map(\.name) {
+            try Self.assertPresetRendersCleanly(name)
+        }
+        let elapsed = started.duration(to: .now)
+        let seconds = Double(elapsed.components.seconds)
+            + Double(elapsed.components.attoseconds) / 1e18
+        #expect(
+            seconds < Self.parameterizedBudgetSeconds,
+            "LibraryPreset full sweep took \(seconds)s (serialized hang-fix; budget \(Self.parameterizedBudgetSeconds)s)"
+        )
+    }
+
+    static func assertPresetRendersCleanly(_ name: String) throws {
         let preset = try #require(SynthPreset.factoryPresets.first { $0.name == name })
         let isNew = SynthPreset.libraryPresets.contains { $0.name == name }
         var runs: [(label: String, notes: [Int], arp: Bool)] = [("1 note", [60], false), ("3 notes", [60, 64, 67], false)]

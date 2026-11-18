@@ -35,6 +35,13 @@ struct ModMatrixView: View {
         VStack(spacing: 8) {
             HStack {
                 AppleSectionHeader(title: "MOD MATRIX", accent: theme.aMod, icon: "arrow.triangle.branch")
+                Text("\(preset.modMatrix.count)/\(RTModMatrix.capacity)")
+                    .font(theme.monoFont(size: 8, weight: .bold))
+                    .foregroundColor(atCapacity ? theme.destructive : theme.textDim)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 3).fill(theme.inset))
+                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border.opacity(0.6), lineWidth: 0.5))
                 Spacer()
                 Image(systemName: "questionmark.circle")
                     .font(.system(size: 11, weight: .semibold))
@@ -120,17 +127,27 @@ struct ModMatrixView: View {
 
                 Picker("Destination", selection: entry.destination) {
                     Section("Oscillator") {
-                        ForEach([ModDestination.pitch1, .pitch2, .pwm1, .pwm2, .wtMorph1, .wtMorph2, .mix, .finePitch, .fm], id: \.self) { dest in
+                        ForEach([ModDestination.pitch1, .pitch2, .pwm1, .pwm2, .wtMorph1, .wtMorph2, .mix, .finePitch, .fm, .osc1Level, .osc2Level, .subLevel, .noiseLevel], id: \.self) { dest in
                             Text(dest.menuTitle).tag(dest)
                         }
                     }
                     Section("Filter") {
-                        ForEach([ModDestination.cutoff, .resonance, .vowel], id: \.self) { dest in
+                        ForEach([ModDestination.cutoff, .resonance, .vowel, .drive, .filterEnvAmount], id: \.self) { dest in
+                            Text(dest.menuTitle).tag(dest)
+                        }
+                    }
+                    Section("Envelope") {
+                        ForEach([ModDestination.ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease], id: \.self) { dest in
                             Text(dest.menuTitle).tag(dest)
                         }
                     }
                     Section("Amp") {
                         ForEach([ModDestination.amp, .pan], id: \.self) { dest in
+                            Text(dest.menuTitle).tag(dest)
+                        }
+                    }
+                    Section("Unison") {
+                        ForEach([ModDestination.unisonDetune], id: \.self) { dest in
                             Text(dest.menuTitle).tag(dest)
                         }
                     }
@@ -158,6 +175,19 @@ struct ModMatrixView: View {
                 .accessibilityIdentifier("modCurve")
             }
             HStack(spacing: 6) {
+                MatrixCurveControl(shape: entry.curveShape)
+                Picker("Via", selection: entry.viaSource) {
+                    Text("—").tag(Optional<ModSource>.none)
+                    ForEach(ModSource.allCases, id: \.self) { source in
+                        Text(source.rawValue).tag(Optional(source))
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(maxWidth: 78)
+                .accessibilityIdentifier("modVia")
+                .help(row.viaSource.map { "Via \($0.rawValue)" } ?? "Via off")
+
                 KnobView(
                     value: entry.amount,
                     range: -1...1,
@@ -210,6 +240,7 @@ struct ModMatrixView: View {
         case .mpePitchBend: polarity = "MPE Pitch Bend is per-voice bipolar."
         case .mpePressure: polarity = "MPE Pressure is per-voice 0…1."
         case .mpeTimbre: polarity = "MPE Timbre (CC74) is per-voice 0…1."
+        case .releaseVelocity: polarity = "Release Velocity is 0…1. It stays at 0.5 until the key lifts."
         }
         let action: String
         switch row.destination {
@@ -219,10 +250,23 @@ struct ModMatrixView: View {
             action = "\(row.source.rawValue) moves pulse width. It acts only on Pulse."
         case .lfoRate:
             action = "\(row.source.rawValue) scales LFO rate by \(row.destination.formatAmount(row.amount))."
+        case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+            action = "\(row.source.rawValue) scales \(row.destination.menuTitle) by \(row.destination.formatAmount(row.amount)). Sampled at stage start."
+        case .drive:
+            action = "\(row.source.rawValue) drives per-voice saturation by \(row.destination.formatAmount(row.amount))."
+        case .unisonDetune:
+            action = "\(row.source.rawValue) shifts unison detune by \(row.destination.formatAmount(row.amount))."
         default:
             action = "\(row.source.rawValue) → \(row.destination.menuTitle) \(row.destination.formatAmount(row.amount))."
         }
-        return "\(action) \(polarity)"
+        var extra = ""
+        if row.curveShape != 0 {
+            extra += " Curve shape \(String(format: "%+.2f", row.curveShape))."
+        }
+        if let via = row.viaSource {
+            extra += " Via \(via.rawValue)."
+        }
+        return "\(action) \(polarity)\(extra)"
     }
 
     private func addEntry() {
@@ -232,5 +276,71 @@ struct ModMatrixView: View {
 
     private func removeEntry(_ id: UUID) {
         preset.modMatrix.removeAll { $0.id == id }
+    }
+}
+
+/// `y = x ^ 2^(−3·shape)`. Drag up bends the row toward a fast start.
+struct MatrixCurveControl: View {
+    @Environment(\.theme) private var theme
+    @Binding var shape: Float
+    @State private var dragStart: Float?
+
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width
+            let h = size.height
+
+            var diag = Path()
+            diag.move(to: CGPoint(x: 0, y: h))
+            diag.addLine(to: CGPoint(x: w, y: 0))
+            context.stroke(
+                diag,
+                with: .color(theme.border.opacity(0.45)),
+                style: StrokeStyle(lineWidth: 0.75, dash: [2, 2])
+            )
+
+            var path = Path()
+            let steps = 12
+            let exponent = exp2(-3 * shape)
+            for i in 0...steps {
+                let x = Float(i) / Float(steps)
+                let y = pow(x, exponent)
+                let point = CGPoint(
+                    x: CGFloat(x) * w,
+                    y: h - CGFloat(y) * h
+                )
+                if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            context.stroke(path, with: .color(theme.aMod), lineWidth: 1.5)
+
+            let midY = pow(0.5, exponent)
+            let midPt = CGPoint(x: w * 0.5, y: h - CGFloat(midY) * h)
+            let dotRect = CGRect(x: midPt.x - 1.75, y: midPt.y - 1.75, width: 3.5, height: 3.5)
+            context.fill(
+                Path(ellipseIn: dotRect),
+                with: .color(abs(shape) > 0.01 ? theme.accent : theme.aMod)
+            )
+        }
+        .frame(width: 28, height: 18)
+        .background(RoundedRectangle(cornerRadius: 3).fill(theme.inset.opacity(0.6)))
+        .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border.opacity(0.5), lineWidth: 0.5))
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            shape = 0
+        }
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { gesture in
+                    if dragStart == nil { dragStart = shape }
+                    let base = dragStart ?? shape
+                    let next = base + Float(-gesture.translation.height) / 48
+                    shape = min(1, max(-1, next))
+                }
+                .onEnded { _ in
+                    dragStart = nil
+                }
+        )
+        .accessibilityIdentifier("modCurveShape")
+        .help(String(format: "Curve shape %+.2f (double-click to reset)", shape))
     }
 }

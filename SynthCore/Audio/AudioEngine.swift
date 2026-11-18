@@ -89,6 +89,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     /// Leslie rotor. Skipped while `cachedRotaryEnabled` is false.
     public let rotary = DSPRotary(sampleRate: 44100)
     public let transientShaper = DSPTransientShaper(sampleRate: 44100)
+    /// SYNT_68 optional post-CleanBus bus glue. Off by default.
+    public let busGlueCompressor = Compressor(sampleRate: 44100)
     public let sceneHPF = SceneHPF()
 
     @Published public var isPlaying = false
@@ -335,6 +337,27 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedFXOrder: FXOrderTable = FXOrderTable()
     /// Host or user preference for MIDI Program Change events.
     @Published public var respondsToProgramChange: Bool = false
+    /// App setting, not a preset field. The audio thread reads the atomic.
+    /// Normal is the identity, so Init and factory goldens stay put.
+    private let keyboardTouchRaw = Atomic<Int>(KeyboardTouch.normal.rawValue)
+    @Published public var keyboardTouch: KeyboardTouch = .normal {
+        didSet { keyboardTouchRaw.store(keyboardTouch.rawValue, ordering: .releasing) }
+    }
+    /// App-wide CC7/CC11. Off leaves the preset flag as the only gate.
+    /// didSet does not run for the initial false, so the cache starts false.
+    public var cachedGlobalExpressionCC = false
+    @Published public var globalExpressionCC = false {
+        didSet { cachedGlobalExpressionCC = globalExpressionCC }
+    }
+
+    /// Touch curve once, before the preset curve. Normal returns the same bits.
+    func keyboardTouchVelocity(_ velocity: Float) -> Float {
+        let raw = keyboardTouchRaw.load(ordering: .acquiring)
+        let touch = KeyboardTouch(rawValue: raw) ?? .normal
+        let shaped = touch.shape(velocity)
+        meteringState.setPlayedVelocity(shaped)
+        return shaped
+    }
     public static let maxActiveRamps = 8
     public var activeRamps = [ActiveParameterRamp](repeating: ActiveParameterRamp(), count: maxActiveRamps)
     public var hasActiveRamps = false
@@ -355,6 +378,37 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var cachedVoiceMode: VoiceMode = .poly
     public var cachedVelocityCurve: VelocityCurve = .linear
     public var cachedVelocityToVolume: Float = 1.0
+    public var cachedVelocityRangeDb: Float = 0
+    public var cachedVelocityCurveShape: Float = 0
+    public var cachedGlobalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest
+    public var cachedArpUsesInputVelocity: Bool = false
+    public var cachedLegatoUpdatesVelocity: Bool = false
+    public var cachedEnvelopeModel: EnvelopeModel = .legacy
+    public var cachedAmpDelay: Float = 0
+    public var cachedAmpHold: Float = 0
+    public var cachedFilterEnvDelay: Float = 0
+    public var cachedFilterEnvHold: Float = 0
+    public var cachedVelToAttack: Float = 0
+    public var cachedVelToDecay: Float = 0
+    public var cachedReleaseVelToRelease: Float = 0
+    public var cachedEnvKeyTrack: Float = 0
+    public var cachedAmpRetriggerMode: AmpRetriggerMode = .fromCurrent
+    public var cachedKeepUnisonThroughTails: Bool = false
+    public var cachedShortAttack: Bool = false
+    public var cachedCombUsesVoiceCutoff: Bool = false
+    public var cachedPerVoiceCutoffSources: Bool = false
+    public var cachedRespondToExpressionCC: Bool = false
+    public var cachedAftertouchCurve: Float = 0
+    public var cachedAftertouchDeadzone: Float = 0
+    public var cachedBusGlueEnabled: Bool = false
+    public var cachedEnvTimeMod: Bool = false
+    /// Pressed-key velocities for the arp. Allocated once. Index is the MIDI note.
+    public var arpNoteVelocities = [Float](repeating: 0, count: 128)
+    /// Slot written by the latest `createVoice`. −1 when none.
+    public var lastTriggeredSlot: Int = -1
+    /// One-pole coeff for legato `velGain` (tau 4 ms). Recomputed only when the sample rate changes.
+    var velGainGlideCoeff: Float = 1
+    var velGainGlideSampleRate: Double = 0
     public var cachedGlideMode: GlideMode = .time
     public var cachedGlideLegatoOnly: Bool = false
     public var cachedMonoPriority: MonoPriority = .last
@@ -498,6 +552,10 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let liveModulation = LiveModulationSnapshot()
     public var lastRenderedSampleL: Float = 0.0
     public var lastRenderedSampleR: Float = 0.0
+    /// SYNT_61 D0. `preInsert` tap: voices × 0.65 × master, before CleanBus.
+    /// Written every sample. Does not feed the output.
+    public var dynamicsPreCleanBusL: Float = 0
+    public var dynamicsPreCleanBusR: Float = 0
     public let frequencyShifter = DSPFrequencyShifter()
     public var cachedFrequencyShifterEnabled: Bool = false
     public var cachedFrequencyShifterShiftHz: Float = 0.0
@@ -538,6 +596,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public var modWheel: Float = 0
     public var aftertouchTarget: Float = 0
     public var aftertouchSmoothed: Float = 0
+    /// CC7 / CC11, 0…1. Idle is MIDI 127 so a missing controller stays at unity.
+    public var channelVolumeTarget: Float = 1
+    public var channelVolumeSmoothed: Float = 1
+    public var expressionTarget: Float = 1
+    public var expressionSmoothed: Float = 1
     public var cachedLfoDepth: Float = 0.5
     public var cachedLfo2Depth: Float = 0.5
     public var sustainPedalDown = false
@@ -617,6 +680,10 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     // Level metering (audio-thread accumulators → AtomicMeteringState)
     public var currentLevel: Float = 0.0
     public var currentPeak: Float = 0.0
+    public var currentLevelL: Float = 0.0
+    public var currentLevelR: Float = 0.0
+    public var currentPeakL: Float = 0.0
+    public var currentPeakR: Float = 0.0
     public var sampleCounter: Int = 0
     public let levelUpdateInterval: Int = 2048
     public let levelDecay: Float = 0.95
@@ -950,6 +1017,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         sendDelay.mix = 1
         rotary.setSampleRate(rate)
         transientShaper.setSampleRate(rateF)
+        busGlueCompressor.setSampleRate(rateF)
         shimmer.setSampleRate(rate)
         dspReverb.allocate(sampleRate: rate)
         sendReverb.allocate(sampleRate: rate)
@@ -1069,8 +1137,14 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         meters.resetDisplay()
         currentLevel = 0.0
         currentPeak = 0.0
+        currentLevelL = 0.0
+        currentLevelR = 0.0
+        currentPeakL = 0.0
+        currentPeakR = 0.0
         meteringState.setOutputLevel(0)
         meteringState.setPeakLevel(0)
+        meteringState.setOutputLevelStereo(left: 0, right: 0)
+        meteringState.setPeakLevelStereo(left: 0, right: 0)
     }
 
     public func pitchBend(_ normalized: Float) {
@@ -1098,20 +1172,22 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     }
 
     public func noteOn(midiNote: Int, velocity: Float = 1.0) {
-        // Read preset only on non-audio path; push RT-safe command
+        // Read preset only on non-audio path; push RT-safe command.
+        // Arp must go through keyDown so the velocity is stored for arpInputVelocity.
+        // arpKeyDown alone drops it and every arp tick falls back to 0.8.
         if preset.arpMode != .off {
-            _ = commandQueue.push(.arpKeyDown(midiNote: midiNote))
+            _ = commandQueue.push(.keyDown(midiNote: midiNote, velocity: velocity))
         } else {
             _ = commandQueue.push(.noteOn(midiNote: midiNote, velocity: velocity))
         }
         updatePressedKeys { $0.insert(midiNote) }
     }
 
-    public func noteOff(midiNote: Int) {
+    public func noteOff(midiNote: Int, releaseVelocity: Float = 0.5) {
         if preset.arpMode != .off {
             _ = commandQueue.push(.arpKeyUp(midiNote: midiNote))
         } else {
-            _ = commandQueue.push(.noteOff(midiNote: midiNote))
+            _ = commandQueue.push(.noteOff(midiNote: midiNote, releaseVelocity: releaseVelocity))
         }
         updatePressedKeys { $0.remove(midiNote) }
     }
@@ -1128,11 +1204,11 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
         midiKeys.insert(midiNote)
     }
 
-    public func midiNoteOff(midiNote: Int, channel: UInt8 = 0) {
+    public func midiNoteOff(midiNote: Int, channel: UInt8 = 0, releaseVelocity: Float = 0.5) {
         if isStandaloneMPEMember(channel) {
-            _ = midiQueue.push(.mpeKeyUp(midiNote: midiNote, channel: channel))
+            _ = midiQueue.push(.mpeKeyUp(midiNote: midiNote, channel: channel, releaseVelocity: releaseVelocity))
         } else {
-            _ = midiQueue.push(.keyUp(midiNote: midiNote))
+            _ = midiQueue.push(.keyUp(midiNote: midiNote, releaseVelocity: releaseVelocity))
         }
         midiKeys.remove(midiNote)
     }
@@ -1148,6 +1224,14 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     public func midiModWheel(_ amount: Float) {
         _ = midiQueue.push(.setModWheel(min(1, max(0, amount))))
+    }
+
+    public func midiChannelVolume(_ amount: Float) {
+        _ = midiQueue.push(.setChannelVolume(min(1, max(0, amount))))
+    }
+
+    public func midiExpression(_ amount: Float) {
+        _ = midiQueue.push(.setExpression(min(1, max(0, amount))))
     }
 
     public func midiAftertouch(_ amount: Float, channel: UInt8 = 0) {

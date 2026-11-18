@@ -30,7 +30,8 @@ public struct Oscillator {
         phaseIncrement: Double,
         noiseValue: Float = 0.0,
         pulseWidthOverride: Float? = nil,
-        pullWavetable: Bool = true
+        pullWavetable: Bool = true,
+        frameOffset: Float = 0
     ) -> Float {
         let sample: Float
         let twoPi = AudioMath.twoPi
@@ -47,7 +48,7 @@ public struct Oscillator {
             var value = 2.0 * normalizedPhase - 1.0
 
             // Apply PolyBLEP correction for discontinuity at phase 0/1
-            value -= polyBLEP(t: normalizedPhase, dt: normalizedIncrement)
+            value -= Self.polyBLEP(t: normalizedPhase, dt: normalizedIncrement)
 
             sample = Float(value)
 
@@ -57,13 +58,13 @@ public struct Oscillator {
             var value = normalizedPhase < pw ? 1.0 : -1.0
 
             // PolyBLEP for rising edge at 0
-            value += polyBLEP(t: normalizedPhase, dt: normalizedIncrement)
+            value += Self.polyBLEP(t: normalizedPhase, dt: normalizedIncrement)
 
             // PolyBLEP for falling edge at pulseWidth
             var phaseShifted = normalizedPhase - pw
             if phaseShifted < 0.0 { phaseShifted += 1.0 }
 
-            value -= polyBLEP(t: phaseShifted, dt: normalizedIncrement)
+            value -= Self.polyBLEP(t: phaseShifted, dt: normalizedIncrement)
 
             sample = Float(value)
 
@@ -72,10 +73,10 @@ public struct Oscillator {
             // PolyBLAMP (integral of the same 2-point PolyBLEP as saw/square)
             // rounds only those corners. Mid-slope is unchanged.
             var value = 4.0 * abs(normalizedPhase - 0.5) - 1.0
-            value += 8.0 * polyBLAMP(t: normalizedPhase, dt: normalizedIncrement)
+            value += 8.0 * Self.polyBLAMP(t: normalizedPhase, dt: normalizedIncrement)
             var half = normalizedPhase - 0.5
             if half < 0 { half += 1.0 }
-            value -= 8.0 * polyBLAMP(t: half, dt: normalizedIncrement)
+            value -= 8.0 * Self.polyBLAMP(t: half, dt: normalizedIncrement)
             sample = Float(value)
 
         case .noise:
@@ -87,8 +88,8 @@ public struct Oscillator {
             if let engine = wavetableEngine {
                 // SYNT_24 Stage 2: the engine render already pulled this sample (advanceMorph).
                 sample = pullWavetable
-                    ? engine.generateSample(phase: phase, phaseIncrement: phaseIncrement, sampleRate: wavetableSampleRate)
-                    : engine.generateSampleNoPull(phase: phase, phaseIncrement: phaseIncrement, sampleRate: wavetableSampleRate)
+                    ? engine.generateSample(phase: phase, phaseIncrement: phaseIncrement, sampleRate: wavetableSampleRate, frameOffset: frameOffset)
+                    : engine.generateSampleNoPull(phase: phase, phaseIncrement: phaseIncrement, sampleRate: wavetableSampleRate, frameOffset: frameOffset)
             } else {
                 // Fallback if engine not attached — keep signal finite
                 sample = Float(sin(phase))
@@ -102,7 +103,7 @@ public struct Oscillator {
     // PolyBLEP (Polynomial Band-Limited Step) function
     // t: normalized phase [0, 1]
     // dt: normalized phase increment
-    private func polyBLEP(t: Double, dt: Double) -> Double {
+    internal static func polyBLEP(t: Double, dt: Double) -> Double {
         guard dt > 0.0 && dt < 1.0 else { return 0.0 }
 
         // Discontinuity at 0 (or 1)
@@ -122,7 +123,7 @@ public struct Oscillator {
     }
 
     /// 2-point PolyBLAMP residual for a unit slope change. Matches `polyBLEP`.
-    private func polyBLAMP(t: Double, dt: Double) -> Double {
+    internal static func polyBLAMP(t: Double, dt: Double) -> Double {
         guard dt > 0.0 && dt < 1.0 else { return 0.0 }
         if t < dt {
             let u = t / dt

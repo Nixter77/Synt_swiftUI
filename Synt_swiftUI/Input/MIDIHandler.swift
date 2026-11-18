@@ -290,13 +290,19 @@ final class MIDIHandler: ObservableObject {
         case let .noteOn(note, velocity, ch):
             audioEngine?.midiNoteOn(midiNote: Int(note), velocity: velocity, channel: ch)
             activity.post(note: note, velocity: UInt8((velocity * 127).rounded()))
-        case let .noteOff(note, ch):
-            audioEngine?.midiNoteOff(midiNote: Int(note), channel: ch)
+        case let .noteOff(note, velocity, ch):
+            audioEngine?.midiNoteOff(midiNote: Int(note), channel: ch, releaseVelocity: velocity)
         case let .pitchBend(value, ch):
             audioEngine?.midiPitchBend(value, channel: ch)
             activity.touch()
         case let .modWheel(value, _):
             audioEngine?.midiModWheel(value)
+            activity.touch()
+        case let .channelVolume(value, _):
+            audioEngine?.midiChannelVolume(value)
+            activity.touch()
+        case let .expression(value, _):
+            audioEngine?.midiExpression(value)
             activity.touch()
         case let .sustain(down, _):
             audioEngine?.midiSustainPedal(down: down)

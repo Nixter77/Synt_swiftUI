@@ -163,7 +163,7 @@ final class Stage14Stage1Tests: XCTestCase {
         XCTAssertEqual(queue.count, 3) // Capacity 4 has 3 usable slots
 
         // Push mpeKeyUp on channel 2 when the ring is full -> must park on side-channel with channel 2
-        let pushed = queue.push(.mpeKeyUp(midiNote: 60, channel: 2))
+        let pushed = queue.push(.mpeKeyUp(midiNote: 60, channel: 2, releaseVelocity: 0.5))
         XCTAssertTrue(pushed, "Critical mpeKeyUp must be accepted into side channel when ring is full")
         XCTAssertTrue(queue.hasPendingMpeKeyUpForTesting(60, channel: 2))
         XCTAssertFalse(queue.hasPendingMpeKeyUpForTesting(60, channel: 3))

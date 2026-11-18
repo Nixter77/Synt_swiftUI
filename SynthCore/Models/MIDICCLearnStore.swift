@@ -93,6 +93,19 @@ public enum MIDIControlTarget: String, CaseIterable, Codable, Hashable {
         case .delayMix: self = .delayMix
         case .reverbMix: self = .reverbMix
         case .vowel: self = .cutoff
+        case .ampAttack: self = .attack
+        case .ampDecay: self = .decay
+        case .ampRelease: self = .release
+        case .filterAttack: self = .filterAttack
+        case .filterDecay: self = .filterDecay
+        case .filterRelease: self = .filterRelease
+        case .drive: self = .distortionDrive
+        case .osc1Level: self = .osc1Volume
+        case .osc2Level: self = .osc2Volume
+        case .subLevel: self = .subOscVolume
+        case .noiseLevel: self = .distortionMix
+        case .filterEnvAmount: self = .filterEnvelopeAmount
+        case .unisonDetune: self = .unisonDetune
         }
     }
 

@@ -402,7 +402,7 @@ struct PresetListView: View {
     @State private var presetToDelete: SynthPreset?
     @State private var showDeleteConfirmation = false
 
-    private static let availableTags = ["All", "Lead", "Bass", "Pad", "Keys", "Pluck", "Arp", "FX", "Wavetable", "FM"]
+    private static let availableTags = ["All", "Lead", "Bass", "Pad", "Keys", "Pluck", "Strings", "Brass", "Arp", "FX", "Wavetable", "FM"]
 
     private func matchesTag(preset: SynthPreset) -> Bool {
         switch selectedTag {
@@ -418,6 +418,10 @@ struct PresetListView: View {
             return preset.category == .keys
         case "Pluck":
             return preset.category == .pluck
+        case "Strings":
+            return preset.category == .strings
+        case "Brass":
+            return preset.category == .brass
         case "Arp":
             return preset.category == .arp
         case "FX":

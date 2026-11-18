@@ -149,6 +149,37 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
     case mpePitchBendRange = 164
     case mpeZone = 165
     case mpeMemberChannelCount = 166
+    /// SYNT_62. Append-only. 0 keeps the legacy velocity law.
+    case velocityRangeDb = 167
+    case velocityCurveShape = 168
+    case globalVoiceSourcePolicy = 169
+    case arpUsesInputVelocity = 170
+    case legatoUpdatesVelocity = 171
+    /// SYNT_63. Append-only. Defaults keep the legacy contour.
+    case filterAttackCurve = 172
+    case filterDecayCurve = 173
+    case filterReleaseCurve = 174
+    case envelopeModel = 175
+    case ampDelay = 176
+    case ampHold = 177
+    case filterEnvDelay = 178
+    case filterEnvHold = 179
+    case velToAttack = 180
+    case velToDecay = 181
+    case releaseVelToRelease = 182
+    case envKeyTrack = 183
+    case ampRetriggerMode = 184
+    case keepUnisonThroughTails = 185
+    case shortAttackEnabled = 186
+    /// SYNT_64. Append-only. Both default off so factory comb and cutoff rows stay put.
+    case combUsesVoiceCutoff = 187
+    case perVoiceCutoffSources = 188
+    /// SYNT_65. Append-only. Off leaves CC7 and CC11 as ignored controllers.
+    case respondToExpressionCC = 189
+    case aftertouchCurve = 190
+    case aftertouchDeadzone = 191
+    /// SYNT_68. Append-only. Off leaves the post-CleanBus bus-glue compressor inert.
+    case busGlueEnabled = 192
 
     public var identifier: String {
         switch self {
@@ -278,6 +309,32 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .mpePitchBendRange: return "mpePitchBendRange"
         case .mpeZone: return "mpeZone"
         case .mpeMemberChannelCount: return "mpeMemberChannelCount"
+        case .velocityRangeDb: return "velocityRangeDb"
+        case .velocityCurveShape: return "velocityCurveShape"
+        case .globalVoiceSourcePolicy: return "globalVoiceSourcePolicy"
+        case .arpUsesInputVelocity: return "arpUsesInputVelocity"
+        case .legatoUpdatesVelocity: return "legatoUpdatesVelocity"
+        case .filterAttackCurve: return "filterAttackCurve"
+        case .filterDecayCurve: return "filterDecayCurve"
+        case .filterReleaseCurve: return "filterReleaseCurve"
+        case .envelopeModel: return "envelopeModel"
+        case .ampDelay: return "ampDelay"
+        case .ampHold: return "ampHold"
+        case .filterEnvDelay: return "filterEnvDelay"
+        case .filterEnvHold: return "filterEnvHold"
+        case .velToAttack: return "velToAttack"
+        case .velToDecay: return "velToDecay"
+        case .releaseVelToRelease: return "releaseVelToRelease"
+        case .envKeyTrack: return "envKeyTrack"
+        case .ampRetriggerMode: return "ampRetriggerMode"
+        case .keepUnisonThroughTails: return "keepUnisonThroughTails"
+        case .shortAttackEnabled: return "shortAttackEnabled"
+        case .combUsesVoiceCutoff: return "combUsesVoiceCutoff"
+        case .perVoiceCutoffSources: return "perVoiceCutoffSources"
+        case .respondToExpressionCC: return "respondToExpressionCC"
+        case .aftertouchCurve: return "aftertouchCurve"
+        case .aftertouchDeadzone: return "aftertouchDeadzone"
+        case .busGlueEnabled: return "busGlueEnabled"
         }
     }
 
@@ -409,6 +466,32 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .mpePitchBendRange: return "MPE Bend Range"
         case .mpeZone: return "MPE Zone"
         case .mpeMemberChannelCount: return "MPE Member Channels"
+        case .velocityRangeDb: return "Velocity Range"
+        case .velocityCurveShape: return "Velocity Shape"
+        case .globalVoiceSourcePolicy: return "Global Voice Source"
+        case .arpUsesInputVelocity: return "Arp Input Velocity"
+        case .legatoUpdatesVelocity: return "Legato Velocity"
+        case .filterAttackCurve: return "Filter Attack Curve"
+        case .filterDecayCurve: return "Filter Decay Curve"
+        case .filterReleaseCurve: return "Filter Release Curve"
+        case .envelopeModel: return "Envelope Model"
+        case .ampDelay: return "Amp Delay"
+        case .ampHold: return "Amp Hold"
+        case .filterEnvDelay: return "Filter Delay"
+        case .filterEnvHold: return "Filter Hold"
+        case .velToAttack: return "Vel to Attack"
+        case .velToDecay: return "Vel to Decay"
+        case .releaseVelToRelease: return "Release Vel to Release"
+        case .envKeyTrack: return "Env Key Track"
+        case .ampRetriggerMode: return "Amp Retrigger"
+        case .keepUnisonThroughTails: return "Keep Unison Tails"
+        case .shortAttackEnabled: return "Short Attack"
+        case .combUsesVoiceCutoff: return "Comb Voice Cutoff"
+        case .perVoiceCutoffSources: return "Per-Voice Cutoff Sources"
+        case .respondToExpressionCC: return "Expression CC"
+        case .aftertouchCurve: return "Aftertouch Curve"
+        case .aftertouchDeadzone: return "Aftertouch Deadzone"
+        case .busGlueEnabled: return "Bus Glue"
         }
     }
 
@@ -436,6 +519,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .rotaryHornFast, .rotaryDrumFast: return 1
         case .rotaryDrumSlow: return 0.15
         case .rotaryAccel: return 0.2
+        case .velocityCurveShape, .aftertouchCurve: return -1
+        case .filterAttackCurve, .filterDecayCurve, .filterReleaseCurve: return -1
+        case .velToAttack, .velToDecay, .releaseVelToRelease, .envKeyTrack: return -1
         default: return 0
         }
     }
@@ -446,7 +532,9 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .osc1Octave, .osc2Octave: return 2
         case .osc1PulseWidth, .osc2PulseWidth: return 0.95
         case .osc1Waveform, .osc2Waveform, .lfoWaveform, .lfo2Waveform, .osc1WavetableIndex, .osc2WavetableIndex: return 5
-        case .noiseColor, .velocityCurve, .monoPriority, .transientOutput: return 2
+        case .noiseColor, .monoPriority, .transientOutput, .globalVoiceSourcePolicy: return 2
+        case .envelopeModel, .ampRetriggerMode: return 2
+        case .velocityCurve: return 3
         case .glideMode, .glideLegatoOnly: return 1
         case .lfoMode, .lfo2Mode: return 2
         case .lfoStartPhase, .lfo2StartPhase: return 360
@@ -477,6 +565,12 @@ public enum SynthParameterAddress: UInt64, CaseIterable, Sendable {
         case .mpePitchBendRange: return 96
         case .mpeZone: return 1
         case .mpeMemberChannelCount: return 15
+        case .velocityRangeDb: return 60
+        case .velocityCurveShape: return 1
+        case .filterAttackCurve, .filterDecayCurve, .filterReleaseCurve: return 1
+        case .velToAttack, .velToDecay, .releaseVelToRelease, .envKeyTrack: return 1
+        case .ampDelay, .ampHold, .filterEnvDelay, .filterEnvHold: return 4
+        case .aftertouchDeadzone: return 0.3
         default: return 1
         }
     }

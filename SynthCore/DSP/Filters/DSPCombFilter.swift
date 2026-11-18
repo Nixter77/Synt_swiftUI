@@ -15,6 +15,7 @@ public final class DSPCombFilter: @unchecked Sendable {
 
     private var buffer = [Float](repeating: 0, count: bufferSize)
     private var writeIndex: Int = 0
+    private var dampState: Float = 0
 
     public init() {}
 
@@ -23,6 +24,7 @@ public final class DSPCombFilter: @unchecked Sendable {
             buffer[i] = 0
         }
         writeIndex = 0
+        dampState = 0
     }
 
     @inline(__always)
@@ -35,7 +37,8 @@ public final class DSPCombFilter: @unchecked Sendable {
         _ input: Float,
         cutoff: Float,
         resonance: Float,
-        sampleRate: Float
+        sampleRate: Float,
+        damping: Float = 0
     ) -> Float {
         let safeCutoff = max(20.0, min(sampleRate * 0.48, cutoff))
         let delaySamples = max(1.0, min(Float(Self.bufferSize - 2), sampleRate / safeCutoff))
@@ -50,7 +53,16 @@ public final class DSPCombFilter: @unchecked Sendable {
 
         // Resonance maps to feedback [0, 0.98]
         let g = max(-0.98, min(0.98, resonance * 0.98))
-        let y = input + delayed * g
+        let loopSig: Float
+        if damping > 0 {
+            let d = min(0.65, max(0, damping))
+            dampState = delayed * (1.0 - d) + dampState * d
+            if !dampState.isFinite || abs(dampState) < 1.0e-15 { dampState = 0 }
+            loopSig = dampState
+        } else {
+            loopSig = delayed
+        }
+        let y = input + loopSig * g
 
         let clamped = y.isFinite ? Self.flushDenormal(AudioMath.fastTanh(y)) : 0.0
         buffer[writeIndex] = clamped

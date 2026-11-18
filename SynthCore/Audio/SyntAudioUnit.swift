@@ -47,6 +47,10 @@ public final class SyntAudioUnit: AUAudioUnit {
         outputBus = try AUAudioUnitBus(format: format)
         outputBus.maximumChannelCount = 2
         let core = AudioEngine(coreOnly: true, audioUnitHosted: true)
+        // Tests construct a unit per case. A saved Heavy touch must not move goldens.
+        if !RuntimeEnvironment.isUnitTestHost {
+            PerformanceSettings.applyStored(to: core)
+        }
         engine = core
         let store = AddressedParameterStore()
         parameters = store
@@ -54,6 +58,9 @@ public final class SyntAudioUnit: AUAudioUnit {
         adoptedPresetMirror = core.preset  // SYNT_27 P2-2: never empty, so no off-main engine.preset read
         try super.init(componentDescription: componentDescription, options: options)
         outputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outputBus])
+        if !RuntimeEnvironment.isUnitTestHost {
+            midi2ProtocolEnabled = PerformanceSettings.storedMIDI2Protocol()
+        }
         inputBusArray = AUAudioUnitBusArray(audioUnit: self, busType: .input, busses: [])
         maximumFramesToRender = 512
         // SYNT_26 R22-1: the AU flags and the one initial apply happen inside the engine's init
@@ -121,6 +128,15 @@ public final class SyntAudioUnit: AUAudioUnit {
         get { engine.respondsToProgramChange }
         set { engine.respondsToProgramChange = newValue }
     }
+    public var keyboardTouch: KeyboardTouch {
+        get { engine.keyboardTouch }
+        set { engine.keyboardTouch = newValue }
+    }
+    public var globalExpressionCC: Bool {
+        get { engine.globalExpressionCC }
+        set { engine.globalExpressionCC = newValue }
+    }
+    public var meteringState: AtomicMeteringState { engine.meteringState }
     private static let stateProgramChangeKey = "syntRespondsToProgramChange"
     private static let stateChromeKey = "syntUIChrome"
 
@@ -181,9 +197,15 @@ public final class SyntAudioUnit: AUAudioUnit {
         adoptPreset(loaded)
     }
 
-    /// MIDI 1.0 protocol. Hosts may still deliver either `.MIDI` byte events or a
-    /// `.midiEventList` of UMP packets (AVAudioEngine / Logic do the latter); both are parsed.
-    public override var audioUnitMIDIProtocol: MIDIProtocolID { ._1_0 }
+    /// SYNT_68. Setting-gated MIDI protocol. Default OFF → MIDI 1.0 (bit-identical host path).
+    /// When on, advertise MIDI 2.0; hosts may then send type-4 UMP. Logic manual = KEEP ME IN.
+    public var midi2ProtocolEnabled: Bool = false
+
+    /// Hosts may still deliver either `.MIDI` byte events or a `.midiEventList` of UMP
+    /// packets (AVAudioEngine / Logic do the latter); both are parsed. Default is MIDI 1.0.
+    public override var audioUnitMIDIProtocol: MIDIProtocolID {
+        midi2ProtocolEnabled ? ._2_0 : ._1_0
+    }
 
     public override var inputBusses: AUAudioUnitBusArray { inputBusArray }
     public override var outputBusses: AUAudioUnitBusArray { outputBusArray }
@@ -319,6 +341,9 @@ public final class SyntAudioUnit: AUAudioUnit {
             }
             state[Self.stateIndexKey] = PresetBrowser.index(of: snapshot) ?? -1
             state[Self.stateProgramChangeKey] = respondsToProgramChange
+            state[PerformanceSettings.touchStateKey] = keyboardTouch.rawValue
+            state[PerformanceSettings.expressionStateKey] = globalExpressionCC
+            state[PerformanceSettings.midi2StateKey] = midi2ProtocolEnabled
             if let chrome = try? JSONEncoder().encode(PluginChromeState(zoom: uiZoom, layout: uiLayout)) {
                 state[Self.stateChromeKey] = chrome
             }
@@ -335,6 +360,7 @@ public final class SyntAudioUnit: AUAudioUnit {
             if let flag = newValue[Self.stateProgramChangeKey] as? Bool {
                 respondsToProgramChange = flag
             }
+            applyPerformanceSettings(newValue)
             applyChrome(newValue)
             guard let data = newValue[Self.statePresetKey] as? Data,
                   let preset = try? JSONDecoder().decode(SynthPreset.self, from: data) else {
@@ -342,6 +368,35 @@ public final class SyntAudioUnit: AUAudioUnit {
                 return
             }
             adoptPreset(preset)
+        }
+    }
+
+    /// Missing touch / expression / MIDI2 keys keep the current value. They are not preset fields.
+    private func applyPerformanceSettings(_ state: [String: Any]) {
+        var touch = keyboardTouch
+        var expression = globalExpressionCC
+        var present = false
+        if let raw = state[PerformanceSettings.touchStateKey] as? Int,
+           let mode = KeyboardTouch(rawValue: raw) {
+            touch = mode
+            present = true
+        }
+        if let flag = state[PerformanceSettings.expressionStateKey] as? Bool {
+            expression = flag
+            present = true
+        }
+        if let flag = state[PerformanceSettings.midi2StateKey] as? Bool {
+            midi2ProtocolEnabled = flag
+            if !RuntimeEnvironment.isUnitTestHost {
+                PerformanceSettings.saveMIDI2Protocol(flag)
+            }
+        }
+        guard present else { return }
+        keyboardTouch = touch
+        globalExpressionCC = expression
+        // The test host is the app, so a fullState round-trip must not stick in UserDefaults.
+        if !RuntimeEnvironment.isUnitTestHost {
+            PerformanceSettings.save(touch: touch, expression: expression)
         }
     }
 
@@ -584,7 +639,8 @@ enum SyntParameterTree {
         let lfoTargets = ["Pitch", "Filter", "Amplitude", "Pan", "None"]
         let lfoModes = ["Free", "Retrigger", "One-Shot"]
         let noise = ["White", "Pink", "Brown"]
-        let velCurves = ["Linear", "Exponential", "Logarithmic"]
+        let velCurves = ["Linear", "Exponential", "Logarithmic", "Decibel"]
+        let voiceSources = ["Loudest", "Last", "Highest"]
         let glideModes = ["Time", "Rate"]
         let monoPriorities = ["Last", "Low", "High"]
         let filter2Routes = ["Serial", "Parallel", "Off"]
@@ -630,6 +686,21 @@ enum SyntParameterTree {
                 knob(.modEnvDecay, unit: .seconds),
                 knob(.modEnvSustain),
                 knob(.modEnvRelease, unit: .seconds),
+                knob(.filterAttackCurve),
+                knob(.filterDecayCurve),
+                knob(.filterReleaseCurve),
+                indexedKnob(.envelopeModel, ["Legacy", "Analog", "Digital"]),
+                knob(.ampDelay, unit: .seconds),
+                knob(.ampHold, unit: .seconds),
+                knob(.filterEnvDelay, unit: .seconds),
+                knob(.filterEnvHold, unit: .seconds),
+                knob(.velToAttack),
+                knob(.velToDecay),
+                knob(.releaseVelToRelease),
+                knob(.envKeyTrack),
+                indexedKnob(.ampRetriggerMode, ["From Current", "From Zero", "Legato"]),
+                toggleKnob(.keepUnisonThroughTails),
+                toggleKnob(.shortAttackEnabled),
             ]
         )
         let filter = AUParameterTree.createGroup(
@@ -643,6 +714,8 @@ enum SyntParameterTree {
                 knob(.filterEnvelopeAmount),
                 knob(.velocityToCutoff),
                 knob(.filterKeyTracking),
+                toggleKnob(.combUsesVoiceCutoff),
+                toggleKnob(.perVoiceCutoffSources),
             ]
         )
         let lfo = AUParameterTree.createGroup(
@@ -709,6 +782,7 @@ enum SyntParameterTree {
                 knob(.rotaryMix),
                 knob(.rotaryAccel, unit: .hertz),
                 toggleKnob(.transientEnabled),
+                toggleKnob(.busGlueEnabled),
                 knob(.transientAttack),
                 knob(.transientSustain),
                 knob(.transientOutput),
@@ -735,6 +809,14 @@ enum SyntParameterTree {
                 toggleKnob(.arpLatch),
                 indexedKnob(.velocityCurve, velCurves),
                 knob(.velocityToVolume),
+                knob(.velocityRangeDb, unit: .decibels),
+                knob(.velocityCurveShape),
+                indexedKnob(.globalVoiceSourcePolicy, voiceSources),
+                toggleKnob(.arpUsesInputVelocity),
+                toggleKnob(.legatoUpdatesVelocity),
+                toggleKnob(.respondToExpressionCC),
+                knob(.aftertouchCurve),
+                knob(.aftertouchDeadzone),
                 indexedKnob(.glideMode, glideModes),
                 toggleKnob(.glideLegatoOnly),
                 indexedKnob(.monoPriority, monoPriorities),
@@ -968,7 +1050,19 @@ final class SyntRenderContext {
                     count = Self.midi1Length(status)
                 case 0x4 where w + 1 < wordCount:
                     let data = words.load(fromByteOffset: (w + 1) * 4, as: UInt32.self)
-                    (bytes, count) = Self.midi2ToMidi1(word, data)
+                    if let message = Self.midi2NoteMessage(word, data) {
+                        if let command = AudioEngine.command(
+                            for: message,
+                            mpeEnabled: engine.cachedMpeEnabled,
+                            zone: engine.cachedMpeZone,
+                            memberCount: engine.cachedMpeMemberChannelCount
+                        ) {
+                            engine.enqueueScheduled(command, sampleOffset: offset)
+                        }
+                        count = 0
+                    } else {
+                        (bytes, count) = Self.midi2ToMidi1(word, data)
+                    }
                 default:
                     break
                 }
@@ -1008,6 +1102,32 @@ final class SyntRenderContext {
             default: return 1
             }
         default: return 0
+        }
+    }
+
+    /// Top 16 bits of a MIDI 2.0 velocity word, as 0…1. `0x8000 / 65535` is just over 0.5.
+    static func midi2Velocity16(_ word1: UInt32) -> Float {
+        Float(word1 >> 16) / 65535
+    }
+
+    /// MIDI 2.0 channel-voice note on/off with the 16-bit velocity kept.
+    /// Any other opcode returns nil so the caller still uses `midi2ToMidi1`.
+    static func midi2NoteMessage(_ word0: UInt32, _ word1: UInt32) -> MIDIMessage? {
+        guard (word0 >> 28) & 0xF == 0x4 else { return nil }
+        let opcode = UInt8((word0 >> 20) & 0xF)
+        let channel = UInt8((word0 >> 16) & 0xF)
+        let note = UInt8((word0 >> 8) & 0x7F)
+        let vel16 = word1 >> 16
+        switch opcode {
+        case 0x9:
+            if vel16 == 0 {
+                return .noteOff(note: note, velocity: 0.5, channel: channel)
+            }
+            return .noteOn(note: note, velocity: midi2Velocity16(word1), channel: channel)
+        case 0x8:
+            return .noteOff(note: note, velocity: midi2Velocity16(word1), channel: channel)
+        default:
+            return nil
         }
     }
 

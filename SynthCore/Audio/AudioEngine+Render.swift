@@ -10,236 +10,7 @@ import Combine
 import SwiftUI
 import Synchronization
 
-/// Lookahead peak rider. Multiplies the whole waveform by a slow gain so a chord
-/// that would have entered the tanh clipper stays linear. Gain does not track
-/// individual waveform cycles (that would be another waveshaper).
-public final class CleanBus {
-    public static let capacity = 512
-    public static let lookahead = 256
-    public static let threshold = AudioMath.cleanBusThreshold
-
-    private var bufL = [Float](repeating: 0, count: CleanBus.capacity)
-    private var bufR = [Float](repeating: 0, count: CleanBus.capacity)
-    private var write = 0
-    private var env: Float = 0
-    private var gain: Float = 1
-    private var hold = 0
-    private var envCoeff: Float = 1
-    private var attCoeff: Float = 1
-    private var relCoeff: Float = 0
-    private var holdMax = 1
-    private var coeffRate: Float = 0
-    private var dcPole: Float = 0.9983
-    private var dcXL: Float = 0
-    private var dcXR: Float = 0
-    private var dcYL: Float = 0
-    private var dcYR: Float = 0
-
-    public init(sampleRate: Float = 44100) {
-        updateCoefficients(sampleRate: sampleRate)
-    }
-
-    public func setSampleRate(_ sampleRate: Float) {
-        updateCoefficients(sampleRate: max(8_000, sampleRate))
-    }
-
-    public func reset() {
-        for i in 0..<bufL.count {
-            bufL[i] = 0
-            bufR[i] = 0
-        }
-        write = 0
-        env = 0
-        gain = 1
-        hold = 0
-        dcXL = 0
-        dcXR = 0
-        dcYL = 0
-        dcYR = 0
-    }
-
-    public func process(left: Float, right: Float, sampleRate: Float) -> (Float, Float) {
-        let sr = sampleRate > 1000 ? sampleRate : coeffRate
-        if sr != coeffRate { updateCoefficients(sampleRate: sr) }
-
-        let xL = dcBlock(left.isFinite ? left : 0, x1: &dcXL, y1: &dcYL)
-        let xR = dcBlock(right.isFinite ? right : 0, x1: &dcXR, y1: &dcYR)
-
-        bufL[write] = xL
-        bufR[write] = xR
-
-        let peak = max(abs(xL), abs(xR))
-        if peak >= env {
-            env = peak
-            hold = holdMax
-        } else if hold > 0 {
-            hold -= 1
-        } else {
-            env = max(peak, env * envCoeff)
-        }
-
-        let desired: Float = env > Self.threshold ? Self.threshold / env : 1
-        let coeff: Float
-        if desired < gain * 0.985 {
-            coeff = attCoeff
-        } else if desired > gain {
-            coeff = relCoeff
-        } else {
-            coeff = 0
-        }
-        if coeff > 0 {
-            gain += (desired - gain) * coeff
-        }
-        if !gain.isFinite || gain < 0 { gain = 1 }
-        if gain > 1 { gain = 1 }
-
-        let read = (write + Self.capacity - Self.lookahead) & (Self.capacity - 1)
-        write = (write + 1) & (Self.capacity - 1)
-        return (bufL[read] * gain, bufR[read] * gain)
-    }
-
-    private func updateCoefficients(sampleRate: Float) {
-        coeffRate = sampleRate
-        let sr = Double(sampleRate)
-        envCoeff = Float(exp(-1.0 / (sr * 0.200)))
-        attCoeff = Float(1.0 - exp(-1.0 / (sr * 0.0015)))
-        relCoeff = Float(1.0 - exp(-1.0 / (sr * 0.150)))
-        holdMax = max(1, Int(sampleRate * 0.040))
-        dcPole = Float(exp(-2.0 * Double.pi * 12.0 / sr))
-    }
-
-    private func dcBlock(_ x: Float, x1: inout Float, y1: inout Float) -> Float {
-        let y = x - x1 + dcPole * y1
-        x1 = x
-        if !y.isFinite || abs(y) > 16 {
-            y1 = 0
-            return 0
-        }
-        y1 = y
-        return y
-    }
-}
-
 public extension AudioEngine {
-    @inline(__always)
-    func matrixSource(
-        _ source: ModSource,
-        lfo: Float,
-        lfo2: Float,
-        env: Float,
-        velocity: Float,
-        modWheel: Float,
-        keyTrack: Float,
-        env2: Float = 0,
-        aftertouch: Float = 0,
-        modEnv: Float = 0,
-        pitchBend: Float = 0,
-        random: Float = 0,
-        sampleAndHold: Float = 0,
-        smoothRandom: Float = 0,
-        mseg: Float = 0,
-        mseg2: Float = 0,
-        mpePitchBend: Float = 0,
-        mpePressure: Float = 0,
-        mpeTimbre: Float = 0
-    ) -> Float {
-        switch source {
-        case .lfo1: return lfo
-        case .env1: return env
-        case .velocity: return velocity
-        case .lfo2: return lfo2
-        case .modWheel: return modWheel
-        case .keyTrack: return keyTrack
-        case .env2: return env2
-        case .aftertouch: return aftertouch
-        case .macro1: return cachedMacro1
-        case .macro2: return cachedMacro2
-        case .macro3: return cachedMacro3
-        case .macro4: return cachedMacro4
-        case .macro5: return cachedMacro5
-        case .macro6: return cachedMacro6
-        case .macro7: return cachedMacro7
-        case .macro8: return cachedMacro8
-        case .modEnv: return modEnv
-        case .pitchBend: return pitchBend
-        case .random: return random
-        case .sampleAndHold: return sampleAndHold
-        case .smoothRandom: return smoothRandom
-        case .mseg: return mseg
-        case .mseg2: return mseg2
-        case .envelopeFollower: return envelopeFollowerValue
-        case .mpePitchBend: return mpePitchBend
-        case .mpePressure: return mpePressure
-        case .mpeTimbre: return mpeTimbre
-        }
-    }
-
-    /// Linear rows multiply the raw source. Other curves read the bank published off the audio thread.
-    @inline(__always)
-    func modulatedAmount(_ entry: RTModSlot, slot: Int, source: Float) -> Float {
-        let shaped: Float
-        if entry.curve == .linear {
-            shaped = source
-        } else {
-            shaped = rtModMatrix.lookup(bank: entry.tableBank, slot: slot, source: source)
-        }
-        return shaped * entry.amount
-    }
-
-    /// One step clock for every voice. Runs only while the gate is enabled.
-    /// A host beat (musical context) owns the step, including after a locate or loop.
-    /// Without one, the gate free-runs from the cached tempo.
-    func advanceTranceGateRT() {
-        let isHostPlaying = !usesHostTransport || hostTransportMoving
-        if tranceHostLocked && isHostPlaying {
-            let bpm = Double(max(20, min(300, cachedBPM)))
-            let beatsPerStep = max(1e-6, Double(cachedTranceDivision.duration(bpm: Float(bpm))) * bpm / 60.0)
-            let stepPos = tranceHostBeat / beatsPerStep
-            if stepPos.isFinite {
-                let wrapped = stepPos - floor(stepPos / 16.0) * 16.0
-                var step = Int(wrapped)
-                if step < 0 { step = 0 }
-                if step > 15 { step = 15 }
-                tranceStep = step
-            }
-            tranceHostBeat += bpm / (60.0 * max(sampleRate, 1))
-        } else {
-            if tranceHostLocked {
-                let bpm = Double(max(20, min(300, cachedBPM)))
-                let beatsPerStep = max(1e-6, Double(cachedTranceDivision.duration(bpm: Float(bpm))) * bpm / 60.0)
-                let stepPos = tranceHostBeat / beatsPerStep
-                if stepPos.isFinite && tranceCursor == 0 {
-                    let wrapped = stepPos - floor(stepPos / 16.0) * 16.0
-                    var step = Int(wrapped)
-                    if step < 0 { step = 0 }
-                    if step > 15 { step = 15 }
-                    tranceStep = step
-                }
-            }
-            let dur = Double(cachedTranceDivision.duration(bpm: cachedBPM))
-            let stepSamples = max(1, dur * sampleRate)
-            tranceCursor += 1
-            if tranceCursor >= stepSamples {
-                tranceCursor -= stepSamples
-                tranceStep = (tranceStep + 1) & 15
-            }
-        }
-        let bit = UInt16(1) << UInt16(tranceStep)
-        let on = cachedTranceSteps & bit != 0
-        let target: Float = on ? 1 : (1 - cachedTranceDepth)
-        if cachedTranceSmooth <= 0.0001 {
-            tranceGain = target
-            return
-        }
-        if cachedTranceSmooth != tranceSmoothForCoeff || sampleRate != tranceCoeffRate {
-            tranceSmoothForCoeff = cachedTranceSmooth
-            tranceCoeffRate = sampleRate
-            let ms = 0.001 + Double(cachedTranceSmooth) * 0.040
-            tranceSmoothCoeff = Float(1 - exp(-1.0 / (ms * sampleRate)))
-        }
-        tranceGain += (target - tranceGain) * tranceSmoothCoeff
-    }
-
     // MARK: - Audio thread render path
 
     /// One sample of synthesis. Commands must already be drained for this buffer.
@@ -341,60 +112,117 @@ public extension AudioEngine {
         }
 
         // Global destinations (cutoff, resonance, LFO rate/depth) share one source
-        // per sample. Env and velocity come from the loudest active voice.
+        // per sample. `.loudest` is the old scan. Other policies run only when selected.
         // LFO self-modulation uses the previous sample so this one can still advance.
         var matrixWantsLFO = false
         var matrixWantsLFO2 = false
         var globalEnv: Float = 0
         var globalVel: Float = 0
+        var globalRelease: Float = 0.5
         var globalKeyTrack: Float = 0
         var globalMpeBend: Float = 0
         var globalMpePres: Float = 0
         var globalMpeTimb: Float = 0
+        var globalPoly: Float = 0
+        var globalAftertouch = currentAftertouch
         var rateMod: Float = 0
         var depthMod: Float = 0
         var chorusMixMod: Float = 0
         var delayMixMod: Float = 0
         var reverbMixMod: Float = 0
         if modCount > 0 {
-            var loudest: Float = -1
-            for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
-                let env = voices[i].envelopeValue
-                if env >= loudest {
-                    loudest = env
-                    globalEnv = env
-                    globalVel = voices[i].velocity
-                    globalKeyTrack = Float(voices[i].midiNote - 60) / 12.0
-                    globalMpeBend = voices[i].smoothedMpePitchBend
-                    globalMpePres = voices[i].smoothedMpePressure
-                    globalMpeTimb = voices[i].smoothedMpeTimbre
+            switch cachedGlobalVoiceSourcePolicy {
+            case .loudest:
+                var loudest: Float = -1
+                for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
+                    let env = voices[i].envelopeValue
+                    if env >= loudest {
+                        loudest = env
+                        globalEnv = env
+                        globalVel = voices[i].velocity
+                        globalRelease = voices[i].releaseVelocity
+                        globalKeyTrack = Float(voices[i].midiNote - 60) / 12.0
+                        globalMpeBend = voices[i].smoothedMpePitchBend
+                        globalMpePres = voices[i].smoothedMpePressure
+                        globalMpeTimb = voices[i].smoothedMpeTimbre
+                        globalPoly = voices[i].polyAftertouch
+                    }
+                }
+            case .lastPlayed:
+                let slot = lastTriggeredSlot
+                if slot >= 0, slot < AudioEngine.maxVoices, voices[slot].isActive {
+                    globalEnv = voices[slot].envelopeValue
+                    globalVel = voices[slot].velocity
+                    globalRelease = voices[slot].releaseVelocity
+                    globalKeyTrack = Float(voices[slot].midiNote - 60) / 12.0
+                    globalMpeBend = voices[slot].smoothedMpePitchBend
+                    globalMpePres = voices[slot].smoothedMpePressure
+                    globalMpeTimb = voices[slot].smoothedMpeTimbre
+                    globalPoly = voices[slot].polyAftertouch
+                } else {
+                    var loudest: Float = -1
+                    for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
+                        let env = voices[i].envelopeValue
+                        if env >= loudest {
+                            loudest = env
+                            globalEnv = env
+                            globalVel = voices[i].velocity
+                            globalRelease = voices[i].releaseVelocity
+                            globalKeyTrack = Float(voices[i].midiNote - 60) / 12.0
+                            globalMpeBend = voices[i].smoothedMpePitchBend
+                            globalMpePres = voices[i].smoothedMpePressure
+                            globalMpeTimb = voices[i].smoothedMpeTimbre
+                            globalPoly = voices[i].polyAftertouch
+                        }
+                    }
+                }
+            case .highest:
+                var bestNote = Int.min
+                var found = false
+                for i in 0..<AudioEngine.maxVoices where voices[i].isActive {
+                    let note = voices[i].midiNote
+                    if !found || note >= bestNote {
+                        found = true
+                        bestNote = note
+                        globalEnv = voices[i].envelopeValue
+                        globalVel = voices[i].velocity
+                        globalRelease = voices[i].releaseVelocity
+                        globalKeyTrack = Float(note - 60) / 12.0
+                        globalMpeBend = voices[i].smoothedMpePitchBend
+                        globalMpePres = voices[i].smoothedMpePressure
+                        globalMpeTimb = voices[i].smoothedMpeTimbre
+                        globalPoly = voices[i].polyAftertouch
+                    }
                 }
             }
+            globalAftertouch = max(currentAftertouch, shapeAftertouch(globalPoly))
             for m in 0..<modCount {
                 let entry = modSlots[m]
                 if entry.source == .lfo1 { matrixWantsLFO = true }
                 if entry.source == .lfo2 { matrixWantsLFO2 = true }
-                let src = matrixSource(
-                    entry.source,
+                guard entry.destination == .lfoRate || entry.destination == .lfoDepth else { continue }
+                let modVal = rowAmount(
+                    entry,
+                    slot: m,
                     lfo: lastMatrixLFO,
                     lfo2: lastMatrixLFO2,
                     env: globalEnv,
                     velocity: globalVel,
                     modWheel: modWheel,
                     keyTrack: globalKeyTrack,
-                    aftertouch: currentAftertouch,
+                    aftertouch: globalAftertouch,
                     smoothRandom: smoothRandomValue,
                     mseg: msegValue,
                     mseg2: mseg2Value,
                     mpePitchBend: globalMpeBend,
                     mpePressure: globalMpePres,
-                    mpeTimbre: globalMpeTimb
+                    mpeTimbre: globalMpeTimb,
+                    releaseVelocity: globalRelease
                 )
-                let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
                 case .lfoRate: rateMod += modVal
                 case .lfoDepth: depthMod += modVal
-                case .pitch1, .pitch2, .cutoff, .resonance, .amp, .pan, .pwm1, .pwm2, .mix, .wtMorph1, .wtMorph2, .finePitch, .fm, .chorusMix, .delayMix, .reverbMix, .vowel:
+                case .pitch1, .pitch2, .cutoff, .resonance, .amp, .pan, .pwm1, .pwm2, .mix, .wtMorph1, .wtMorph2, .finePitch, .fm, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease, .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount, .unisonDetune:
                     break
                 }
             }
@@ -466,25 +294,41 @@ public extension AudioEngine {
         if modCount > 0 {
             for m in 0..<modCount {
                 let entry = modSlots[m]
-                let src = matrixSource(
-                    entry.source,
+                switch entry.destination {
+                case .cutoff:
+                    if cachedPerVoiceCutoffSources && Self.isPerVoiceCutoffSource(entry.source) {
+                        continue
+                    }
+                case .wtMorph1, .wtMorph2:
+                    if cachedPerVoiceCutoffSources && Self.isPerVoiceMorphSlot(entry) {
+                        continue
+                    }
+                case .resonance, .chorusMix, .delayMix, .reverbMix, .vowel:
+                    break
+                case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix, .finePitch, .fm, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease, .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount, .unisonDetune:
+                    continue
+                }
+                let modVal = rowAmount(
+                    entry,
+                    slot: m,
                     lfo: matrixLFO,
                     lfo2: matrixLFO2,
                     env: globalEnv,
                     velocity: globalVel,
                     modWheel: modWheel,
                     keyTrack: globalKeyTrack,
-                    aftertouch: currentAftertouch,
+                    aftertouch: globalAftertouch,
                     smoothRandom: smoothRandomValue,
                     mseg: msegValue,
                     mseg2: mseg2Value,
                     mpePitchBend: globalMpeBend,
                     mpePressure: globalMpePres,
-                    mpeTimbre: globalMpeTimb
+                    mpeTimbre: globalMpeTimb,
+                    releaseVelocity: globalRelease
                 )
-                let modVal = modulatedAmount(entry, slot: m, source: src)
                 switch entry.destination {
-                case .cutoff: cutoffMod += modVal
+                case .cutoff:
+                    cutoffMod += modVal
                 case .resonance: resonanceMod += modVal
                 case .wtMorph1: wtMorphMod1 += modVal
                 case .wtMorph2: wtMorphMod2 += modVal
@@ -492,7 +336,7 @@ public extension AudioEngine {
                 case .delayMix: delayMixMod += modVal
                 case .reverbMix: reverbMixMod += modVal
                 case .vowel: vowelMod += modVal
-                case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix, .finePitch, .fm:
+                case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix, .finePitch, .fm, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease, .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount, .unisonDetune:
                     break
                 }
             }
@@ -586,6 +430,15 @@ public extension AudioEngine {
         var hlMix: Float = 0
         var hlFine: Float = 0
         var hlFm: Float = 0
+        var hlDrive: Float = 0
+        var hlOsc1: Float = 0
+        var hlOsc2: Float = 0
+        var hlSub: Float = 0
+        var hlNoise: Float = 0
+        var hlFilterEnv: Float = 0
+        var hlUni: Float = 0
+        var hlWtMorph1: Float = 0
+        var hlWtMorph2: Float = 0
 
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
         // SYNT_22 Stage 2: one (trivial, ARC-free) copy of each Oscillator per sample instead of one
@@ -618,10 +471,6 @@ public extension AudioEngine {
                 v.currentFrequency = v.targetFrequency
             }
 
-            let voiceSeed = (noiseBase &+ UInt32(i) &* 747_796_405 &+ 2_891_336_453) &* 1_664_525 &+ 1_013_904_223
-            let rawNoise = Float(voiceSeed) / Float(UInt32.max) * 2.0 - 1.0
-            let noiseValue = v.filterNoise(rawNoise, color: cachedNoiseColor)
-
             let baseFrequency = v.currentFrequency
             var osc1Freq = baseFrequency
             if osc1.octave != 0 { osc1Freq *= osc1OctMul }
@@ -632,6 +481,19 @@ public extension AudioEngine {
             let velValue = v.velocity
 
             let releaseOverride: Float? = v.fastRelease ? ADSREnvelope.fastReleaseSeconds : nil
+            if cachedEnvTimeMod {
+                latchEnvTime(
+                    &v,
+                    slots: modSlots,
+                    count: modCount,
+                    lfo: matrixLFO,
+                    lfo2: matrixLFO2,
+                    aftertouch: currentAftertouch,
+                    smoothRandom: smoothRandomValue,
+                    mseg: msegValue,
+                    mseg2: mseg2Value
+                )
+            }
             let envelopeValue = envelope.process(
                 currentValue: v.envelopeValue,
                 phase: &v.envelopePhase,
@@ -639,7 +501,10 @@ public extension AudioEngine {
                 releaseStartValue: v.releaseStartValue,
                 isReleasing: v.isReleasing,
                 sampleRate: sampleRate,
-                releaseOverride: releaseOverride
+                releaseOverride: releaseOverride,
+                attackScale: v.attackScale * v.ampAttackMul,
+                decayScale: v.decayScale * v.ampDecayMul,
+                releaseScale: v.releaseScale * v.ampReleaseMul
             )
             v.envelopeValue = envelopeValue
 
@@ -652,7 +517,10 @@ public extension AudioEngine {
                     releaseStartValue: v.filterReleaseStartLevel,
                     isReleasing: v.isReleasing,
                     sampleRate: sampleRate,
-                    releaseOverride: releaseOverride
+                    releaseOverride: releaseOverride,
+                    attackScale: v.attackScale * v.filterAttackMul,
+                    decayScale: v.decayScale * v.filterDecayMul,
+                    releaseScale: v.releaseScale * v.filterReleaseMul
                 )
                 v.filterEnvelopeValue = filterEnvVal
             } else {
@@ -667,7 +535,10 @@ public extension AudioEngine {
                 releaseStartValue: v.modReleaseStartLevel,
                 isReleasing: v.isReleasing,
                 sampleRate: sampleRate,
-                releaseOverride: releaseOverride
+                releaseOverride: releaseOverride,
+                attackScale: v.attackScale,
+                decayScale: v.decayScale,
+                releaseScale: v.releaseScale
             )
             v.modEnvelopeValue = modEnvVal
 
@@ -680,6 +551,16 @@ public extension AudioEngine {
             var mixMod: Float = 0
             var fineMod: Float = 0
             var fmMod: Float = 0
+            var driveMod: Float = 0
+            var osc1LevelMod: Float = 0
+            var osc2LevelMod: Float = 0
+            var subLevelMod: Float = 0
+            var noiseLevelMod: Float = 0
+            var filterEnvMod: Float = 0
+            var unisonDetuneMod: Float = 0
+            var voiceCutoffMod: Float = 0
+            var wtMorphMod1Voice: Float = 0
+            var wtMorphMod2Voice: Float = 0
 
             v.smoothedMpePitchBend += (v.mpePitchBend - v.smoothedMpePitchBend) * 0.05
             v.smoothedMpePressure += (v.mpePressure - v.smoothedMpePressure) * 0.05
@@ -689,8 +570,23 @@ public extension AudioEngine {
             if modCount > 0 {
                 for m in 0..<modCount {
                     let entry = modSlots[m]
-                    let sourceVal = matrixSource(
-                        entry.source,
+                    switch entry.destination {
+                    case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .mix, .finePitch, .fm, .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount, .unisonDetune:
+                        break
+                    case .cutoff:
+                        guard cachedPerVoiceCutoffSources && Self.isPerVoiceCutoffSource(entry.source) else {
+                            continue
+                        }
+                    case .wtMorph1, .wtMorph2:
+                        guard cachedPerVoiceCutoffSources && Self.isPerVoiceMorphSlot(entry) else {
+                            continue
+                        }
+                    case .resonance, .lfoRate, .lfoDepth, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+                        continue
+                    }
+                    let modVal = rowAmount(
+                        entry,
+                        slot: m,
                         lfo: matrixLFO,
                         lfo2: matrixLFO2,
                         env: envelopeValue,
@@ -698,19 +594,19 @@ public extension AudioEngine {
                         modWheel: modWheel,
                         keyTrack: keyTrackVal,
                         env2: filterEnvVal,
-                        aftertouch: max(currentAftertouch, v.polyAftertouch),
+                        aftertouch: max(currentAftertouch, shapeAftertouch(v.polyAftertouch)),
                         modEnv: modEnvVal,
                         pitchBend: pitchBendSmoothed,
                         random: v.randomValue,
-                        sampleAndHold: lfo.lastRandomValue,
+                        sampleAndHold: self.lfo.lastRandomValue,
                         smoothRandom: smoothRandomValue,
                         mseg: msegValue,
                         mseg2: mseg2Value,
                         mpePitchBend: v.smoothedMpePitchBend,
                         mpePressure: v.smoothedMpePressure,
-                        mpeTimbre: v.smoothedMpeTimbre
+                        mpeTimbre: v.smoothedMpeTimbre,
+                        releaseVelocity: v.releaseVelocity
                     )
-                    let modVal = modulatedAmount(entry, slot: m, source: sourceVal)
                     switch entry.destination {
                     case .pitch1: pitchMod1 += modVal
                     case .pitch2: pitchMod2 += modVal
@@ -721,7 +617,17 @@ public extension AudioEngine {
                     case .mix: mixMod += modVal
                     case .finePitch: fineMod += modVal
                     case .fm: fmMod += modVal
-                    case .cutoff, .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel:
+                    case .drive: driveMod += modVal
+                    case .osc1Level: osc1LevelMod += modVal
+                    case .osc2Level: osc2LevelMod += modVal
+                    case .subLevel: subLevelMod += modVal
+                    case .noiseLevel: noiseLevelMod += modVal
+                    case .filterEnvAmount: filterEnvMod += modVal
+                    case .unisonDetune: unisonDetuneMod += modVal
+                    case .cutoff: voiceCutoffMod += modVal
+                    case .wtMorph1: wtMorphMod1Voice += modVal
+                    case .wtMorph2: wtMorphMod2Voice += modVal
+                    case .resonance, .lfoRate, .lfoDepth, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
                         break
                     }
                 }
@@ -784,6 +690,24 @@ public extension AudioEngine {
             }
             osc1Freq = max(20.0, min(sampleRate * 0.45, osc1Freq))
             osc2Freq = max(20.0, min(sampleRate * 0.45, osc2Freq))
+            if unisonDetuneMod != 0 && v.partialCount > 1 {
+                let center = Float(v.partial) - Float(v.partialCount - 1) * 0.5
+                let cents = center * unisonDetuneMod * 50
+                if cents != 0 {
+                    let mul = pow(2.0, Double(cents) / 1200.0)
+                    osc1Freq *= mul
+                    osc2Freq *= mul
+                }
+            }
+
+            let voiceSeed = (noiseBase &+ UInt32(i) &* 747_796_405 &+ 2_891_336_453) &* 1_664_525 &+ 1_013_904_223
+            let rawNoise = Float(voiceSeed) / Float(UInt32.max) * 2.0 - 1.0
+            let noiseValue: Float
+            if noiseLevelMod != 0 || osc1.waveform == .noise || osc2.waveform == .noise {
+                noiseValue = v.filterNoise(rawNoise, color: cachedNoiseColor)
+            } else {
+                noiseValue = 0
+            }
 
             let phaseInc1 = AudioMath.twoPi * osc1Freq / sampleRate
             var phaseInc2 = AudioMath.twoPi * osc2Freq / sampleRate
@@ -802,7 +726,8 @@ public extension AudioEngine {
                         phaseIncrement: phaseInc1,
                         noiseValue: noiseValue,
                         pulseWidthOverride: pulse1,
-                        pullWavetable: false
+                        pullWavetable: false,
+                        frameOffset: wtMorphMod1Voice
                     )
                     let modFreq = min(sampleRate * 0.45, osc1Freq * ratio)
                     phaseInc2 = AudioMath.twoPi * modFreq / sampleRate
@@ -818,7 +743,8 @@ public extension AudioEngine {
                             phaseIncrement: phaseInc2,
                             noiseValue: noiseValue,
                             pulseWidthOverride: pulse2,
-                            pullWavetable: false
+                            pullWavetable: false,
+                            frameOffset: wtMorphMod2Voice
                         )
                     } else {
                         s2 = 0
@@ -832,7 +758,8 @@ public extension AudioEngine {
                             phaseIncrement: phaseInc2,
                             noiseValue: noiseValue,
                             pulseWidthOverride: pulse2,
-                            pullWavetable: false
+                            pullWavetable: false,
+                            frameOffset: wtMorphMod2Voice
                         )
                     } else {
                         s2 = 0
@@ -847,7 +774,8 @@ public extension AudioEngine {
                         phaseIncrement: phaseInc1,
                         noiseValue: noiseValue,
                         pulseWidthOverride: pulse1,
-                        pullWavetable: false
+                        pullWavetable: false,
+                        frameOffset: wtMorphMod1Voice
                     )
                 }
             } else if fmMod == 0 {
@@ -857,7 +785,8 @@ public extension AudioEngine {
                         phaseIncrement: phaseInc2,
                         noiseValue: noiseValue,
                         pulseWidthOverride: pulse2,
-                        pullWavetable: false
+                        pullWavetable: false,
+                        frameOffset: wtMorphMod2Voice
                     )
                 } else {
                     s2 = 0
@@ -872,7 +801,8 @@ public extension AudioEngine {
                     phaseIncrement: phaseInc1,
                     noiseValue: noiseValue,
                     pulseWidthOverride: pulse1,
-                    pullWavetable: false
+                    pullWavetable: false,
+                    frameOffset: wtMorphMod1Voice
                 )
             } else {
                 let voiceFM = max(0, min(1, fmAmount + fmMod))
@@ -882,7 +812,8 @@ public extension AudioEngine {
                         phaseIncrement: phaseInc2,
                         noiseValue: noiseValue,
                         pulseWidthOverride: pulse2,
-                        pullWavetable: false
+                        pullWavetable: false,
+                        frameOffset: wtMorphMod2Voice
                     )
                 } else {
                     s2 = 0
@@ -897,17 +828,23 @@ public extension AudioEngine {
                     phaseIncrement: phaseInc1,
                     noiseValue: noiseValue,
                     pulseWidthOverride: pulse1,
-                    pullWavetable: false
+                    pullWavetable: false,
+                    frameOffset: wtMorphMod1Voice
                 )
             }
-            var sample = s1
+            let s1Out = osc1LevelMod == 0 ? s1 : s1 * max(0, 1 + osc1LevelMod)
+            let s2Out = osc2LevelMod == 0 ? s2 : s2 * max(0, 1 + osc2LevelMod)
+            var sample = s1Out
             if cachedOsc2Enabled {
                 if mixMod != 0 {
                     let bias = max(-1, min(1, mixMod))
-                    sample = (s1 * (1 - bias) + s2 * (1 + bias)) * 0.5
+                    sample = (s1Out * (1 - bias) + s2Out * (1 + bias)) * 0.5
                 } else {
-                    sample = (s1 + s2) * 0.5
+                    sample = (s1Out + s2Out) * 0.5
                 }
+            }
+            if noiseLevelMod != 0 {
+                sample += noiseValue * noiseLevelMod
             }
 
             if cachedRingModAmount > 0 {
@@ -915,23 +852,35 @@ public extension AudioEngine {
                 sample = sample * (1.0 - cachedRingModAmount) + ring * cachedRingModAmount
             }
 
-            if subVol > 0 {
-                let subSample: Float
+            let voiceSub = subLevelMod == 0 ? subVol : max(0, subVol + subLevelMod)
+            if voiceSub > 0 {
+                let subFreq = osc1Freq * (subOctave == -2 ? 0.25 : 0.5)
+                let subInc = AudioMath.twoPi * subFreq / sampleRate
+                let subDt = subInc / AudioMath.twoPi
                 let normSub = v.subPhase / AudioMath.twoPi
+                let subSample: Float
                 switch subWave {
                 case .sine:
                     subSample = Float(sin(v.subPhase))
                 case .triangle:
-                    subSample = Float(4.0 * abs(normSub - 0.5) - 1.0)
+                    var val = 4.0 * abs(normSub - 0.5) - 1.0
+                    val += 8.0 * Oscillator.polyBLAMP(t: normSub, dt: subDt)
+                    var shifted = normSub - 0.5
+                    if shifted < 0 { shifted += 1.0 }
+                    val -= 8.0 * Oscillator.polyBLAMP(t: shifted, dt: subDt)
+                    subSample = Float(val)
                 case .square:
-                    subSample = normSub < 0.5 ? 1.0 : -1.0
+                    var val = normSub < 0.5 ? 1.0 : -1.0
+                    val += Oscillator.polyBLEP(t: normSub, dt: subDt)
+                    var shifted = normSub - 0.5
+                    if shifted < 0 { shifted += 1.0 }
+                    val -= Oscillator.polyBLEP(t: shifted, dt: subDt)
+                    subSample = Float(val)
                 default:
                     subSample = Float(sin(v.subPhase))
                 }
-                sample = (sample + subSample * subVol) / (1.0 + subVol * 0.4)
+                sample = (sample + subSample * voiceSub) / (1.0 + voiceSub * 0.4)
 
-                let subFreq = osc1Freq * (subOctave == -2 ? 0.25 : 0.5)
-                let subInc = AudioMath.twoPi * subFreq / sampleRate
                 v.subPhase += subInc
                 if v.subPhase >= AudioMath.twoPi { v.subPhase -= AudioMath.twoPi }
                 if v.subPhase < 0 { v.subPhase += AudioMath.twoPi }
@@ -951,19 +900,25 @@ public extension AudioEngine {
                 if v.phase2 < 0 { v.phase2 += AudioMath.twoPi }
             }
 
-            let curvedVel: Float
-            switch cachedVelocityCurve {
-            case .linear:
-                curvedVel = max(0.15, min(1.0, velValue))
-            case .exponential:
-                let clamped = max(0.0, min(1.0, velValue))
-                curvedVel = max(0.15, clamped * clamped)
-            case .logarithmic:
-                let clamped = max(0.0, min(1.0, velValue))
-                curvedVel = max(0.15, sqrt(clamped))
+            if v.velGain != v.velGainTarget {
+                if velGainGlideSampleRate != sampleRate {
+                    velGainGlideSampleRate = sampleRate
+                    velGainGlideCoeff = sampleRate > 0
+                        ? Float(1 - exp(-1.0 / (sampleRate * 0.004)))
+                        : 1
+                }
+                v.velGain += velGainGlideCoeff * (v.velGainTarget - v.velGain)
+                if abs(v.velGain - v.velGainTarget) < 1e-5 {
+                    v.velGain = v.velGainTarget
+                }
             }
-            let effectiveVel = 1.0 - cachedVelocityToVolume * (1.0 - curvedVel)
-            var amplitude = sample * envelopeValue * effectiveVel
+            var amplitude = sample * envelopeValue * v.velGain
+            if cachedShortAttack, v.microFadeRemaining > 0 {
+                amplitude *= v.microFadeGain
+                v.microFadeGain += v.microFadeStep
+                if v.microFadeGain > 1 { v.microFadeGain = 1 }
+                v.microFadeRemaining -= 1
+            }
             amplitude *= max(0.0, 1.0 + ampMod)
             amplitude *= AudioMath.voiceGain * v.unisonScale
             if lfoEnabled && lfoTarget == .amplitude && lfo.stereoPhaseOffsetDegrees == 0 {
@@ -975,26 +930,29 @@ public extension AudioEngine {
             if !amplitude.isFinite { amplitude = 0 }
             let preFilterAmplitude = amplitude
             var voiceCoeffs = filterCoeffs
-            if perVoiceFilter {
+            let voiceDrive = driveMod == 0 ? cachedFilterDrive : max(0, min(1, cachedFilterDrive + driveMod))
+            let voiceFilterLive = perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0
+            var voiceF1Cutoff: Float = voiceFilterBaseCutoff
+            var hasVoiceF1Cutoff = false
+            if voiceFilterLive {
                 if v.filterControlTick & 3 == 0 {
-                    var c = voiceFilterBaseCutoff
-                    var envAmt = filterEnvAmt
-                    if velToEnvAmt != 0 {
-                        envAmt *= max(0.0, 1.0 + (v.velocity - 1.0) * velToEnvAmt)
-                    }
-                    if envAmt != 0 {
-                        c *= pow(2, envAmt * filterEnvVal * 4)
-                    }
-                    if filterKeyTrk != 0 {
-                        c *= pow(2, Float(v.midiNote - 60) / 12 * filterKeyTrk)
-                    }
-                    if velToCutoff > 0 {
-                        c *= pow(2, (v.velocity - 1.0) * velToCutoff * 3.0)
-                    }
-                    if cachedAnalogDrift > 0 {
-                        c *= v.driftCutoffMul
-                    }
-                    c = max(20, min(voiceFilterMaxCutoff, c))
+                    let c = voiceCutoffHz(
+                        base: voiceFilterBaseCutoff,
+                        envAmt: filterEnvAmt,
+                        filterEnvMod: filterEnvMod,
+                        filterEnvVal: filterEnvVal,
+                        velToEnvAmt: velToEnvAmt,
+                        velocity: v.velocity,
+                        keyTrk: filterKeyTrk,
+                        midiNote: v.midiNote,
+                        velToCutoff: velToCutoff,
+                        drift: cachedAnalogDrift,
+                        driftMul: v.driftCutoffMul,
+                        maxCutoff: voiceFilterMaxCutoff,
+                        voiceCutoffMod: voiceCutoffMod
+                    )
+                    voiceF1Cutoff = c
+                    hasVoiceF1Cutoff = true
                     v.voiceFilterCoeffs = CachedBiquadFilter.coefficients(
                         type: voiceFilterType,
                         cutoff: c,
@@ -1012,11 +970,46 @@ public extension AudioEngine {
                 amplitude = formed.isFinite ? formed : 0
             } else if voiceFilterType == .comb {
                 let comb = voiceCombPtr[i].takeUnretainedValue()
-                var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
-                if perVoiceFilter {
-                    c = max(20, min(voiceFilterMaxCutoff, c))
+                let c: Float
+                if cachedCombUsesVoiceCutoff {
+                    let base = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                    if perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0 {
+                        c = voiceCutoffHz(
+                            base: base,
+                            envAmt: filterEnvAmt,
+                            filterEnvMod: filterEnvMod,
+                            filterEnvVal: filterEnvVal,
+                            velToEnvAmt: velToEnvAmt,
+                            velocity: v.velocity,
+                            keyTrk: filterKeyTrk,
+                            midiNote: v.midiNote,
+                            velToCutoff: velToCutoff,
+                            drift: cachedAnalogDrift,
+                            driftMul: v.driftCutoffMul,
+                            maxCutoff: voiceFilterMaxCutoff,
+                            voiceCutoffMod: voiceCutoffMod
+                        )
+                        if perVoiceFilter {
+                            voiceF1Cutoff = c
+                            hasVoiceF1Cutoff = true
+                        }
+                    } else {
+                        c = base
+                    }
+                } else {
+                    var bare = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                    if perVoiceFilter {
+                        bare = max(20, min(voiceFilterMaxCutoff, bare))
+                    }
+                    c = bare
                 }
-                let combed = comb.process(amplitude, cutoff: c, resonance: voiceFilterResonance, sampleRate: Float(sampleRate))
+                let combed = comb.process(
+                    amplitude,
+                    cutoff: c,
+                    resonance: voiceFilterResonance,
+                    sampleRate: Float(sampleRate),
+                    damping: cachedCombUsesVoiceCutoff ? 0.22 : 0
+                )
                 amplitude = combed.isFinite ? combed : 0
             } else if cachedFilterFeedback != 0 {
                 let fb = min(1, max(-1, cachedFilterFeedback))
@@ -1028,35 +1021,40 @@ public extension AudioEngine {
                 if !fed.isFinite {
                     amplitude = .nan
                 } else if voiceFilterType == .ladder {
-                    var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
-                    if perVoiceFilter {
-                        var envAmt = filterEnvAmt
-                        if velToEnvAmt != 0 {
-                            envAmt *= max(0.0, 1.0 + (v.velocity - 1.0) * velToEnvAmt)
+                    let cutoffBase = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                    let c: Float
+                    if perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0 {
+                        c = voiceCutoffHz(
+                            base: cutoffBase,
+                            envAmt: filterEnvAmt,
+                            filterEnvMod: filterEnvMod,
+                            filterEnvVal: filterEnvVal,
+                            velToEnvAmt: velToEnvAmt,
+                            velocity: v.velocity,
+                            keyTrk: filterKeyTrk,
+                            midiNote: v.midiNote,
+                            velToCutoff: velToCutoff,
+                            drift: cachedAnalogDrift,
+                            driftMul: v.driftCutoffMul,
+                            maxCutoff: voiceFilterMaxCutoff,
+                            voiceCutoffMod: voiceCutoffMod
+                        )
+                        if perVoiceFilter {
+                            voiceF1Cutoff = c
+                            hasVoiceF1Cutoff = true
                         }
-                        if envAmt != 0 {
-                            c *= pow(2, envAmt * filterEnvVal * 4)
-                        }
-                        if filterKeyTrk != 0 {
-                            c *= pow(2, Float(v.midiNote - 60) / 12 * filterKeyTrk)
-                        }
-                        if velToCutoff > 0 {
-                            c *= pow(2, (v.velocity - 1.0) * velToCutoff * 3.0)
-                        }
-                        if cachedAnalogDrift > 0 {
-                            c *= v.driftCutoffMul
-                        }
-                        c = max(20, min(voiceFilterMaxCutoff, c))
+                    } else {
+                        c = cutoffBase
                     }
                     amplitude = v.ladder.process(
                         fed,
                         cutoff: c,
                         resonance: voiceFilterResonance,
-                        drive: cachedFilterDrive,
+                        drive: voiceDrive,
                         sampleRate: Float(sampleRate)
                     )
-                } else if cachedFilterDrive != 0 {
-                    let driven = AudioMath.fastTanh(fed * (1 + cachedFilterDrive * 8))
+                } else if voiceDrive != 0 {
+                    let driven = AudioMath.fastTanh(fed * (1 + voiceDrive * 8))
                     amplitude = v.filter.process(driven, coeffs: voiceCoeffs)
                 } else {
                     let filtered = v.filter.process(fed, coeffs: voiceCoeffs)
@@ -1074,35 +1072,40 @@ public extension AudioEngine {
                     v.filter.reset()
                 }
             } else if voiceFilterType == .ladder {
-                var c = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
-                if perVoiceFilter {
-                    var envAmt = filterEnvAmt
-                    if velToEnvAmt != 0 {
-                        envAmt *= max(0.0, 1.0 + (v.velocity - 1.0) * velToEnvAmt)
+                let cutoffBase = perVoiceFilter ? voiceFilterBaseCutoff : cutoff
+                let c: Float
+                if perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0 {
+                    c = voiceCutoffHz(
+                        base: cutoffBase,
+                        envAmt: filterEnvAmt,
+                        filterEnvMod: filterEnvMod,
+                        filterEnvVal: filterEnvVal,
+                        velToEnvAmt: velToEnvAmt,
+                        velocity: v.velocity,
+                        keyTrk: filterKeyTrk,
+                        midiNote: v.midiNote,
+                        velToCutoff: velToCutoff,
+                        drift: cachedAnalogDrift,
+                        driftMul: v.driftCutoffMul,
+                        maxCutoff: voiceFilterMaxCutoff,
+                        voiceCutoffMod: voiceCutoffMod
+                    )
+                    if perVoiceFilter {
+                        voiceF1Cutoff = c
+                        hasVoiceF1Cutoff = true
                     }
-                    if envAmt != 0 {
-                        c *= pow(2, envAmt * filterEnvVal * 4)
-                    }
-                    if filterKeyTrk != 0 {
-                        c *= pow(2, Float(v.midiNote - 60) / 12 * filterKeyTrk)
-                    }
-                    if velToCutoff > 0 {
-                        c *= pow(2, (v.velocity - 1.0) * velToCutoff * 3.0)
-                    }
-                    if cachedAnalogDrift > 0 {
-                        c *= v.driftCutoffMul
-                    }
-                    c = max(20, min(voiceFilterMaxCutoff, c))
+                } else {
+                    c = cutoffBase
                 }
                 amplitude = v.ladder.process(
                     amplitude,
                     cutoff: c,
                     resonance: voiceFilterResonance,
-                    drive: cachedFilterDrive,
+                    drive: voiceDrive,
                     sampleRate: Float(sampleRate)
                 )
-            } else if cachedFilterDrive != 0 {
-                let driven = AudioMath.fastTanh(amplitude * (1 + cachedFilterDrive * 8))
+            } else if voiceDrive != 0 {
+                let driven = AudioMath.fastTanh(amplitude * (1 + voiceDrive * 8))
                 amplitude = v.filter.process(driven, coeffs: voiceCoeffs)
             } else {
                 amplitude = v.filter.process(amplitude, coeffs: voiceCoeffs)
@@ -1112,7 +1115,32 @@ public extension AudioEngine {
                 let dual = voiceDualPtr[i].takeUnretainedValue()
                 dual.routing = cachedFilter2Routing
                 dual.type2 = cachedFilter2Type
-                dual.cutoff2 = cachedFilter2Cutoff
+                if voiceFilterLive && voiceFilterBaseCutoff > 20 {
+                    let f1Cutoff: Float
+                    if hasVoiceF1Cutoff {
+                        f1Cutoff = voiceF1Cutoff
+                    } else {
+                        f1Cutoff = voiceCutoffHz(
+                            base: voiceFilterBaseCutoff,
+                            envAmt: filterEnvAmt,
+                            filterEnvMod: filterEnvMod,
+                            filterEnvVal: filterEnvVal,
+                            velToEnvAmt: velToEnvAmt,
+                            velocity: v.velocity,
+                            keyTrk: filterKeyTrk,
+                            midiNote: v.midiNote,
+                            velToCutoff: velToCutoff,
+                            drift: cachedAnalogDrift,
+                            driftMul: v.driftCutoffMul,
+                            maxCutoff: voiceFilterMaxCutoff,
+                            voiceCutoffMod: voiceCutoffMod
+                        )
+                    }
+                    let scaled = cachedFilter2Cutoff * (f1Cutoff / max(20, voiceFilterBaseCutoff))
+                    dual.cutoff2 = scaled.isFinite ? max(20, min(voiceFilterMaxCutoff, scaled)) : cachedFilter2Cutoff
+                } else {
+                    dual.cutoff2 = cachedFilter2Cutoff
+                }
                 dual.resonance2 = cachedFilter2Resonance
                 dual.balance = cachedFilter2Balance
                 if cachedFilter2Type == .formant {
@@ -1194,6 +1222,15 @@ public extension AudioEngine {
                 hlMix = mixMod
                 hlFine = fineMod
                 hlFm = fmMod
+                hlDrive = driveMod
+                hlOsc1 = osc1LevelMod
+                hlOsc2 = osc2LevelMod
+                hlSub = subLevelMod
+                hlNoise = noiseLevelMod
+                hlFilterEnv = filterEnvMod
+                hlUni = unisonDetuneMod
+                hlWtMorph1 = wtMorphMod1Voice
+                hlWtMorph2 = wtMorphMod2Voice
             }
             voices[i] = v
         }
@@ -1208,6 +1245,17 @@ public extension AudioEngine {
             liveModulation.store(hlMix, for: .mix)
             liveModulation.store(hlFine, for: .finePitch)
             liveModulation.store(hlFm, for: .fm)
+            liveModulation.store(hlDrive, for: .drive)
+            liveModulation.store(hlOsc1, for: .osc1Level)
+            liveModulation.store(hlOsc2, for: .osc2Level)
+            liveModulation.store(hlSub, for: .subLevel)
+            liveModulation.store(hlNoise, for: .noiseLevel)
+            liveModulation.store(hlFilterEnv, for: .filterEnvAmount)
+            liveModulation.store(hlUni, for: .unisonDetune)
+            if cachedPerVoiceCutoffSources && modCount > 0 {
+                liveModulation.store(wtMorphMod1 + hlWtMorph1, for: .wtMorph1)
+                liveModulation.store(wtMorphMod2 + hlWtMorph2, for: .wtMorph2)
+            }
         } else {
             liveModulation.store(0, for: .pitch1)
             liveModulation.store(0, for: .pitch2)
@@ -1218,6 +1266,13 @@ public extension AudioEngine {
             liveModulation.store(0, for: .mix)
             liveModulation.store(0, for: .finePitch)
             liveModulation.store(0, for: .fm)
+            liveModulation.store(0, for: .drive)
+            liveModulation.store(0, for: .osc1Level)
+            liveModulation.store(0, for: .osc2Level)
+            liveModulation.store(0, for: .subLevel)
+            liveModulation.store(0, for: .noiseLevel)
+            liveModulation.store(0, for: .filterEnvAmount)
+            liveModulation.store(0, for: .unisonDetune)
         }
 
         if !mixedSampleL.isFinite { mixedSampleL = 0 }
@@ -1226,6 +1281,14 @@ public extension AudioEngine {
         let headroom: Float = 0.65
         var outL = mixedSampleL * smoothedMasterVolume * headroom
         var outR = mixedSampleR * smoothedMasterVolume * headroom
+        // Both flags off skips the smoother and the multiply, so goldens stay bit-exact.
+        if cachedRespondToExpressionCC || cachedGlobalExpressionCC {
+            let expression = expressionGain()
+            if expression != 1 {
+                outL *= expression
+                outR *= expression
+            }
+        }
         if cachedSceneHPF {
             let high = sceneHPF.process(
                 left: outL,
@@ -1252,6 +1315,8 @@ public extension AudioEngine {
         // Parallel sends tap pre-insert (post-HPF dry) or post-insert. Level 0 skips the buses.
         let preInsertL = outL
         let preInsertR = outR
+        dynamicsPreCleanBusL = preInsertL
+        dynamicsPreCleanBusR = preInsertR
 
         // EQ before the rider. A boost after it walked straight into the ceiling
         // and rasped; the rider now holds that extra level with one linear gain.
@@ -1322,6 +1387,11 @@ public extension AudioEngine {
                 right: outR,
                 sampleRate: Float(sampleRate)
             )
+        }
+
+        // SYNT_68: optional bus-glue compressor, post-CleanBus, default OFF.
+        if cachedBusGlueEnabled {
+            (outL, outR) = busGlueCompressor.processStereo(inputL: outL, inputR: outR)
         }
 
         let sendSourceL = cachedSendPostInsert ? outL : preInsertL
@@ -1460,16 +1530,26 @@ public extension AudioEngine {
         outL = AudioMath.cleanCeiling(outL)
         outR = AudioMath.cleanCeiling(outR)
 
-        let absSample = max(abs(outL), abs(outR))
+        let absL = abs(outL)
+        let absR = abs(outR)
+        let absSample = max(absL, absR)
         currentLevel = max(currentLevel * levelDecay, absSample)
+        currentLevelL = max(currentLevelL * levelDecay, absL)
+        currentLevelR = max(currentLevelR * levelDecay, absR)
         if absSample > currentPeak { currentPeak = absSample }
         else { currentPeak *= peakDecay }
+        if absL > currentPeakL { currentPeakL = absL }
+        else { currentPeakL *= peakDecay }
+        if absR > currentPeakR { currentPeakR = absR }
+        else { currentPeakR *= peakDecay }
 
         sampleCounter += 1
         if sampleCounter >= levelUpdateInterval {
             sampleCounter = 0
             meteringState.setOutputLevel(min(currentLevel * 2, 1))
             meteringState.setPeakLevel(min(currentPeak * 2, 1))
+            meteringState.setOutputLevelStereo(left: min(currentLevelL * 2, 1), right: min(currentLevelR * 2, 1))
+            meteringState.setPeakLevelStereo(left: min(currentPeakL * 2, 1), right: min(currentPeakR * 2, 1))
         }
 
         if isCapturingScope {
@@ -1490,796 +1570,21 @@ public extension AudioEngine {
         return (outL, outR)
     }
 
-    /// ~5 ms one-pole toward the bend target. Idle bend stays exactly 1 and does no work.
-    /// exp() only when portamento time or sample rate changes (same expression, bit-identical).
-    @inline(__always) func portamentoGlideRate() -> Double {
-        if cachedPortamento != glideRateForPortamento || sampleRate != glideRateSampleRate {
-            glideRateForPortamento = cachedPortamento
-            glideRateSampleRate = sampleRate
-            glideRateCached = 1.0 - exp(-5.0 / (Double(cachedPortamento) * sampleRate))
-        }
-        return glideRateCached
-    }
-
-    /// 5 ms one-pole coefficient for bend/aftertouch; exp() only when the
-    /// sample rate changes (same expression, so the value is bit-identical).
-    @inline(__always) func midiSmoothingCoeff() -> Float {
-        if sampleRate != midiSmoothCoeffSampleRate {
-            midiSmoothCoeffSampleRate = sampleRate
-            midiSmoothCoeff = Float(1 - exp(-1.0 / (0.005 * sampleRate)))
-        }
-        return midiSmoothCoeff
-    }
-
-    func advancePitchBend() -> Double {
-        let target = pitchBendTarget
-        if target == 0 && pitchBendSmoothed == 0 {
-            return 1
-        }
-        let coeff = midiSmoothingCoeff()
-        pitchBendSmoothed += (target - pitchBendSmoothed) * coeff
-        if abs(target - pitchBendSmoothed) < 0.00002 {
-            pitchBendSmoothed = target
-        }
-        if pitchBendSmoothed == 0 {
-            cachedPitchBendMultiplier = 1
-            cachedPitchBendMultiplierSmoothed = 0
-            cachedPitchBendMultiplierRange = cachedPitchBendRange
-            return 1
-        }
-        // Same bits as calling exp2 every sample. A held wheel repeats the input.
-        if pitchBendSmoothed == cachedPitchBendMultiplierSmoothed
-            && cachedPitchBendRange == cachedPitchBendMultiplierRange {
-            return cachedPitchBendMultiplier
-        }
-        cachedPitchBendMultiplierSmoothed = pitchBendSmoothed
-        cachedPitchBendMultiplierRange = cachedPitchBendRange
-        cachedPitchBendMultiplier = exp2(Double(pitchBendSmoothed) * Double(cachedPitchBendRange) / 12)
-        return cachedPitchBendMultiplier
-    }
-
-    /// ~5 ms one-pole toward aftertouch target. Idle aftertouch stays 0 and skips work.
-    func advanceAftertouch() -> Float {
-        let target = aftertouchTarget
-        if target == 0 && aftertouchSmoothed == 0 {
-            return 0
-        }
-        let coeff = midiSmoothingCoeff()
-        aftertouchSmoothed += (target - aftertouchSmoothed) * coeff
-        if abs(target - aftertouchSmoothed) < 0.00002 {
-            aftertouchSmoothed = target
-        }
-        return aftertouchSmoothed
-    }
-
-    /// SYNT_27 P2-1: adopts snapshot, matrix and MSEG 1/2 together or not at all. If a writer
-    /// is mid-publish, render keeps the whole previous set and retries next block.
-    func pullPresetSnapshotRT() {
-        guard rtPresetBuffer.hasPendingRT || rtModMatrix.hasPendingRT
-            || mseg.hasPendingRT || mseg2.hasPendingRT else { return }
-        publicationRenderPulling.store(true, ordering: .sequentiallyConsistent)
-        if publicationWriterActive.load(ordering: .sequentiallyConsistent) {
-            publicationRenderPulling.store(false, ordering: .sequentiallyConsistent)
-            return
-        }
-        let snap = rtPresetBuffer.pullNewSnapshot()
-        rtModMatrix.pullRT()
-        mseg.pullRT()
-        mseg2.pullRT()
-        publicationRenderPulling.store(false, ordering: .sequentiallyConsistent)
-        if let snap {
-            applyPresetDSP(snap)
-        }
-    }
-
-    func processCommandQueue() {
-        pullPresetSnapshotRT()
-        commandQueue.drain(limit: 128) { [self] command in
-            handleCommand(command)
-        }
-        midiQueue.drain(limit: 128) { [self] command in
-            handleCommand(command)
-        }
-        if midiResetRequested.exchange(false, ordering: .acquiringAndReleasing) {
-            // Whatever is still queued came from before the reset; drop it.
-            midiQueue.discardPendingRT()
-            applyMIDIResetRT()
-        }
-        // After the whole batch, so releasing a chord (held ends at 0) still rings.
-        // A new chord in the same batch is already held, and only its oldest tails go.
-        trimAbandonedTails()
-    }
-
-    func handleCommand(_ command: AudioCommand) {
-            switch command {
-            case .resetPatchState:
-                resetPatchStateRT()
-            case .allNotesOff:
-                releaseAllHeldNotesRT()
-            case .clearMPEControllerOverrides:
-                clearMPEControllerOverridesRT()
-            case .keyDown(let midiNote, let velocity):
-                if cachedArpMode != .off {
-                    handleCommand(.arpKeyDown(midiNote: midiNote))
-                } else {
-                    handleNoteOn(midiNote: midiNote, velocity: velocity)
-                }
-            case .keyUp(let midiNote):
-                // Follow where the key went, so an arp toggle mid-hold cannot strand it.
-                if heldKeysForArp.contains(midiNote) {
-                    handleCommand(.arpKeyUp(midiNote: midiNote))
-                } else {
-                    handleNoteOff(midiNote: midiNote)
-                }
-            case .noteOn(let midiNote, let velocity):
-                handleNoteOn(midiNote: midiNote, velocity: velocity)
-            case .noteOff(let midiNote):
-                handleNoteOff(midiNote: midiNote)
-            case .mpeKeyDown(let midiNote, let velocity, let channel):
-                handleNoteOn(midiNote: midiNote, velocity: velocity, channel: channel)
-            case .mpeKeyUp(let midiNote, let channel):
-                handleNoteOff(midiNote: midiNote, channel: channel)
-            case .mpePitchBend(let channel, let value):
-                let ch = Int(channel & 15)
-                mpeChannelStates[ch].pitchBend = value
-                let mul = exp2(Double(value) * Double(cachedMpePitchBendRange) / 12.0)
-                mpeChannelStates[ch].pitchBendMultiplier = mul
-                for i in 0..<AudioEngine.maxVoices {
-                    if voices[i].isActive && voices[i].midiChannel == channel {
-                        voices[i].mpePitchBend = value
-                        voices[i].mpePitchBendMultiplier = mul
-                    }
-                }
-            case .mpePressure(let channel, let value):
-                let ch = Int(channel & 15)
-                mpeChannelStates[ch].pressure = value
-                for i in 0..<AudioEngine.maxVoices {
-                    if voices[i].isActive && voices[i].midiChannel == channel {
-                        voices[i].mpePressure = value
-                    }
-                }
-            case .mpeTimbre(let channel, let value):
-                let ch = Int(channel & 15)
-                mpeChannelStates[ch].timbre = value
-                for i in 0..<AudioEngine.maxVoices {
-                    if voices[i].isActive && voices[i].midiChannel == channel {
-                        voices[i].mpeTimbre = value
-                    }
-                }
-            case .setPitchBend(let amount):
-                pitchBendTarget = amount
-            case .setModWheel(let amount):
-                modWheel = amount
-            case .setAftertouch(let amount):
-                aftertouchTarget = amount
-            case .setPolyAftertouch(let midiNote, let pressure):
-                for i in 0..<AudioEngine.maxVoices {
-                    if voices[i].isActive && voices[i].midiNote == midiNote {
-                        voices[i].polyAftertouch = pressure
-                    }
-                }
-                // Poly pressure is per-voice only; channel aftertouch owns aftertouchTarget.
-            case .setSustain(let down):
-                setSustainPedal(down: down)
-            case .controlChange(let cc, let value):
-                applyPlainCCRT(cc: cc, value: value)
-            case .mpeControlChange(let channel, let cc, let value):
-                handleRPNCC(channel: channel, cc: cc, value: value)
-            case .midiClock:
-                receiveMIDIClockRT()
-            case .midiStart:
-                applyMIDITransportRT(resetPhase: true, running: true)
-            case .midiContinue:
-                applyMIDITransportRT(resetPhase: false, running: true)
-            case .midiStop:
-                applyMIDITransportRT(resetPhase: false, running: false)
-            case .setAddressedParameter(let id, let value):
-                applyAddressedParameterRT(id: id, value: value)
-            case .setFXOrder(let table):
-                cachedFXOrder = table
-            case .clearAll:
-                clearAllVoices()
-                // A new patch / panic must not inherit a bent pitch or a stuck pedal.
-                pitchBendTarget = 0
-                pitchBendSmoothed = 0
-                cachedPitchBendMultiplier = 1
-                cachedPitchBendMultiplierSmoothed = 0
-                cachedPitchBendMultiplierRange = 0
-                aftertouchTarget = 0
-                aftertouchSmoothed = 0
-                cachedMacro1 = 0
-                cachedMacro2 = 0
-                cachedMacro3 = 0
-                cachedMacro4 = 0
-                for i in 0..<16 {
-                    mpeChannelStates[i] = MPEChannelState()
-                }
-                sustainPedalDown = false
-                sustainedLo = 0
-                sustainedHi = 0
-                heldKeysForArp.removeAll()
-                latchedKeysForArp.removeAll()
-                playedKeysForArp.removeAll(keepingCapacity: true)
-                arp.reset()
-                arpGateSamplesLeft = 0
-                arpStepIndex = 0
-                seqMirror.heldNote = -1
-                seqMirror.gateSamplesLeft = 0
-                filterL.reset()
-                filterR.reset()
-                lfo.reset()
-            case .arpKeyDown(let midiNote):
-                if cachedArpLatch && heldKeysForArp.isEmpty {
-                    latchedKeysForArp.removeAll()
-                    playedKeysForArp.removeAll(keepingCapacity: true)
-                }
-                heldKeysForArp.insert(midiNote)
-                if !playedKeysForArp.contains(midiNote) {
-                    playedKeysForArp.append(midiNote)
-                }
-                arp.mode = cachedArpMode
-                arp.octaves = cachedArpOctaves
-                arp.latch = cachedArpLatch
-                if cachedArpLatch {
-                    latchedKeysForArp.insert(midiNote)
-                    arp.setHeldKeys(latchedKeysForArp, playedOrder: playedKeysForArp)
-                } else {
-                    arp.setHeldKeys(heldKeysForArp, playedOrder: playedKeysForArp)
-                }
-            case .arpKeyUp(let midiNote):
-                heldKeysForArp.remove(midiNote)
-                arp.mode = cachedArpMode
-                arp.octaves = cachedArpOctaves
-                arp.latch = cachedArpLatch
-                if !cachedArpLatch {
-                    playedKeysForArp.removeAll { $0 == midiNote }
-                    arp.setHeldKeys(heldKeysForArp, playedOrder: playedKeysForArp)
-                } else {
-                    arp.setHeldKeys(latchedKeysForArp, playedOrder: playedKeysForArp)
-                }
-            }
-    }
-
-    /// Sample-accurate 16th-note clock. Swing delays user-facing even steps
-    /// (2, 4, 6… — odd indices) by `swing * step * 0.5` and shortens them so
-    /// the bar length stays constant. No allocation.
-    func advanceSequencerOneSample() {
-        let generationChanged = sequencerTransport.pullIfChanged(into: &seqMirror)
-        if usesHostTransport || cachedSyncSource == .midiClock {
-            seqMirror.bpm = cachedBPM
-        }
-        if generationChanged {
-            releaseSequencerNote()
-            seqMirror.stepIndex = 0
-            seqMirror.phase = 0
-            seqMirror.armed = seqMirror.playing
-            seqMirror.stepSkipped = false
-            seqMirror.ratchetIndex = 0
-            sequencerTransport.setDisplayStep(0)
-        }
-
-        guard seqMirror.playing else { return }
-
-        if seqMirror.length < 1 { seqMirror.length = 1 }
-        if seqMirror.stepIndex >= seqMirror.length { seqMirror.stepIndex = 0 }
-
-        if seqMirror.armed {
-            seqMirror.armed = false
-            triggerSequencerStep()
-        } else {
-            let step = seqMirror.steps[seqMirror.stepIndex]
-            let stepDuration = sequencerStepDuration(stepIndex: seqMirror.stepIndex)
-            let ratchet = max(1, Int(step.ratchet))
-            let subDuration = stepDuration / Double(ratchet)
-
-            if !seqMirror.stepSkipped && ratchet > 1 {
-                let currentSubIndex = min(ratchet - 1, Int(seqMirror.phase / max(1.0, subDuration)))
-                if currentSubIndex > seqMirror.ratchetIndex {
-                    seqMirror.ratchetIndex = currentSubIndex
-                    triggerRatchetSubStep(step: step, subDuration: subDuration)
-                }
-            }
-
-            if seqMirror.gateSamplesLeft > 0 {
-                seqMirror.gateSamplesLeft -= 1
-                if seqMirror.gateSamplesLeft == 0 {
-                    let nextIndex = (seqMirror.stepIndex + 1) % seqMirror.length
-                    let nextStep = seqMirror.steps[nextIndex]
-                    if !nextStep.tie || !nextStep.isActive || ratchet > 1 {
-                        releaseSequencerNote()
-                    }
-                }
-            }
-        }
-
-        let length = sequencerStepDuration(stepIndex: seqMirror.stepIndex)
-        seqMirror.phase += 1
-        if seqMirror.phase >= length {
-            seqMirror.phase -= length
-            seqMirror.stepIndex = (seqMirror.stepIndex + 1) % seqMirror.length
-            seqMirror.ratchetIndex = 0
-            sequencerTransport.setDisplayStep(seqMirror.stepIndex)
-            triggerSequencerStep()
-        }
-    }
-
-    func sequencerStepDuration(stepIndex: Int) -> Double {
-        let bpm = Double(max(20, seqMirror.bpm))
-        let samplesPerStep = sampleRate * 60.0 / bpm / 4.0
-        let swing = Double(min(1, max(0, seqMirror.swing)))
-        let offset = swing * samplesPerStep * 0.5
-        if stepIndex % 2 == 0 {
-            return samplesPerStep + offset
-        }
-        return max(1, samplesPerStep - offset)
-    }
-
-    func triggerSequencerStep() {
-        let index = seqMirror.stepIndex
-        guard index >= 0 && index < SequencerTransport.stepCount else { return }
-
-        let step = seqMirror.steps[index]
-        guard step.isActive else {
-            seqMirror.stepSkipped = true
-            releaseSequencerNote()
-            return
-        }
-
-        if step.probability < 1.0 {
-            seqMirror.prngState ^= seqMirror.prngState << 13
-            seqMirror.prngState ^= seqMirror.prngState >> 17
-            seqMirror.prngState ^= seqMirror.prngState << 5
-            let roll = Float(seqMirror.prngState & 0xFFFF) / 65535.0
-            if roll > step.probability {
-                seqMirror.stepSkipped = true
-                releaseSequencerNote()
-                return
-            }
-        }
-        seqMirror.stepSkipped = false
-
-        let raw = seqMirror.rootNote + Int(step.noteOffset) + Int(step.octave) * 12
-        let midi = max(0, min(127, raw))
-
-        if step.tie && seqMirror.heldNote >= 0 {
-            // Slide / Tie: Retain existing voice, glide target frequency to new pitch
-            let newFreq = AudioMath.midiToFrequency(midi)
-            for i in 0..<AudioEngine.maxVoices {
-                if voices[i].isActive && voices[i].midiNote == seqMirror.heldNote {
-                    voices[i].midiNote = midi
-                    voices[i].targetFrequency = newFreq
-                }
-            }
-            seqMirror.heldNote = midi
-        } else {
-            releaseSequencerNote()
-            createVoice(midiNote: midi, velocity: step.velocity)
-            seqMirror.heldNote = midi
-        }
-
-        let stepDuration = sequencerStepDuration(stepIndex: index)
-        let ratchet = max(1, Int(step.ratchet))
-        let subDuration = stepDuration / Double(ratchet)
-        let effectiveGate = Double(step.gate)
-        seqMirror.gateSamplesLeft = max(1, Int((subDuration * effectiveGate).rounded(.down)))
-    }
-
-    func triggerRatchetSubStep(step: SequencerStepRT, subDuration: Double) {
-        let raw = seqMirror.rootNote + Int(step.noteOffset) + Int(step.octave) * 12
-        let midi = max(0, min(127, raw))
-        releaseSequencerNote()
-        createVoice(midiNote: midi, velocity: step.velocity)
-        seqMirror.heldNote = midi
-        let effectiveGate = Double(step.gate)
-        seqMirror.gateSamplesLeft = max(1, Int((subDuration * effectiveGate).rounded(.down)))
-    }
-
-    func releaseSequencerNote() {
-        guard seqMirror.heldNote >= 0 else { return }
-        releaseHeldNote(seqMirror.heldNote)
-        seqMirror.heldNote = -1
-        seqMirror.gateSamplesLeft = 0
-    }
-
     @inline(__always)
-    func currentArpStepDuration() -> Double {
-        let base = samplesPerTick
-        if cachedArpSwing > 0.001 {
-            let offset = Double(cachedArpSwing) * base * 0.5
-            if arpStepIndex % 2 == 0 {
-                return base + offset
-            } else {
-                return max(1.0, base - offset)
-            }
-        }
-        return base
-    }
-
-    func handleArpTick(stepDuration: Double) {
-        if let oldNote = arp.currentNote {
-            releaseHeldNote(oldNote)
-        }
-
-        guard let newNote = arp.advanceTick(randomSource: &noiseSeed) else {
-            arp.currentNote = nil
-            arpGateSamplesLeft = 0
-            trimAbandonedTails()
-            return
-        }
-        createVoice(midiNote: newNote, velocity: 0.8)
-        let gateFrac = Double(max(0.1, min(1.0, cachedArpGateLength)))
-        arpGateSamplesLeft = max(1, Int((stepDuration * gateFrac).rounded(.down)))
-        trimAbandonedTails()
-    }
-
-    func applySingleParameterRT(target: MIDIControlTarget, rawValue: UInt8) {
-        let norm = Float(rawValue) / 127.0
-        switch target {
-        case .cutoff:
-            cachedFilterCutoff = 20.0 * pow(1000.0, norm)
-        case .resonance:
-            ccResonanceRT = norm * 0.95
-            ccResonanceBaseRT = filterL.resonance
-        case .amp:
-            cachedMasterVolume = norm
-        case .pan:
-            ccPanTarget = (norm - 0.5) * 2.0
-        case .pitch1:
-            ccDetune1Target = (norm - 0.5) * 100.0
-        case .pitch2:
-            ccDetune2Target = (norm - 0.5) * 100.0
-        case .finePitch:
-            ccDetune1Target = (norm - 0.5) * 100.0
-            ccDetune2Target = (norm - 0.5) * 100.0
-        case .pwm1:
-            ccPwm1Target = 0.1 + norm * 0.8
-        case .pwm2:
-            ccPwm2Target = 0.1 + norm * 0.8
-        case .wtMorph1:
-            ccWtMorph1Target = norm
-        case .wtMorph2:
-            ccWtMorph2Target = norm
-        case .lfoRate:
-            ccLfoRateTarget = 0.05 + norm * 19.95
-        case .lfoDepth:
-            ccLfoDepthTarget = norm
-        case .mix, .osc2Volume:
-            ccMixTarget = norm
-        case .attack:
-            ccAttackTarget = 0.001 + norm * 1.999
-        case .decay:
-            ccDecayTarget = 0.001 + norm * 1.999
-        case .sustain:
-            ccSustainTarget = norm
-        case .release:
-            ccReleaseTarget = 0.001 + norm * 2.999
-        case .filterAttack:
-            ccFilterAttackTarget = 0.001 + norm * 1.999
-        case .filterDecay:
-            ccFilterDecayTarget = 0.001 + norm * 1.999
-        case .filterSustain:
-            ccFilterSustainTarget = norm
-        case .filterRelease:
-            ccFilterReleaseTarget = 0.001 + norm * 2.999
-        case .filterEnvelopeAmount:
-            cachedFilterEnvAmount = (norm - 0.5) * 2.0
-        case .reverbMix:
-            cachedReverbMix = max(0, min(1, norm))
-            parameterReverbMix = cachedReverbMix
-        case .reverbRoomSize:
-            cachedReverbRoom = max(0, min(1, norm))
-            parameterReverbRoom = cachedReverbRoom
-        case .reverbShimmer:
-            cachedReverbShimmer = norm
-        case .delayMix:
-            pingPongDelay.mix = norm
-        case .delayTime:
-            pingPongDelay.delayTime = 0.01 + norm * 0.99
-        case .delayFeedback:
-            pingPongDelay.feedback = norm * 0.9
-        case .chorusMix:
-            dspChorus.mix = norm
-        case .chorusRate:
-            dspChorus.rate = 0.1 + norm * 4.9
-        case .chorusDepth:
-            dspChorus.depth = norm
-        case .distortionMix:
-            distortion.mix = norm
-        case .distortionDrive:
-            distortion.drive = norm
-        case .phaserMix:
-            phaser.mix = norm
-        case .phaserRate:
-            phaser.rate = 0.05 + norm * 4.95
-        case .phaserDepth:
-            phaser.depth = norm
-        case .osc1Volume:
-            oscillator1.volume = norm
-        case .subOscVolume:
-            cachedSubOscVolume = norm
-        case .fmAmount:
-            cachedFmAmount = norm
-        case .ringModAmount:
-            cachedRingModAmount = norm
-        case .unisonDetune:
-            cachedUnisonDetune = norm * 50.0
-        case .unisonSpread:
-            cachedUnisonSpread = norm
-        case .analogDrift:
-            cachedAnalogDrift = norm
-        case .portamento:
-            cachedPortamento = norm
-        case .macro1:
-            cachedMacro1 = (norm - 0.5) * 2.0
-        case .macro2:
-            cachedMacro2 = (norm - 0.5) * 2.0
-        case .macro3:
-            cachedMacro3 = (norm - 0.5) * 2.0
-        case .macro4:
-            cachedMacro4 = (norm - 0.5) * 2.0
-        case .macro5:
-            cachedMacro5 = (norm - 0.5) * 2.0
-        case .macro6:
-            cachedMacro6 = (norm - 0.5) * 2.0
-        case .macro7:
-            cachedMacro7 = (norm - 0.5) * 2.0
-        case .macro8:
-            cachedMacro8 = (norm - 0.5) * 2.0
-        }
-    }
-
-    // MARK: - MPE RPN Handling (RPN 0 and RPN 6)
-
-    func handleRPNCC(channel: UInt8, cc: UInt8, value: UInt8) {
-        let ch = Int(channel & 0x0F)
-        // SYNT_17 R14-7: ch1/ch16 outside the current zone reach this path only so an MCM can
-        // switch zones. Everything except RPN 6 data entry there stays a plain CC (CC learn / NRPN).
-        let inZone = AudioEngine.isMPEMasterChannel(channel, zone: cachedMpeZone)
-            || AudioEngine.isMPEMemberChannel(channel, zone: cachedMpeZone, memberCount: cachedMpeMemberChannelCount)
-        if !inZone {
-            switch cc {
-            case 100, 101:
-                handleRPNSelectRT(ch: ch, cc: cc, value: value)
-                // SYNT_18 R15-9: the MCM selection (CC101 = 0, CC100 = 6) is consumed as RPN only,
-                // so a learned CC 100/101 does not also move a parameter during MCM. Any other
-                // value stays a plain CC (CC learn / device NRPN).
-                // SYNT_20 R16-8 (documented, accepted): only ch1/ch16 reach this path out of zone, and
-                // there CC101 = 0 is ambiguous (MCM select or RPN 0 bend-range select), so a learned
-                // CC 101 at value 0 on ch1/ch16 outside the zone is consumed as RPN select, never as a CC.
-                let isMCMSelect = (cc == 101 && value == 0) || (cc == 100 && value == 6 && rpnStates[ch].rpnMSB == 0)
-                if !isMCMSelect { applyPlainCCRT(cc: cc, value: value) }
-            case 6 where rpnStates[ch].rpnMSB == 0 && rpnStates[ch].rpnLSB == 6:
-                rpnStates[ch].dataMSB = value
-                handleRPN(channel: channel, rpn: 6, value: value)
-            default:
-                applyPlainCCRT(cc: cc, value: value)
-            }
-            return
-        }
-        switch cc {
-        case 100, 101:
-            handleRPNSelectRT(ch: ch, cc: cc, value: value)
-        case 96, 97:
-            // SYNT_17: RPN Data Increment (96) / Decrement (97), MIDI 1.0. Steps the coarse value of the
-            // selected RPN by 1 (value byte ignored). Only RPN 0 is steppable; MCM is not.
-            if rpnStates[ch].rpnMSB == 0 && rpnStates[ch].rpnLSB == 0 {
-                let cur = Int(rpnStates[ch].dataMSB ?? UInt8(currentBendRangeSemisRT(channel: channel)))
-                let next = UInt8(max(0, min(96, cur + (cc == 96 ? 1 : -1))))
-                rpnStates[ch].dataMSB = next
-                handleRPN(channel: channel, rpn: 0, value: next)
-            } else {
-                applyPlainCCRT(cc: cc, value: value)
-            }
-        case 6:
-            if let msb = rpnStates[ch].rpnMSB, let lsb = rpnStates[ch].rpnLSB {
-                let rpn = (UInt16(msb) << 7) | UInt16(lsb)
-                rpnStates[ch].dataMSB = value
-                handleRPN(channel: channel, rpn: rpn, value: value)
-            }
-        case 38:
-            // SYNT_16 low: Data Entry LSB. For RPN 0 it is cents (MIDI 1.0); other RPNs ignore it.
-            if let msb = rpnStates[ch].rpnMSB, let lsb = rpnStates[ch].rpnLSB,
-               (UInt16(msb) << 7) | UInt16(lsb) == 0, let coarse = rpnStates[ch].dataMSB {
-                handleRPN(channel: channel, rpn: 0, value: coarse, cents: value)
-            }
-        default:
-            break
-        }
-    }
-
-    /// SYNT_17 R14-6: selecting an RPN (or the null RPN) forgets the previous Data Entry MSB,
-    /// so a lone CC 38 can never refine a stale value from another RPN.
-    @inline(__always)
-    func handleRPNSelectRT(ch: Int, cc: UInt8, value: UInt8) {
-        rpnStates[ch].dataMSB = nil
-        if cc == 101 {
-            rpnStates[ch].rpnMSB = value == 127 ? nil : value
-        } else {
-            rpnStates[ch].rpnLSB = value == 127 ? nil : value
+    private static func isPerVoiceMorphSource(_ source: ModSource) -> Bool {
+        switch source {
+        case .env1, .env2, .modEnv, .velocity, .releaseVelocity, .keyTrack, .random,
+             .mpePitchBend, .mpePressure, .mpeTimbre, .aftertouch:
+            return true
+        case .lfo1, .lfo2, .modWheel, .macro1, .macro2, .macro3, .macro4, .macro5, .macro6, .macro7, .macro8,
+             .pitchBend, .sampleAndHold, .smoothRandom, .mseg, .mseg2, .envelopeFollower:
+            return false
         }
     }
 
     @inline(__always)
-    func currentBendRangeSemisRT(channel: UInt8) -> Int {
-        let r = AudioEngine.isMPEMasterChannel(channel, zone: cachedMpeZone) ? cachedPitchBendRange : cachedMpePitchBendRange
-        return Int(r)
-    }
-
-    /// Render thread. The ordinary CC path (CC map / MIDI learn), shared with `.controlChange`.
-    func applyPlainCCRT(cc: UInt8, value: UInt8) {
-        let rtIdx = (rtCCMap + Int(cc & 127)).pointee.load(ordering: .acquiring)
-        if rtIdx >= 0, let target = MIDIControlTarget.from(rtIndex: rtIdx) {
-            if !target.writesAudioParameter || ccTakeoverShouldApply(cc: cc, raw: value, current: liveUnit(for: target), target: target) {
-                applySingleParameterRT(target: target, rawValue: value)
-            }
-        }
-    }
-
-    /// Render thread. Touches only `cached*` / plain RT state and the lock-free mailbox.
-    /// Never writes `preset` (its setter runs applyPreset + @Published) — main picks it up in `pollMPEConfigMailbox`.
-    func handleRPN(channel: UInt8, rpn: UInt16, value: UInt8, cents: UInt8 = 0) {
-        switch rpn {
-        case 0:
-            // RPN 0: Pitch Bend Sensitivity (semitones).
-            // R12-4: on the zone's master channel it is the master (global) bend range;
-            // on a member channel it is the per-note range.
-            let range = Float(min(Int(value) * 100 + Int(min(cents, 99)), 9600)) / 100
-            if AudioEngine.isMPEMasterChannel(channel, zone: cachedMpeZone) {
-                mpeCtl.masterRange = range
-                cachedPitchBendRange = range
-                publishMPEConfigRT(masterRangeChanged: true)
-                return
-            }
-            // SYNT_16 R13-2: RPN 0 from a channel outside the current zone is ignored.
-            guard AudioEngine.isMPEMemberChannel(channel, zone: cachedMpeZone, memberCount: cachedMpeMemberChannelCount) else { return }
-            mpeCtl.memberRange = range
-            cachedMpePitchBendRange = range
-            recomputeMPEBendMultipliersRT()
-            publishMPEConfigRT()
-        case 6:
-            // RPN 6: MPE Configuration Message (MCM). Only on ch1 / ch16 (zone masters);
-            // SYNT_16 R13-2: accepted whatever the current zone is, so the controller can switch zones.
-            guard channel & 15 == 0 || channel & 15 == 15 else { return }
-            let memberCount = min(Int(value), 15)
-            // SYNT_17 R14-1: N = 0 ("zone off", e.g. controller disconnect) turns MPE off at RUNTIME only
-            // (MPE 1.0). It is an override in `mpeCtl`, never written into params 163–166 / preset /
-            // fullState, so the user's saved MPE setting is untouched and comes back on reload.
-            cachedMpeMemberChannelCount = memberCount
-            mpeCtl.memberCount = memberCount
-            if channel == 0 {
-                cachedMpeZone = .lower
-                mpeCtl.zone = .lower
-            } else if channel == 15 {
-                cachedMpeZone = .upper
-                mpeCtl.zone = .upper
-            }
-            cachedMpeEnabled = memberCount > 0
-            mpeCtl.enabled = memberCount > 0
-            // SYNT_16 R13-3: MCM resets member bend to ±48 and master bend to ±2 (MPE 1.0).
-            mpeCtl.memberRange = 48
-            cachedMpePitchBendRange = 48
-            mpeCtl.masterRange = 2
-            cachedPitchBendRange = 2
-            recomputeMPEBendMultipliersRT()
-            publishMPEConfigRT(masterRangeChanged: true)
-        default:
-            break
-        }
-    }
-
-    /// SYNT_18 R15-8: render side of "Reset to my settings".
-    func clearMPEControllerOverridesRT() {
-        rtMPEResetApplied &+= 1
-        mpeCtl.clearOverrides()
-        cachedMpeEnabled = mpeCtl.baseEnabled
-        cachedMpeZone = mpeCtl.baseZone
-        cachedMpeMemberChannelCount = mpeCtl.baseMemberCount
-        cachedMpePitchBendRange = mpeCtl.baseMemberRange
-        cachedPitchBendRange = mpeCtl.baseMasterRange
-        recomputeMPEBendMultipliersRT()
-        publishMPEConfigRT(masterRangeChanged: true)
-    }
-
-    /// Render thread. Per event (RPN), not per sample.
-    func recomputeMPEBendMultipliersRT() {
-        let rangeD = Double(cachedMpePitchBendRange)
-        for c in 0..<16 {
-            mpeChannelStates[c].pitchBendMultiplier = exp2(Double(mpeChannelStates[c].pitchBend) * rangeD / 12.0)
-        }
-        for i in 0..<AudioEngine.maxVoices {
-            if voices[i].isActive {
-                voices[i].mpePitchBendMultiplier = exp2(Double(voices[i].mpePitchBend) * rangeD / 12.0)
-            }
-        }
-    }
-
-    @inline(__always)
-    static func isMPEMasterChannel(_ channel: UInt8, zone: MPEZone) -> Bool {
-        zone == .lower ? channel == 0 : channel == 15
-    }
-
-    @inline(__always)
-    func publishMPEConfigRT(masterRangeChanged: Bool = false) {
-        var packed = AudioEngine.packMPEConfig(
-            enabled: cachedMpeEnabled,
-            zone: cachedMpeZone,
-            memberCount: cachedMpeMemberChannelCount,
-            memberRange: cachedMpePitchBendRange,
-            masterRange: cachedPitchBendRange,
-            overrides: mpeCtl
-        )
-        if masterRangeChanged { packed |= AudioEngine.mpeMailboxMasterFlag }
-        packed |= UInt64(rtMPEResetApplied) << AudioEngine.mpeMailboxResetSeqShift
-        // Keep a not-yet-polled master-range change sticky (lock-free CAS, bounded by main's exchange).
-        var current = mpeConfigMailbox.load(ordering: .acquiring)
-        while true {
-            var next = packed
-            if current & AudioEngine.mpeMailboxFlag != 0 {
-                next |= current & AudioEngine.mpeMailboxMasterFlag
-            }
-            let (exchanged, original) = mpeConfigMailbox.compareExchange(
-                expected: current, desired: next, ordering: .acquiringAndReleasing)
-            if exchanged { break }
-            current = original
-        }
-    }
-
-    static let mpeMailboxFlag: UInt64 = 1 << 63
-    static let mpeMailboxMasterFlag: UInt64 = 1 << 62
-    /// SYNT_21 R17-2: bits 44–51 carry render's applied-reset count (mod 256).
-    static let mpeMailboxResetSeqShift: UInt64 = 44
-
-    /// Bits 38–42: which values are controller overrides (SYNT_17 R14-1: main mirrors them, runtime only).
-    static func packMPEConfig(enabled: Bool, zone: MPEZone, memberCount: Int, memberRange: Float, masterRange: Float,
-                              overrides: MPEControllerOverride = MPEControllerOverride()) -> UInt64 {
-        var v: UInt64 = mpeMailboxFlag
-        if overrides.enabled != nil { v |= 1 << 38 }
-        if overrides.zone != nil { v |= 1 << 39 }
-        if overrides.memberCount != nil { v |= 1 << 40 }
-        if overrides.memberRange != nil { v |= 1 << 41 }
-        if overrides.masterRange != nil { v |= 1 << 42 }
-        if enabled { v |= 1 }
-        if zone == .upper { v |= 2 }
-        v |= UInt64(max(0, min(15, memberCount)) & 0x1F) << 2
-        // SYNT_16: ranges in centi-semitones (14 bits each) so a CC 38 fine value survives.
-        v |= UInt64(max(0, min(9600, Int((memberRange * 100).rounded())))) << 8
-        v |= UInt64(max(0, min(9600, Int((masterRange * 100).rounded())))) << 24
-        return v
-    }
-
-    /// Main thread. Mirrors RPN/MCM changes made on the render thread into the display preset
-    /// without `applyPreset()` (render already has the values).
-    @discardableResult
-    func pollMPEConfigMailbox() -> Bool {
-        let v = mpeConfigMailbox.exchange(0, ordering: .acquiringAndReleasing)
-        guard v & AudioEngine.mpeMailboxFlag != 0 else { return false }
-        // SYNT_20 R16-6: after a reset on main, entries render published before applying it are
-        // stale (they would briefly restore the old override); wait for render's ack.
-        // SYNT_21 R17-2: an entry is current only if render had applied every reset main issued.
-        // R17-3: if render never drains (e.g. the AU stays unallocated after Reset), main keeps
-        // dropping entries — harmless, because only render produces them; the first render block
-        // applies the reset and the stamps match again.
-        guard UInt8(truncatingIfNeeded: v >> AudioEngine.mpeMailboxResetSeqShift) == mpeResetIssued else { return false }
-        let enabled = v & 1 != 0
-        let zone: MPEZone = v & 2 != 0 ? .upper : .lower
-        let count = Int((v >> 2) & 0x1F)
-        let memberRange = Float((v >> 8) & 0x3FFF) / 100
-        let masterRange = Float((v >> 24) & 0x3FFF) / 100
-        // SYNT_17 R14-1: runtime only. The preset, AU params 163–166 and fullState are NOT touched;
-        // the controller values live in `controllerMPEMain` and the routing mirror.
-        controllerMPEMain.enabled = v & (1 << 38) != 0 ? enabled : nil
-        controllerMPEMain.zone = v & (1 << 39) != 0 ? zone : nil
-        controllerMPEMain.memberCount = v & (1 << 40) != 0 ? count : nil
-        controllerMPEMain.memberRange = v & (1 << 41) != 0 ? memberRange : nil
-        controllerMPEMain.masterRange = v & (1 << 42) != 0 ? masterRange : nil
-        mpeEnabled = enabled
-        mpeZone = zone
-        mpeMemberChannelCount = count
-        mpePitchBendRange = memberRange
-        // SYNT_16 R13-9: the controller's master range is runtime state, never written into the preset.
-        if v & AudioEngine.mpeMailboxMasterFlag != 0 { controllerMasterPitchBendRange = controllerMPEMain.masterRange }
-        controllerMPEConfigDidChange?()
-        return true
+    private static func isPerVoiceMorphSlot(_ entry: RTModSlot) -> Bool {
+        isPerVoiceMorphSource(entry.source) || (entry.viaSource.map(isPerVoiceMorphSource) ?? false)
     }
 }
 

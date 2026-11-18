@@ -287,16 +287,29 @@ public extension AudioEngine {
         envelope.attackCurve = snap.attackCurve
         envelope.decayCurve = snap.decayCurve
         envelope.releaseCurve = snap.releaseCurve
+        envelope.model = snap.envelopeModel
+        envelope.delay = snap.ampDelay
+        envelope.hold = snap.ampHold
+        envelope.allowShortAttack = snap.shortAttackEnabled
 
         filterEnvelope.attack = snap.filterAttack
         filterEnvelope.decay = snap.filterDecay
         filterEnvelope.sustain = snap.filterSustain
         filterEnvelope.release = snap.filterRelease
+        filterEnvelope.attackCurve = snap.filterAttackCurve
+        filterEnvelope.decayCurve = snap.filterDecayCurve
+        filterEnvelope.releaseCurve = snap.filterReleaseCurve
+        filterEnvelope.model = snap.envelopeModel
+        filterEnvelope.delay = snap.filterEnvDelay
+        filterEnvelope.hold = snap.filterEnvHold
+        filterEnvelope.allowShortAttack = snap.shortAttackEnabled
 
         modEnvelope.attack = snap.modEnvAttack
         modEnvelope.decay = snap.modEnvDecay
         modEnvelope.sustain = snap.modEnvSustain
         modEnvelope.release = snap.modEnvRelease
+        modEnvelope.model = snap.envelopeModel
+        modEnvelope.allowShortAttack = snap.shortAttackEnabled
 
         filterL.type = snap.filterType
         filterR.type = snap.filterType
@@ -458,6 +471,37 @@ public extension AudioEngine {
         cachedArpLatch = snap.arpLatch
         cachedVelocityCurve = snap.velocityCurve
         cachedVelocityToVolume = snap.velocityToVolume
+        cachedVelocityRangeDb = snap.velocityRangeDb
+        cachedVelocityCurveShape = snap.velocityCurveShape
+        cachedGlobalVoiceSourcePolicy = snap.globalVoiceSourcePolicy
+        cachedArpUsesInputVelocity = snap.arpUsesInputVelocity
+        cachedLegatoUpdatesVelocity = snap.legatoUpdatesVelocity
+        cachedEnvelopeModel = snap.envelopeModel
+        cachedAmpDelay = snap.ampDelay
+        cachedAmpHold = snap.ampHold
+        cachedFilterEnvDelay = snap.filterEnvDelay
+        cachedFilterEnvHold = snap.filterEnvHold
+        cachedVelToAttack = snap.velToAttack
+        cachedVelToDecay = snap.velToDecay
+        cachedReleaseVelToRelease = snap.releaseVelToRelease
+        cachedEnvKeyTrack = snap.envKeyTrack
+        cachedAmpRetriggerMode = snap.ampRetriggerMode
+        cachedKeepUnisonThroughTails = snap.keepUnisonThroughTails
+        cachedShortAttack = snap.shortAttackEnabled
+        cachedCombUsesVoiceCutoff = snap.combUsesVoiceCutoff
+        cachedPerVoiceCutoffSources = snap.perVoiceCutoffSources
+        cachedRespondToExpressionCC = snap.respondToExpressionCC
+        cachedAftertouchCurve = snap.aftertouchCurve
+        cachedAftertouchDeadzone = snap.aftertouchDeadzone
+        cachedBusGlueEnabled = snap.busGlueEnabled
+        if snap.busGlueEnabled {
+            busGlueCompressor.configureBusGlueProfile()
+        } else {
+            busGlueCompressor.enabled = false
+            busGlueCompressor.reset()
+        }
+        cachedEnvTimeMod = snap.hasEnvTimeMod
+        refreshActiveVelocityGains()
         cachedGlideMode = snap.glideMode
         cachedGlideLegatoOnly = snap.glideLegatoOnly
         cachedMonoPriority = snap.monoPriority

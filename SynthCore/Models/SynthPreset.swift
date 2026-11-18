@@ -226,6 +226,51 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
     // Stage 3: Velocity, Mod Envelope, Glide, Mono
     public var velocityCurve: VelocityCurve = .linear
     public var velocityToVolume: Float = 1.0
+    /// SYNT_62. 0 keeps the legacy 0.15-floor law. Used only when `velocityCurve == .decibel`.
+    public var velocityRangeDb: Float = 0
+    /// SYNT_62. −1 log … 0 lin … +1 exp. Ignored unless the curve is `.decibel`.
+    public var velocityCurveShape: Float = 0
+    /// Which voice feeds global (shared-filter) modulation. `.loudest` is the old scan.
+    public var globalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest
+    /// When false, arp ticks stay at velocity 0.8.
+    public var arpUsesInputVelocity: Bool = false
+    /// When false, legato retune does not touch velocity or `velGain`.
+    public var legatoUpdatesVelocity: Bool = false
+    /// SYNT_63. Filter-envelope segment curves. 0 keeps the legacy one-pole.
+    public var filterAttackCurve: Float = 0
+    public var filterDecayCurve: Float = 0
+    public var filterReleaseCurve: Float = 0
+    /// `.legacy` is the shipped one-pole / pow law. Analog and digital stay off it.
+    public var envelopeModel: EnvelopeModel = .legacy
+    /// Delay and hold in seconds. 0 skips the stage.
+    public var ampDelay: Float = 0
+    public var ampHold: Float = 0
+    public var filterEnvDelay: Float = 0
+    public var filterEnvHold: Float = 0
+    /// −1…1. 0 leaves the segment time unchanged. Positive shortens a harder hit.
+    public var velToAttack: Float = 0
+    public var velToDecay: Float = 0
+    public var releaseVelToRelease: Float = 0
+    /// 0 leaves times alone. Positive shortens notes above C4.
+    public var envKeyTrack: Float = 0
+    /// `.fromCurrent` is the existing fast-release-and-retrigger.
+    public var ampRetriggerMode: AmpRetriggerMode = .fromCurrent
+    /// When false, a releasing tail still collapses unison.
+    public var keepUnisonThroughTails: Bool = false
+    /// When false, attack stays floored at 4 ms in every model.
+    public var shortAttackEnabled: Bool = false
+    /// Comb follows the per-voice cutoff law. Off keeps the shipped bare comb cutoff.
+    public var combUsesVoiceCutoff: Bool = false
+    /// Env 2, mod env, random, and release velocity move cutoff on each voice.
+    public var perVoiceCutoffSources: Bool = false
+    /// CC7 and CC11 scale the master only when this is on. Off is a no-op.
+    public var respondToExpressionCC: Bool = false
+    /// −1…1. 0 leaves channel and poly aftertouch linear.
+    public var aftertouchCurve: Float = 0
+    /// 0…0.3. Pressure at or below this reads as silence.
+    public var aftertouchDeadzone: Float = 0
+    /// SYNT_68. Optional post-CleanBus bus-glue compressor. Off is bit-identical.
+    public var busGlueEnabled: Bool = false
     public var modEnvAttack: Float = 0.01
     public var modEnvDecay: Float = 0.2
     public var modEnvSustain: Float = 0.0
@@ -433,6 +478,16 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         case transientEnabled, transientAttack, transientSustain, transientOutput, transientMix
         case userWavetableName, userWavetableData
         case mpeEnabled, mpePitchBendRange, mpeZone, mpeMemberChannelCount
+        case velocityRangeDb, velocityCurveShape, globalVoiceSourcePolicy
+        case arpUsesInputVelocity, legatoUpdatesVelocity
+        case filterAttackCurve, filterDecayCurve, filterReleaseCurve
+        case envelopeModel
+        case ampDelay, ampHold, filterEnvDelay, filterEnvHold
+        case velToAttack, velToDecay, releaseVelToRelease, envKeyTrack
+        case ampRetriggerMode, keepUnisonThroughTails, shortAttackEnabled
+        case combUsesVoiceCutoff, perVoiceCutoffSources
+        case respondToExpressionCC, aftertouchCurve, aftertouchDeadzone
+        case busGlueEnabled
     }
 
     public init(
@@ -576,7 +631,27 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         mpeEnabled: Bool = false,
         mpePitchBendRange: Float = 48.0,
         mpeZone: MPEZone = .lower,
-        mpeMemberChannelCount: Int = 15
+        mpeMemberChannelCount: Int = 15,
+        velocityRangeDb: Float = 0,
+        velocityCurveShape: Float = 0,
+        globalVoiceSourcePolicy: GlobalVoiceSourcePolicy = .loudest,
+        arpUsesInputVelocity: Bool = false,
+        legatoUpdatesVelocity: Bool = false,
+        filterAttackCurve: Float = 0,
+        filterDecayCurve: Float = 0,
+        filterReleaseCurve: Float = 0,
+        envelopeModel: EnvelopeModel = .legacy,
+        ampDelay: Float = 0,
+        ampHold: Float = 0,
+        filterEnvDelay: Float = 0,
+        filterEnvHold: Float = 0,
+        velToAttack: Float = 0,
+        velToDecay: Float = 0,
+        releaseVelToRelease: Float = 0,
+        envKeyTrack: Float = 0,
+        ampRetriggerMode: AmpRetriggerMode = .fromCurrent,
+        keepUnisonThroughTails: Bool = false,
+        shortAttackEnabled: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -719,6 +794,26 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         self.mpePitchBendRange = mpePitchBendRange
         self.mpeZone = mpeZone
         self.mpeMemberChannelCount = mpeMemberChannelCount
+        self.velocityRangeDb = velocityRangeDb
+        self.velocityCurveShape = velocityCurveShape
+        self.globalVoiceSourcePolicy = globalVoiceSourcePolicy
+        self.arpUsesInputVelocity = arpUsesInputVelocity
+        self.legatoUpdatesVelocity = legatoUpdatesVelocity
+        self.filterAttackCurve = filterAttackCurve
+        self.filterDecayCurve = filterDecayCurve
+        self.filterReleaseCurve = filterReleaseCurve
+        self.envelopeModel = envelopeModel
+        self.ampDelay = ampDelay
+        self.ampHold = ampHold
+        self.filterEnvDelay = filterEnvDelay
+        self.filterEnvHold = filterEnvHold
+        self.velToAttack = velToAttack
+        self.velToDecay = velToDecay
+        self.releaseVelToRelease = releaseVelToRelease
+        self.envKeyTrack = envKeyTrack
+        self.ampRetriggerMode = ampRetriggerMode
+        self.keepUnisonThroughTails = keepUnisonThroughTails
+        self.shortAttackEnabled = shortAttackEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -949,6 +1044,32 @@ public struct SynthPreset: Codable, Identifiable, Hashable {
         // failing the whole preset.
         mpeZone = c.tolerant(MPEZone.self, forKey: .mpeZone) ?? .lower
         mpeMemberChannelCount = try c.decodeIfPresent(Int.self, forKey: .mpeMemberChannelCount) ?? 15
+        velocityRangeDb = try c.decodeIfPresent(Float.self, forKey: .velocityRangeDb) ?? 0
+        velocityCurveShape = try c.decodeIfPresent(Float.self, forKey: .velocityCurveShape) ?? 0
+        globalVoiceSourcePolicy = c.tolerant(GlobalVoiceSourcePolicy.self, forKey: .globalVoiceSourcePolicy) ?? .loudest
+        arpUsesInputVelocity = try c.decodeIfPresent(Bool.self, forKey: .arpUsesInputVelocity) ?? false
+        legatoUpdatesVelocity = try c.decodeIfPresent(Bool.self, forKey: .legatoUpdatesVelocity) ?? false
+        filterAttackCurve = try c.decodeIfPresent(Float.self, forKey: .filterAttackCurve) ?? 0
+        filterDecayCurve = try c.decodeIfPresent(Float.self, forKey: .filterDecayCurve) ?? 0
+        filterReleaseCurve = try c.decodeIfPresent(Float.self, forKey: .filterReleaseCurve) ?? 0
+        envelopeModel = c.tolerant(EnvelopeModel.self, forKey: .envelopeModel) ?? .legacy
+        ampDelay = try c.decodeIfPresent(Float.self, forKey: .ampDelay) ?? 0
+        ampHold = try c.decodeIfPresent(Float.self, forKey: .ampHold) ?? 0
+        filterEnvDelay = try c.decodeIfPresent(Float.self, forKey: .filterEnvDelay) ?? 0
+        filterEnvHold = try c.decodeIfPresent(Float.self, forKey: .filterEnvHold) ?? 0
+        velToAttack = try c.decodeIfPresent(Float.self, forKey: .velToAttack) ?? 0
+        velToDecay = try c.decodeIfPresent(Float.self, forKey: .velToDecay) ?? 0
+        releaseVelToRelease = try c.decodeIfPresent(Float.self, forKey: .releaseVelToRelease) ?? 0
+        envKeyTrack = try c.decodeIfPresent(Float.self, forKey: .envKeyTrack) ?? 0
+        ampRetriggerMode = c.tolerant(AmpRetriggerMode.self, forKey: .ampRetriggerMode) ?? .fromCurrent
+        keepUnisonThroughTails = try c.decodeIfPresent(Bool.self, forKey: .keepUnisonThroughTails) ?? false
+        shortAttackEnabled = try c.decodeIfPresent(Bool.self, forKey: .shortAttackEnabled) ?? false
+        combUsesVoiceCutoff = try c.decodeIfPresent(Bool.self, forKey: .combUsesVoiceCutoff) ?? false
+        perVoiceCutoffSources = try c.decodeIfPresent(Bool.self, forKey: .perVoiceCutoffSources) ?? false
+        respondToExpressionCC = try c.decodeIfPresent(Bool.self, forKey: .respondToExpressionCC) ?? false
+        aftertouchCurve = try c.decodeIfPresent(Float.self, forKey: .aftertouchCurve) ?? 0
+        aftertouchDeadzone = try c.decodeIfPresent(Float.self, forKey: .aftertouchDeadzone) ?? 0
+        busGlueEnabled = try c.decodeIfPresent(Bool.self, forKey: .busGlueEnabled) ?? false
     }
 
     /// Apply EQ factory curve into numeric fields (and enable EQ).
@@ -1081,23 +1202,31 @@ public struct ModMatrixEntry: Codable, Hashable, Identifiable {
     public var destination: ModDestination
     public var amount: Float
     public var curve: ModCurve = .linear
+    /// −1…1. Zero with a linear curve stays off the lookup table.
+    public var curveShape: Float = 0
+    /// Scales `amount`. Nil leaves the row unchanged.
+    public var viaSource: ModSource? = nil
 
     public init(
         id: UUID = UUID(),
         source: ModSource,
         destination: ModDestination,
         amount: Float,
-        curve: ModCurve = .linear
+        curve: ModCurve = .linear,
+        curveShape: Float = 0,
+        viaSource: ModSource? = nil
     ) {
         self.id = id
         self.source = source
         self.destination = destination
         self.amount = amount
         self.curve = curve
+        self.curveShape = curveShape
+        self.viaSource = viaSource
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, source, destination, amount, curve
+        case id, source, destination, amount, curve, curveShape, viaSource
     }
 
     public init(from decoder: Decoder) throws {
@@ -1107,6 +1236,8 @@ public struct ModMatrixEntry: Codable, Hashable, Identifiable {
         destination = try c.decode(ModDestination.self, forKey: .destination)
         amount = try c.decodeIfPresent(Float.self, forKey: .amount) ?? 0
         curve = try c.decodeIfPresent(ModCurve.self, forKey: .curve) ?? .linear
+        curveShape = try c.decodeIfPresent(Float.self, forKey: .curveShape) ?? 0
+        viaSource = try c.decodeIfPresent(ModSource.self, forKey: .viaSource)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -1116,6 +1247,8 @@ public struct ModMatrixEntry: Codable, Hashable, Identifiable {
         try c.encode(destination, forKey: .destination)
         try c.encode(amount, forKey: .amount)
         try c.encode(curve, forKey: .curve)
+        try c.encode(curveShape, forKey: .curveShape)
+        try c.encodeIfPresent(viaSource, forKey: .viaSource)
     }
 }
 
@@ -1151,6 +1284,31 @@ public enum ModSource: String, CaseIterable, Codable {
     case mpePitchBend = "MPE Pitch Bend"
     case mpePressure = "MPE Pressure"
     case mpeTimbre = "MPE Timbre"
+    /// Note-off velocity, 0…1. Neutral 0.5 until the key lifts. Appended so earlier sources keep their order.
+    case releaseVelocity = "Release Velocity"
+}
+
+public enum GlobalVoiceSourcePolicy: String, CaseIterable, Codable, Sendable {
+    case loudest = "Loudest"
+    case lastPlayed = "Last Played"
+    case highest = "Highest"
+}
+
+/// Amp / filter / mod contour. `.legacy` is the shipped law.
+public enum EnvelopeModel: String, CaseIterable, Codable, Sendable {
+    case legacy = "Legacy"
+    case analog = "Analog"
+    case digital = "Digital"
+}
+
+/// What a second hit does to a note that is already sounding.
+public enum AmpRetriggerMode: String, CaseIterable, Codable, Sendable {
+    /// Fast-release the old partials and start a new voice. The shipped path.
+    case fromCurrent = "From Current"
+    /// Restart the same partials from silence.
+    case fromZero = "From Zero"
+    /// Keep the sounding envelope and ignore the second hit.
+    case legatoNoRetrigger = "Legato"
 }
 
 public enum MPEZone: String, CaseIterable, Codable, Sendable {
@@ -1162,6 +1320,17 @@ public enum VelocityCurve: String, CaseIterable, Codable, Sendable {
     case linear = "Linear"
     case exponential = "Exponential"
     case logarithmic = "Logarithmic"
+    /// dB law. `velocityRangeDb == 0` makes every velocity gain 1.
+    case decibel = "Decibel"
+
+    public var shortTitle: String {
+        switch self {
+        case .linear: return "Lin"
+        case .exponential: return "Exp"
+        case .logarithmic: return "Log"
+        case .decibel: return "dB"
+        }
+    }
 }
 
 public enum GlideMode: String, CaseIterable, Codable, Sendable {
@@ -1207,6 +1376,21 @@ public enum ModDestination: String, CaseIterable, Codable {
     case reverbMix = "Reverb Mix"
     /// Formant vowel, 0…4. Appended so earlier destinations keep their order.
     case vowel = "Vowel"
+    /// Segment times. Sampled when the stage starts. Appended so earlier destinations keep their order.
+    case ampAttack = "Amp Attack Time"
+    case ampDecay = "Amp Decay Time"
+    case ampRelease = "Amp Release Time"
+    case filterAttack = "Filter Attack Time"
+    case filterDecay = "Filter Decay Time"
+    case filterRelease = "Filter Release Time"
+    /// Per-voice timbre. Appended so earlier destinations keep their order.
+    case drive = "Drive"
+    case osc1Level = "Osc1 Level"
+    case osc2Level = "Osc2 Level"
+    case subLevel = "Sub Level"
+    case noiseLevel = "Noise Level"
+    case filterEnvAmount = "Filter Env Amount"
+    case unisonDetune = "Unison Detune"
 
     public var menuTitle: String {
         switch self {
@@ -1229,6 +1413,19 @@ public enum ModDestination: String, CaseIterable, Codable {
         case .delayMix: return "Delay"
         case .reverbMix: return "Reverb"
         case .vowel: return "Vowel"
+        case .ampAttack: return "Amp Attack"
+        case .ampDecay: return "Amp Decay"
+        case .ampRelease: return "Amp Release"
+        case .filterAttack: return "Flt Attack"
+        case .filterDecay: return "Flt Decay"
+        case .filterRelease: return "Flt Release"
+        case .drive: return "Drive"
+        case .osc1Level: return "Osc 1"
+        case .osc2Level: return "Osc 2"
+        case .subLevel: return "Sub"
+        case .noiseLevel: return "Noise"
+        case .filterEnvAmount: return "Flt Env"
+        case .unisonDetune: return "Uni Detune"
         }
     }
 
@@ -1258,6 +1455,12 @@ public enum ModDestination: String, CaseIterable, Codable {
             return String(format: "%+.0f %%", amount * 100)
         case .vowel:
             return String(format: "%+.2f", amount * 4)
+        case .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+            return String(format: "%+.0f %% time", amount * 100)
+        case .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount:
+            return String(format: "%+.0f %%", amount * 100)
+        case .unisonDetune:
+            return String(format: "%+.0f ct", amount * 50)
         }
     }
 }
@@ -1271,8 +1474,22 @@ public enum PresetAuthoring {
     /// Every destination is applied by the render.
     public static let liveDestinations: Set<ModDestination> = Set(ModDestination.allCases)
 
-    public static func mod(_ source: ModSource, _ dest: ModDestination, _ amount: Float) -> ModMatrixEntry {
-        ModMatrixEntry(source: source, destination: dest, amount: amount)
+    public static func mod(
+        _ source: ModSource,
+        _ dest: ModDestination,
+        _ amount: Float,
+        curve: ModCurve = .linear,
+        curveShape: Float = 0,
+        via: ModSource? = nil
+    ) -> ModMatrixEntry {
+        ModMatrixEntry(
+            source: source,
+            destination: dest,
+            amount: amount,
+            curve: curve,
+            curveShape: curveShape,
+            viaSource: via
+        )
     }
 }
 

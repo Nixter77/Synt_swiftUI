@@ -141,4 +141,48 @@ final class Stage12TransientTests: XCTestCase {
         // With smoothing, per-sample delta on continuous 0.5 input should be gentle
         XCTAssertLessThan(maxDelta, 0.5, "Parameter smoothing should prevent harsh step clicks")
     }
+
+    /// SYNT_63 D3.8. Short attack fades the first 0.5 ms. Start phases stay the golden offsets.
+    func testShortAttackMicroFadeKeepsStartPhase() {
+        let engine = AudioEngine()
+        var preset = SynthPreset.defaultPreset
+        preset.arpMode = .off
+        preset.unisonVoices = 1
+        preset.envelopeModel = .analog
+        preset.shortAttackEnabled = true
+        preset.attack = 0.001
+        preset.oscPhaseMode = .reset
+        engine.preset = preset
+        engine.applyPresetForTesting()
+        engine.noteOn(midiNote: 60, velocity: 0.8)
+        engine.processCommandsForTesting()
+
+        let voice = engine.voices.first { $0.isActive && $0.midiNote == 60 }
+        let start = AudioMath.voiceStartPhases(midiNote: 60, partial: 0, partialCount: 1)
+        XCTAssertEqual(engine.cachedOscPhaseMode, .reset)
+        XCTAssertEqual(voice?.phase ?? -1, start.0, accuracy: 1e-12)
+        XCTAssertNotEqual(voice?.phase ?? 0, 0)
+        XCTAssertGreaterThan(voice?.microFadeRemaining ?? 0, 0)
+        XCTAssertEqual(voice?.microFadeGain ?? -1, 0)
+
+        let first = engine.renderOneSample()
+        XCTAssertLessThan(abs(first.0), 1e-5)
+        XCTAssertLessThan(abs(first.1), 1e-5)
+        let faded = engine.voices.first { $0.isActive && $0.midiNote == 60 }
+        XCTAssertGreaterThan(faded?.microFadeGain ?? 0, 0)
+        // One sample later the oscillator has advanced from the golden start. It was not zeroed.
+        XCTAssertNotEqual(faded?.phase ?? 0, 0)
+        XCTAssertGreaterThan(abs((faded?.phase ?? 0) - start.0), 1e-6)
+
+        let legacy = AudioEngine()
+        var legacyPreset = preset
+        legacyPreset.envelopeModel = .legacy
+        legacy.preset = legacyPreset
+        legacy.applyPresetForTesting()
+        legacy.noteOn(midiNote: 60, velocity: 0.8)
+        legacy.processCommandsForTesting()
+        let legacyVoice = legacy.voices.first { $0.isActive && $0.midiNote == 60 }
+        XCTAssertEqual(legacyVoice?.microFadeRemaining ?? -1, 0)
+        XCTAssertEqual(legacyVoice?.phase ?? -1, start.0, accuracy: 1e-12)
+    }
 }

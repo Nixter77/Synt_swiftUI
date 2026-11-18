@@ -20,6 +20,7 @@ struct FXSlotCard<Menu: View, Content: View>: View {
     let storageName: String
     /// Used only while the user has never clicked this header (`collapseMode == -1`).
     let startsExpanded: Bool
+    var statusBadge: String? = nil
     var onMoveUp: (() -> Void)?
     var onMoveDown: (() -> Void)?
     @ViewBuilder var menu: () -> Menu
@@ -33,6 +34,7 @@ struct FXSlotCard<Menu: View, Content: View>: View {
         accent: Color,
         storageName: String,
         startsExpanded: Bool,
+        statusBadge: String? = nil,
         onMoveUp: (() -> Void)? = nil,
         onMoveDown: (() -> Void)? = nil,
         @ViewBuilder menu: @escaping () -> Menu,
@@ -43,6 +45,7 @@ struct FXSlotCard<Menu: View, Content: View>: View {
         self.accent = accent
         self.storageName = storageName
         self.startsExpanded = startsExpanded
+        self.statusBadge = statusBadge
         self.onMoveUp = onMoveUp
         self.onMoveDown = onMoveDown
         self.menu = menu
@@ -79,61 +82,80 @@ struct FXSlotCard<Menu: View, Content: View>: View {
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
-            Button {
-                collapseMode = showsBody ? 1 : 0
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: showsBody ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Button {
+                    collapseMode = showsBody ? 1 : 0
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: showsBody ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(theme.textDim)
+                            .frame(width: 10)
+                        AppleSectionHeader(title: title, accent: accent)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(title)
+                .accessibilityValue(showsBody ? "expanded" : "collapsed")
+
+                if onMoveUp != nil || onMoveDown != nil {
+                    HStack(spacing: 2) {
+                        if let onMoveUp {
+                            Button { onMoveUp() } label: {
+                                Image(systemName: "chevron.up")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundColor(theme.textDim)
+                                    .frame(width: 12, height: 12)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Move \(title) up")
+                        }
+                        if let onMoveDown {
+                            Button { onMoveDown() } label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundColor(theme.textDim)
+                                    .frame(width: 12, height: 12)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Move \(title) down")
+                        }
+                    }
+                }
+
+                if let enabled {
+                    ThemeToggle(isOn: Binding(
+                        get: { enabled.wrappedValue },
+                        set: { newValue in
+                            enabled.wrappedValue = newValue
+                            if newValue { collapseMode = 0 }
+                        }
+                    ))
+                }
+            }
+            .overlay(alignment: .trailing) {
+                // Sits on the header rule, so the column stays as wide as the knobs.
+                menu()
+                    .padding(.trailing, enabled == nil ? 0 : 36)
+            }
+
+            if !showsBody, let statusBadge, !statusBadge.isEmpty {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(accent)
+                        .frame(width: 4, height: 4)
+                    Text(statusBadge)
+                        .font(theme.monoFont(size: 8.5, weight: .semibold))
                         .foregroundColor(theme.textDim)
-                        .frame(width: 10)
-                    AppleSectionHeader(title: title, accent: accent)
+                        .lineLimit(1)
                 }
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(RoundedRectangle(cornerRadius: 3).fill(accent.opacity(0.12)))
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(accent.opacity(0.35), lineWidth: 0.5))
+                .padding(.leading, 16)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(title)
-            .accessibilityValue(showsBody ? "expanded" : "collapsed")
-
-            if onMoveUp != nil || onMoveDown != nil {
-                HStack(spacing: 2) {
-                    if let onMoveUp {
-                        Button { onMoveUp() } label: {
-                            Image(systemName: "chevron.up")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundColor(theme.textDim)
-                                .frame(width: 12, height: 12)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Move \(title) up")
-                    }
-                    if let onMoveDown {
-                        Button { onMoveDown() } label: {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundColor(theme.textDim)
-                                .frame(width: 12, height: 12)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Move \(title) down")
-                    }
-                }
-            }
-
-            if let enabled {
-                ThemeToggle(isOn: Binding(
-                    get: { enabled.wrappedValue },
-                    set: { newValue in
-                        enabled.wrappedValue = newValue
-                        if newValue { collapseMode = 0 }
-                    }
-                ))
-            }
-        }
-        .overlay(alignment: .trailing) {
-            // Sits on the header rule, so the column stays as wide as the knobs.
-            menu()
-                .padding(.trailing, enabled == nil ? 0 : 36)
         }
     }
 }

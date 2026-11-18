@@ -208,6 +208,42 @@ struct ModMatrixTests {
             preset.fmAmount = 0
             preset.osc2Enabled = true
         }
+        if destination == .unisonDetune {
+            preset.unisonVoices = 3
+            preset.unisonDetune = 4
+        }
+        if destination == .drive {
+            preset.filterDrive = 0
+            preset.filterCutoff = 2800
+            preset.osc2Enabled = false
+        }
+        if destination == .filterEnvAmount {
+            preset.filterCutoff = 700
+            preset.filterEnvelopeAmount = 0
+            preset.sustain = 0.9
+        }
+        if destination == .subLevel {
+            preset.subOscVolume = 0
+        }
+        if destination == .noiseLevel {
+            preset.osc2Enabled = false
+        }
+        // Release is sampled when the stage starts, and the render holds the key.
+        if destination == .ampRelease {
+            preset.release = 0.35
+            preset.sustain = 0.8
+        }
+        // Filter times apply only on the dedicated envelope, and only if it moves cutoff.
+        if destination == .filterAttack || destination == .filterDecay || destination == .filterRelease {
+            preset.filterEnvUseDedicatedADSR = true
+            preset.filterEnvelopeAmount = 0.85
+            preset.filterCutoff = 280
+            preset.filterResonance = 0.35
+            preset.filterAttack = destination == .filterAttack ? 0.12 : 0.01
+            preset.filterDecay = destination == .filterDecay ? 0.35 : 0.2
+            preset.filterSustain = 0.15
+            preset.filterRelease = 0.28
+        }
         if destination == .vowel {
             preset.filterType = .formant
             preset.filterVowel = 0
@@ -237,9 +273,17 @@ struct ModMatrixTests {
         engine.noteOn(midiNote: 69, velocity: 0.8)
         engine.processCommandsForTesting()
         let count = Int(44100 * seconds)
+        let releases = preset.modMatrix.contains {
+            $0.destination == .ampRelease || $0.destination == .filterRelease
+        }
+        let releaseAt = max(1, count / 8)
         var left = [Float](repeating: 0, count: count)
         var right = [Float](repeating: 0, count: count)
         for i in 0..<count {
+            if releases && i == releaseAt {
+                engine.noteOff(midiNote: 69)
+                engine.processCommandsForTesting()
+            }
             let sample = engine.renderOneSample()
             left[i] = sample.0
             right[i] = sample.1

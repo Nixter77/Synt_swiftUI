@@ -219,7 +219,9 @@ struct ChordHissMatrixTests {
 
     // MARK: - Full factory preset matrix at 1 / 3 / 7 (stock sends)
 
-    @Test(.timeLimit(.minutes(3)))
+    // Parallel suite wall-clock for the full factory 1/3/7 matrix sits past 3 minutes
+    // under machine oversubscription (serial ~48s). Same rationale as wetComplex → 8 min.
+    @Test(.timeLimit(.minutes(8)))
     func matrix_factoryPresets_stock_1_3_7_documentBlowUps() async throws {
         let presets = SynthPreset.factoryPresets
         #expect(!presets.isEmpty)

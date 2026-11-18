@@ -1,0 +1,45 @@
+{
+  "cut": "SYNT_32",
+  "cut_date": "2026-10-30",
+  "base_sha": "2a5e7d745ec6682986bb1be50ec0f2d746179fc5",
+  "branch": "feat/auv3",
+  "surface": "/Applications/Synt_swiftUI.app",
+  "fixtures": [
+    {
+      "id": "init-golden",
+      "ac": "AC-1",
+      "expected": "0xd1b3635203a4799e",
+      "check": "git grep + unchanged vs base"
+    },
+    {
+      "id": "factory-coverage-xctest",
+      "ac": "AC-2",
+      "expected": "0 failures",
+      "check": "FactoryPresetCoverageTests (+ goldens)"
+    },
+    {
+      "id": "audit-a-e",
+      "ac": "AC-3",
+      "expected": "0 violations, 0 dead-path",
+      "check": "SYNT_32_REPORT.md audit table"
+    },
+    {
+      "id": "values-only-diff",
+      "ac": "AC-4",
+      "expected": "Models (+ authoring/doc) only vs 2a5e7d7",
+      "check": "git diff --stat"
+    },
+    {
+      "id": "feat-auv3-remote",
+      "ac": "AC-5",
+      "expected": "tip on origin/feat/auv3; main untouched",
+      "check": "rev-parse + remote"
+    },
+    {
+      "id": "auval-install",
+      "ac": "AC-6",
+      "expected": "auval ok after install to /Applications",
+      "check": "auval log"
+    }
+  ]
+}
