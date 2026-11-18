@@ -129,6 +129,8 @@ public final class DSPDualFilter {
         if type2 == .comb {
             return combL.process(input, cutoff: cutoff2, resonance: resonance2, sampleRate: Float(sampleRate))
         }
+        let safeCutoff = cutoff2.isFinite ? max(20.0, min(sampleRate * 0.48, cutoff2)) : 1000.0
+        if channel.cutoff != safeCutoff { channel.cutoff = safeCutoff }
         return channel.process(input, sampleRate: sampleRate)
     }
 
@@ -137,17 +139,28 @@ public final class DSPDualFilter {
     public func processFilter2(dry: Float, filtered: Float) -> Float {
         if routing == .off { return filtered }
         let bal = max(0, min(1, balance))
-        let second: Float
+        let safeFiltered = filtered.isFinite ? filtered : 0
+        let secondRaw: Float
         switch routing {
         case .off:
             return filtered
         case .serial:
-            second = filter2Mono(max(-6, min(6, filtered)), channel: filter2L)
+            secondRaw = filter2Mono(max(-6, min(6, safeFiltered)), channel: filter2L)
         case .parallel:
-            second = filter2Mono(max(-6, min(6, dry)), channel: filter2L)
+            let safeDry = dry.isFinite ? dry : 0
+            secondRaw = filter2Mono(max(-6, min(6, safeDry)), channel: filter2L)
         }
-        let wet = (1 - bal) * filtered + bal * second
-        return max(-12, min(12, wet))
+        let second: Float
+        if secondRaw.isFinite {
+            second = max(-12, min(12, secondRaw))
+        } else {
+            filter2L.reset()
+            formant.reset()
+            combL.reset()
+            second = 0
+        }
+        let wet = (1 - bal) * safeFiltered + bal * second
+        return wet.isFinite ? max(-12, min(12, wet)) : 0
     }
 
     @inline(__always)

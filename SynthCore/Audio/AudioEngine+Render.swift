@@ -299,7 +299,11 @@ public extension AudioEngine {
                     if cachedPerVoiceCutoffSources && Self.isPerVoiceCutoffSource(entry.source) {
                         continue
                     }
-                case .resonance, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel:
+                case .wtMorph1, .wtMorph2:
+                    if cachedPerVoiceCutoffSources && Self.isPerVoiceMorphSlot(entry) {
+                        continue
+                    }
+                case .resonance, .chorusMix, .delayMix, .reverbMix, .vowel:
                     break
                 case .pitch1, .pitch2, .amp, .pan, .pwm1, .pwm2, .lfoRate, .lfoDepth, .mix, .finePitch, .fm, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease, .drive, .osc1Level, .osc2Level, .subLevel, .noiseLevel, .filterEnvAmount, .unisonDetune:
                     continue
@@ -433,6 +437,8 @@ public extension AudioEngine {
         var hlNoise: Float = 0
         var hlFilterEnv: Float = 0
         var hlUni: Float = 0
+        var hlWtMorph1: Float = 0
+        var hlWtMorph2: Float = 0
 
         // Fixed pool scan — work on a local copy to satisfy exclusivity + keep RT simple.
         // SYNT_22 Stage 2: one (trivial, ARC-free) copy of each Oscillator per sample instead of one
@@ -553,6 +559,8 @@ public extension AudioEngine {
             var filterEnvMod: Float = 0
             var unisonDetuneMod: Float = 0
             var voiceCutoffMod: Float = 0
+            var wtMorphMod1Voice: Float = 0
+            var wtMorphMod2Voice: Float = 0
 
             v.smoothedMpePitchBend += (v.mpePitchBend - v.smoothedMpePitchBend) * 0.05
             v.smoothedMpePressure += (v.mpePressure - v.smoothedMpePressure) * 0.05
@@ -569,7 +577,11 @@ public extension AudioEngine {
                         guard cachedPerVoiceCutoffSources && Self.isPerVoiceCutoffSource(entry.source) else {
                             continue
                         }
-                    case .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+                    case .wtMorph1, .wtMorph2:
+                        guard cachedPerVoiceCutoffSources && Self.isPerVoiceMorphSlot(entry) else {
+                            continue
+                        }
+                    case .resonance, .lfoRate, .lfoDepth, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
                         continue
                     }
                     let modVal = rowAmount(
@@ -613,7 +625,9 @@ public extension AudioEngine {
                     case .filterEnvAmount: filterEnvMod += modVal
                     case .unisonDetune: unisonDetuneMod += modVal
                     case .cutoff: voiceCutoffMod += modVal
-                    case .resonance, .lfoRate, .lfoDepth, .wtMorph1, .wtMorph2, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
+                    case .wtMorph1: wtMorphMod1Voice += modVal
+                    case .wtMorph2: wtMorphMod2Voice += modVal
+                    case .resonance, .lfoRate, .lfoDepth, .chorusMix, .delayMix, .reverbMix, .vowel, .ampAttack, .ampDecay, .ampRelease, .filterAttack, .filterDecay, .filterRelease:
                         break
                     }
                 }
@@ -712,7 +726,8 @@ public extension AudioEngine {
                         phaseIncrement: phaseInc1,
                         noiseValue: noiseValue,
                         pulseWidthOverride: pulse1,
-                        pullWavetable: false
+                        pullWavetable: false,
+                        frameOffset: wtMorphMod1Voice
                     )
                     let modFreq = min(sampleRate * 0.45, osc1Freq * ratio)
                     phaseInc2 = AudioMath.twoPi * modFreq / sampleRate
@@ -728,7 +743,8 @@ public extension AudioEngine {
                             phaseIncrement: phaseInc2,
                             noiseValue: noiseValue,
                             pulseWidthOverride: pulse2,
-                            pullWavetable: false
+                            pullWavetable: false,
+                            frameOffset: wtMorphMod2Voice
                         )
                     } else {
                         s2 = 0
@@ -742,7 +758,8 @@ public extension AudioEngine {
                             phaseIncrement: phaseInc2,
                             noiseValue: noiseValue,
                             pulseWidthOverride: pulse2,
-                            pullWavetable: false
+                            pullWavetable: false,
+                            frameOffset: wtMorphMod2Voice
                         )
                     } else {
                         s2 = 0
@@ -757,7 +774,8 @@ public extension AudioEngine {
                         phaseIncrement: phaseInc1,
                         noiseValue: noiseValue,
                         pulseWidthOverride: pulse1,
-                        pullWavetable: false
+                        pullWavetable: false,
+                        frameOffset: wtMorphMod1Voice
                     )
                 }
             } else if fmMod == 0 {
@@ -767,7 +785,8 @@ public extension AudioEngine {
                         phaseIncrement: phaseInc2,
                         noiseValue: noiseValue,
                         pulseWidthOverride: pulse2,
-                        pullWavetable: false
+                        pullWavetable: false,
+                        frameOffset: wtMorphMod2Voice
                     )
                 } else {
                     s2 = 0
@@ -782,7 +801,8 @@ public extension AudioEngine {
                     phaseIncrement: phaseInc1,
                     noiseValue: noiseValue,
                     pulseWidthOverride: pulse1,
-                    pullWavetable: false
+                    pullWavetable: false,
+                    frameOffset: wtMorphMod1Voice
                 )
             } else {
                 let voiceFM = max(0, min(1, fmAmount + fmMod))
@@ -792,7 +812,8 @@ public extension AudioEngine {
                         phaseIncrement: phaseInc2,
                         noiseValue: noiseValue,
                         pulseWidthOverride: pulse2,
-                        pullWavetable: false
+                        pullWavetable: false,
+                        frameOffset: wtMorphMod2Voice
                     )
                 } else {
                     s2 = 0
@@ -807,7 +828,8 @@ public extension AudioEngine {
                     phaseIncrement: phaseInc1,
                     noiseValue: noiseValue,
                     pulseWidthOverride: pulse1,
-                    pullWavetable: false
+                    pullWavetable: false,
+                    frameOffset: wtMorphMod1Voice
                 )
             }
             let s1Out = osc1LevelMod == 0 ? s1 : s1 * max(0, 1 + osc1LevelMod)
@@ -832,22 +854,33 @@ public extension AudioEngine {
 
             let voiceSub = subLevelMod == 0 ? subVol : max(0, subVol + subLevelMod)
             if voiceSub > 0 {
-                let subSample: Float
+                let subFreq = osc1Freq * (subOctave == -2 ? 0.25 : 0.5)
+                let subInc = AudioMath.twoPi * subFreq / sampleRate
+                let subDt = subInc / AudioMath.twoPi
                 let normSub = v.subPhase / AudioMath.twoPi
+                let subSample: Float
                 switch subWave {
                 case .sine:
                     subSample = Float(sin(v.subPhase))
                 case .triangle:
-                    subSample = Float(4.0 * abs(normSub - 0.5) - 1.0)
+                    var val = 4.0 * abs(normSub - 0.5) - 1.0
+                    val += 8.0 * Oscillator.polyBLAMP(t: normSub, dt: subDt)
+                    var shifted = normSub - 0.5
+                    if shifted < 0 { shifted += 1.0 }
+                    val -= 8.0 * Oscillator.polyBLAMP(t: shifted, dt: subDt)
+                    subSample = Float(val)
                 case .square:
-                    subSample = normSub < 0.5 ? 1.0 : -1.0
+                    var val = normSub < 0.5 ? 1.0 : -1.0
+                    val += Oscillator.polyBLEP(t: normSub, dt: subDt)
+                    var shifted = normSub - 0.5
+                    if shifted < 0 { shifted += 1.0 }
+                    val -= Oscillator.polyBLEP(t: shifted, dt: subDt)
+                    subSample = Float(val)
                 default:
                     subSample = Float(sin(v.subPhase))
                 }
                 sample = (sample + subSample * voiceSub) / (1.0 + voiceSub * 0.4)
 
-                let subFreq = osc1Freq * (subOctave == -2 ? 0.25 : 0.5)
-                let subInc = AudioMath.twoPi * subFreq / sampleRate
                 v.subPhase += subInc
                 if v.subPhase >= AudioMath.twoPi { v.subPhase -= AudioMath.twoPi }
                 if v.subPhase < 0 { v.subPhase += AudioMath.twoPi }
@@ -899,6 +932,8 @@ public extension AudioEngine {
             var voiceCoeffs = filterCoeffs
             let voiceDrive = driveMod == 0 ? cachedFilterDrive : max(0, min(1, cachedFilterDrive + driveMod))
             let voiceFilterLive = perVoiceFilter || filterEnvMod != 0 || voiceCutoffMod != 0
+            var voiceF1Cutoff: Float = voiceFilterBaseCutoff
+            var hasVoiceF1Cutoff = false
             if voiceFilterLive {
                 if v.filterControlTick & 3 == 0 {
                     let c = voiceCutoffHz(
@@ -916,6 +951,8 @@ public extension AudioEngine {
                         maxCutoff: voiceFilterMaxCutoff,
                         voiceCutoffMod: voiceCutoffMod
                     )
+                    voiceF1Cutoff = c
+                    hasVoiceF1Cutoff = true
                     v.voiceFilterCoeffs = CachedBiquadFilter.coefficients(
                         type: voiceFilterType,
                         cutoff: c,
@@ -952,6 +989,10 @@ public extension AudioEngine {
                             maxCutoff: voiceFilterMaxCutoff,
                             voiceCutoffMod: voiceCutoffMod
                         )
+                        if perVoiceFilter {
+                            voiceF1Cutoff = c
+                            hasVoiceF1Cutoff = true
+                        }
                     } else {
                         c = base
                     }
@@ -962,7 +1003,13 @@ public extension AudioEngine {
                     }
                     c = bare
                 }
-                let combed = comb.process(amplitude, cutoff: c, resonance: voiceFilterResonance, sampleRate: Float(sampleRate))
+                let combed = comb.process(
+                    amplitude,
+                    cutoff: c,
+                    resonance: voiceFilterResonance,
+                    sampleRate: Float(sampleRate),
+                    damping: cachedCombUsesVoiceCutoff ? 0.22 : 0
+                )
                 amplitude = combed.isFinite ? combed : 0
             } else if cachedFilterFeedback != 0 {
                 let fb = min(1, max(-1, cachedFilterFeedback))
@@ -992,6 +1039,10 @@ public extension AudioEngine {
                             maxCutoff: voiceFilterMaxCutoff,
                             voiceCutoffMod: voiceCutoffMod
                         )
+                        if perVoiceFilter {
+                            voiceF1Cutoff = c
+                            hasVoiceF1Cutoff = true
+                        }
                     } else {
                         c = cutoffBase
                     }
@@ -1039,6 +1090,10 @@ public extension AudioEngine {
                         maxCutoff: voiceFilterMaxCutoff,
                         voiceCutoffMod: voiceCutoffMod
                     )
+                    if perVoiceFilter {
+                        voiceF1Cutoff = c
+                        hasVoiceF1Cutoff = true
+                    }
                 } else {
                     c = cutoffBase
                 }
@@ -1060,7 +1115,32 @@ public extension AudioEngine {
                 let dual = voiceDualPtr[i].takeUnretainedValue()
                 dual.routing = cachedFilter2Routing
                 dual.type2 = cachedFilter2Type
-                dual.cutoff2 = cachedFilter2Cutoff
+                if voiceFilterLive && voiceFilterBaseCutoff > 20 {
+                    let f1Cutoff: Float
+                    if hasVoiceF1Cutoff {
+                        f1Cutoff = voiceF1Cutoff
+                    } else {
+                        f1Cutoff = voiceCutoffHz(
+                            base: voiceFilterBaseCutoff,
+                            envAmt: filterEnvAmt,
+                            filterEnvMod: filterEnvMod,
+                            filterEnvVal: filterEnvVal,
+                            velToEnvAmt: velToEnvAmt,
+                            velocity: v.velocity,
+                            keyTrk: filterKeyTrk,
+                            midiNote: v.midiNote,
+                            velToCutoff: velToCutoff,
+                            drift: cachedAnalogDrift,
+                            driftMul: v.driftCutoffMul,
+                            maxCutoff: voiceFilterMaxCutoff,
+                            voiceCutoffMod: voiceCutoffMod
+                        )
+                    }
+                    let scaled = cachedFilter2Cutoff * (f1Cutoff / max(20, voiceFilterBaseCutoff))
+                    dual.cutoff2 = scaled.isFinite ? max(20, min(voiceFilterMaxCutoff, scaled)) : cachedFilter2Cutoff
+                } else {
+                    dual.cutoff2 = cachedFilter2Cutoff
+                }
                 dual.resonance2 = cachedFilter2Resonance
                 dual.balance = cachedFilter2Balance
                 if cachedFilter2Type == .formant {
@@ -1149,6 +1229,8 @@ public extension AudioEngine {
                 hlNoise = noiseLevelMod
                 hlFilterEnv = filterEnvMod
                 hlUni = unisonDetuneMod
+                hlWtMorph1 = wtMorphMod1Voice
+                hlWtMorph2 = wtMorphMod2Voice
             }
             voices[i] = v
         }
@@ -1170,6 +1252,10 @@ public extension AudioEngine {
             liveModulation.store(hlNoise, for: .noiseLevel)
             liveModulation.store(hlFilterEnv, for: .filterEnvAmount)
             liveModulation.store(hlUni, for: .unisonDetune)
+            if cachedPerVoiceCutoffSources && modCount > 0 {
+                liveModulation.store(wtMorphMod1 + hlWtMorph1, for: .wtMorph1)
+                liveModulation.store(wtMorphMod2 + hlWtMorph2, for: .wtMorph2)
+            }
         } else {
             liveModulation.store(0, for: .pitch1)
             liveModulation.store(0, for: .pitch2)
@@ -1482,6 +1568,23 @@ public extension AudioEngine {
         lastRenderedSampleL = outL
         lastRenderedSampleR = outR
         return (outL, outR)
+    }
+
+    @inline(__always)
+    private static func isPerVoiceMorphSource(_ source: ModSource) -> Bool {
+        switch source {
+        case .env1, .env2, .modEnv, .velocity, .releaseVelocity, .keyTrack, .random,
+             .mpePitchBend, .mpePressure, .mpeTimbre, .aftertouch:
+            return true
+        case .lfo1, .lfo2, .modWheel, .macro1, .macro2, .macro3, .macro4, .macro5, .macro6, .macro7, .macro8,
+             .pitchBend, .sampleAndHold, .smoothRandom, .mseg, .mseg2, .envelopeFollower:
+            return false
+        }
+    }
+
+    @inline(__always)
+    private static func isPerVoiceMorphSlot(_ entry: RTModSlot) -> Bool {
+        isPerVoiceMorphSource(entry.source) || (entry.viaSource.map(isPerVoiceMorphSource) ?? false)
     }
 }
 

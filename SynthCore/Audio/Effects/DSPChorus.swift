@@ -167,16 +167,26 @@ public class DSPChorus {
         while readPos < 0 { readPos += Double(bufferSize) }
         while readPos >= Double(bufferSize) { readPos -= Double(bufferSize) }
         
-        // Linear Interpolation
-        let indexInt = Int(readPos)
-        let frac = Float(readPos - Double(indexInt))
+        // 4-Point Cubic Hermite Interpolation
+        let rawInt = Int(readPos)
+        let indexInt = rawInt % bufferSize
+        let frac = Float(readPos - Double(rawInt))
         
-        let nextIndex = (indexInt + 1) % bufferSize
+        let im1 = (indexInt - 1 + bufferSize) % bufferSize
+        let i1 = (indexInt + 1) % bufferSize
+        let i2 = (indexInt + 2) % bufferSize
         
-        let s0 = buffer[indexInt]
-        let s1 = buffer[nextIndex]
+        let ym1 = buffer[im1]
+        let y0 = buffer[indexInt]
+        let y1 = buffer[i1]
+        let y2 = buffer[i2]
         
-        return s0 + (s1 - s0) * frac
+        let c0 = y0
+        let c1 = 0.5 * (y1 - ym1)
+        let c2 = ym1 - 2.5 * y0 + 2.0 * y1 - 0.5 * y2
+        let c3 = 0.5 * (y2 - ym1) + 1.5 * (y0 - y1)
+        
+        return ((c3 * frac + c2) * frac + c1) * frac + c0
     }
     
     public func setSampleRate(_ newRate: Double) {

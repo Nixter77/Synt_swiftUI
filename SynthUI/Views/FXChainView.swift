@@ -112,7 +112,8 @@ struct FXChainView: View {
             title: "Character & Glue",
             accent: theme.aFx,
             storageName: "characterGlue",
-            startsExpanded: preset.character != .off || preset.busGlueEnabled
+            startsExpanded: preset.character != .off || preset.busGlueEnabled,
+            statusBadge: characterBadge
         ) {
             EmptyView()
         } content: {
@@ -141,6 +142,9 @@ struct FXChainView: View {
             accent: theme.aFx,
             storageName: "freqShifter",
             startsExpanded: preset.frequencyShifterEnabled,
+            statusBadge: preset.frequencyShifterEnabled
+                ? "\(Int(preset.frequencyShifterShiftHz.rounded()))Hz \(Int((preset.frequencyShifterMix * 100).rounded()))%"
+                : nil,
             menu: { FXPresetMenu(kind: .frequencyShifter, preset: $preset) }
         ) {
             HStack(spacing: 8) {
@@ -157,7 +161,8 @@ struct FXChainView: View {
             enabled: $preset.sceneHPFEnabled,
             accent: theme.aFx,
             storageName: "sceneHPF",
-            startsExpanded: preset.sceneHPFEnabled
+            startsExpanded: preset.sceneHPFEnabled,
+            statusBadge: preset.sceneHPFEnabled ? "\(Int(preset.sceneHPFFrequency.rounded())) Hz" : nil
         ) {
             EmptyView()
         } content: {
@@ -170,7 +175,10 @@ struct FXChainView: View {
             title: "Sends",
             accent: theme.aFx,
             storageName: "sends",
-            startsExpanded: preset.sendA > 0.001 || preset.sendB > 0.001
+            startsExpanded: preset.sendA > 0.001 || preset.sendB > 0.001,
+            statusBadge: (preset.sendA > 0.001 || preset.sendB > 0.001)
+                ? "A \(Int((preset.sendA * 100).rounded()))% · B \(Int((preset.sendB * 100).rounded()))%"
+                : nil
         ) {
             EmptyView()
         } content: {
@@ -187,7 +195,10 @@ struct FXChainView: View {
             enabled: $preset.rotaryEnabled,
             accent: theme.aFx,
             storageName: "rotary",
-            startsExpanded: preset.rotaryEnabled
+            startsExpanded: preset.rotaryEnabled,
+            statusBadge: preset.rotaryEnabled
+                ? "\(preset.rotaryFast ? "Fast" : "Slow") \(Int((preset.rotaryMix * 100).rounded()))%"
+                : nil
         ) {
             EmptyView()
         } content: {
@@ -216,7 +227,10 @@ struct FXChainView: View {
             enabled: $preset.transientEnabled,
             accent: theme.aFx,
             storageName: "transient",
-            startsExpanded: preset.transientEnabled
+            startsExpanded: preset.transientEnabled,
+            statusBadge: preset.transientEnabled
+                ? String(format: "A%+.1f S%+.1f", preset.transientAttack, preset.transientSustain)
+                : nil
         ) {
             EmptyView()
         } content: {
@@ -235,7 +249,8 @@ struct FXChainView: View {
             enabled: $preset.stereoEnabled,
             accent: theme.aFx,
             storageName: "stereo",
-            startsExpanded: preset.stereoEnabled
+            startsExpanded: preset.stereoEnabled,
+            statusBadge: preset.stereoEnabled ? "Width \(Int((preset.stereoWidth * 100).rounded()))%" : nil
         ) {
             EmptyView()
         } content: {
@@ -258,7 +273,10 @@ struct FXChainView: View {
             enabled: $preset.tranceGateEnabled,
             accent: theme.aFx,
             storageName: "trance",
-            startsExpanded: preset.tranceGateEnabled
+            startsExpanded: preset.tranceGateEnabled,
+            statusBadge: preset.tranceGateEnabled
+                ? "\(preset.tranceGateDivision.rawValue) \(Int((preset.tranceGateDepth * 100).rounded()))%"
+                : nil
         ) {
             EmptyView()
         } content: {
@@ -339,6 +357,7 @@ struct FXChainView: View {
             accent: theme.aFx,
             storageName: "distortion",
             startsExpanded: preset.distortionEnabled,
+            statusBadge: distortionBadge,
             onMoveUp: onMoveUp,
             onMoveDown: onMoveDown,
             menu: { FXPresetMenu(kind: .distortion, preset: presetBinding) }
@@ -388,6 +407,7 @@ struct FXChainView: View {
             accent: theme.aFx,
             storageName: "eq",
             startsExpanded: preset.eqEnabled,
+            statusBadge: eqBadge,
             onMoveUp: onMoveUp,
             onMoveDown: onMoveDown,
             menu: { FXPresetMenu(kind: .eq, preset: presetBinding) }
@@ -416,6 +436,7 @@ struct FXChainView: View {
             accent: theme.aFx,
             storageName: "phaser",
             startsExpanded: preset.phaserEnabled,
+            statusBadge: phaserBadge,
             onMoveUp: onMoveUp,
             onMoveDown: onMoveDown,
             menu: { FXPresetMenu(kind: .phaser, preset: presetBinding) }
@@ -451,6 +472,7 @@ struct FXChainView: View {
             accent: theme.aFx,
             storageName: "chorus",
             startsExpanded: preset.chorusMix > 0.001,
+            statusBadge: chorusBadge,
             onMoveUp: onMoveUp,
             onMoveDown: onMoveDown,
             menu: {
@@ -558,6 +580,7 @@ struct FXChainView: View {
             accent: theme.aFx,
             storageName: "delay",
             startsExpanded: preset.delayMix > 0.001,
+            statusBadge: delayBadge,
             onMoveUp: onMoveUp,
             onMoveDown: onMoveDown,
             menu: {
@@ -633,6 +656,7 @@ struct FXChainView: View {
             accent: theme.aFx,
             storageName: "reverb",
             startsExpanded: preset.reverbMix > 0.001,
+            statusBadge: reverbBadge,
             onMoveUp: onMoveUp,
             onMoveDown: onMoveDown,
             menu: {
@@ -666,6 +690,71 @@ struct FXChainView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Collapsed Status Badges
+
+    private var characterBadge: String? {
+        guard preset.character != .off || preset.busGlueEnabled else { return nil }
+        var parts: [String] = []
+        if preset.character != .off { parts.append(preset.character.rawValue) }
+        if preset.busGlueEnabled { parts.append("Glue") }
+        return parts.joined(separator: " + ")
+    }
+
+    private var distortionBadge: String? {
+        guard preset.distortionEnabled else { return nil }
+        let mixPct = Int((preset.distortionMix * 100).rounded())
+        return "\(preset.distortionType.rawValue) \(mixPct)%"
+    }
+
+    private var eqBadge: String? {
+        guard preset.eqEnabled else { return nil }
+        let l = Int(preset.eqLowGain.rounded())
+        let m = Int(preset.eqMidGain.rounded())
+        let h = Int(preset.eqHighGain.rounded())
+        if l == 0 && m == 0 && h == 0 { return "Flat" }
+        return String(format: "%+d/%+d/%+d dB", l, m, h)
+    }
+
+    private var phaserBadge: String? {
+        guard preset.phaserEnabled else { return nil }
+        let mixPct = Int((preset.phaserMix * 100).rounded())
+        return "\(preset.phaserMode.rawValue) \(mixPct)%"
+    }
+
+    private var chorusBadge: String? {
+        guard preset.chorusMix > 0.001 else { return nil }
+        let mode: String
+        if preset.chorusMode == .ensemble {
+            mode = "Ens"
+        } else if preset.chorusFlanger || preset.chorusMode == .flanger {
+            mode = "Flng"
+        } else if preset.chorusStereo {
+            mode = "Wide"
+        } else {
+            mode = "Chr"
+        }
+        return "\(mode) \(Int((preset.chorusMix * 100).rounded()))%"
+    }
+
+    private var delayBadge: String? {
+        guard preset.delayMix > 0.001 else { return nil }
+        let mode: String
+        if preset.delayPingPong {
+            mode = "Pong"
+        } else if preset.delayTempoSync {
+            mode = preset.delaySyncDivision.rawValue
+        } else {
+            mode = "\(Int((preset.delayTime * 1000).rounded()))ms"
+        }
+        return "\(mode) \(Int((preset.delayMix * 100).rounded()))%"
+    }
+
+    private var reverbBadge: String? {
+        guard preset.reverbMix > 0.001 else { return nil }
+        let mode = preset.dspReverbEnabled ? "DSP" : "Verb"
+        return "\(mode) \(Int((preset.reverbMix * 100).rounded()))%"
     }
 
     // MARK: - Helper Bindings

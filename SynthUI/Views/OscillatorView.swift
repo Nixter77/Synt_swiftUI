@@ -20,16 +20,14 @@ struct OscillatorView: View {
                 AppleSectionHeader(title: "OSC \(oscillatorNumber)", accent: theme.aOsc, icon: "waveform")
                 Spacer()
                 if oscillatorNumber == 1 {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Button {
                             preset.subOscOctave = preset.subOscOctave == -2 ? -1 : -2
                         } label: {
-                            Text(preset.subOscOctave == -2 ? "-2 oct" : "-1 oct")
-                                .themeCaption(theme, size: 9, weight: .semibold)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(RoundedRectangle(cornerRadius: 3).fill(theme.inset))
-                                .foregroundColor(theme.textDim)
+                            oscChipLabel(
+                                preset.subOscOctave == -2 ? "-2 oct" : "-1 oct",
+                                isActive: preset.subOscVolume > 0.001 && preset.subOscOctave == -2
+                            )
                         }
                         .buttonStyle(.plain)
                         .help("Sub-oscillator octave (-1 or -2)")
@@ -39,12 +37,10 @@ struct OscillatorView: View {
                             Button("Triangle") { preset.subOscWaveform = .triangle }
                             Button("Square") { preset.subOscWaveform = .square }
                         } label: {
-                            Text(preset.subOscWaveform == .sine ? "Sub Sin" : (preset.subOscWaveform == .triangle ? "Sub Tri" : "Sub Sqr"))
-                                .themeCaption(theme, size: 9, weight: .semibold)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(RoundedRectangle(cornerRadius: 3).fill(theme.inset))
-                                .foregroundColor(theme.textDim)
+                            oscChipLabel(
+                                preset.subOscWaveform == .sine ? "Sub Sin" : (preset.subOscWaveform == .triangle ? "Sub Tri" : "Sub Sqr"),
+                                isActive: preset.subOscVolume > 0.001
+                            )
                         }
                         .menuStyle(.borderlessButton)
                         .fixedSize()
@@ -55,12 +51,10 @@ struct OscillatorView: View {
                                 Button(mode.rawValue) { preset.oscPhaseMode = mode }
                             }
                         } label: {
-                            Text(preset.oscPhaseMode.rawValue)
-                                .themeCaption(theme, size: 9, weight: .semibold)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(RoundedRectangle(cornerRadius: 3).fill(theme.inset))
-                                .foregroundColor(theme.textDim)
+                            oscChipLabel(
+                                preset.oscPhaseMode.rawValue,
+                                isActive: preset.oscPhaseMode != .reset
+                            )
                         }
                         .menuStyle(.borderlessButton)
                         .fixedSize()
@@ -69,61 +63,39 @@ struct OscillatorView: View {
                     }
                 }
                 if oscillatorNumber == 2 {
-                    Button {
-                        preset.osc2FixedFrequency.toggle()
-                        if preset.osc2FixedFrequency {
-                            preset.fmRatioEnabled = false
+                    HStack(spacing: 3) {
+                        Button {
+                            preset.osc2FixedFrequency.toggle()
+                            if preset.osc2FixedFrequency {
+                                preset.fmRatioEnabled = false
+                            }
+                        } label: {
+                            oscChipLabel("HZ", isActive: preset.osc2FixedFrequency)
                         }
-                    } label: {
-                        Text("HZ")
-                            .themeCaption(theme, size: 9, weight: .bold)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(preset.osc2FixedFrequency ? theme.aOsc : theme.inset)
-                            )
-                            .foregroundColor(preset.osc2FixedFrequency ? theme.bg : theme.textDim)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("osc2FixedFrequency")
-                    .help("OSC 2 plays a fixed frequency (priority over FM ratio)")
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("osc2FixedFrequency")
+                        .help("OSC 2 plays a fixed frequency (priority over FM ratio)")
 
-                    Button {
-                        preset.fmRatioEnabled.toggle()
-                        if preset.fmRatioEnabled {
-                            preset.osc2FixedFrequency = false
+                        Button {
+                            preset.fmRatioEnabled.toggle()
+                            if preset.fmRatioEnabled {
+                                preset.osc2FixedFrequency = false
+                            }
+                        } label: {
+                            oscChipLabel("RATIO", isActive: preset.fmRatioEnabled)
                         }
-                    } label: {
-                        Text("RATIO")
-                            .themeCaption(theme, size: 9, weight: .bold)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(preset.fmRatioEnabled ? theme.aOsc : theme.inset)
-                            )
-                            .foregroundColor(preset.fmRatioEnabled ? theme.bg : theme.textDim)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("fmRatio")
-                    .help("FM ratio: coarse, fine, and which oscillator modulates the other (disabled when HZ is active)")
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("fmRatio")
+                        .help("FM ratio: coarse, fine, and which oscillator modulates the other (disabled when HZ is active)")
 
-                    Button {
-                        preset.oscSyncEnabled.toggle()
-                    } label: {
-                        Text("SYNC")
-                            .themeCaption(theme, size: 9, weight: .bold)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(preset.oscSyncEnabled ? theme.aOsc : theme.inset)
-                            )
-                            .foregroundColor(preset.oscSyncEnabled ? theme.bg : theme.textDim)
+                        Button {
+                            preset.oscSyncEnabled.toggle()
+                        } label: {
+                            oscChipLabel("SYNC", isActive: preset.oscSyncEnabled)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Hard Sync: OSC 1 forces OSC 2 phase reset")
                     }
-                    .buttonStyle(.plain)
-                    .help("Hard Sync: OSC 1 forces OSC 2 phase reset")
 
                     ThemeToggle(isOn: $preset.osc2Enabled)
                 }
@@ -223,12 +195,10 @@ struct OscillatorView: View {
                             Button {
                                 preset.fmRoute = preset.fmRoute == .osc2ToOsc1 ? .osc1ToOsc2 : .osc2ToOsc1
                             } label: {
-                                Text(preset.fmRoute == .osc2ToOsc1 ? "2→1" : "1→2")
-                                    .themeCaption(theme, size: 9, weight: .bold)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                                    .background(RoundedRectangle(cornerRadius: 3).fill(theme.aOsc))
-                                    .foregroundColor(theme.bg)
+                                oscChipLabel(
+                                    preset.fmRoute == .osc2ToOsc1 ? "2→1" : "1→2",
+                                    isActive: true
+                                )
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("fmRoute")
@@ -324,10 +294,10 @@ struct OscillatorView: View {
 
                         WavetableFramePreview(
                             frames: activeFrames,
-                            morph: wavetableMorph.wrappedValue,
+                            morph: wavetableMorph,
                             accent: theme.aOsc
                         )
-                        .frame(height: 24)
+                        .frame(height: 30)
                         .padding(.top, 2)
                     }
                 }
@@ -335,6 +305,24 @@ struct OscillatorView: View {
         }
         .padding(8)
         .appleCard(accent: theme.aOsc)
+    }
+
+    private func oscChipLabel(_ title: String, isActive: Bool) -> some View {
+        Text(title)
+            .themeCaption(theme, size: 8.5, weight: .bold)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(isActive ? theme.aOsc : theme.inset)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(isActive ? theme.aOsc : theme.border.opacity(0.75), lineWidth: 0.75)
+            )
+            .foregroundColor(isActive ? (theme.id == .studio ? theme.bg : .white) : theme.textDim)
     }
 
     private var isWavetableSelected: Bool {
@@ -442,55 +430,139 @@ struct OscillatorView: View {
 struct WavetableFramePreview: View {
     @Environment(\.theme) private var theme
     let frames: [[Float]]
-    let morph: Float
+    @Binding var morph: Float
     let accent: Color
+
+    @State private var isDragging = false
 
     var body: some View {
         GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
+            let w = max(1, geo.size.width)
             let frameCount = frames.count
             if frameCount > 0 {
                 let framePos = max(0, min(Float(frameCount - 1), morph * Float(max(1, frameCount - 1))))
                 let idx1 = max(0, min(frameCount - 1, Int(framePos)))
-                let idx2 = min(idx1 + 1, frameCount - 1)
-                let frac = framePos - Float(idx1)
-                let f1 = frames[idx1]
-                let f2 = frames[idx2]
-                let sampleCount = min(f1.count, f2.count)
 
                 ZStack(alignment: .topTrailing) {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(theme.inset)
 
-                    Path { path in
-                        guard sampleCount > 1, w > 0, h > 0 else { return }
-                        let midY = h * 0.5
-                        let amp = h * 0.42
-                        let step = max(1, sampleCount / max(1, Int(w)))
+                    Canvas { context, size in
+                        let cw = size.width
+                        let ch = size.height
+                        guard cw > 4, ch > 4 else { return }
+
+                        let sliceCount = 6
+                        let sliceW = max(1, cw - 16)
+                        let baseMidY = ch * 0.62
+                        let amp = ch * 0.28
+
+                        // 6 background reference slices stacked with isometric depth/parallax
+                        for layer in (0..<sliceCount).reversed() {
+                            let layerNorm = Float(layer) / Float(max(1, sliceCount - 1))
+                            let refIdx = frameCount > 1
+                                ? min(frameCount - 1, Int(round(layerNorm * Float(frameCount - 1))))
+                                : 0
+                            let ref = frames[refIdx]
+                            let n = ref.count
+                            guard n > 1 else { continue }
+
+                            let ox = 2.0 + CGFloat(layer + 1) * 2.0
+                            let oy = -CGFloat(layer + 1) * 1.15
+                            let step = max(1, n / max(1, Int(sliceW)))
+                            var slicePath = Path()
+                            var first = true
+                            for i in stride(from: 0, to: n, by: step) {
+                                let x = ox + (CGFloat(i) / CGFloat(n - 1)) * sliceW
+                                let y = (baseMidY + oy) - CGFloat(ref[i]) * (amp * 0.85)
+                                if first {
+                                    slicePath.move(to: CGPoint(x: x, y: y))
+                                    first = false
+                                } else {
+                                    slicePath.addLine(to: CGPoint(x: x, y: y))
+                                }
+                            }
+                            context.stroke(
+                                slicePath,
+                                with: .color(accent.opacity(0.22)),
+                                style: StrokeStyle(lineWidth: 0.85, lineCap: .round, lineJoin: .round)
+                            )
+                        }
+
+                        // Foreground interpolated frame at `morph`
+                        let idx2 = min(idx1 + 1, frameCount - 1)
+                        let frac = framePos - Float(idx1)
+                        let f1 = frames[idx1]
+                        let f2 = frames[idx2]
+                        let sampleCount = min(f1.count, f2.count)
+                        guard sampleCount > 1 else { return }
+
+                        let step = max(1, sampleCount / max(1, Int(sliceW)))
+                        var fgPath = Path()
+                        var fillPath = Path()
                         var first = true
+                        var lastX: CGFloat = 2.0
 
                         for i in stride(from: 0, to: sampleCount, by: step) {
-                            let s1 = f1[i]
-                            let s2 = f2[i]
-                            let val = s1 + (s2 - s1) * frac
-                            let x = (CGFloat(i) / CGFloat(sampleCount - 1)) * w
-                            let y = midY - CGFloat(val) * amp
+                            let val = f1[i] + (f2[i] - f1[i]) * frac
+                            let x = 2.0 + (CGFloat(i) / CGFloat(sampleCount - 1)) * sliceW
+                            let y = baseMidY - CGFloat(val) * amp
                             if first {
-                                path.move(to: CGPoint(x: x, y: y))
+                                fgPath.move(to: CGPoint(x: x, y: y))
+                                fillPath.move(to: CGPoint(x: x, y: ch))
+                                fillPath.addLine(to: CGPoint(x: x, y: y))
                                 first = false
                             } else {
-                                path.addLine(to: CGPoint(x: x, y: y))
+                                fgPath.addLine(to: CGPoint(x: x, y: y))
+                                fillPath.addLine(to: CGPoint(x: x, y: y))
                             }
+                            lastX = x
                         }
+                        fillPath.addLine(to: CGPoint(x: lastX, y: ch))
+                        fillPath.closeSubpath()
+
+                        context.fill(
+                            fillPath,
+                            with: .linearGradient(
+                                Gradient(colors: [accent.opacity(0.28), accent.opacity(0.03)]),
+                                startPoint: CGPoint(x: 0, y: 0),
+                                endPoint: CGPoint(x: 0, y: ch)
+                            )
+                        )
+                        context.stroke(
+                            fgPath,
+                            with: .color(accent),
+                            style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round)
+                        )
                     }
-                    .stroke(accent, lineWidth: 1.2)
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
 
                     Text("F \(idx1 + 1)/\(frameCount)")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(theme.textDim)
-                        .padding(2)
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 1)
                 }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(theme.border.opacity(0.6), lineWidth: 0.5)
+                )
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { gesture in
+                            if !isDragging {
+                                isDragging = true
+                                PatchHistoryManager.shared.onDragStart()
+                            }
+                            let next = min(1, max(0, Float(gesture.location.x / w)))
+                            morph = next
+                        }
+                        .onEnded { _ in
+                            isDragging = false
+                            PatchHistoryManager.shared.onDragEnd()
+                        }
+                )
             } else {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(theme.inset)

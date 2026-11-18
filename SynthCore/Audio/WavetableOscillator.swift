@@ -1308,16 +1308,26 @@ public final class WavetableOscillator {
     /// (Oscillator applies volume once to avoid double gain / clipping).
     /// Does not advance morph — call `advanceMorph()` once per sample from the engine.
     @inline(__always)
-    public func generateSample(phase: Double, phaseIncrement: Double, sampleRate: Double = 44100.0) -> Float {
+    public func generateSample(
+        phase: Double,
+        phaseIncrement: Double,
+        sampleRate: Double = 44100.0,
+        frameOffset: Float = 0
+    ) -> Float {
         pullNewWavetableRT()
-        return generateSampleNoPull(phase: phase, phaseIncrement: phaseIncrement, sampleRate: sampleRate)
+        return generateSampleNoPull(phase: phase, phaseIncrement: phaseIncrement, sampleRate: sampleRate, frameOffset: frameOffset)
     }
 
     /// SYNT_24 Stage 2: render path. The caller guarantees `pullNewWavetableRT()` already ran this
     /// sample (AudioEngine: `advanceMorph()` before the voice loop, `renderBlock` at block start),
     /// so the per-voice atomic load is skipped. Same output as `generateSample`.
     @inline(__always)
-    public func generateSampleNoPull(phase: Double, phaseIncrement: Double, sampleRate: Double = 44100.0) -> Float {
+    public func generateSampleNoPull(
+        phase: Double,
+        phaseIncrement: Double,
+        sampleRate: Double = 44100.0,
+        frameOffset: Float = 0
+    ) -> Float {
         // SYNT_18 R15-2: POD view only (no class, no Swift array → no retain/release per sample).
         guard let view = rtView ?? viewSlots[readBank] else {
             return 0.0
@@ -1329,7 +1339,7 @@ public final class WavetableOscillator {
         // mips doubled Hermite work per voice and still used the hotter
         // (under-limited) table — 4 notes of that was the crunch.
         let oct = max(0, min(numOctaves - 1, Self.mipOctave(forFrequency: frequency)))
-        return sampleMorphedFlat(view, mipOctave: oct, phase: phase)
+        return sampleMorphedFlat(view, mipOctave: oct, phase: phase, frameOffset: frameOffset)
     }
 
     /// SYNT_18 R15-2: `Int(log2(max(20, f) / 20))` without `log2`: for x ≥ 1 the binary exponent
@@ -1345,7 +1355,12 @@ public final class WavetableOscillator {
     }
 
     @inline(__always)
-    private func sampleMorphedFlat(_ viewPtr: UnsafePointer<FlatMipView>, mipOctave: Int, phase: Double) -> Float {
+    private func sampleMorphedFlat(
+        _ viewPtr: UnsafePointer<FlatMipView>,
+        mipOctave: Int,
+        phase: Double,
+        frameOffset: Float = 0
+    ) -> Float {
         let view = viewPtr.pointee
         guard mipOctave >= 0, mipOctave < view.octaves else { return 0 }
         let frameCount = view.frames
@@ -1353,7 +1368,20 @@ public final class WavetableOscillator {
 
         // SYNT_24 Stage 2: the frame split depends only on (framePosition, frameCount), which change
         // at most once per sample — recompute only then, not per voice call. Same arithmetic.
-        let (frameIndex1, frameIndex2, frameFrac) = frameSplit(framePosition, frameCount)
+        let frameIndex1: Int
+        let frameIndex2: Int
+        let frameFrac: Float
+        if frameOffset == 0 {
+            (frameIndex1, frameIndex2, frameFrac) = frameSplit(framePosition, frameCount)
+        } else {
+            let rawPos = framePosition + (frameOffset.isFinite ? frameOffset : 0)
+            let effPos = max(Float(0), min(Float(1), rawPos))
+            let framePos = effPos * Float(max(0, frameCount - 1))
+            let i1 = max(0, min(frameCount - 1, Int(framePos)))
+            frameIndex1 = i1
+            frameIndex2 = min(i1 + 1, frameCount - 1)
+            frameFrac = framePos - Float(i1)
+        }
 
         let n = view.samplesPerFrame
         let sample1 = sampleFromRaw(view.frame(octave: mipOctave, index: frameIndex1), count: n, phase: phase)

@@ -163,7 +163,7 @@ struct UnisonView: View {
             }
             .padding(.horizontal, 4)
 
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 HStack(spacing: 6) {
                     VStack(spacing: 4) {
                         Text("Voices")
@@ -179,6 +179,14 @@ struct UnisonView: View {
                     KnobView(value: $preset.analogDrift, range: 0...1, label: "Drift", format: "%.0f%%")
                     KnobView(value: $preset.portamento, range: 0...1.0, label: "Glide", format: "%.2fs")
                 }
+
+                UnisonSpreadVisualizer(
+                    voices: preset.unisonVoices,
+                    detune: preset.unisonDetune,
+                    spread: preset.unisonSpread
+                )
+                .frame(height: 10)
+
                 HStack(spacing: 6) {
                     Text("Poly")
                         .themeCaption(theme, size: 9)
@@ -199,13 +207,13 @@ struct UnisonView: View {
                 }
                 switch macroBank {
                 case 1:
-                    MacroXYPad(macro1: $preset.macro3, macro2: $preset.macro4, labelX: "M3", labelY: "M4")
+                    macroPad(x: $preset.macro3, y: $preset.macro4, labelX: "M3", labelY: "M4")
                 case 2:
-                    MacroXYPad(macro1: $preset.macro5, macro2: $preset.macro6, labelX: "M5", labelY: "M6")
+                    macroPad(x: $preset.macro5, y: $preset.macro6, labelX: "M5", labelY: "M6")
                 case 3:
-                    MacroXYPad(macro1: $preset.macro7, macro2: $preset.macro8, labelX: "M7", labelY: "M8")
+                    macroPad(x: $preset.macro7, y: $preset.macro8, labelX: "M7", labelY: "M8")
                 default:
-                    MacroXYPad(macro1: $preset.macro1, macro2: $preset.macro2, labelX: "M1", labelY: "M2")
+                    macroPad(x: $preset.macro1, y: $preset.macro2, labelX: "M1", labelY: "M2")
                 }
             }
             .padding(4)
@@ -213,5 +221,82 @@ struct UnisonView: View {
         }
         .padding(6)
         .appleCard(cornerRadius: theme.rCard, accent: theme.aFilter)
+    }
+
+    private func macroPad(x: Binding<Float>, y: Binding<Float>, labelX: String, labelY: String) -> some View {
+        MacroXYPad(macro1: x, macro2: y, labelX: labelX, labelY: labelY)
+            .overlay(alignment: .bottom) {
+                HStack {
+                    Text(String(format: "%@ %+.2f", labelX, x.wrappedValue))
+                    Spacer()
+                    Text(String(format: "%@ %+.2f", labelY, y.wrappedValue))
+                }
+                .font(theme.monoFont(size: 8, weight: .medium))
+                .foregroundColor(theme.textDim)
+                .padding(.horizontal, 5)
+                .padding(.bottom, 3)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+    }
+}
+
+struct UnisonSpreadVisualizer: View {
+    @Environment(\.theme) private var theme
+    let voices: Int
+    let detune: Float
+    let spread: Float
+
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width
+            let h = size.height
+            guard w > 4, h > 2 else { return }
+
+            let midX = w * 0.5
+            var centerTick = Path()
+            centerTick.move(to: CGPoint(x: midX, y: 1))
+            centerTick.addLine(to: CGPoint(x: midX, y: h - 1))
+            context.stroke(centerTick, with: .color(theme.border.opacity(0.45)), lineWidth: 0.75)
+
+            let count = max(1, min(7, voices))
+            let clampedSpread = CGFloat(max(0, min(1, spread)))
+            let clampedDetune = CGFloat(max(0, min(50, detune)) / 50.0)
+
+            if count == 1 {
+                var line = Path()
+                line.move(to: CGPoint(x: midX, y: h - 1.5))
+                line.addLine(to: CGPoint(x: midX, y: 2.0))
+                context.stroke(line, with: .color(theme.aFilter), lineWidth: 1.5)
+                context.fill(
+                    Path(ellipseIn: CGRect(x: midX - 1.5, y: 1.0, width: 3, height: 3)),
+                    with: .color(theme.accent)
+                )
+                return
+            }
+
+            let maxBaseHalf = w * 0.38
+            let maxFanOffset = w * 0.08 + 3.0
+            for i in 0..<count {
+                let u = CGFloat(Float(i) / Float(count - 1) * 2.0 - 1.0)
+                let baseX = max(3, min(w - 3, midX + u * clampedSpread * maxBaseHalf))
+                let topX = max(3, min(w - 3, baseX + u * clampedDetune * maxFanOffset))
+
+                var voicePath = Path()
+                voicePath.move(to: CGPoint(x: baseX, y: h - 1.5))
+                voicePath.addLine(to: CGPoint(x: topX, y: 2.0))
+                context.stroke(
+                    voicePath,
+                    with: .color(theme.aFilter.opacity(0.85)),
+                    style: StrokeStyle(lineWidth: 1.25, lineCap: .round)
+                )
+                context.fill(
+                    Path(ellipseIn: CGRect(x: topX - 1.25, y: 1.0, width: 2.5, height: 2.5)),
+                    with: .color(theme.accent)
+                )
+            }
+        }
+        .background(RoundedRectangle(cornerRadius: 3).fill(theme.scopeBg))
+        .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border.opacity(0.6), lineWidth: 0.5))
     }
 }

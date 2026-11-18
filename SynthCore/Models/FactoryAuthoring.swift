@@ -50,6 +50,28 @@ enum FactoryAuthoring {
         return shape
     }
 
+    /// Multi-point looping MSEG (`loopStartIndex: 0`, `loopEndIndex` at final point, no sustain lock).
+    static func loopingMSEG(
+        rate: Float,
+        _ points: [(time: Float, value: Float, curve: Float)],
+        continuous: Bool = false
+    ) -> MSEGPreset {
+        var mseg = MSEGPreset()
+        let mapped = points
+            .map { DSPMSEGPoint(time: $0.time, value: $0.value, curve: $0.curve) }
+            .sorted { $0.time < $1.time }
+        mseg.points = mapped
+        mseg.rateHz = rate
+        mseg.isOneShot = false
+        mseg.sustainIndex = nil
+        mseg.triggerMode = continuous ? .continuous : .retrigger
+        if mapped.count >= 2 {
+            mseg.loopStartIndex = 0
+            mseg.loopEndIndex = mapped.count - 1
+        }
+        return mseg
+    }
+
     /// Tie, ratchet, and probability so the step is Sequencer Pro, not a plain gate.
     static func proSequence() -> [SequencerStep] {
         let notes = [0, 0, 3, 7, 7, 10, 12, 7, 3, 0, -5, 7, 12, 10, 7, 0]
@@ -63,6 +85,31 @@ enum FactoryAuthoring {
                 gate: 0.62,
                 ratchet: index == 8 ? 2 : 1,
                 probability: index == 12 ? 0.75 : 1
+            )
+        }
+    }
+
+    /// Musical 16-step Sequencer Pro pattern builder with per-step ratchets, ties, octaves, and probability.
+    static func proSequencePattern(
+        notes: [Int],
+        activeSteps: Set<Int>? = nil,
+        ratchets: [Int: Int] = [:],
+        ties: Set<Int> = [],
+        probabilities: [Int: Float] = [:],
+        octaves: [Int: Int] = [:],
+        gate: Float = 0.58
+    ) -> [SequencerStep] {
+        return (0..<16).map { index in
+            let active = activeSteps?.contains(index) ?? (index % 2 == 0 || index == 7 || index == 11)
+            return SequencerStep(
+                isActive: active,
+                noteOffset: notes[index % max(1, notes.count)],
+                velocity: index % 4 == 0 ? 0.92 : (index % 2 == 0 ? 0.76 : 0.64),
+                octave: octaves[index] ?? 0,
+                tie: ties.contains(index),
+                gate: gate,
+                ratchet: ratchets[index] ?? 1,
+                probability: probabilities[index] ?? 1.0
             )
         }
     }
@@ -844,12 +891,12 @@ extension FactoryAuthoring {
         }
     }
 
-    /// Curated comb (resonator) slots: metallic / flanged / cathedral names. FX, Keys, Pad, Pluck.
+    /// Curated comb (resonator) slots: metallic / flanged / cathedral / acoustic plucked names. FX, Keys, Pad, Pluck.
     static let combNames: Set<String> = [
         "Jet Flanger", "Gamelan Gong", "Alien Transmission",
         "Tubular Cathedral", "Ice Temple Bell",
         "Phase Cathedral", "Pulse Sweep Pad",
-        "Flange Harp",
+        "Flange Harp", "Steel Spark",
     ]
 
     /// SYNT_45: runs after `warmDrift`. Values only.
@@ -1330,8 +1377,7 @@ extension FactoryAuthoring {
                 p.velToDecay = -spread(0.08, 0.16, 0.302_775_638)
                 p.releaseVelToRelease = spread(0.20, 0.35, 0.618_033_989)
             case .bass:
-                let digitalBass = p.osc1Waveform == .wavetable || p.transientEnabled
-                p.envelopeModel = digitalBass ? .digital : .analog
+                p.envelopeModel = p.osc1Waveform == .wavetable ? .digital : .analog
                 p.shortAttackEnabled = p.attack <= 0.008
                 p.envKeyTrack = spread(0.10, 0.22, 0.561_552_813)
                 p.velToDecay = -spread(0.08, 0.16, 0.302_775_638)
@@ -1434,8 +1480,9 @@ extension FactoryAuthoring {
                 p.modMatrix[idx].curveShape = driveCurve
             }
         }
-        // Release velocity damper shaping in matrix for Keys, Pluck, Strings, Pad (non-MPE; MPE adds .ampRelease below)
+        // Selective release velocity damper shaping in matrix for Keys, Pluck, Strings, Pad (non-MPE; MPE adds .ampRelease below)
         if !p.mpeEnabled,
+           (i + salt) % 4 == 0,
            [.keys, .pluck, .strings, .pad].contains(p.category),
            !p.modMatrix.contains(where: { $0.source == .releaseVelocity }),
            p.modMatrix.count < 15 {
@@ -1443,8 +1490,9 @@ extension FactoryAuthoring {
             let relAmt = -max(0.18, spread(0.18, 0.32, 0.707_106_781))
             p.modMatrix.append(mod(.releaseVelocity, relDest, relAmt, curveShape: -0.20))
         }
-        // Aftertouch expressive routing (via velocity) where a slot is open
+        // Selective aftertouch expressive routing (via velocity) where a slot is open
         if !p.mpeEnabled,
+           (i + salt) % 4 == 1,
            !p.modMatrix.contains(where: { $0.source == .aftertouch }),
            p.modMatrix.count < 16 {
             let atAmt = max(0.18, spread(0.18, 0.32, 0.236_067_977))
@@ -1527,7 +1575,113 @@ extension FactoryAuthoring {
         Pass(name: "keysPluckMotionDepthStagger") { keysPluckMotionDepthStagger(&$0, index: $1.index, salt: $1.salt) },
         Pass(name: "bassLeadMotionDepthStagger") { bassLeadMotionDepthStagger(&$0, index: $1.index, salt: $1.salt) },
         Pass(name: "dynamics") { dynamics(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "enginePolish") { enginePolish(&$0, index: $1.index, salt: $1.salt) },
+        Pass(name: "macroSeeding") { macroSeeding(&$0, index: $1.index, salt: $1.salt) },
     ]
+
+    /// Post-dynamics engine polish: per-voice cutoff/morph, comb tracking, distortion oversampling, and selective bus glue.
+    static func enginePolish(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        p.perVoiceCutoffSources = true
+        if p.filterType == .comb || p.filter2Type == .comb {
+            p.combUsesVoiceCutoff = true
+        }
+        if p.distortionEnabled {
+            switch p.distortionType {
+            case .hardClip, .wavefolder, .bitcrusher:
+                p.distortionOversampling = true
+            case .tubeSaturation:
+                if p.distortionDrive >= 0.24 {
+                    p.distortionOversampling = true
+                }
+            case .softClip, .tapeSaturation:
+                break
+            }
+        }
+        if (p.category == .bass || p.category == .brass || p.category == .keys)
+            && !has(p, softWords) && p.attack <= 0.030 && (i + salt) % 4 == 0 {
+            p.busGlueEnabled = true
+        }
+    }
+
+    /// Post-dynamics macro seeding: wires Macro 1 & Macro 2 (and Macro 3/4 where slots permit)
+    /// into live, preset-appropriate destinations so the XY Macro Pad is expressive on every preset.
+    static func macroSeeding(_ p: inout SynthPreset, index i: Int, salt: Int) {
+        guard !["Init", "Default", "Template"].contains(p.name) else { return }
+        let c = p.category
+        let formant = p.filterType == .formant
+        let comb = p.filterType == .comb
+
+        func addMacro(_ src: ModSource, _ dst: ModDestination, _ amt: Float, shape: Float = 0) {
+            guard p.modMatrix.count < 15 else { return }
+            guard abs(amt) >= 0.15 else { return }
+            guard !p.modMatrix.contains(where: { $0.source == src }) else { return }
+            guard !p.modMatrix.contains(where: { $0.source == src && $0.destination == dst }) else { return }
+            p.modMatrix.append(mod(src, dst, amt, curveShape: shape))
+        }
+
+        // Macro 1 (XY Pad X): Primary timbre / brightness
+        let m1Pair: (ModDestination, Float, Float)
+        if formant {
+            m1Pair = (.vowel, 0.38, 0)
+        } else if p.osc1Waveform == .wavetable && !comb && (i + salt) % 2 == 0 {
+            m1Pair = (.wtMorph1, 0.42, 0)
+        } else if p.fmAmount >= 0.15 && (c == .keys || c == .pluck) && (i + salt) % 2 == 1 {
+            m1Pair = (.fm, 0.40, -0.15)
+        } else if comb {
+            m1Pair = (.cutoff, 0.28, 0)
+        } else {
+            let amt: Float = (c == .bass || c == .lead || c == .brass) ? 0.42 : 0.36
+            m1Pair = (.cutoff, amt, -0.15)
+        }
+        addMacro(.macro1, m1Pair.0, m1Pair.1, shape: m1Pair.2)
+
+        // Build candidate list of live secondary destinations for Macro 2 / 3 / 4
+        var secondary: [(ModDestination, Float)] = []
+        if !formant && !comb {
+            secondary.append((.resonance, 0.24))
+            secondary.append((.drive, 0.28))
+        }
+        if p.dspReverbEnabled {
+            secondary.append((.reverbMix, 0.22))
+        }
+        if p.delayPingPong {
+            secondary.append((.delayMix, 0.18))
+        }
+        if p.lfoEnabled && (p.lfoTarget != .none || p.lfoRowsFollowDepth) {
+            secondary.append((.lfoDepth, 0.34))
+        }
+        if p.lfoEnabled || p.modMatrix.contains(where: { $0.source == .lfo1 }) {
+            secondary.append((.lfoRate, 0.32))
+        }
+        if p.fmAmount > 0 && m1Pair.0 != .fm {
+            secondary.append((.fm, 0.32))
+        }
+        if p.unisonVoices > 1 {
+            secondary.append((.unisonDetune, 0.34))
+        }
+        if p.osc2Enabled && p.osc2Waveform == .wavetable {
+            secondary.append((.wtMorph2, 0.38))
+        } else if p.osc1Waveform == .wavetable && m1Pair.0 != .wtMorph1 {
+            secondary.append((.wtMorph1, 0.38))
+        }
+        if p.chorusMix > 0.05 {
+            secondary.append((.chorusMix, 0.18))
+        }
+        if !formant && !comb {
+            secondary.append((.filterEnvAmount, 0.28))
+        }
+        if p.osc2Enabled {
+            secondary.append((.osc2Level, 0.28))
+        }
+        if secondary.isEmpty {
+            secondary.append((.pan, 0.30))
+        }
+
+        let m2Candidates = secondary.filter { $0.0 != m1Pair.0 }
+        let m2Choice = m2Candidates.isEmpty ? (.pan, Float(0.30)) : m2Candidates[(i + salt) % m2Candidates.count]
+        addMacro(.macro2, m2Choice.0, m2Choice.1)
+    }
 
     /// Engine carry limits: delay feedback ≤ 0.22, at most two wet FX after the clipper.
     static func engineLimits(_ p: inout SynthPreset) {

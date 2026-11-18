@@ -35,6 +35,13 @@ struct ModMatrixView: View {
         VStack(spacing: 8) {
             HStack {
                 AppleSectionHeader(title: "MOD MATRIX", accent: theme.aMod, icon: "arrow.triangle.branch")
+                Text("\(preset.modMatrix.count)/\(RTModMatrix.capacity)")
+                    .font(theme.monoFont(size: 8, weight: .bold))
+                    .foregroundColor(atCapacity ? theme.destructive : theme.textDim)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 3).fill(theme.inset))
+                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border.opacity(0.6), lineWidth: 0.5))
                 Spacer()
                 Image(systemName: "questionmark.circle")
                     .font(.system(size: 11, weight: .semibold))
@@ -280,6 +287,18 @@ struct MatrixCurveControl: View {
 
     var body: some View {
         Canvas { context, size in
+            let w = size.width
+            let h = size.height
+
+            var diag = Path()
+            diag.move(to: CGPoint(x: 0, y: h))
+            diag.addLine(to: CGPoint(x: w, y: 0))
+            context.stroke(
+                diag,
+                with: .color(theme.border.opacity(0.45)),
+                style: StrokeStyle(lineWidth: 0.75, dash: [2, 2])
+            )
+
             var path = Path()
             let steps = 12
             let exponent = exp2(-3 * shape)
@@ -287,17 +306,30 @@ struct MatrixCurveControl: View {
                 let x = Float(i) / Float(steps)
                 let y = pow(x, exponent)
                 let point = CGPoint(
-                    x: CGFloat(x) * size.width,
-                    y: size.height - CGFloat(y) * size.height
+                    x: CGFloat(x) * w,
+                    y: h - CGFloat(y) * h
                 )
                 if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
             }
             context.stroke(path, with: .color(theme.aMod), lineWidth: 1.5)
+
+            let midY = pow(0.5, exponent)
+            let midPt = CGPoint(x: w * 0.5, y: h - CGFloat(midY) * h)
+            let dotRect = CGRect(x: midPt.x - 1.75, y: midPt.y - 1.75, width: 3.5, height: 3.5)
+            context.fill(
+                Path(ellipseIn: dotRect),
+                with: .color(abs(shape) > 0.01 ? theme.accent : theme.aMod)
+            )
         }
         .frame(width: 28, height: 18)
+        .background(RoundedRectangle(cornerRadius: 3).fill(theme.inset.opacity(0.6)))
+        .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border.opacity(0.5), lineWidth: 0.5))
         .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            shape = 0
+        }
         .gesture(
-            DragGesture(minimumDistance: 0)
+            DragGesture(minimumDistance: 1)
                 .onChanged { gesture in
                     if dragStart == nil { dragStart = shape }
                     let base = dragStart ?? shape
@@ -309,6 +341,6 @@ struct MatrixCurveControl: View {
                 }
         )
         .accessibilityIdentifier("modCurveShape")
-        .help(String(format: "Curve shape %+.2f", shape))
+        .help(String(format: "Curve shape %+.2f (double-click to reset)", shape))
     }
 }

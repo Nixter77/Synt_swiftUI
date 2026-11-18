@@ -34,6 +34,7 @@ public extension SynthPreset {
         p.osc2Detune = 5
         p.osc2WavetableMorph = 0.58
         p.osc2WavetableIndex = 4
+        p.ampDelay = 0.020
         p.attack = 0.55
         p.decay = 0.50
         p.sustain = 0.84
@@ -42,13 +43,18 @@ public extension SynthPreset {
         p.filterResonance = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.040
         p.filterAttack = 0.42
         p.filterDecay = 0.55
         p.filterSustain = 0.52
         p.filterRelease = 1.00
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 115
         p.reverbMix = 0.18
         p.reverbRoomSize = 0.50
-        p.chorusMix = 0.12
+        p.reverbShimmer = 0.18
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.14
         p.masterVolume = 0.34
         p.stereoEnabled = true
         p.stereoWidth = 1.25
@@ -56,11 +62,15 @@ public extension SynthPreset {
         p.character = .warm
         p.lfoEnabled = true
         p.lfoRate = 0.14
+        p.lfoStereoPhase = 140
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.20), A.mod(.lfo1, .pan, 0.18)]
+        p.mseg = A.loopingMSEG(rate: 0.16, [(0.0, -0.30, 0.0), (0.35, 0.55, 0.2), (0.72, -0.15, -0.2), (1.0, -0.30, 0.0)])
+        p.mseg2 = A.loopingMSEG(rate: 0.11, [(0.0, 0.25, 0.0), (0.45, -0.45, -0.2), (0.80, 0.40, 0.2), (1.0, 0.25, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .wtMorph1, 0.30), A.mod(.mseg2, .wtMorph2, 0.28), A.mod(.lfo1, .pan, 0.24)]
         p.osc1Detune = 0.00
     },
         A.make("Cybernetic Talking Bass", .bass) { p in
+        p.envelopeModel = .analog
         p.osc1Waveform = .sawtooth
         p.osc1Volume = 0.54
         p.osc1Octave = -1
@@ -70,28 +80,42 @@ public extension SynthPreset {
         p.osc2Octave = -1
         p.osc2PulseWidth = 0.36
         p.osc2Detune = 4
+        p.subOscWaveform = .square
         p.subOscVolume = 0.14
-        p.fmAmount = 0.18
+        p.fmRatioEnabled = true
+        p.fmCoarse = 2
+        p.fmAmount = 0.20
         p.attack = 0.004
         p.decay = 0.20
         p.sustain = 0.64
         p.release = 0.14
+        p.filterType = .ladder
+        p.filter2Routing = .serial
+        p.filter2Type = .bandPass
+        p.filter2Cutoff = 1120
+        p.filter2Resonance = 0.36
+        p.filter2Balance = 0.48
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.28
+        p.filterEnvHold = 0.008
         p.filterAttack = 0.003
         p.filterDecay = 0.18
         p.filterSustain = 0.35
         p.filterRelease = 0.14
-        p.filterCutoff = 480
+        p.filterCutoff = 520
         p.filterResonance = 0.28
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
         p.masterVolume = 0.58
+        p.busGlueEnabled = true
         p.voiceMode = .mono
         p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
-        p.modMatrix = [A.mod(.env2, .fm, 0.14), A.mod(.velocity, .cutoff, 0.22)]
+        p.lfoEnabled = true
+        p.lfoRate = 0.45
+        p.lfoTarget = .none
+        p.modMatrix = [A.mod(.lfo1, .cutoff, 0.28), A.mod(.env2, .fm, 0.20), A.mod(.env2, .pwm2, 0.22), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 0.15
     },
         A.make("Robotic Vowel Lead", .lead) { p in
@@ -113,18 +137,25 @@ public extension SynthPreset {
         p.lfoEnabled = true
         p.lfoRate = 0.22
         p.lfoTarget = .none
+        p.lfo2Enabled = true
+        p.lfo2Rate = 5.2
+        p.lfo2Depth = 0.10
+        p.lfo2Target = .pitch
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
         p.delayMix = 0.08
-        p.delayTime = 0.26
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighthD
         p.delayFeedback = 0.16
         p.delayPingPong = true
+        p.sendA = 0.14
+        p.sendB = 0.12
         p.masterVolume = 0.52
         p.filter2Routing = .parallel
         p.filter2Type = .lowPass
         p.filter2Cutoff = 2400
-        p.filter2Balance = 0.58
-        p.modMatrix = [A.mod(.lfo1, .vowel, 0.22), A.mod(.env2, .pwm2, 0.20)]
+        p.filter2Balance = 0.15
+        p.modMatrix = [A.mod(.lfo1, .vowel, 0.34), A.mod(.env2, .pwm2, 0.22), A.mod(.velocity, .amp, 0.20)]
         p.osc1Detune = 0.30
     },
         A.make("Throat Singing Drone", .pad) { p in
@@ -137,6 +168,7 @@ public extension SynthPreset {
         p.osc2Octave = -1
         p.osc2Detune = 5
         p.subOscVolume = 0.12
+        p.ampDelay = 0.024
         p.attack = 0.52
         p.decay = 0.48
         p.sustain = 0.86
@@ -145,8 +177,13 @@ public extension SynthPreset {
         p.filterVowel = 3.2
         p.filterCutoff = 1400
         p.filterResonance = 0.12
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 95
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.48
+        p.reverbShimmer = 0.14
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.10
         p.masterVolume = 0.34
         p.filter2Routing = .parallel
         p.filter2Type = .lowPass
@@ -155,8 +192,13 @@ public extension SynthPreset {
         p.stereoEnabled = true
         p.stereoWidth = 1.24
         p.stereoHaasMs = 4.0
-        p.mseg2 = A.shape(rate: 0.18, -0.4, 0.55, -0.1)
-        p.modMatrix = [A.mod(.mseg2, .cutoff, 0.18), A.mod(.mseg2, .vowel, 0.22)]
+        p.lfoEnabled = true
+        p.lfoRate = 0.14
+        p.lfoStereoPhase = 120
+        p.lfoTarget = .none
+        p.mseg = A.loopingMSEG(rate: 0.12, [(0.0, -0.25, 0.0), (0.4, 0.30, 0.2), (0.8, -0.20, -0.2), (1.0, -0.25, 0.0)])
+        p.mseg2 = A.loopingMSEG(rate: 0.18, [(0.0, -0.40, 0.0), (0.38, 0.55, 0.2), (0.76, -0.10, -0.2), (1.0, -0.40, 0.0)])
+        p.modMatrix = [A.mod(.mseg2, .vowel, 0.36), A.mod(.mseg, .pan, 0.24), A.mod(.lfo1, .pan, 0.18)]
         p.osc1Detune = 0.45
     },
         A.make("Glass Soprano", .lead) { p in
@@ -169,7 +211,10 @@ public extension SynthPreset {
         p.osc2Volume = 0.20
         p.osc2Octave = 1
         p.osc2Detune = 4
-        p.fmAmount = 0.12
+        p.fmRatioEnabled = true
+        p.fmCoarse = 2
+        p.fmAmount = 0.16
+        p.noiseColor = .pink
         p.attack = 0.014
         p.decay = 0.24
         p.sustain = 0.74
@@ -189,12 +234,17 @@ public extension SynthPreset {
         p.delayTime = 0.28
         p.delayFeedback = 0.16
         p.delayPingPong = true
+        p.sendA = 0.16
+        p.sendB = 0.12
         p.masterVolume = 0.52
         p.lfoEnabled = true
         p.lfoRate = 4.8
-        p.lfoDepth = 0.05
+        p.lfoDepth = 0.10
         p.lfoTarget = .pitch
-        p.modMatrix = [A.mod(.env1, .wtMorph1, 0.20), A.mod(.velocity, .cutoff, 0.20)]
+        p.lfo2Enabled = true
+        p.lfo2Rate = 0.32
+        p.lfo2Target = .none
+        p.modMatrix = [A.mod(.lfo2, .wtMorph1, 0.32), A.mod(.env2, .noiseLevel, 0.16, curveShape: -0.45), A.mod(.env1, .wtMorph1, 0.20), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 0.60
     },
         A.make("Alien Transmission", .fx) { p in
@@ -203,6 +253,8 @@ public extension SynthPreset {
         p.osc2Enabled = true
         p.osc2Waveform = .noise
         p.osc2Volume = 0.16
+        p.osc2FixedFrequency = true
+        p.osc2FrequencyHz = 517
         p.noiseColor = .pink
         p.attack = 0.04
         p.decay = 0.32
@@ -217,8 +269,9 @@ public extension SynthPreset {
         p.filterDecay = 0.26
         p.filterSustain = 0.35
         p.filterRelease = 0.35
-        p.reverbMix = 0.16
-        p.reverbRoomSize = 0.46
+        p.reverbMix = 0.32
+        p.reverbRoomSize = 0.48
+        p.dspReverbEnabled = true
         p.delayMix = 0.10
         p.delayTime = 0.24
         p.delayFeedback = 0.18
@@ -231,8 +284,9 @@ public extension SynthPreset {
         p.fxOrder = A.orderDirtLast
         p.lfoEnabled = true
         p.lfoRate = 0.28
+        p.lfoStereoPhase = 150
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .cutoff, 0.24), A.mod(.lfo1, .pan, 0.24)]
+        p.modMatrix = [A.mod(.lfo1, .cutoff, 0.32), A.mod(.sampleAndHold, .pan, 0.26), A.mod(.smoothRandom, .pitch1, 0.18)]
         p.osc1Detune = 0.75
     },
         A.make("Synth Choir Pad", .pad) { p in
@@ -244,15 +298,21 @@ public extension SynthPreset {
         p.osc2Waveform = .sawtooth
         p.osc2Volume = 0.22
         p.osc2Detune = 6
+        p.ampDelay = 0.022
         p.attack = 0.52
         p.decay = 0.45
         p.sustain = 0.84
         p.release = 1.20
         p.filterType = .formant
         p.filterVowel = 0.6
+        p.filterEnvDelay = 0.036
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 110
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.48
-        p.chorusMix = 0.10
+        p.reverbShimmer = 0.16
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.12
         p.masterVolume = 0.34
         p.filter2Routing = .parallel
         p.filter2Type = .lowPass
@@ -261,9 +321,11 @@ public extension SynthPreset {
         p.stereoEnabled = true
         p.stereoWidth = 1.24
         p.stereoHaasMs = 4.0
-        p.modMatrix = [A.mod(.lfo2, .vowel, 0.18), A.mod(.lfo2, .pan, 0.16)]
+        p.mseg = A.loopingMSEG(rate: 0.15, [(0.0, -0.35, 0.0), (0.4, 0.45, 0.2), (0.78, -0.15, -0.2), (1.0, -0.35, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .vowel, 0.34), A.mod(.lfo2, .pan, 0.22), A.mod(.lfo2, .wtMorph1, 0.24)]
         p.lfo2Enabled = true
         p.lfo2Rate = 0.12
+        p.lfo2StereoPhase = 150
         p.lfo2Target = .none
         p.filterCutoff = 1140
         p.osc1Detune = 0.90
@@ -299,8 +361,15 @@ public extension SynthPreset {
         p.masterVolume = 0.44
         p.arpMode = .up
         p.arpRate = .eighth
-        p.sequencerData = A.proSequence()
-        p.modMatrix = [A.mod(.env2, .pwm1, 0.22), A.mod(.velocity, .cutoff, 0.20)]
+        p.arpGateLength = 0.50
+        p.arpSwing = 0.14
+        p.tranceGateEnabled = true
+        p.tranceGatePattern = 0xAAEA
+        p.tranceGateDepth = 0.50
+        p.tranceGateSmooth = 0.12
+        p.tranceGateDivision = .sixteenth
+        p.sequencerData = A.proSequencePattern(notes: [0, 3, 7, 10, 12, 7, 3, 0], ratchets: [4: 2, 12: 3], ties: [2, 9], probabilities: [14: 0.75], octaves: [8: 1])
+        p.modMatrix = [A.mod(.env2, .pwm1, 0.24), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 1.05
     },
         A.make("DX Crystal EPiano", .keys) { p in
@@ -311,6 +380,9 @@ public extension SynthPreset {
         p.osc2Volume = 0.28
         p.osc2Octave = 1
         p.osc2Detune = 2
+        p.fmRatioEnabled = true
+        p.fmCoarse = 3
+        p.fmFine = 0.015
         p.fmAmount = 0.30
         p.attack = 0.004
         p.decay = 0.48
@@ -329,10 +401,12 @@ public extension SynthPreset {
         p.reverbRoomSize = 0.40
         p.chorusMix = 0.10
         p.masterVolume = 0.45
+        p.busGlueEnabled = true
         p.lfoEnabled = true
         p.lfoRate = 0.35
+        p.lfoStereoPhase = 135
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.env2, .fm, 0.14), A.mod(.lfo1, .pan, 0.18), A.mod(.velocity, .amp, 0.24)]
+        p.modMatrix = [A.mod(.velocity, .fm, 0.32, curveShape: -0.25), A.mod(.env2, .fm, 0.20), A.mod(.lfo1, .pan, 0.32), A.mod(.velocity, .amp, 0.24)]
         p.osc1Detune = 1.20
     },
         A.make("Tokyo Marimba", .pluck) { p in
@@ -343,7 +417,11 @@ public extension SynthPreset {
         p.osc2Volume = 0.18
         p.osc2Octave = 1
         p.osc2Detune = 3
-        p.fmAmount = 0.20
+        p.fmRatioEnabled = true
+        p.fmCoarse = 4
+        p.fmFine = 0.01
+        p.fmAmount = 0.22
+        p.noiseColor = .pink
         p.attack = 0.002
         p.decay = 0.28
         p.sustain = 0.04
@@ -363,37 +441,41 @@ public extension SynthPreset {
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.38
         p.delayMix = 0.06
-        p.delayTime = 0.22
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighthD
         p.delayFeedback = 0.14
         p.delayPingPong = true
         p.masterVolume = 0.45
-        p.modMatrix = [A.mod(.env2, .fm, 0.12), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.velocity, .fm, 0.28, curveShape: -0.20), A.mod(.env2, .noiseLevel, 0.16, curveShape: -0.45), A.mod(.env2, .fm, 0.18), A.mod(.velocity, .amp, 0.24)]
         p.osc1Detune = 1.35
     },
         A.make("Ice Temple Bell", .keys) { p in
         p.osc1Waveform = .wavetable
         p.osc1Volume = 0.48
-        p.osc1WavetableMorph = 0.40
+        p.osc1WavetableMorph = 0.22
         p.osc1WavetableIndex = 2
         p.osc2Enabled = true
         p.osc2Waveform = .sine
-        p.osc2Volume = 0.20
+        p.osc2Volume = 0.14
         p.osc2Octave = 1
         p.osc2Detune = 4
-        p.fmAmount = 0.16
+        p.fmRatioEnabled = true
+        p.fmCoarse = 7
+        p.fmFine = 0.025
+        p.fmAmount = 0.06
         p.attack = 0.005
         p.decay = 0.70
         p.sustain = 0.22
         p.release = 0.55
-        p.filterCutoff = 3800
+        p.filterCutoff = 3200
         p.filterResonance = 0.12
         p.filterEnvUseDedicatedADSR = true
-        p.filterEnvelopeAmount = 0.22
+        p.filterEnvelopeAmount = 0.24
         p.filterAttack = 0.002
         p.filterDecay = 0.32
         p.filterSustain = 0.16
         p.filterRelease = 0.35
-        p.velocityToCutoff = 0.26
+        p.velocityToCutoff = 0.28
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.46
         p.delayMix = 0.08
@@ -403,8 +485,12 @@ public extension SynthPreset {
         p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 0.30
+        p.lfoStereoPhase = 135
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.18), A.mod(.env2, .fm, 0.12), A.mod(.velocity, .amp, 0.22)]
+        p.modMatrix = [
+            A.mod(.lfo1, .wtMorph1, 0.32),
+            A.mod(.velocity, .amp, 0.22)
+        ]
         p.osc1Detune = 1.50
     },
         A.make("Tubular Cathedral", .keys) { p in
@@ -418,13 +504,17 @@ public extension SynthPreset {
         p.osc2WavetableMorph = 0.48
         p.osc2WavetableIndex = 2
         p.osc2Detune = 4
-        p.fmAmount = 0.10
+        p.fmRatioEnabled = true
+        p.fmCoarse = 5
+        p.fmFine = 0.02
+        p.fmAmount = 0.18
         p.attack = 0.008
         p.decay = 0.80
         p.sustain = 0.28
         p.release = 0.65
         p.reverbMix = 0.18
         p.reverbRoomSize = 0.48
+        p.sendA = 0.14
         p.filterCutoff = 2800
         p.filterResonance = 0.12
         p.filterEnvUseDedicatedADSR = true
@@ -439,8 +529,9 @@ public extension SynthPreset {
         p.stereoWidth = 1.24
         p.lfoEnabled = true
         p.lfoRate = 0.24
+        p.lfoStereoPhase = 120
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.18), A.mod(.velocity, .amp, 0.22)]
+        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.32), A.mod(.lfo1, .wtMorph2, 0.28), A.mod(.velocity, .fm, 0.24), A.mod(.velocity, .amp, 0.22)]
         p.osc1Detune = 1.65
     },
         A.make("Kalimba Dream", .pluck) { p in
@@ -453,7 +544,9 @@ public extension SynthPreset {
         p.osc2Volume = 0.18
         p.osc2Octave = 1
         p.osc2Detune = 3
-        p.fmAmount = 0.08
+        p.fmRatioEnabled = true
+        p.fmCoarse = 3
+        p.fmAmount = 0.18
         p.attack = 0.002
         p.decay = 0.32
         p.sustain = 0.08
@@ -470,14 +563,16 @@ public extension SynthPreset {
         p.reverbMix = 0.14
         p.reverbRoomSize = 0.42
         p.delayMix = 0.07
-        p.delayTime = 0.24
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighthD
         p.delayFeedback = 0.14
         p.delayPingPong = true
         p.masterVolume = 0.45
-        p.modMatrix = [A.mod(.env1, .wtMorph1, 0.20), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.env1, .wtMorph1, 0.28), A.mod(.velocity, .fm, 0.26), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 1.80
     },
         A.make("Metallic Bass Pluck", .bass) { p in
+        p.envelopeModel = .analog
         p.osc1Waveform = .square
         p.osc1Volume = 0.50
         p.osc1Octave = -1
@@ -487,8 +582,12 @@ public extension SynthPreset {
         p.osc2Volume = 0.18
         p.osc2Octave = -1
         p.osc2Detune = 4
+        p.subOscWaveform = .square
         p.subOscVolume = 0.14
-        p.fmAmount = 0.14
+        p.fmRatioEnabled = true
+        p.fmCoarse = 3
+        p.fmFine = 0.03
+        p.fmAmount = 0.18
         p.attack = 0.002
         p.decay = 0.22
         p.sustain = 0.20
@@ -497,6 +596,7 @@ public extension SynthPreset {
         p.filterResonance = 0.24
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.30
+        p.filterEnvHold = 0.010
         p.filterAttack = 0.001
         p.filterDecay = 0.14
         p.filterSustain = 0.12
@@ -504,6 +604,7 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
         p.masterVolume = 0.58
+        p.busGlueEnabled = true
         p.voiceMode = .mono
         p.portamento = 0.03
         p.transientEnabled = true
@@ -512,7 +613,7 @@ public extension SynthPreset {
         p.transientMix = 0.65
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
-        p.modMatrix = [A.mod(.env2, .fm, 0.12), A.mod(.velocity, .cutoff, 0.22)]
+        p.modMatrix = [A.mod(.env2, .pitch1, 0.18, curveShape: -0.60), A.mod(.env2, .fm, 0.20), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 1.95
     },
         A.make("Music Box Memory", .keys) { p in
@@ -525,7 +626,10 @@ public extension SynthPreset {
         p.osc2Detune = 3
         p.osc2WavetableIndex = 1
         p.osc2WavetableMorph = 0.30
-        p.fmAmount = 0.08
+        p.fmRatioEnabled = true
+        p.fmCoarse = 7
+        p.fmFine = 0.015
+        p.fmAmount = 0.18
         p.attack = 0.003
         p.decay = 0.42
         p.sustain = 0.18
@@ -542,11 +646,12 @@ public extension SynthPreset {
         p.reverbMix = 0.14
         p.reverbRoomSize = 0.42
         p.delayMix = 0.07
-        p.delayTime = 0.24
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighth
         p.delayFeedback = 0.14
         p.delayPingPong = true
         p.masterVolume = 0.45
-        p.modMatrix = [A.mod(.env2, .fm, 0.10), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.velocity, .fm, 0.26), A.mod(.env2, .fm, 0.18), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 2.10
     },
         A.make("Gamelan Gong", .fx) { p in
@@ -557,14 +662,18 @@ public extension SynthPreset {
         p.osc2Enabled = true
         p.osc2Waveform = .sine
         p.osc2Volume = 0.20
-        p.osc2Octave = 1
+        p.osc2FixedFrequency = true
+        p.osc2FrequencyHz = 311.13
         p.osc2Detune = 7
         p.ringModAmount = 0.16
-        p.fmAmount = 0.12
+        p.fmRatioEnabled = true
+        p.fmCoarse = 3
+        p.fmFine = 0.27
+        p.fmAmount = 0.24
         p.attack = 0.008
         p.decay = 0.90
         p.sustain = 0.36
-        p.release = 0.75
+        p.release = 0.72
         p.filterCutoff = 1850
         p.filterResonance = 0.18
         p.filterEnvUseDedicatedADSR = true
@@ -573,13 +682,16 @@ public extension SynthPreset {
         p.filterDecay = 0.45
         p.filterSustain = 0.22
         p.filterRelease = 0.50
-        p.reverbMix = 0.18
+        p.reverbMix = 0.34
         p.reverbRoomSize = 0.48
+        p.reverbShimmer = 0.22
+        p.dspReverbEnabled = true
         p.masterVolume = 0.40
         p.lfoEnabled = true
         p.lfoRate = 0.22
+        p.lfoStereoPhase = 150
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.22), A.mod(.lfo1, .pan, 0.22), A.mod(.env2, .fm, 0.14)]
+        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.32), A.mod(.lfo1, .pan, 0.26), A.mod(.env2, .fm, 0.20)]
         p.osc1Detune = 2.25
     },
         A.make("Digital Harp", .arp) { p in
@@ -608,13 +720,17 @@ public extension SynthPreset {
         p.reverbMix = 0.14
         p.reverbRoomSize = 0.42
         p.delayMix = 0.08
-        p.delayTime = 0.24
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighthD
         p.delayFeedback = 0.16
         p.delayPingPong = true
         p.masterVolume = 0.44
         p.arpMode = .upDown
         p.arpRate = .eighth
-        p.modMatrix = [A.mod(.env1, .wtMorph1, 0.20), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
+        p.arpGateLength = 0.48
+        p.arpSwing = 0.12
+        p.sequencerData = A.proSequencePattern(notes: [0, 4, 7, 11, 14, 11, 7, 4], ratchets: [5: 2, 13: 2], ties: [3, 10], probabilities: [15: 0.8], octaves: [8: 1])
+        p.modMatrix = [A.mod(.env1, .wtMorph1, 0.28), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 2.40
     },
         A.make("Neon Vibraphone", .keys) { p in
@@ -625,6 +741,9 @@ public extension SynthPreset {
         p.osc2Volume = 0.22
         p.osc2Octave = 1
         p.osc2Detune = 3
+        p.fmRatioEnabled = true
+        p.fmCoarse = 4
+        p.fmFine = 0.01
         p.fmAmount = 0.24
         p.attack = 0.004
         p.decay = 0.52
@@ -645,11 +764,13 @@ public extension SynthPreset {
         p.masterVolume = 0.45
         p.lfoEnabled = true
         p.lfoRate = 4.0
+        p.lfoStereoPhase = 180
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .amp, 0.16), A.mod(.lfo1, .pan, 0.18), A.mod(.velocity, .amp, 0.24)]
+        p.modMatrix = [A.mod(.lfo1, .amp, 0.30), A.mod(.lfo1, .pan, 0.26), A.mod(.velocity, .fm, 0.24), A.mod(.velocity, .amp, 0.24)]
         p.osc1Detune = 2.55
     },
         A.make("TB-303 Acid Squelch", .bass) { p in
+        p.envelopeModel = .analog
         p.osc1Waveform = .sawtooth
         p.osc1Volume = 0.54
         p.osc1Octave = -1
@@ -658,6 +779,7 @@ public extension SynthPreset {
         p.osc2Volume = 0.18
         p.osc2Octave = -1
         p.osc2PulseWidth = 0.34
+        p.subOscWaveform = .square
         p.subOscVolume = 0.12
         p.attack = 0.003
         p.decay = 0.18
@@ -667,6 +789,7 @@ public extension SynthPreset {
         p.filterDrive = 0.22
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.36
+        p.filterEnvHold = 0.008
         p.filterAttack = 0.003
         p.filterDecay = 0.15
         p.filterSustain = 0.12
@@ -677,11 +800,12 @@ public extension SynthPreset {
         p.velocityToEnvAmount = 0.30
         p.reverbMix = 0.04
         p.masterVolume = 0.58
+        p.busGlueEnabled = true
         p.voiceMode = .legato
         p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
-        p.modMatrix = [A.mod(.env2, .pitch1, 0.04), A.mod(.velocity, .cutoff, 0.24)]
+        p.modMatrix = [A.mod(.env2, .pwm2, 0.24), A.mod(.velocity, .cutoff, 0.26)]
         p.osc1Detune = 2.70
     },
         A.make("Hard Sync Screamer", .lead) { p in
@@ -708,21 +832,29 @@ public extension SynthPreset {
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
         p.delayMix = 0.08
-        p.delayTime = 0.24
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighthD
         p.delayFeedback = 0.16
         p.delayPingPong = true
+        p.sendA = 0.14
+        p.sendB = 0.14
         p.masterVolume = 0.52
         p.distortionEnabled = true
         p.distortionType = .tubeSaturation
-        p.distortionDrive = 0.16
-        p.distortionMix = 0.12
-        p.modMatrix = [A.mod(.lfo1, .pitch2, 0.04), A.mod(.env2, .pitch2, 0.10), A.mod(.velocity, .cutoff, 0.22)]
+        p.distortionDrive = 0.18
+        p.distortionMix = 0.26
+        p.modMatrix = [A.mod(.lfo1, .pitch2, 0.16), A.mod(.env2, .pitch2, 0.24, curveShape: -0.35), A.mod(.velocity, .cutoff, 0.24)]
         p.lfoEnabled = true
         p.lfoRate = 0.30
         p.lfoTarget = .none
+        p.lfo2Enabled = true
+        p.lfo2Rate = 5.4
+        p.lfo2Depth = 0.10
+        p.lfo2Target = .pitch
         p.osc1Detune = 2.85
     },
         A.make("Moog Sub Phatty", .bass) { p in
+        p.envelopeModel = .analog
         p.osc1Waveform = .sawtooth
         p.osc1Volume = 0.48
         p.osc1Octave = -1
@@ -732,7 +864,9 @@ public extension SynthPreset {
         p.osc2Octave = -1
         p.osc2PulseWidth = 0.40
         p.osc2Detune = 4
+        p.subOscWaveform = .triangle
         p.subOscVolume = 0.32
+        p.ampHold = 0.010
         p.attack = 0.005
         p.decay = 0.22
         p.sustain = 0.72
@@ -743,6 +877,7 @@ public extension SynthPreset {
         p.filterDrive = 0.16
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.28
+        p.filterEnvHold = 0.012
         p.filterAttack = 0.003
         p.filterDecay = 0.16
         p.filterSustain = 0.22
@@ -750,12 +885,13 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
         p.masterVolume = 0.58
+        p.busGlueEnabled = true
         p.voiceMode = .mono
         p.portamento = 0.03
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
         p.character = .warm
-        p.modMatrix = [A.mod(.env1, .cutoff, 0.20), A.mod(.velocity, .cutoff, 0.22)]
+        p.modMatrix = [A.mod(.env2, .pitch1, 0.18, curveShape: -0.60), A.mod(.env1, .cutoff, 0.20), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 3.00
     },
         A.make("Prophet Brass Swell", .brass) { p in
@@ -768,6 +904,7 @@ public extension SynthPreset {
         p.unisonVoices = 2
         p.unisonDetune = 6
         p.unisonSpread = 0.22
+        p.ampHold = 0.032
         p.attack = 0.06
         p.decay = 0.28
         p.sustain = 0.76
@@ -776,6 +913,8 @@ public extension SynthPreset {
         p.filterDrive = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.24
+        p.filterEnvDelay = 0.022
+        p.filterEnvHold = 0.036
         p.filterAttack = 0.04
         p.filterDecay = 0.28
         p.filterSustain = 0.48
@@ -785,14 +924,17 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.24
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.42
+        p.chorusMode = .ensemble
         p.chorusMix = 0.10
         p.masterVolume = 0.44
+        p.busGlueEnabled = true
         p.analogDrift = 0.14
         p.character = .warm
-        p.modMatrix = [A.mod(.env2, .pitch2, 0.04), A.mod(.velocity, .cutoff, 0.22)]
+        p.modMatrix = [A.mod(.env2, .unisonDetune, 0.28, curveShape: -0.30), A.mod(.env2, .finePitch, 0.18), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 3.15
     },
         A.make("Cyberpunk Sync Bass", .bass) { p in
+        p.envelopeModel = .analog
         p.osc1Waveform = .square
         p.osc1Volume = 0.50
         p.osc1Octave = -1
@@ -802,6 +944,7 @@ public extension SynthPreset {
         p.osc2Volume = 0.24
         p.osc2Detune = 5
         p.oscSyncEnabled = true
+        p.subOscWaveform = .square
         p.subOscVolume = 0.16
         p.attack = 0.004
         p.decay = 0.20
@@ -818,6 +961,7 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.04
         p.masterVolume = 0.58
+        p.busGlueEnabled = true
         p.voiceMode = .mono
         p.portamento = 0.03
         p.distortionEnabled = true
@@ -826,7 +970,7 @@ public extension SynthPreset {
         p.distortionMix = 0.12
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
-        p.modMatrix = [A.mod(.env2, .pitch2, 0.08), A.mod(.velocity, .cutoff, 0.22)]
+        p.modMatrix = [A.mod(.env2, .pitch2, 0.22, curveShape: -0.35), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 3.30
     },
         A.make("Classic Funk Clavinet", .keys) { p in
@@ -837,6 +981,10 @@ public extension SynthPreset {
         p.osc2Waveform = .sawtooth
         p.osc2Volume = 0.16
         p.osc2Detune = 3
+        p.fmRatioEnabled = true
+        p.fmCoarse = 3
+        p.fmAmount = 0.16
+        p.noiseColor = .pink
         p.attack = 0.002
         p.decay = 0.16
         p.sustain = 0.22
@@ -854,10 +1002,12 @@ public extension SynthPreset {
         p.transientEnabled = true
         p.transientAttack = 0.22
         p.transientSustain = -0.10
+        p.chorusMix = 0.14
         p.reverbMix = 0.08
         p.reverbRoomSize = 0.34
         p.masterVolume = 0.45
-        p.modMatrix = [A.mod(.env2, .pwm1, 0.22), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.22)]
+        p.busGlueEnabled = true
+        p.modMatrix = [A.mod(.env2, .pwm1, 0.24), A.mod(.env2, .noiseLevel, 0.16, curveShape: -0.45), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 3.45
     },
         A.make("Oberheim PolyJump", .brass) { p in
@@ -871,6 +1021,7 @@ public extension SynthPreset {
         p.unisonVoices = 2
         p.unisonDetune = 5
         p.unisonSpread = 0.22
+        p.ampHold = 0.024
         p.attack = 0.018
         p.decay = 0.24
         p.sustain = 0.72
@@ -881,6 +1032,8 @@ public extension SynthPreset {
         p.filterDrive = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.26
+        p.filterEnvDelay = 0.014
+        p.filterEnvHold = 0.028
         p.filterAttack = 0.008
         p.filterDecay = 0.18
         p.filterSustain = 0.36
@@ -890,12 +1043,14 @@ public extension SynthPreset {
         p.reverbRoomSize = 0.40
         p.chorusMix = 0.10
         p.masterVolume = 0.44
+        p.busGlueEnabled = true
         p.analogDrift = 0.14
         p.character = .warm
-        p.modMatrix = [A.mod(.env2, .pwm2, 0.20), A.mod(.velocity, .cutoff, 0.22)]
+        p.modMatrix = [A.mod(.env2, .unisonDetune, 0.26, curveShape: -0.30), A.mod(.env2, .pwm2, 0.22), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 3.60
     },
         A.make("Subquake 808 Pro", .bass) { p in
+        p.envelopeModel = .analog
         p.osc1Waveform = .sine
         p.osc1Volume = 0.60
         p.osc1Octave = -2
@@ -903,7 +1058,9 @@ public extension SynthPreset {
         p.osc2Waveform = .triangle
         p.osc2Volume = 0.20
         p.osc2Octave = -1
+        p.subOscWaveform = .triangle
         p.subOscVolume = 0.16
+        p.ampHold = 0.014
         p.attack = 0.004
         p.decay = 0.35
         p.sustain = 0.38
@@ -912,12 +1069,14 @@ public extension SynthPreset {
         p.filterResonance = 0.18
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.24
+        p.filterEnvHold = 0.014
         p.filterAttack = 0.002
-        p.filterDecay = 0.14
-        p.filterSustain = 0.10
+        p.filterDecay = 0.08
+        p.filterSustain = 0.0
         p.filterRelease = 0.14
         p.velocityToCutoff = 0.24
         p.masterVolume = 0.58
+        p.busGlueEnabled = true
         p.voiceMode = .mono
         p.portamento = 0.03
         p.transientEnabled = true
@@ -927,7 +1086,7 @@ public extension SynthPreset {
         p.noiseColor = .brown
         p.stereoEnabled = true
         p.stereoMonoBassHz = 140
-        p.modMatrix = [A.mod(.env2, .pitch1, 0.06), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.env2, .pitch1, 0.26, curveShape: -0.60), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 3.75
     },
         A.make("Retro Synthwave Arp", .arp) { p in
@@ -961,8 +1120,16 @@ public extension SynthPreset {
         p.masterVolume = 0.45
         p.arpMode = .up
         p.arpRate = .eighth
+        p.arpGateLength = 0.50
+        p.arpSwing = 0.12
+        p.tranceGateEnabled = true
+        p.tranceGatePattern = 0xAEEA
+        p.tranceGateDepth = 0.45
+        p.tranceGateSmooth = 0.14
+        p.tranceGateDivision = .sixteenth
+        p.sequencerData = A.proSequencePattern(notes: [0, 0, 7, 12, 7, 5, 3, 7], ratchets: [7: 2, 15: 2], ties: [4, 12], probabilities: [10: 0.85])
         p.chorusMix = 0.10
-        p.modMatrix = [A.mod(.env2, .pwm2, 0.22), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.env2, .pwm2, 0.24), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 3.90
     },
         A.make("Laser Zap FX", .fx) { p in
@@ -973,11 +1140,13 @@ public extension SynthPreset {
         p.osc2Enabled = true
         p.osc2Waveform = .sawtooth
         p.osc2Volume = 0.18
+        p.osc2FixedFrequency = true
+        p.osc2FrequencyHz = 380
         p.osc2Detune = 5
         p.attack = 0.002
         p.decay = 0.18
         p.sustain = 0.16
-        p.release = 0.18
+        p.release = 0.32
         p.filterCutoff = 3800
         p.filterResonance = 0.22
         p.filterEnvUseDedicatedADSR = true
@@ -986,8 +1155,9 @@ public extension SynthPreset {
         p.filterDecay = 0.12
         p.filterSustain = 0.10
         p.filterRelease = 0.12
-        p.reverbMix = 0.10
-        p.reverbRoomSize = 0.38
+        p.reverbMix = 0.34
+        p.reverbRoomSize = 0.42
+        p.dspReverbEnabled = true
         p.delayMix = 0.08
         p.delayTime = 0.18
         p.delayFeedback = 0.16
@@ -998,7 +1168,11 @@ public extension SynthPreset {
         p.frequencyShifterMix = 0.24
         p.frequencyShifterFeedback = 0.06
         p.fxOrder = A.orderDelayFirst
-        p.modMatrix = [A.mod(.env1, .pitch1, 0.14), A.mod(.env2, .cutoff, 0.24)]
+        p.lfoEnabled = true
+        p.lfoRate = 0.35
+        p.lfoStereoPhase = 150
+        p.lfoTarget = .none
+        p.modMatrix = [A.mod(.env1, .pitch1, 0.22), A.mod(.sampleAndHold, .pitch2, 0.24), A.mod(.lfo1, .pan, 0.26)]
         p.osc1Detune = 4.05
     },
         A.make("Interstellar Horizon", .pad) { p in
@@ -1010,6 +1184,7 @@ public extension SynthPreset {
         p.osc2Waveform = .sine
         p.osc2Volume = 0.20
         p.osc2Detune = 4
+        p.ampDelay = 0.022
         p.attack = 0.55
         p.decay = 0.50
         p.sustain = 0.86
@@ -1018,19 +1193,28 @@ public extension SynthPreset {
         p.filterResonance = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.040
         p.filterAttack = 0.42
         p.filterDecay = 0.55
         p.filterSustain = 0.52
         p.filterRelease = 1.00
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 115
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.48
-        p.chorusMix = 0.10
+        p.reverbShimmer = 0.20
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.12
         p.masterVolume = 0.34
         p.stereoEnabled = true
         p.stereoWidth = 1.30
         p.stereoHaasMs = 4.5
-        p.mseg = A.shape(rate: 0.12, -0.3, 0.7, 0.05)
-        p.modMatrix = [A.mod(.mseg, .cutoff, 0.20), A.mod(.mseg, .wtMorph1, 0.20)]
+        p.lfoEnabled = true
+        p.lfoRate = 0.10
+        p.lfoStereoPhase = 160
+        p.lfoTarget = .none
+        p.mseg = A.loopingMSEG(rate: 0.12, [(0.0, -0.35, 0.0), (0.35, 0.65, 0.2), (0.72, 0.10, -0.2), (1.0, -0.35, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .cutoff, 0.30), A.mod(.mseg, .wtMorph1, 0.30), A.mod(.lfo1, .pan, 0.22)]
         p.osc1Detune = 4.20
     },
         A.make("Solar Wind Sweep", .pad) { p in
@@ -1042,6 +1226,7 @@ public extension SynthPreset {
         p.osc2Waveform = .triangle
         p.osc2Volume = 0.20
         p.osc2Detune = 5
+        p.ampDelay = 0.020
         p.attack = 0.52
         p.decay = 0.48
         p.sustain = 0.84
@@ -1050,21 +1235,28 @@ public extension SynthPreset {
         p.filterResonance = 0.14
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.036
         p.filterAttack = 0.40
         p.filterDecay = 0.50
         p.filterSustain = 0.50
         p.filterRelease = 1.00
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 110
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.48
-        p.chorusMix = 0.10
+        p.reverbShimmer = 0.16
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.12
         p.masterVolume = 0.34
         p.stereoEnabled = true
         p.stereoWidth = 1.24
         p.stereoHaasMs = 4.0
         p.lfoEnabled = true
         p.lfoRate = 0.08
+        p.lfoStereoPhase = 150
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.22), A.mod(.lfo1, .pan, 0.18)]
+        p.mseg = A.loopingMSEG(rate: 0.11, [(0.0, -0.30, 0.0), (0.4, 0.55, 0.2), (0.78, -0.10, -0.2), (1.0, -0.30, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .wtMorph1, 0.32), A.mod(.lfo1, .pan, 0.22)]
         p.osc1Detune = 4.35
     },
         A.make("Aurora Borealis", .pad) { p in
@@ -1078,6 +1270,7 @@ public extension SynthPreset {
         p.osc2WavetableMorph = 0.55
         p.osc2WavetableIndex = 2
         p.osc2Detune = 7
+        p.ampDelay = 0.022
         p.attack = 0.56
         p.decay = 0.50
         p.sustain = 0.86
@@ -1086,21 +1279,29 @@ public extension SynthPreset {
         p.filterResonance = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.042
         p.filterAttack = 0.44
         p.filterDecay = 0.55
         p.filterSustain = 0.52
         p.filterRelease = 1.05
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 120
         p.masterVolume = 0.33
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.48
-        p.chorusMix = 0.10
+        p.reverbShimmer = 0.20
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.12
         p.stereoEnabled = true
         p.stereoWidth = 1.26
         p.stereoHaasMs = 4.0
         p.lfoEnabled = true
         p.lfoRate = 0.12
+        p.lfoStereoPhase = 145
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.20), A.mod(.lfo1, .wtMorph2, 0.20)]
+        p.mseg = A.loopingMSEG(rate: 0.14, [(0.0, -0.35, 0.0), (0.38, 0.60, 0.2), (0.76, -0.10, -0.2), (1.0, -0.35, 0.0)])
+        p.mseg2 = A.loopingMSEG(rate: 0.10, [(0.0, 0.25, 0.0), (0.42, -0.45, -0.2), (0.78, 0.40, 0.2), (1.0, 0.25, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .wtMorph1, 0.36), A.mod(.mseg2, .wtMorph2, 0.34), A.mod(.lfo1, .pan, 0.24)]
         p.osc1Detune = 4.50
     },
         A.make("Deep Oceanwhale", .pad) { p in
@@ -1114,6 +1315,7 @@ public extension SynthPreset {
         p.osc2Detune = 4
         p.subOscVolume = 0.12
         p.noiseColor = .brown
+        p.ampDelay = 0.024
         p.attack = 0.58
         p.decay = 0.52
         p.sustain = 0.88
@@ -1122,18 +1324,28 @@ public extension SynthPreset {
         p.filterResonance = 0.16
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.045
         p.filterAttack = 0.45
         p.filterDecay = 0.55
         p.filterSustain = 0.50
         p.filterRelease = 1.10
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 95
         p.reverbMix = 0.18
         p.reverbRoomSize = 0.50
+        p.reverbShimmer = 0.14
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.10
         p.masterVolume = 0.32
         p.stereoEnabled = true
         p.stereoWidth = 1.24
         p.stereoHaasMs = 4.5
-        p.mseg2 = A.shape(rate: 0.08, 0.1, -0.45, 0.2)
-        p.modMatrix = [A.mod(.mseg2, .pitch1, 0.04), A.mod(.mseg2, .cutoff, 0.20)]
+        p.lfoEnabled = true
+        p.lfoRate = 0.10
+        p.lfoStereoPhase = 135
+        p.lfoTarget = .none
+        p.mseg2 = A.loopingMSEG(rate: 0.09, [(0.0, 0.10, 0.0), (0.38, -0.45, -0.2), (0.75, 0.35, 0.2), (1.0, 0.10, 0.0)])
+        p.modMatrix = [A.mod(.mseg2, .cutoff, 0.34), A.mod(.mseg2, .finePitch, 0.18), A.mod(.lfo1, .pan, 0.22)]
         p.osc1Detune = 4.65
     },
         A.make("VHS Tape Nostalgia", .pad) { p in
@@ -1145,6 +1357,7 @@ public extension SynthPreset {
         p.osc2Waveform = .triangle
         p.osc2Volume = 0.20
         p.osc2Detune = 5
+        p.ampDelay = 0.020
         p.attack = 0.50
         p.decay = 0.45
         p.sustain = 0.82
@@ -1155,22 +1368,28 @@ public extension SynthPreset {
         p.filterDrive = 0.10
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.038
         p.filterAttack = 0.38
         p.filterDecay = 0.48
         p.filterSustain = 0.50
         p.filterRelease = 0.95
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 105
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.46
+        p.chorusMode = .ensemble
         p.chorusMix = 0.12
         p.masterVolume = 0.34
-        p.analogDrift = 0.28
+        p.analogDrift = 0.18
         p.character = .warm
         p.noiseColor = .pink
         p.lfoEnabled = true
         p.lfoRate = 0.18
-        p.lfoDepth = 0.06
+        p.lfoDepth = 0.10
+        p.lfoStereoPhase = 130
         p.lfoTarget = .pitch
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.18), A.mod(.lfo1, .pan, 0.18)]
+        p.mseg = A.loopingMSEG(rate: 0.13, [(0.0, -0.30, 0.0), (0.4, 0.50, 0.2), (0.78, -0.15, -0.2), (1.0, -0.30, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .wtMorph1, 0.34), A.mod(.lfo1, .wtMorph1, 0.22), A.mod(.lfo1, .pan, 0.24)]
         p.osc1Detune = 4.80
     },
         A.make("Floating Cathedral", .pad) { p in
@@ -1183,17 +1402,23 @@ public extension SynthPreset {
         p.osc2Volume = 0.22
         p.osc2Octave = 1
         p.osc2Detune = 4
+        p.ampDelay = 0.024
         p.attack = 0.58
         p.decay = 0.52
         p.sustain = 0.86
         p.release = 1.35
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 120
         p.reverbMix = 0.18
         p.reverbRoomSize = 0.50
-        p.chorusMix = 0.10
+        p.reverbShimmer = 0.20
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.12
         p.filterCutoff = 1700
         p.filterResonance = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.042
         p.filterAttack = 0.45
         p.filterDecay = 0.55
         p.filterSustain = 0.52
@@ -1204,8 +1429,10 @@ public extension SynthPreset {
         p.stereoHaasMs = 4.2
         p.lfoEnabled = true
         p.lfoRate = 0.14
+        p.lfoStereoPhase = 160
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.20), A.mod(.lfo1, .pan, 0.18)]
+        p.mseg = A.loopingMSEG(rate: 0.12, [(0.0, -0.30, 0.0), (0.36, 0.58, 0.2), (0.74, 0.05, -0.2), (1.0, -0.30, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .wtMorph1, 0.36), A.mod(.lfo1, .pan, 0.24)]
         p.osc1Detune = 4.95
     },
         A.make("PWM String Ensemble", .strings) { p in
@@ -1220,6 +1447,7 @@ public extension SynthPreset {
         p.unisonVoices = 2
         p.unisonDetune = 5
         p.unisonSpread = 0.20
+        p.ampDelay = 0.020
         p.attack = 0.28
         p.decay = 0.35
         p.sustain = 0.86
@@ -1228,18 +1456,25 @@ public extension SynthPreset {
         p.filterResonance = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.040
         p.filterAttack = 0.22
         p.filterDecay = 0.35
         p.filterSustain = 0.55
         p.filterRelease = 0.60
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 115
         p.reverbMix = 0.14
         p.reverbRoomSize = 0.46
+        p.reverbShimmer = 0.16
         p.masterVolume = 0.34
-        p.chorusMix = 0.10
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.12
         p.lfoEnabled = true
         p.lfoRate = 0.22
+        p.lfoStereoPhase = 140
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.20), A.mod(.lfo1, .cutoff, 0.16)]
+        p.mseg = A.loopingMSEG(rate: 0.18, [(0.0, -0.30, 0.0), (0.38, 0.50, 0.2), (0.76, -0.10, -0.2), (1.0, -0.30, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .wtMorph1, 0.36), A.mod(.lfo1, .cutoff, 0.24), A.mod(.lfo1, .pan, 0.22)]
         p.osc1Detune = 5.10
     },
         A.make("Dark Dystopia Drone", .pad) { p in
@@ -1253,6 +1488,7 @@ public extension SynthPreset {
         p.osc2PulseWidth = 0.42
         p.osc2Detune = 5
         p.subOscVolume = 0.12
+        p.ampDelay = 0.024
         p.attack = 0.55
         p.decay = 0.50
         p.sustain = 0.88
@@ -1263,19 +1499,28 @@ public extension SynthPreset {
         p.filterDrive = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.042
         p.filterAttack = 0.42
         p.filterDecay = 0.52
         p.filterSustain = 0.48
         p.filterRelease = 1.05
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 95
         p.reverbMix = 0.18
         p.reverbRoomSize = 0.50
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.10
         p.masterVolume = 0.32
         p.stereoEnabled = true
         p.stereoWidth = 1.26
         p.stereoHaasMs = 4.5
         p.character = .warm
-        p.mseg = A.shape(rate: 0.10, -0.5, 0.4, -0.2)
-        p.modMatrix = [A.mod(.mseg, .cutoff, 0.22), A.mod(.mseg, .pwm2, 0.22)]
+        p.lfoEnabled = true
+        p.lfoRate = 0.10
+        p.lfoStereoPhase = 135
+        p.lfoTarget = .none
+        p.mseg = A.loopingMSEG(rate: 0.11, [(0.0, -0.45, 0.0), (0.36, 0.45, 0.2), (0.74, -0.20, -0.2), (1.0, -0.45, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .cutoff, 0.34), A.mod(.mseg, .pwm2, 0.32), A.mod(.lfo1, .pan, 0.22)]
         p.osc1Detune = 5.25
     },
         A.make("Starlight Pluck Pad", .pad) { p in
@@ -1288,6 +1533,7 @@ public extension SynthPreset {
         p.osc2Volume = 0.20
         p.osc2Octave = 1
         p.osc2Detune = 4
+        p.ampDelay = 0.018
         p.attack = 0.50
         p.decay = 0.45
         p.sustain = 0.76
@@ -1296,12 +1542,18 @@ public extension SynthPreset {
         p.filterResonance = 0.12
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.18
+        p.filterEnvDelay = 0.036
         p.filterAttack = 0.35
         p.filterDecay = 0.48
         p.filterSustain = 0.48
         p.filterRelease = 0.95
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 120
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.48
+        p.reverbShimmer = 0.18
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.10
         p.delayMix = 0.08
         p.delayTime = 0.28
         p.delayFeedback = 0.16
@@ -1309,8 +1561,10 @@ public extension SynthPreset {
         p.masterVolume = 0.35
         p.lfoEnabled = true
         p.lfoRate = 0.18
+        p.lfoStereoPhase = 150
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .wtMorph1, 0.20), A.mod(.lfo1, .pan, 0.18)]
+        p.mseg = A.loopingMSEG(rate: 0.15, [(0.0, -0.30, 0.0), (0.38, 0.52, 0.2), (0.76, -0.10, -0.2), (1.0, -0.30, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .wtMorph1, 0.34), A.mod(.lfo1, .pan, 0.24)]
         p.osc1Detune = 5.40
     },
         A.make("Celestial Harmonics", .pad) { p in
@@ -1321,7 +1575,10 @@ public extension SynthPreset {
         p.osc2Volume = 0.22
         p.osc2Octave = 1
         p.osc2Detune = 3
-        p.fmAmount = 0.06
+        p.fmRatioEnabled = true
+        p.fmCoarse = 3
+        p.fmAmount = 0.14
+        p.ampDelay = 0.020
         p.attack = 0.52
         p.decay = 0.48
         p.sustain = 0.84
@@ -1330,13 +1587,18 @@ public extension SynthPreset {
         p.filterResonance = 0.10
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.038
         p.filterAttack = 0.40
         p.filterDecay = 0.50
         p.filterSustain = 0.52
         p.filterRelease = 1.00
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 115
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.48
-        p.chorusMix = 0.10
+        p.reverbShimmer = 0.18
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.12
         p.masterVolume = 0.34
         p.stereoEnabled = true
         p.stereoWidth = 1.24
@@ -1344,8 +1606,10 @@ public extension SynthPreset {
         p.macro1 = 0.30
         p.lfoEnabled = true
         p.lfoRate = 0.14
+        p.lfoStereoPhase = 140
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.macro1, .cutoff, 0.22), A.mod(.lfo1, .pan, 0.18)]
+        p.mseg = A.loopingMSEG(rate: 0.13, [(0.0, -0.30, 0.0), (0.4, 0.55, 0.2), (0.78, -0.10, -0.2), (1.0, -0.30, 0.0)])
+        p.modMatrix = [A.mod(.macro1, .cutoff, 0.28), A.mod(.mseg, .cutoff, 0.34), A.mod(.lfo1, .pan, 0.22)]
         p.osc1Detune = 5.55
     },
         A.make("Analog Warmth Bed", .pad) { p in
@@ -1356,6 +1620,7 @@ public extension SynthPreset {
         p.osc2Volume = 0.24
         p.osc2Detune = 7
         p.subOscVolume = 0.10
+        p.ampDelay = 0.022
         p.attack = 0.54
         p.decay = 0.48
         p.sustain = 0.86
@@ -1366,23 +1631,29 @@ public extension SynthPreset {
         p.filterDrive = 0.10
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.16
+        p.filterEnvDelay = 0.038
         p.filterAttack = 0.42
         p.filterDecay = 0.52
         p.filterSustain = 0.50
         p.filterRelease = 1.00
+        p.sceneHPFEnabled = true
+        p.sceneHPFFrequency = 100
         p.reverbMix = 0.16
         p.reverbRoomSize = 0.48
-        p.chorusMix = 0.12
+        p.chorusMode = .ensemble
+        p.chorusMix = 0.14
         p.masterVolume = 0.33
         p.character = .warm
         p.stereoEnabled = true
         p.stereoWidth = 1.24
         p.stereoHaasMs = 4.0
-        p.analogDrift = 0.25
+        p.analogDrift = 0.18
         p.lfoEnabled = true
         p.lfoRate = 0.12
+        p.lfoStereoPhase = 130
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .cutoff, 0.18), A.mod(.lfo1, .pan, 0.18)]
+        p.mseg = A.loopingMSEG(rate: 0.12, [(0.0, -0.30, 0.0), (0.38, 0.52, 0.2), (0.76, -0.15, -0.2), (1.0, -0.30, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .cutoff, 0.32), A.mod(.lfo1, .cutoff, 0.22), A.mod(.lfo1, .pan, 0.22)]
         p.osc1Detune = 5.70
     },
         A.make("Time Warp Riser", .fx) { p in
@@ -1393,11 +1664,13 @@ public extension SynthPreset {
         p.osc2Enabled = true
         p.osc2Waveform = .sawtooth
         p.osc2Volume = 0.18
+        p.osc2FixedFrequency = true
+        p.osc2FrequencyHz = 220
         p.osc2Detune = 6
         p.attack = 0.24
         p.decay = 0.45
         p.sustain = 0.72
-        p.release = 0.65
+        p.release = 0.55
         p.filterCutoff = 2000
         p.filterResonance = 0.18
         p.filterEnvUseDedicatedADSR = true
@@ -1405,17 +1678,22 @@ public extension SynthPreset {
         p.filterAttack = 0.25
         p.filterDecay = 0.45
         p.filterSustain = 0.55
-        p.filterRelease = 0.55
-        p.reverbMix = 0.18
+        p.filterRelease = 0.45
+        p.reverbMix = 0.36
         p.reverbRoomSize = 0.48
+        p.reverbShimmer = 0.22
+        p.dspReverbEnabled = true
         p.delayMix = 0.10
         p.delayTime = 0.28
         p.delayFeedback = 0.18
         p.delayPingPong = true
+        p.frequencyShifterEnabled = true
+        p.frequencyShifterShiftHz = 28
+        p.frequencyShifterMix = 0.24
         p.masterVolume = 0.40
         p.fxOrder = A.orderVerbEarly
-        p.mseg = A.shape(rate: 0.25, -0.8, 0.2, 0.9)
-        p.modMatrix = [A.mod(.mseg, .pitch1, 0.10), A.mod(.mseg, .cutoff, 0.24)]
+        p.mseg = A.loopingMSEG(rate: 0.25, [(0.0, -0.8, 0.0), (0.45, 0.2, 0.2), (0.85, 0.9, 0.0), (1.0, -0.8, 0.0)])
+        p.modMatrix = [A.mod(.mseg, .pitch1, 0.18), A.mod(.mseg, .cutoff, 0.34), A.mod(.smoothRandom, .pan, 0.26)]
         p.osc1Detune = 5.85
     },
         A.make("Future Bass SuperChord", .keys) { p in
@@ -1442,13 +1720,16 @@ public extension SynthPreset {
         p.filterSustain = 0.42
         p.filterRelease = 0.22
         p.velocityToCutoff = 0.26
+        p.chorusMix = 0.16
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
         p.masterVolume = 0.45
+        p.busGlueEnabled = true
         p.lfoEnabled = true
         p.lfoRate = 3.6
+        p.lfoStereoPhase = 120
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .cutoff, 0.22), A.mod(.velocity, .amp, 0.22)]
+        p.modMatrix = [A.mod(.lfo1, .cutoff, 0.28), A.mod(.env2, .unisonDetune, 0.22), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 6.00
     },
         A.make("Pluck in the Rain", .pluck) { p in
@@ -1461,12 +1742,14 @@ public extension SynthPreset {
         p.osc2Volume = 0.18
         p.osc2Octave = 1
         p.osc2Detune = 3
+        p.noiseColor = .pink
         p.attack = 0.002
         p.decay = 0.24
         p.sustain = 0.12
         p.release = 0.24
         p.delayMix = 0.10
-        p.delayTime = 0.22
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighthD
         p.delayFeedback = 0.16
         p.delayPingPong = true
         p.reverbMix = 0.12
@@ -1475,13 +1758,14 @@ public extension SynthPreset {
         p.filterResonance = 0.14
         p.filterEnvUseDedicatedADSR = true
         p.filterEnvelopeAmount = 0.28
+        p.filterEnvHold = 0.005
         p.filterAttack = 0.001
         p.filterDecay = 0.14
         p.filterSustain = 0.08
         p.filterRelease = 0.16
         p.velocityToCutoff = 0.26
         p.masterVolume = 0.45
-        p.modMatrix = [A.mod(.env1, .wtMorph1, 0.20), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.env1, .wtMorph1, 0.28), A.mod(.env2, .noiseLevel, 0.16, curveShape: -0.45), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 6.15
     },
         A.make("Lo-Fi Chill Keys", .keys) { p in
@@ -1493,6 +1777,9 @@ public extension SynthPreset {
         p.osc2Waveform = .triangle
         p.osc2Volume = 0.20
         p.osc2Detune = 4
+        p.fmRatioEnabled = true
+        p.fmCoarse = 2
+        p.fmAmount = 0.16
         p.attack = 0.008
         p.decay = 0.42
         p.sustain = 0.52
@@ -1510,18 +1797,20 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
-        p.chorusMix = 0.10
+        p.chorusMix = 0.16
         p.masterVolume = 0.45
-        p.analogDrift = 0.22
+        p.analogDrift = 0.18
         p.character = .warm
         p.noiseColor = .pink
         p.lfoEnabled = true
         p.lfoRate = 2.4
+        p.lfoStereoPhase = 120
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .pan, 0.18), A.mod(.velocity, .amp, 0.24)]
+        p.modMatrix = [A.mod(.lfo1, .pan, 0.30), A.mod(.velocity, .fm, 0.24), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 6.30
     },
         A.make("Techno Rumble Sequence", .bass) { p in
+        p.envelopeModel = .analog
         p.osc1Waveform = .sawtooth
         p.osc1Volume = 0.50
         p.osc1Octave = -1
@@ -1530,6 +1819,7 @@ public extension SynthPreset {
         p.osc2Volume = 0.20
         p.osc2Octave = -1
         p.osc2PulseWidth = 0.36
+        p.subOscWaveform = .square
         p.subOscVolume = 0.16
         p.attack = 0.003
         p.decay = 0.16
@@ -1549,14 +1839,22 @@ public extension SynthPreset {
         p.reverbMix = 0.06
         p.reverbRoomSize = 0.34
         p.masterVolume = 0.58
+        p.busGlueEnabled = true
         p.voiceMode = .mono
         p.portamento = 0.03
         p.arpMode = .up
         p.arpRate = .sixteenth
-        p.sequencerData = A.proSequence()
+        p.arpGateLength = 0.50
+        p.arpSwing = 0.10
+        p.tranceGateEnabled = true
+        p.tranceGatePattern = 0xAAEE
+        p.tranceGateDepth = 0.55
+        p.tranceGateSmooth = 0.10
+        p.tranceGateDivision = .sixteenth
+        p.sequencerData = A.proSequencePattern(notes: [0, 0, 0, 3, 0, 0, 7, 10], ratchets: [6: 2, 14: 2], ties: [2, 10], probabilities: [12: 0.8])
         p.stereoEnabled = true
         p.stereoMonoBassHz = 120
-        p.modMatrix = [A.mod(.env2, .pwm2, 0.22), A.mod(.velocity, .cutoff, 0.22)]
+        p.modMatrix = [A.mod(.env2, .pwm2, 0.24), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 6.45
     },
         A.make("Hyperpop Lead", .lead) { p in
@@ -1584,12 +1882,19 @@ public extension SynthPreset {
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
         p.delayMix = 0.08
-        p.delayTime = 0.22
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighth
         p.delayFeedback = 0.16
         p.delayPingPong = true
+        p.sendA = 0.14
+        p.sendB = 0.14
         p.masterVolume = 0.52
         p.character = .bright
-        p.modMatrix = [A.mod(.env2, .pitch2, 0.08), A.mod(.velocity, .cutoff, 0.22)]
+        p.lfoEnabled = true
+        p.lfoRate = 5.6
+        p.lfoDepth = 0.10
+        p.lfoTarget = .pitch
+        p.modMatrix = [A.mod(.env2, .pitch2, 0.22, curveShape: -0.35), A.mod(.velocity, .cutoff, 0.24)]
         p.osc1Detune = 6.60
     },
         A.make("Deep House Organ Chord", .keys) { p in
@@ -1617,13 +1922,15 @@ public extension SynthPreset {
         p.filterSustain = 0.28
         p.filterRelease = 0.16
         p.velocityToCutoff = 0.26
+        p.chorusMix = 0.15
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
         p.masterVolume = 0.45
+        p.busGlueEnabled = true
         p.rotaryEnabled = true
-        p.rotaryMix = 0.72
-        p.rotaryDrive = 0.12
-        p.modMatrix = [A.mod(.env1, .cutoff, 0.20), A.mod(.velocity, .amp, 0.22)]
+        p.rotaryMix = 0.80
+        p.rotaryDrive = 0.18
+        p.modMatrix = [A.mod(.env1, .cutoff, 0.22), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 6.75
     },
         A.make("Trance Gate Runner", .arp) { p in
@@ -1657,12 +1964,15 @@ public extension SynthPreset {
         p.masterVolume = 0.45
         p.arpMode = .up
         p.arpRate = .sixteenth
+        p.arpGateLength = 0.48
+        p.arpSwing = 0.10
         p.tranceGateEnabled = true
         p.tranceGatePattern = 0xAAAA
         p.tranceGateDepth = 0.72
         p.tranceGateSmooth = 0.15
         p.tranceGateDivision = .sixteenth
-        p.modMatrix = [A.mod(.env2, .pwm2, 0.20), A.mod(.velocity, .cutoff, 0.20)]
+        p.sequencerData = A.proSequencePattern(notes: [0, 7, 12, 7, 0, 10, 12, 15], ratchets: [7: 2, 15: 3], ties: [3, 11], probabilities: [13: 0.85], octaves: [12: 1])
+        p.modMatrix = [A.mod(.env2, .pwm2, 0.24), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 6.90
     },
         A.make("Crystal Pluck Bell", .pluck) { p in
@@ -1673,7 +1983,10 @@ public extension SynthPreset {
         p.osc2Volume = 0.20
         p.osc2Octave = 1
         p.osc2Detune = 3
-        p.fmAmount = 0.16
+        p.fmRatioEnabled = true
+        p.fmCoarse = 5
+        p.fmFine = 0.02
+        p.fmAmount = 0.20
         p.attack = 0.002
         p.decay = 0.35
         p.sustain = 0.06
@@ -1690,12 +2003,13 @@ public extension SynthPreset {
         p.reverbMix = 0.14
         p.reverbRoomSize = 0.42
         p.delayMix = 0.07
-        p.delayTime = 0.24
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighthD
         p.delayFeedback = 0.14
         p.delayPingPong = true
         p.masterVolume = 0.45
         p.character = .bright
-        p.modMatrix = [A.mod(.env2, .fm, 0.12), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.velocity, .fm, 0.28, curveShape: -0.20), A.mod(.env2, .fm, 0.18), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 7.05
     },
         A.make("Warm Vinyl Rhodes", .keys) { p in
@@ -1706,7 +2020,10 @@ public extension SynthPreset {
         p.osc2Volume = 0.20
         p.osc2Octave = 1
         p.osc2Detune = 4
-        p.fmAmount = 0.06
+        p.fmRatioEnabled = true
+        p.fmCoarse = 2
+        p.fmFine = 0.01
+        p.fmAmount = 0.16
         p.attack = 0.006
         p.decay = 0.42
         p.sustain = 0.48
@@ -1724,14 +2041,15 @@ public extension SynthPreset {
         p.velocityToCutoff = 0.26
         p.reverbMix = 0.12
         p.reverbRoomSize = 0.40
-        p.chorusMix = 0.10
+        p.chorusMix = 0.15
         p.masterVolume = 0.45
         p.analogDrift = 0.18
         p.character = .warm
         p.lfoEnabled = true
         p.lfoRate = 3.2
+        p.lfoStereoPhase = 180
         p.lfoTarget = .none
-        p.modMatrix = [A.mod(.lfo1, .pan, 0.20), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
+        p.modMatrix = [A.mod(.lfo1, .pan, 0.34), A.mod(.velocity, .fm, 0.22), A.mod(.velocity, .amp, 0.24), A.mod(.velocity, .cutoff, 0.20)]
         p.osc1Detune = 7.20
     },
         A.make("Galactic Funk Lead", .lead) { p in
@@ -1742,6 +2060,7 @@ public extension SynthPreset {
         p.osc2Volume = 0.22
         p.osc2PulseWidth = 0.36
         p.osc2Detune = 5
+        p.oscSyncEnabled = true
         p.subOscVolume = 0.12
         p.attack = 0.008
         p.decay = 0.22
@@ -1761,14 +2080,21 @@ public extension SynthPreset {
         p.reverbMix = 0.10
         p.reverbRoomSize = 0.38
         p.delayMix = 0.08
-        p.delayTime = 0.26
+        p.delayTempoSync = true
+        p.delaySyncDivision = .eighthD
         p.delayFeedback = 0.16
         p.delayPingPong = true
+        p.sendA = 0.14
+        p.sendB = 0.14
         p.masterVolume = 0.52
         p.portamento = 0.04
         p.character = .warm
         p.macro2 = 0.35
-        p.modMatrix = [A.mod(.macro2, .cutoff, 0.24), A.mod(.env2, .pwm2, 0.20), A.mod(.velocity, .cutoff, 0.22)]
+        p.lfoEnabled = true
+        p.lfoRate = 5.0
+        p.lfoDepth = 0.10
+        p.lfoTarget = .pitch
+        p.modMatrix = [A.mod(.macro2, .cutoff, 0.26), A.mod(.env2, .pitch2, 0.18, curveShape: -0.35), A.mod(.env2, .pwm2, 0.22), A.mod(.velocity, .cutoff, 0.22)]
         p.osc1Detune = 7.35
     }
     ]

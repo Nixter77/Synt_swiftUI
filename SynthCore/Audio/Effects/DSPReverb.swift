@@ -132,14 +132,16 @@ public final class DSPReverb {
         let feedback = min(0.96, 0.28 + 0.68 * roomClamped)
         let damp1 = min(0.95, max(0, damp))
         let damp2 = 1 - damp1
-        var input = (inputL + inputR) * 0.22
-        if abs(input) < 1e-20 { input = 0 }
+        var inL = inputL * 0.30 + inputR * 0.14
+        var inR = inputR * 0.30 + inputL * 0.14
+        if abs(inL) < 1e-20 { inL = 0 }
+        if abs(inR) < 1e-20 { inR = 0 }
 
         var wetL: Float = 0
         var wetR: Float = 0
         for i in 0..<8 {
-            wetL += comb(memory, offset: combOffL[i], length: combLenL[i], index: &combIdxL[i], filter: &combFltL[i], input: input, feedback: feedback, damp1: damp1, damp2: damp2)
-            wetR += comb(memory, offset: combOffR[i], length: combLenR[i], index: &combIdxR[i], filter: &combFltR[i], input: input, feedback: feedback, damp1: damp1, damp2: damp2)
+            wetL += comb(memory, offset: combOffL[i], length: combLenL[i], index: &combIdxL[i], filter: &combFltL[i], input: inL, feedback: feedback, damp1: damp1, damp2: damp2)
+            wetR += comb(memory, offset: combOffR[i], length: combLenR[i], index: &combIdxR[i], filter: &combFltR[i], input: inR, feedback: feedback, damp1: damp1, damp2: damp2)
         }
         for i in 0..<4 {
             wetL = allpass(memory, offset: apOffL[i], length: apLenL[i], index: &apIdxL[i], input: wetL)
