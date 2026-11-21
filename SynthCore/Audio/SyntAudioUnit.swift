@@ -140,10 +140,50 @@ public final class SyntAudioUnit: AUAudioUnit {
     private static let stateProgramChangeKey = "syntRespondsToProgramChange"
     private static let stateChromeKey = "syntUIChrome"
 
+    private let chromeLock = NSLock()
+    private var _uiZoom: PluginZoom = .p100
+    private var _uiLayout: PluginLayout = .compact
+
     /// Window scale remembered in `fullState`. Missing key stays at 100%.
-    public var uiZoom: PluginZoom = .p100
+    public var uiZoom: PluginZoom {
+        get {
+            chromeLock.lock()
+            defer { chromeLock.unlock() }
+            return _uiZoom
+        }
+        set {
+            chromeLock.lock()
+            _uiZoom = newValue
+            chromeLock.unlock()
+        }
+    }
+
     /// Compact while the host slot is at most 520 pt. Taller slots use the extended columns.
-    public var uiLayout: PluginLayout = .compact
+    public var uiLayout: PluginLayout {
+        get {
+            chromeLock.lock()
+            defer { chromeLock.unlock() }
+            return _uiLayout
+        }
+        set {
+            chromeLock.lock()
+            _uiLayout = newValue
+            chromeLock.unlock()
+        }
+    }
+
+    private func chromeSnapshot() -> PluginChromeState {
+        chromeLock.lock()
+        defer { chromeLock.unlock() }
+        return PluginChromeState(zoom: _uiZoom, layout: _uiLayout)
+    }
+
+    private func setChrome(zoom: PluginZoom, layout: PluginLayout) {
+        chromeLock.lock()
+        _uiZoom = zoom
+        _uiLayout = layout
+        chromeLock.unlock()
+    }
 
     public static let chromeDidChangeNotification = Notification.Name("SyntAudioUnitChromeDidChange")
 
@@ -177,13 +217,15 @@ public final class SyntAudioUnit: AUAudioUnit {
 
     static func tailTime(for preset: SynthPreset) -> TimeInterval {
         var tail: Double = Double(preset.release)
-        if preset.delayMix > 0.001 {
+        if preset.delayMix > 0.001 || preset.sendB > 0.001 {
             let feedback = Double(min(0.95, max(0.0, preset.delayFeedback)))
             let delaySeconds = Double(max(0.05, preset.delayTime))
             let delayTail = delaySeconds / max(0.05, 1.0 - feedback)
             tail = max(tail, min(10.0, delayTail))
         }
-        if preset.reverbMix > 0.001 {
+        // In SyntAudioUnit, `rendersAllReverbInDSP` is always true so insert `reverbMix > 0.001`
+        // (whether `dspReverbEnabled` is toggled or not) and `sendA > 0.001` both render DSP reverb tails.
+        if preset.reverbMix > 0.001 || preset.sendA > 0.001 {
             let room = Double(preset.reverbRoomSize)
             let reverbTail = 2.0 + room * 6.0
             tail = max(tail, min(12.0, reverbTail))
@@ -219,8 +261,6 @@ public final class SyntAudioUnit: AUAudioUnit {
         let rate = outputBus.format.sampleRate
         let safeRate = rate > 0 ? rate : 44_100
         engine.prepare(sampleRate: safeRate, maxFrames: frames)
-        engine.dspReverb.allocate(sampleRate: safeRate)
-        engine.sendReverb.allocate(sampleRate: safeRate)
         engine.resetRenderStateForAllocation()
         // The store is the source of truth: host values set before Initialize
         // (over XPC, off main) must survive it. Rewriting the store from the
@@ -344,7 +384,7 @@ public final class SyntAudioUnit: AUAudioUnit {
             state[PerformanceSettings.touchStateKey] = keyboardTouch.rawValue
             state[PerformanceSettings.expressionStateKey] = globalExpressionCC
             state[PerformanceSettings.midi2StateKey] = midi2ProtocolEnabled
-            if let chrome = try? JSONEncoder().encode(PluginChromeState(zoom: uiZoom, layout: uiLayout)) {
+            if let chrome = try? JSONEncoder().encode(chromeSnapshot()) {
                 state[Self.stateChromeKey] = chrome
             }
             return state
@@ -404,12 +444,13 @@ public final class SyntAudioUnit: AUAudioUnit {
     private func applyChrome(_ state: [String: Any]) {
         guard let data = state[Self.stateChromeKey] as? Data,
               let chrome = try? JSONDecoder().decode(PluginChromeState.self, from: data) else {
-            uiZoom = .p100
-            uiLayout = .compact
+            setChrome(zoom: .p100, layout: .compact)
             return
         }
-        uiZoom = PluginZoom.nearest(chrome.zoom)
-        uiLayout = PluginLayout(rawValue: chrome.layout) ?? .compact
+        setChrome(
+            zoom: PluginZoom.nearest(chrome.zoom),
+            layout: PluginLayout(rawValue: chrome.layout) ?? .compact
+        )
     }
 
     /// The engine preset with every addressed value taken from the store.

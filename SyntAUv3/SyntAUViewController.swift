@@ -16,6 +16,8 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
     private var surface: AUParameterSurface?
     private var hostingView: NSView?
     private weak var hostedSurface: AUParameterSurface?
+    private nonisolated let pendingUnitLock = NSLock()
+    private nonisolated(unsafe) var pendingAudioUnit: SyntAudioUnit?
 
     /// Main thread only (NSViewController asserts off main). Use `requestPreferredSize()` elsewhere.
     private func applyPreferredSize() {
@@ -27,7 +29,11 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
     }
 
     private func requestPreferredSize() {
-        PluginMainThread.perform { [weak self] in self?.applyPreferredSize() }
+        PluginMainThread.perform { [weak self] in
+            MainActor.assumeIsolated {
+                self?.applyPreferredSize()
+            }
+        }
     }
 
     public override init(nibName nibNameOrNil: NSNib.Name?, bundle nibBundleOrNil: Bundle?) {
@@ -40,31 +46,46 @@ public final class SyntAUViewController: AUViewController, AUAudioUnitFactory {
         requestPreferredSize()
     }
 
-    public func createAudioUnit(with componentDescription: AudioComponentDescription) throws -> AUAudioUnit {
+    public nonisolated func createAudioUnit(with componentDescription: AudioComponentDescription) throws -> AUAudioUnit {
         let unit = try SyntAudioUnit(componentDescription: componentDescription, options: [])
-        let surface = AUParameterSurface(audioUnit: unit)
-        surface.onChromeChange = { [weak self] in self?.requestPreferredSize() }
-        self.surface = surface
+        pendingUnitLock.lock()
+        pendingAudioUnit = unit
+        pendingUnitLock.unlock()
         // The host calls this from the extension XPC queue. Every AppKit/SwiftUI
-        // touch (size, hosting view) must happen on main.
+        // touch (AUParameterSurface, size, hosting view) must happen on main.
         PluginMainThread.perform { [weak self] in
-            self?.applyPreferredSize()
-            self?.installHostingView(for: surface)
+            MainActor.assumeIsolated {
+                self?.attachPendingAudioUnitOnMain()
+            }
         }
         return unit
     }
 
+    /// Main thread only. Consumes any pending audio unit, builds the `@MainActor`
+    /// parameter surface once, sets preferredContentSize, and attaches the hosting
+    /// view once `isViewLoaded` is true. Shared by `createAudioUnit` and `viewDidLoad`.
+    @MainActor
+    private func attachPendingAudioUnitOnMain() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        pendingUnitLock.lock()
+        let unit = pendingAudioUnit
+        pendingAudioUnit = nil
+        pendingUnitLock.unlock()
+
+        if let unit {
+            let newSurface = AUParameterSurface(audioUnit: unit)
+            newSurface.onChromeChange = { [weak self] in self?.requestPreferredSize() }
+            self.surface = newSurface
+        }
+        applyPreferredSize()
+        if let surface {
+            installHostingView(for: surface)
+        }
+    }
+
     public override func viewDidLoad() {
         super.viewDidLoad()
-        applyPreferredSize()
-        guard let surface else { return }
-        if Thread.isMainThread {
-            installHostingView(for: surface)
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.installHostingView(for: surface)
-            }
-        }
+        attachPendingAudioUnitOnMain()
     }
 
     public override func viewWillAppear() {
@@ -147,9 +168,6 @@ final class AUParameterSurface: ObservableObject {
         mpeSummaryCancellable = audioUnit.controllerMPEOverrideSummaryPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.mpeOverrideSummary = $0 }
-        PatchHistoryManager.shared.registerPresetProvider { [weak self] in
-            self?.preset ?? .defaultPreset
-        }
         // Host loaded a whole state: re-read everything, not just addressed knobs.
         stateObserver = NotificationCenter.default.addObserver(
             forName: SyntAudioUnit.stateDidChangeNotification,
@@ -310,6 +328,12 @@ private struct PluginScreen: View {
                     .help("Settings")
                 }
                 .padding(6)
+            }
+        }
+        .onAppear {
+            let activeSurface = surface
+            PatchHistoryManager.shared.registerPresetProvider { [weak activeSurface] in
+                activeSurface?.preset ?? .defaultPreset
             }
         }
     }
