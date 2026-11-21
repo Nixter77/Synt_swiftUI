@@ -174,4 +174,98 @@ struct SwarmUIPolishTests {
         #expect(didThrow)
         #expect(try Data(contentsOf: dest) == Data("new-audio-2".utf8))
     }
+
+    // MARK: - Wave 2 Wiring: Live Stereo Scope & Swung MIDI Export
+
+    @Test func oscilloscopeResolvePhaseScopeInputFallsBackToMonoAndPrefersStereoWhenPresent() {
+        let metering = AtomicMeteringState(bufferSize: 128)
+        let monoData: [Float] = (0..<128).map { sin(Float($0) * 0.2) * 0.5 }
+        metering.writeScopeBuffer(monoData)
+
+        // Before any stereo write, falls back to delayed mono buffer.
+        #expect(!metering.hasStereoScopeData)
+        let fallback = OscilloscopeView.resolvePhaseScopeInput(metering: metering)
+        #expect(fallback.left == monoData)
+        #expect(fallback.right.count == 128)
+        #expect(fallback.right[0] == monoData[64])
+
+        // Once stereo data is written, reads true L/R and atomic phase correlation directly.
+        let leftWave: [Float] = (0..<128).map { sin(Float($0) * 0.15) * 0.6 }
+        let rightWave: [Float] = leftWave.map { -$0 } // anti-phase -> correlation -1.0
+        metering.writeStereoScopeBuffer(left: leftWave, right: rightWave)
+
+        #expect(metering.hasStereoScopeData)
+        let live = OscilloscopeView.resolvePhaseScopeInput(metering: metering)
+        #expect(live.left == leftWave)
+        #expect(live.right == rightWave)
+        #expect(abs(live.correlation + 1.0) < 1e-4)
+    }
+
+    @Test func stepSequencerExportMIDIIncludesSwingOffsetOnOddSteps() {
+        let sequencer = StepSequencer()
+        sequencer.rootNote = 60
+        sequencer.pattern.length = 2
+        sequencer.pattern.steps[0] = SequencerStep(isActive: true, noteOffset: 0, velocity: 0.8)
+        sequencer.pattern.steps[1] = SequencerStep(isActive: true, noteOffset: 7, velocity: 0.8)
+
+        sequencer.swing = 0.0
+        let straightData = StepSequencerView.buildExportMIDI(sequencer: sequencer, bpm: 120)
+
+        sequencer.swing = 0.5
+        let swungData = StepSequencerView.buildExportMIDI(sequencer: sequencer, bpm: 120)
+
+        #expect(straightData != swungData)
+        #expect(Self.noteOnTicks(inSMF: straightData) == [0, 120])
+        #expect(Self.noteOnTicks(inSMF: swungData) == [0, 150])
+    }
+
+    private static func noteOnTicks(inSMF data: Data) -> [UInt32] {
+        let bytes = [UInt8](data)
+        guard bytes.count > 22,
+              String(bytes: bytes[0..<4], encoding: .ascii) == "MThd",
+              String(bytes: bytes[14..<18], encoding: .ascii) == "MTrk" else {
+            return []
+        }
+
+        var idx = 22
+        var tick: UInt32 = 0
+        var noteOns: [UInt32] = []
+
+        func readVLQ() -> UInt32 {
+            var val: UInt32 = 0
+            while idx < bytes.count {
+                let b = bytes[idx]
+                idx += 1
+                val = (val << 7) | UInt32(b & 0x7F)
+                if (b & 0x80) == 0 { break }
+            }
+            return val
+        }
+
+        while idx < bytes.count {
+            tick += readVLQ()
+            guard idx < bytes.count else { break }
+            let status = bytes[idx]
+            idx += 1
+            if status == 0xFF {
+                guard idx < bytes.count else { break }
+                _ = bytes[idx] // meta type
+                idx += 1
+                let len = Int(readVLQ())
+                idx += len
+            } else if (status & 0xF0) == 0x90 {
+                guard idx + 1 < bytes.count else { break }
+                let vel = bytes[idx + 1]
+                idx += 2
+                if vel > 0 { noteOns.append(tick) }
+            } else if (status & 0xF0) == 0x80 || (status & 0xF0) == 0xA0 || (status & 0xF0) == 0xB0 || (status & 0xF0) == 0xE0 {
+                idx += 2
+            } else if (status & 0xF0) == 0xC0 || (status & 0xF0) == 0xD0 {
+                idx += 1
+            } else {
+                break
+            }
+        }
+        return noteOns
+    }
 }

@@ -117,13 +117,18 @@ struct StepSequencerView: View {
         return "\(noteNames[midi % 12])\(octave)"
     }
 
-    private func exportMIDI() {
-        let midiData = MIDIFileBuilder.buildSMF(
+    static func buildExportMIDI(sequencer: StepSequencer, bpm: Float) -> Data {
+        MIDIFileBuilder.buildSMF(
             steps: sequencer.pattern.steps,
             rootNote: sequencer.rootNote,
             bpm: bpm,
-            length: sequencer.pattern.length
+            length: sequencer.pattern.length,
+            swing: sequencer.swing
         )
+    }
+
+    private func exportMIDI() {
+        let midiData = Self.buildExportMIDI(sequencer: sequencer, bpm: bpm)
         #if os(macOS)
         let savePanel = NSSavePanel()
         if let midiType = UTType(filenameExtension: "mid") {

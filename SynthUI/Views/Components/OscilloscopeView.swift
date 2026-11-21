@@ -206,6 +206,22 @@ struct OscilloscopeView: View {
         return Float(min(1.0, max(-1.0, sumLR / denom)))
     }
 
+    /// Resolves stereo sample buffers and correlation for the phase scope, preferring live stereo data when available
+    /// and falling back to the delayed mono scope buffer when no stereo scope frame has been published yet.
+    static func resolvePhaseScopeInput(metering: AtomicMeteringState) -> (left: [Float], right: [Float], correlation: Float) {
+        if metering.hasStereoScopeData {
+            let stereo = metering.readStereoScopeBuffer()
+            return (left: stereo.left, right: stereo.right, correlation: metering.getPhaseCorrelation())
+        }
+        let mono = metering.readScopeBuffer()
+        let count = mono.count
+        var rightFallback = [Float](repeating: 0, count: count)
+        for i in 0..<count {
+            rightFallback[i] = mono[(i + 64) % count]
+        }
+        return (left: mono, right: rightFallback, correlation: phaseCorrelation(left: mono, right: rightFallback))
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: theme.rSmall)
@@ -213,19 +229,27 @@ struct OscilloscopeView: View {
 
             TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isRunning)) { _ in
                 Canvas { context, size in
-                    let data = metering.readScopeBuffer()
-                    let count = data.count
                     let strokeColor = lineColor ?? theme.scopeLine
 
                     drawGraticule(context: &context, size: size)
 
                     switch displayMode {
                     case .wave:
-                        drawWaveform(data: data, count: count, strokeColor: strokeColor, context: &context, size: size)
+                        let data = metering.readScopeBuffer()
+                        drawWaveform(data: data, count: data.count, strokeColor: strokeColor, context: &context, size: size)
                     case .fft:
-                        drawSpectrum(data: data, count: count, strokeColor: strokeColor, context: &context, size: size)
+                        let data = metering.readScopeBuffer()
+                        drawSpectrum(data: data, count: data.count, strokeColor: strokeColor, context: &context, size: size)
                     case .phase:
-                        drawPhaseScope(data: data, count: count, strokeColor: strokeColor, context: &context, size: size)
+                        let input = Self.resolvePhaseScopeInput(metering: metering)
+                        drawPhaseScope(
+                            leftSamples: input.left,
+                            rightSamples: input.right,
+                            correlation: input.correlation,
+                            strokeColor: strokeColor,
+                            context: &context,
+                            size: size
+                        )
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: theme.rSmall))
@@ -438,23 +462,18 @@ struct OscilloscopeView: View {
     }
 
     private func drawPhaseScope(
-        data: [Float],
-        count: Int,
+        leftSamples: [Float],
+        rightSamples: [Float],
+        correlation: Float,
         strokeColor: Color,
         context: inout GraphicsContext,
         size: CGSize
     ) {
+        let count = min(leftSamples.count, rightSamples.count)
         guard count > 1 else { return }
         let midX = size.width * 0.5
         let midY = size.height * 0.5
         let split = count / 2
-
-        var leftSamples = [Float](repeating: 0, count: count)
-        var rightSamples = [Float](repeating: 0, count: count)
-        for i in 0..<count {
-            leftSamples[i] = data[i]
-            rightSamples[i] = data[(i + 64) % count]
-        }
 
         var trailPath = Path()
         var freshPath = Path()
@@ -484,7 +503,7 @@ struct OscilloscopeView: View {
         )
 
         drawCorrelationBar(
-            correlation: Self.phaseCorrelation(left: leftSamples, right: rightSamples),
+            correlation: correlation,
             strokeColor: strokeColor,
             context: &context,
             size: size
