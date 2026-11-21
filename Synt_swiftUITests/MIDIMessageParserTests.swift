@@ -77,9 +77,11 @@ struct MIDIMessageParserTests {
         #expect(MIDIDecode.ump(0x20B0_7B00) == .allNotesOff(channel: 0))
         #expect(MIDIDecode.ump(0x20B0_0764) == .channelVolume(Float(100) / 127, channel: 0))
         #expect(MIDIDecode.ump(0x20B1_0B40) == .expression(Float(64) / 127, channel: 1))
-        // Group nibble is ignored; non-MIDI-1.0 types are ignored.
+        // Group nibble is ignored; non-MIDI-1.0 / unhandled UMP types are ignored.
         #expect(MIDIDecode.ump(0x2390_3C7F) == .noteOn(note: 60, velocity: 1, channel: 0))
-        #expect(MIDIDecode.ump(0x10F8_0000) == .ignored)
+        #expect(MIDIDecode.ump(0x10F8_0000) == .clock)
+        #expect(MIDIDecode.ump(0x10F1_0000) == .ignored)
+        #expect(MIDIDecode.ump(0x0000_0000) == .ignored)
         #expect(MIDIDecode.ump(0x4090_3C00) == .ignored)
     }
 

@@ -35,10 +35,10 @@ public struct ArpeggiatorEngine {
     public var octaves: Int = 1
     public var latch: Bool = false
     /// Always stored ascending (low → high), or as-played if mode == .asPlayed.
-    /// Capacity reserved once (128) so refills on the audio thread never allocate.
+    /// Capacity reserved once (384 = 128 * 3) so refills on the audio thread never allocate.
     public var sortedNotes: [Int] = {
         var a: [Int] = []
-        a.reserveCapacity(128)
+        a.reserveCapacity(384)
         return a
     }()
     public var noteIndex: Int = 0
@@ -64,7 +64,7 @@ public struct ArpeggiatorEngine {
                 let offset = o * 12
                 for n in order where keys.contains(n) {
                     let note = n + offset
-                    if note <= 127 {
+                    if note <= 127 && sortedNotes.count < 384 {
                         sortedNotes.append(note)
                     }
                 }
@@ -74,7 +74,7 @@ public struct ArpeggiatorEngine {
                 let offset = o * 12
                 for n in 0..<128 where keys.contains(n) {
                     let note = n + offset
-                    if note <= 127 {
+                    if note <= 127 && sortedNotes.count < 384 {
                         sortedNotes.append(note)
                     }
                 }

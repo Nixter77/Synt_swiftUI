@@ -17,9 +17,10 @@ class KeyboardHandler: ObservableObject {
 
     private var eventMonitor: Any?
     private var resignObserver: Any?
-    /// Hardware keyCode, not character. keyUp often has empty `characters`
-    /// on a Russian layout or in chords, which used to leave notes hanging.
-    private var physicalKeyCodesDown: Set<UInt16> = []
+    /// Hardware keyCode → MIDI note pressed on keyDown. keyUp often has empty `characters`
+    /// on a Russian layout or in chords, and may arrive while `.command` is held or after
+    /// `firstResponder` changes, which used to leave notes hanging.
+    private(set) var physicalKeyToNote: [UInt16: Int] = [:]
 
     /// ANSI key codes → semitone offset from C. Independent of keyboard layout.
     static let keyCodeToNoteOffset: [UInt16: Int] = [
@@ -62,18 +63,7 @@ class KeyboardHandler: ObservableObject {
 
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self = self else { return event }
-            if event.modifierFlags.contains(.command) || Self.ignoresTyping(firstResponder: event.window?.firstResponder) {
-                return event
-            }
-
-            let code = event.keyCode
-            let isOurKey = Self.keyCodeToNoteOffset[code] != nil
-                || code == Self.keyCodeOctaveDown
-                || code == Self.keyCodeOctaveUp
-
-            self.handleKeyEvent(event)
-
-            return isOurKey ? nil : event
+            return self.processKeyEvent(event)
         }
 
         resignObserver = NotificationCenter.default.addObserver(
@@ -96,43 +86,58 @@ class KeyboardHandler: ObservableObject {
             NotificationCenter.default.removeObserver(resignObserver)
             self.resignObserver = nil
         }
-        physicalKeyCodesDown.removeAll()
+        physicalKeyToNote.removeAll()
         #endif
     }
 
     #if os(macOS)
-    private func handleKeyEvent(_ event: NSEvent) {
+    @discardableResult
+    func processKeyEvent(_ event: NSEvent) -> NSEvent? {
         let code = event.keyCode
+        let isOurKey = Self.keyCodeToNoteOffset[code] != nil
+            || code == Self.keyCodeOctaveDown
+            || code == Self.keyCodeOctaveUp
 
-        if event.type == .keyDown {
-            if event.isARepeat || physicalKeyCodesDown.contains(code) {
-                return
-            }
-
-            if code == Self.keyCodeOctaveDown {
-                octaveDown()
-                return
-            }
-            if code == Self.keyCodeOctaveUp {
-                octaveUp()
-                return
-            }
-
-            if let offset = Self.keyCodeToNoteOffset[code] {
-                physicalKeyCodesDown.insert(code)
-                let midiNote = (baseOctave + 1) * 12 + offset
-                pressedKeys.insert(midiNote)
-                audioEngine?.noteOn(midiNote: midiNote)
-            }
-        } else if event.type == .keyUp {
-            physicalKeyCodesDown.remove(code)
-
-            if let offset = Self.keyCodeToNoteOffset[code] {
-                let midiNote = (baseOctave + 1) * 12 + offset
+        if event.type == .keyUp {
+            if let midiNote = physicalKeyToNote.removeValue(forKey: code) {
                 pressedKeys.remove(midiNote)
                 audioEngine?.noteOff(midiNote: midiNote)
+                return nil
             }
+            if event.modifierFlags.contains(.command) || Self.ignoresTyping(firstResponder: event.window?.firstResponder) {
+                return event
+            }
+            return isOurKey ? nil : event
         }
+
+        guard event.type == .keyDown else { return event }
+
+        if event.modifierFlags.contains(.command) || Self.ignoresTyping(firstResponder: event.window?.firstResponder) {
+            return event
+        }
+
+        guard isOurKey else { return event }
+
+        if event.isARepeat || physicalKeyToNote[code] != nil {
+            return nil
+        }
+
+        if code == Self.keyCodeOctaveDown {
+            octaveDown()
+            return nil
+        }
+        if code == Self.keyCodeOctaveUp {
+            octaveUp()
+            return nil
+        }
+
+        if let offset = Self.keyCodeToNoteOffset[code] {
+            let midiNote = (baseOctave + 1) * 12 + offset
+            physicalKeyToNote[code] = midiNote
+            pressedKeys.insert(midiNote)
+            audioEngine?.noteOn(midiNote: midiNote)
+        }
+        return nil
     }
     #endif
 
@@ -155,7 +160,7 @@ class KeyboardHandler: ObservableObject {
             audioEngine?.noteOff(midiNote: midiNote)
         }
         pressedKeys.removeAll()
-        physicalKeyCodesDown.removeAll()
+        physicalKeyToNote.removeAll()
     }
 
     func noteOn(midiNote: Int) {

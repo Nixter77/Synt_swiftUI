@@ -154,7 +154,7 @@ final class MIDIHandler: ObservableObject {
         if Thread.isMainThread {
             setupError = message
         } else {
-            DispatchQueue.main.async { self.setupError = message }
+            DispatchQueue.main.async { [weak self] in self?.setupError = message }
         }
     }
 
@@ -201,7 +201,9 @@ final class MIDIHandler: ObservableObject {
         guard name != selectedDevice else { rescan(); return }
         selectedDevice = name
         // The old device can't send its note-offs / bend-center / pedal-up any more.
-        for ref in connected.keys { MIDIPortDisconnectSource(inputPort, ref) }
+        if inputPort != 0 {
+            for ref in connected.keys { MIDIPortDisconnectSource(inputPort, ref) }
+        }
         connected.removeAll()
         releaseEverything()
         rescan()
@@ -259,7 +261,7 @@ final class MIDIHandler: ObservableObject {
             while i < count {
                 let word = words[i]
                 dispatch(MIDIDecode.ump(word))
-                i += MIDIDecode.umpWordCount(firstWord: word)
+                i += max(1, MIDIDecode.umpWordCount(firstWord: word))
             }
         }
     }
@@ -280,8 +282,9 @@ final class MIDIHandler: ObservableObject {
     func handleUMPWordsForTesting(_ words: [UInt32]) {
         var i = 0
         while i < words.count {
-            dispatch(MIDIDecode.ump(words[i]))
-            i += MIDIDecode.umpWordCount(firstWord: words[i])
+            let word = words[i]
+            dispatch(MIDIDecode.ump(word))
+            i += max(1, MIDIDecode.umpWordCount(firstWord: word))
         }
     }
 

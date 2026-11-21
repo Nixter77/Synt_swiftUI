@@ -93,16 +93,29 @@ public enum MIDIDecode {
         }
     }
 
-    /// One UMP word of message type 0x2 (MIDI 1.0 channel voice, 32 bit).
-    /// Other message types (utility, system, SysEx, MIDI 2.0) → `.ignored`.
+    /// One 32-bit UMP word: message type 0x1 (System Common & Real-Time) or
+    /// 0x2 (MIDI 1.0 channel voice). Other message types (utility, SysEx, MIDI 2.0) → `.ignored`.
     @inline(__always)
     public static func ump(_ word: UInt32) -> MIDIMessage {
-        guard (word >> 28) & 0xF == 0x2 else { return .ignored }
+        let messageType = (word >> 28) & 0xF
         let status = UInt8((word >> 16) & 0xFF)
-        guard status & 0x80 != 0, status < 0xF0 else { return .ignored }
-        return channelMessage(status: status,
-                              d1: UInt8((word >> 8) & 0x7F),
-                              d2: UInt8(word & 0x7F))
+        switch messageType {
+        case 0x1:
+            switch status {
+            case 0xF8: return .clock
+            case 0xFA: return .songStart
+            case 0xFB: return .songContinue
+            case 0xFC: return .songStop
+            default: return .ignored
+            }
+        case 0x2:
+            guard status & 0x80 != 0, status < 0xF0 else { return .ignored }
+            return channelMessage(status: status,
+                                  d1: UInt8((word >> 8) & 0x7F),
+                                  d2: UInt8(word & 0x7F))
+        default:
+            return .ignored
+        }
     }
 
     /// Number of 32-bit words in a UMP packet, from its message type nibble.
