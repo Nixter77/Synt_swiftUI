@@ -52,6 +52,7 @@ struct StepSequencerView: View {
                 ForEach(0..<16, id: \.self) { index in
                     SeqStepButton(step: $sequencer.pattern.steps[index], index: index,
                         isCurrentStep: playhead.step == index && sequencer.isPlaying)
+                        .opacity(index < sequencer.pattern.length ? 1.0 : 0.35)
                 }
             }
             
@@ -59,6 +60,7 @@ struct StepSequencerView: View {
                 ForEach(0..<16, id: \.self) { index in
                     SeqNoteCell(step: $sequencer.pattern.steps[index], rootNote: sequencer.rootNote,
                         isEnabled: sequencer.pattern.steps[index].isActive)
+                        .opacity(index < sequencer.pattern.length ? 1.0 : 0.35)
                 }
             }
             
@@ -66,12 +68,14 @@ struct StepSequencerView: View {
                 ForEach(0..<16, id: \.self) { index in
                     SeqVelocityBar(velocity: $sequencer.pattern.steps[index].velocity,
                         isEnabled: sequencer.pattern.steps[index].isActive)
+                        .opacity(index < sequencer.pattern.length ? 1.0 : 0.35)
                 }
             }.frame(height: 40)
 
             HStack(spacing: 4) {
                 ForEach(0..<16, id: \.self) { index in
                     SeqTieButton(step: $sequencer.pattern.steps[index])
+                        .opacity(index < sequencer.pattern.length ? 1.0 : 0.35)
                 }
             }
             
@@ -254,7 +258,9 @@ struct SeqKnob: View {
     @Environment(\.theme) private var theme
     @Binding var value: Float
     let range: ClosedRange<Float>
-    @State private var lastY: CGFloat = 0
+    @State private var dragStart: Float?
+    @State private var dragAnchorTranslationY: CGFloat = 0
+    @State private var dragFine = false
 
     var body: some View {
         VStack(spacing: 2) {
@@ -263,14 +269,33 @@ struct SeqKnob: View {
                 let fraction = knobArcFraction(value: value, range: range)
                 KnobChrome(fraction: fraction, angle: -135 + Double(fraction) * 270, diameter: size, indicatorWidth: 2)
                     .shadow(color: theme.knobShadow.color, radius: theme.knobShadow.radius, x: 0, y: theme.knobShadow.y)
+                    .contentShape(Circle())
                     .gesture(
-                        DragGesture()
+                        DragGesture(minimumDistance: 0)
                             .onChanged { gesture in
-                                let delta = Float((lastY - gesture.location.y) / 100)
-                                value = max(range.lowerBound, min(range.upperBound, value + delta * (range.upperBound - range.lowerBound)))
-                                lastY = gesture.location.y
+                                let fine = NSEvent.modifierFlags.contains(.shift)
+                                if dragStart == nil {
+                                    dragStart = value
+                                    dragAnchorTranslationY = 0
+                                    dragFine = fine
+                                } else if fine != dragFine {
+                                    dragStart = value
+                                    dragAnchorTranslationY = gesture.translation.height
+                                    dragFine = fine
+                                }
+                                let start = dragStart ?? value
+                                value = knobDragValue(
+                                    start: start,
+                                    translationY: gesture.translation.height - dragAnchorTranslationY,
+                                    range: range,
+                                    fine: fine
+                                )
                             }
-                            .onEnded { _ in lastY = 0 }
+                            .onEnded { _ in
+                                dragStart = nil
+                                dragAnchorTranslationY = 0
+                                dragFine = false
+                            }
                     )
             }
             .frame(width: 40, height: 40)

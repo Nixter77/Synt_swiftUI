@@ -202,15 +202,34 @@ struct ContentView: View {
             formatter.dateFormat = "yyyyMMdd_HHmmss"
             savePanel.nameFieldStringValue = "Synt_Recording_\(formatter.string(from: Date())).wav"
             savePanel.begin { response in
-                if response == .OK, let destination = savePanel.url {
-                    try? FileManager.default.removeItem(at: destination)
-                    try? FileManager.default.copyItem(at: tempURL, to: destination)
+                defer { try? FileManager.default.removeItem(at: tempURL) }
+                guard response == .OK, let destination = savePanel.url else { return }
+                do {
+                    try Self.saveRecordingFile(from: tempURL, to: destination)
+                } catch {
+                    let alert = NSAlert()
+                    alert.alertStyle = .warning
+                    alert.messageText = "Couldn't save recording"
+                    alert.informativeText = error.localizedDescription
+                    alert.runModal()
                 }
             }
             #endif
         } else {
             audioEngine.startRecording()
         }
+    }
+
+    static func saveRecordingFile(from tempURL: URL, to destination: URL) throws {
+        if tempURL.standardizedFileURL == destination.standardizedFileURL {
+            return
+        }
+        let fm = FileManager.default
+        let stagedURL = destination.deletingLastPathComponent()
+            .appendingPathComponent(".\(destination.lastPathComponent).tmp-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: stagedURL) }
+        try fm.copyItem(at: tempURL, to: stagedURL)
+        _ = try fm.replaceItemAt(destination, withItemAt: stagedURL)
     }
 
     /// External clock shows the locked tempo. Internal clock shows the slider.
@@ -368,7 +387,8 @@ struct ContentView: View {
                 LargeKnobView(
                     value: $audioEngine.preset.masterVolume,
                     range: 0...1,
-                    label: "Master"
+                    label: "Master",
+                    defaultValue: SynthPreset.defaultPreset.masterVolume
                 )
 
                 Button {

@@ -19,10 +19,144 @@ extension EnvironmentValues {
 }
 
 /// 150 pt of vertical drag sweeps the full range, linearly from the grab point.
-func knobDragValue(start: Float, translationY: CGFloat, range: ClosedRange<Float>) -> Float {
-    let delta = Float(-translationY) / 150.0
+/// Passing `fine: true` (Shift held) slows travel by 5x for fine adjustments.
+func knobDragValue(start: Float, translationY: CGFloat, range: ClosedRange<Float>, fine: Bool = false) -> Float {
+    let sensitivity: Float = fine ? 750.0 : 150.0
+    let delta = Float(-translationY) / sensitivity
     let span = range.upperBound - range.lowerBound
     return min(max(start + delta * span, range.lowerBound), range.upperBound)
+}
+
+/// Target value when resetting a knob: explicit `defaultValue`, or `0` for bipolar ranges.
+func knobResetValue(defaultValue: Float?, range: ClosedRange<Float>) -> Float? {
+    if let defaultValue {
+        return min(max(defaultValue, range.lowerBound), range.upperBound)
+    }
+    if range.lowerBound < 0 && range.upperBound > 0 {
+        return 0
+    }
+    return nil
+}
+
+private func resolveKnobModDestination(target: MIDIControlTarget?, label: String) -> ModDestination? {
+    if let target {
+        if let d = ModDestination(rawValue: target.rawValue) { return d }
+        if let d = target.modDestination { return d }
+    }
+    switch label.lowercased() {
+    case "cutoff": return .cutoff
+    case "reso", "resonance": return .resonance
+    case "morph", "morph 1": return .wtMorph1
+    case "morph 2": return .wtMorph2
+    case "pw", "pw 1": return .pwm1
+    case "pw 2": return .pwm2
+    case "detune", "detune 1": return .pitch1
+    case "detune 2": return .pitch2
+    case "mix": return .mix
+    case "rate": return .lfoRate
+    case "depth": return .lfoDepth
+    case "vowel": return .vowel
+    case "chorus": return .chorusMix
+    case "delay", "time": return .delayMix
+    case "reverb": return .reverbMix
+    case "fine": return .finePitch
+    case "fm": return .fm
+    case "amp": return .amp
+    case "pan": return .pan
+    default: return nil
+    }
+}
+
+private struct KnobInteractiveModifier: ViewModifier {
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let defaultValue: Float?
+
+    /// Value at drag start. Translation is cumulative, so it adds to this, not to `value`.
+    @State private var dragStart: Float?
+    @State private var dragAnchorTranslationY: CGFloat = 0
+    @State private var dragFine = false
+    @State private var didResetOnOptionClick = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Circle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        if dragStart == nil && !didResetOnOptionClick {
+                            if NSEvent.modifierFlags.contains(.option) {
+                                didResetOnOptionClick = true
+                                resetToDefault()
+                                return
+                            }
+                            dragStart = value
+                            dragAnchorTranslationY = 0
+                            dragFine = NSEvent.modifierFlags.contains(.shift)
+                            PatchHistoryManager.shared.onDragStart()
+                        }
+                        guard !didResetOnOptionClick else { return }
+                        let fine = NSEvent.modifierFlags.contains(.shift)
+                        if fine != dragFine {
+                            dragStart = value
+                            dragAnchorTranslationY = gesture.translation.height
+                            dragFine = fine
+                        }
+                        let start = dragStart ?? value
+                        value = knobDragValue(
+                            start: start,
+                            translationY: gesture.translation.height - dragAnchorTranslationY,
+                            range: range,
+                            fine: fine
+                        )
+                    }
+                    .onEnded { _ in
+                        if didResetOnOptionClick {
+                            didResetOnOptionClick = false
+                            return
+                        }
+                        dragStart = nil
+                        dragAnchorTranslationY = 0
+                        dragFine = false
+                        PatchHistoryManager.shared.onDragEnd()
+                    }
+            )
+            .simultaneousGesture(
+                TapGesture(count: 2)
+                    .onEnded {
+                        resetToDefault()
+                    }
+            )
+    }
+
+    private func resetToDefault() {
+        guard let targetValue = knobResetValue(defaultValue: defaultValue, range: range),
+              value != targetValue else {
+            return
+        }
+        PatchHistoryManager.shared.onDragStart()
+        value = targetValue
+        PatchHistoryManager.shared.onDragEnd()
+    }
+}
+
+private struct KnobContextMenuModifier: ViewModifier {
+    let target: MIDIControlTarget?
+
+    func body(content: Content) -> some View {
+        content.contextMenu {
+            if let tgt = target {
+                Button(MIDICCLearnStore.shared.learningTarget == tgt ? "Waiting for MIDI CC..." : "Learn MIDI CC (\(tgt.rawValue))") {
+                    MIDICCLearnStore.shared.startLearning(for: tgt)
+                }
+                if let mappedCC = MIDICCLearnStore.shared.cc(for: tgt) {
+                    Button("Unmap MIDI CC (\(mappedCC))") {
+                        MIDICCLearnStore.shared.unmap(target: tgt)
+                    }
+                }
+            }
+        }
+    }
 }
 
 struct KnobView: View {
@@ -38,8 +172,9 @@ struct KnobView: View {
     var modulationAmount: Float = 0.0
     var destination: ModDestination? = nil
     var target: MIDIControlTarget? = nil
+    var defaultValue: Float? = nil
 
-    private var resolvedTarget: MIDIControlTarget? {
+    var resolvedTarget: MIDIControlTarget? {
         if let target { return target }
         if let destination { return MIDIControlTarget(destination) }
         switch label.lowercased() {
@@ -86,6 +221,7 @@ struct KnobView: View {
             modulated: modulated,
             modulationAmount: modulationAmount,
             target: resolvedTarget,
+            defaultValue: defaultValue,
             themeID: theme.id
         )
         .equatable()
@@ -103,11 +239,10 @@ private struct KnobBody: View, Equatable {
     var modulated: [ModSource] = []
     var modulationAmount: Float = 0.0
     let target: MIDIControlTarget?
+    let defaultValue: Float?
     let themeID: ThemeID
 
     private let knobSize: CGFloat = 50
-    /// Value at drag start. Translation is cumulative, so it adds to this, not to `value`.
-    @State private var dragStart: Float?
 
     static func == (lhs: KnobBody, rhs: KnobBody) -> Bool {
         lhs.value == rhs.value
@@ -118,6 +253,7 @@ private struct KnobBody: View, Equatable {
             && lhs.modulated == rhs.modulated
             && lhs.modulationAmount == rhs.modulationAmount
             && lhs.target == rhs.target
+            && lhs.defaultValue == rhs.defaultValue
             && lhs.themeID == rhs.themeID
     }
 
@@ -155,21 +291,7 @@ private struct KnobBody: View, Equatable {
                         .help(modulated.map(\.rawValue).joined(separator: ", "))
                 }
             }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { gesture in
-                        let start = dragStart ?? value
-                        if dragStart == nil {
-                            dragStart = start
-                            PatchHistoryManager.shared.onDragStart()
-                        }
-                        value = knobDragValue(start: start, translationY: gesture.translation.height, range: range)
-                    }
-                    .onEnded { _ in
-                        dragStart = nil
-                        PatchHistoryManager.shared.onDragEnd()
-                    }
-            )
+            .modifier(KnobInteractiveModifier(value: $value, range: range, defaultValue: defaultValue))
 
             Text(label)
                 .themeCaption(theme, size: 10)
@@ -186,18 +308,7 @@ private struct KnobBody: View, Equatable {
                 color: theme.textFaint
             )
         }
-        .contextMenu {
-            if let tgt = target {
-                Button(MIDICCLearnStore.shared.learningTarget == tgt ? "Waiting for MIDI CC..." : "Learn MIDI CC (\(tgt.rawValue))") {
-                    MIDICCLearnStore.shared.startLearning(for: tgt)
-                }
-                if let mappedCC = MIDICCLearnStore.shared.cc(for: tgt) {
-                    Button("Unmap MIDI CC (\(mappedCC))") {
-                        MIDICCLearnStore.shared.unmap(target: tgt)
-                    }
-                }
-            }
-        }
+        .modifier(KnobContextMenuModifier(target: target))
     }
 
     private var fraction: CGFloat { knobArcFraction(value: value, range: range) }
@@ -207,29 +318,7 @@ private struct KnobBody: View, Equatable {
     }
 
     private var resolvedDestination: ModDestination? {
-        if let target, let d = ModDestination(rawValue: target.rawValue) { return d }
-        switch label.lowercased() {
-        case "cutoff": return .cutoff
-        case "reso", "resonance": return .resonance
-        case "morph", "morph 1": return .wtMorph1
-        case "morph 2": return .wtMorph2
-        case "pw", "pw 1": return .pwm1
-        case "pw 2": return .pwm2
-        case "detune", "detune 1": return .pitch1
-        case "detune 2": return .pitch2
-        case "mix": return .mix
-        case "rate": return .lfoRate
-        case "depth": return .lfoDepth
-        case "vowel": return .vowel
-        case "chorus": return .chorusMix
-        case "delay", "time": return .delayMix
-        case "reverb": return .reverbMix
-        case "fine": return .finePitch
-        case "fm": return .fm
-        case "amp": return .amp
-        case "pan": return .pan
-        default: return nil
-        }
+        resolveKnobModDestination(target: target, label: label)
     }
 }
 
@@ -241,13 +330,18 @@ struct LargeKnobView: View {
     var format: String = "%.2f"
     var modulated: [ModSource] = []
     var modulationAmount: Float = 0.0
-    var destination: ModDestination? = .cutoff
+    var destination: ModDestination? = nil
     var target: MIDIControlTarget? = nil
+    var defaultValue: Float? = nil
 
-    private var resolvedTarget: MIDIControlTarget? {
+    var resolvedTarget: MIDIControlTarget? {
         if let target { return target }
         if let destination { return MIDIControlTarget(destination) }
-        return .cutoff
+        switch label.lowercased() {
+        case "cutoff": return .cutoff
+        case "master", "master volume", "amp": return .amp
+        default: return nil
+        }
     }
 
     var body: some View {
@@ -259,6 +353,7 @@ struct LargeKnobView: View {
             modulated: modulated,
             modulationAmount: modulationAmount,
             target: resolvedTarget,
+            defaultValue: defaultValue,
             themeID: theme.id
         )
         .equatable()
@@ -275,11 +370,10 @@ private struct LargeKnobBody: View, Equatable {
     var modulated: [ModSource] = []
     var modulationAmount: Float = 0.0
     let target: MIDIControlTarget?
+    let defaultValue: Float?
     let themeID: ThemeID
 
     private let knobSize: CGFloat = 70
-    /// Value at drag start. Translation is cumulative, so it adds to this, not to `value`.
-    @State private var dragStart: Float?
 
     static func == (lhs: LargeKnobBody, rhs: LargeKnobBody) -> Bool {
         lhs.value == rhs.value
@@ -289,6 +383,7 @@ private struct LargeKnobBody: View, Equatable {
             && lhs.modulated == rhs.modulated
             && lhs.modulationAmount == rhs.modulationAmount
             && lhs.target == rhs.target
+            && lhs.defaultValue == rhs.defaultValue
             && lhs.themeID == rhs.themeID
     }
 
@@ -337,21 +432,7 @@ private struct LargeKnobBody: View, Equatable {
                         .help(modulated.map(\.rawValue).joined(separator: ", "))
                 }
             }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { gesture in
-                        let start = dragStart ?? value
-                        if dragStart == nil {
-                            dragStart = start
-                            PatchHistoryManager.shared.onDragStart()
-                        }
-                        value = knobDragValue(start: start, translationY: gesture.translation.height, range: range)
-                    }
-                    .onEnded { _ in
-                        dragStart = nil
-                        PatchHistoryManager.shared.onDragEnd()
-                    }
-            )
+            .modifier(KnobInteractiveModifier(value: $value, range: range, defaultValue: defaultValue))
 
             Text(label)
                 .themeCaption(theme, size: 12, weight: .semibold)
@@ -367,18 +448,7 @@ private struct LargeKnobBody: View, Equatable {
                 color: theme.accent
             )
         }
-        .contextMenu {
-            if let tgt = target {
-                Button(MIDICCLearnStore.shared.learningTarget == tgt ? "Waiting for MIDI CC..." : "Learn MIDI CC (\(tgt.rawValue))") {
-                    MIDICCLearnStore.shared.startLearning(for: tgt)
-                }
-                if let mappedCC = MIDICCLearnStore.shared.cc(for: tgt) {
-                    Button("Unmap MIDI CC (\(mappedCC))") {
-                        MIDICCLearnStore.shared.unmap(target: tgt)
-                    }
-                }
-            }
-        }
+        .modifier(KnobContextMenuModifier(target: target))
     }
 
     private var fraction: CGFloat { knobArcFraction(value: value, range: range) }
@@ -388,29 +458,7 @@ private struct LargeKnobBody: View, Equatable {
     }
 
     private var resolvedDestination: ModDestination? {
-        if let target, let d = ModDestination(rawValue: target.rawValue) { return d }
-        switch label.lowercased() {
-        case "cutoff": return .cutoff
-        case "reso", "resonance": return .resonance
-        case "morph", "morph 1": return .wtMorph1
-        case "morph 2": return .wtMorph2
-        case "pw", "pw 1": return .pwm1
-        case "pw 2": return .pwm2
-        case "detune", "detune 1": return .pitch1
-        case "detune 2": return .pitch2
-        case "mix": return .mix
-        case "rate": return .lfoRate
-        case "depth": return .lfoDepth
-        case "vowel": return .vowel
-        case "chorus": return .chorusMix
-        case "delay", "time": return .delayMix
-        case "reverb": return .reverbMix
-        case "fine": return .finePitch
-        case "fm": return .fm
-        case "amp": return .amp
-        case "pan": return .pan
-        default: return nil
-        }
+        resolveKnobModDestination(target: target, label: label)
     }
 }
 

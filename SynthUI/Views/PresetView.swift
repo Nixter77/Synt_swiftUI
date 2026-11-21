@@ -201,8 +201,11 @@ struct PresetView: View {
             .buttonStyle(.plain).help("Save as new preset")
             
             Button {
+                let old = currentPreset
                 resetComparisonAndMacros()
-                currentPreset = .defaultPreset
+                let next = SynthPreset.defaultPreset
+                currentPreset = next
+                PatchHistoryManager.shared.recordChange(from: old, to: next)
             } label: {
                 Image(systemName: "arrow.counterclockwise")
                     .foregroundColor(theme.textFaint)
@@ -323,7 +326,11 @@ struct PresetView: View {
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            currentPreset = try PresetManager.importPreset(from: url)
+            let imported = try PresetManager.importPreset(from: url)
+            let old = currentPreset
+            resetComparisonAndMacros()
+            currentPreset = imported
+            PatchHistoryManager.shared.recordChange(from: old, to: imported)
         } catch {
             let alert = NSAlert()
             alert.alertStyle = .warning
@@ -445,7 +452,45 @@ struct PresetListView: View {
         }
     }
     
+    private var filteredUserPresets: [SynthPreset] {
+        filterPresets(presetManager.userPresets)
+    }
+
+    private var filteredExpansionPresets: [SynthPreset] {
+        filterPresets(SynthPreset.expansionPresets)
+    }
+
+    private var filteredFactorySections: [(category: PresetCategory, presets: [SynthPreset])] {
+        PresetCategory.allCases.compactMap { category in
+            let filtered = filterPresets(SynthPreset.factoryPresets.filter { $0.category == category })
+            return filtered.isEmpty ? nil : (category, filtered)
+        }
+    }
+
+    private var hasActiveFilter: Bool {
+        !searchText.isEmpty || selectedTag != "All" || showFavoritesOnly
+    }
+
+    private func selectPreset(_ preset: SynthPreset) {
+        let old = currentPreset
+        PatchHistoryManager.shared.clearAB()
+        currentPreset = preset
+        PatchHistoryManager.shared.recordChange(from: old, to: preset)
+        isPresented = false
+    }
+
+    private func clearFilters() {
+        searchText = ""
+        selectedTag = "All"
+        showFavoritesOnly = false
+    }
+
     var body: some View {
+        let filteredUser = filteredUserPresets
+        let filteredExp = filteredExpansionPresets
+        let factorySections = filteredFactorySections
+        let totalMatches = filteredUser.count + filteredExp.count + factorySections.reduce(0) { $0 + $1.presets.count }
+
         VStack(spacing: 0) {
             // Search and Favorites bar
             HStack(spacing: 6) {
@@ -510,64 +555,100 @@ struct PresetListView: View {
                 .padding(.bottom, 6)
             }
 
+            HStack {
+                Text("\(totalMatches) \(totalMatches == 1 ? "preset" : "presets")")
+                    .font(theme.monoFont(size: 10, weight: .regular))
+                    .foregroundColor(theme.textFaint)
+                Spacer()
+                if hasActiveFilter {
+                    Button("Clear") {
+                        clearFilters()
+                    }
+                    .buttonStyle(.plain)
+                    .font(theme.monoFont(size: 10, weight: .medium))
+                    .foregroundColor(theme.accent)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 5)
+
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    let filteredUser = filterPresets(presetManager.userPresets)
-                    if !filteredUser.isEmpty {
-                        SectionHeader(title: "💾 My Presets")
-                        ForEach(filteredUser) { preset in
-                            PresetRow(
-                                preset: preset,
-                                isSelected: preset.id == currentPreset.id,
-                                isUserPreset: true,
-                                isFavorite: favoritesStore.isFavorite(name: preset.name),
-                                onToggleFavorite: { favoritesStore.toggleFavorite(name: preset.name) },
-                                onSelect: { currentPreset = preset; isPresented = false },
-                                onDelete: { presetToDelete = preset; showDeleteConfirmation = true }
-                            )
+            if totalMatches == 0 {
+                VStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 20))
+                        .foregroundColor(theme.textFaint)
+                    Text("No presets match your filter")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textDim)
+                    if hasActiveFilter {
+                        Button("Reset Filters") {
+                            clearFilters()
                         }
-                        Divider().padding(.vertical, 8)
+                        .buttonStyle(.plain)
+                        .font(theme.monoFont(size: 10, weight: .semibold))
+                        .foregroundColor(theme.accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(theme.inset)
+                        .cornerRadius(4)
                     }
-
-                    let filteredExp = filterPresets(SynthPreset.expansionPresets)
-                    if !filteredExp.isEmpty {
-                        SectionHeader(title: "✨ Expansion Pack (+50)")
-                        ForEach(filteredExp) { preset in
-                            PresetRow(
-                                preset: preset,
-                                isSelected: preset.name == currentPreset.name,
-                                isUserPreset: false,
-                                isFavorite: favoritesStore.isFavorite(name: preset.name),
-                                onToggleFavorite: { favoritesStore.toggleFavorite(name: preset.name) },
-                                onSelect: { currentPreset = preset; isPresented = false },
-                                onDelete: nil
-                            )
+                }
+                .frame(maxWidth: .infinity, minHeight: 160)
+                .padding()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if !filteredUser.isEmpty {
+                            SectionHeader(title: "💾 My Presets")
+                            ForEach(filteredUser) { preset in
+                                PresetRow(
+                                    preset: preset,
+                                    isSelected: preset.id == currentPreset.id,
+                                    isUserPreset: true,
+                                    isFavorite: favoritesStore.isFavorite(name: preset.name),
+                                    onToggleFavorite: { favoritesStore.toggleFavorite(name: preset.name) },
+                                    onSelect: { selectPreset(preset) },
+                                    onDelete: { presetToDelete = preset; showDeleteConfirmation = true }
+                                )
+                            }
+                            Divider().padding(.vertical, 8)
                         }
-                        Divider().padding(.vertical, 8)
-                    }
 
-                    ForEach(PresetCategory.allCases, id: \.self) { category in
-                        let categoryPresets = SynthPreset.factoryPresets.filter { $0.category == category }
-                        let filteredCat = filterPresets(categoryPresets)
-                        if !filteredCat.isEmpty {
-                            SectionHeader(title: category.rawValue)
-                            ForEach(filteredCat) { preset in
+                        if !filteredExp.isEmpty {
+                            SectionHeader(title: "✨ Expansion Pack (+50)")
+                            ForEach(filteredExp) { preset in
                                 PresetRow(
                                     preset: preset,
                                     isSelected: preset.name == currentPreset.name,
                                     isUserPreset: false,
                                     isFavorite: favoritesStore.isFavorite(name: preset.name),
                                     onToggleFavorite: { favoritesStore.toggleFavorite(name: preset.name) },
-                                    onSelect: { currentPreset = preset; isPresented = false },
+                                    onSelect: { selectPreset(preset) },
+                                    onDelete: nil
+                                )
+                            }
+                            Divider().padding(.vertical, 8)
+                        }
+
+                        ForEach(factorySections, id: \.category) { section in
+                            SectionHeader(title: section.category.rawValue)
+                            ForEach(section.presets) { preset in
+                                PresetRow(
+                                    preset: preset,
+                                    isSelected: preset.name == currentPreset.name,
+                                    isUserPreset: false,
+                                    isFavorite: favoritesStore.isFavorite(name: preset.name),
+                                    onToggleFavorite: { favoritesStore.toggleFavorite(name: preset.name) },
+                                    onSelect: { selectPreset(preset) },
                                     onDelete: nil
                                 )
                             }
                         }
                     }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
             }
         }
         .frame(minWidth: 280, maxWidth: 320, maxHeight: 440)

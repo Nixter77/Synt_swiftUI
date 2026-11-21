@@ -116,10 +116,6 @@ struct OscilloscopeView: View {
     var isRunning: Bool = true
     @State private var displayMode: ScopeDisplayMode = .wave
 
-    private static let hannWindow512: [Float] = (0..<512).map { i in
-        Float(0.5 * (1.0 - cos(2.0 * Double.pi * Double(i) / 511.0)))
-    }
-
     static func risingZeroCrossingIndex(in data: [Float], maxSearch: Int) -> Int {
         let limit = min(maxSearch, data.count - 1)
         guard limit > 0 else { return 0 }
@@ -129,6 +125,85 @@ struct OscilloscopeView: View {
             }
         }
         return 0
+    }
+
+    /// Maps FFT magnitudes (0...1 per bin from `OutputSpectrumCalculator`) onto `bandCount` logarithmic bands (40 Hz..16 kHz).
+    static func spectrumBands(from magnitudes: [Float], bandCount: Int = 32, sampleRate: Float = 44_100.0) -> [Float] {
+        guard !magnitudes.isEmpty, bandCount > 1 else { return [] }
+        let fftSize = magnitudes.count * 2
+        let binHz = sampleRate / Float(fftSize)
+        let maxBin = magnitudes.count - 1
+        let denom = Float(bandCount - 1)
+
+        return (0..<bandCount).map { b in
+            let frac = Float(b) / denom
+            let freq = 40.0 * powf(400.0, frac)
+            let halfStep = 0.5 / denom
+            let fLow = 40.0 * powf(400.0, frac - halfStep)
+            let fHigh = 40.0 * powf(400.0, frac + halfStep)
+
+            let binLow = Int(ceil(fLow / binHz))
+            let binHigh = Int(floor(fHigh / binHz))
+
+            if binHigh >= binLow {
+                let lo = max(1, min(maxBin, binLow))
+                let hi = max(lo, min(maxBin, binHigh))
+                var peak: Float = 0
+                for k in lo...hi {
+                    let v = magnitudes[k]
+                    if v.isFinite && v > peak { peak = v }
+                }
+                return max(0, min(1, peak))
+            } else {
+                let centerBin = freq / binHz
+                let lo = max(1, min(maxBin, Int(floor(centerBin))))
+                let hi = max(1, min(maxBin, Int(ceil(centerBin))))
+                let t = max(0, min(1, centerBin - Float(Int(floor(centerBin)))))
+                let vLo = magnitudes[lo].isFinite ? magnitudes[lo] : 0
+                let vHi = magnitudes[hi].isFinite ? magnitudes[hi] : 0
+                let interp = lo == hi ? vLo : vLo + (vHi - vLo) * t
+                return max(0, min(1, interp))
+            }
+        }
+    }
+
+    /// Normalized 45°-rotated Mid/Side goniometer coordinate in `[-1, 1]`:
+    /// `L == R` maps vertically along the Mid axis (`x = 0, y = L`);
+    /// `L == -R` maps horizontally along the Side axis (`y = 0, x = -L`);
+    /// pure Left maps toward top-left (`-x, +y`) and pure Right toward top-right (`+x, +y`).
+    static func phaseScopeNormalized(left: Float, right: Float) -> CGPoint {
+        let l = left.isFinite ? min(1.0, max(-1.0, Double(left))) : 0.0
+        let r = right.isFinite ? min(1.0, max(-1.0, Double(right))) : 0.0
+        return CGPoint(x: (r - l) * 0.5, y: (l + r) * 0.5)
+    }
+
+    /// Converts a stereo sample pair `(left, right)` into view-space coordinates for the rotated Mid/Side goniometer.
+    static func phaseScopePoint(left: Float, right: Float, size: CGSize) -> CGPoint {
+        let norm = phaseScopeNormalized(left: left, right: right)
+        let midX = size.width * 0.5
+        let midY = size.height * 0.5
+        let scaleX = size.width * 0.44
+        let scaleY = size.height * 0.44
+        return CGPoint(x: midX + norm.x * scaleX, y: midY - norm.y * scaleY)
+    }
+
+    /// Computes Pearson phase correlation in `[-1, 1]` between `left` and `right` (`+1` mono/in-phase, `-1` out-of-phase).
+    static func phaseCorrelation(left: [Float], right: [Float]) -> Float {
+        let n = min(left.count, right.count)
+        guard n > 0 else { return 0 }
+        var sumLR: Double = 0
+        var sumLL: Double = 0
+        var sumRR: Double = 0
+        for i in 0..<n {
+            let l = left[i].isFinite ? Double(left[i]) : 0
+            let r = right[i].isFinite ? Double(right[i]) : 0
+            sumLR += l * r
+            sumLL += l * l
+            sumRR += r * r
+        }
+        let denom = sqrt(sumLL * sumRR)
+        guard denom > 1.0e-12 else { return 0 }
+        return Float(min(1.0, max(-1.0, sumLR / denom)))
     }
 
     var body: some View {
@@ -222,6 +297,12 @@ struct OscilloscopeView: View {
                 with: .color(gridColor.opacity(0.32)),
                 style: StrokeStyle(lineWidth: 0.6, dash: [3, 3])
             )
+
+            let labelColor = theme.textFaint.opacity(0.65)
+            let labelFont = Font.system(size: 8, weight: .semibold, design: .monospaced)
+            context.draw(Text("M").font(labelFont).foregroundColor(labelColor), at: CGPoint(x: midX + 6, y: 8))
+            context.draw(Text("L").font(labelFont).foregroundColor(labelColor), at: CGPoint(x: 8, y: 9))
+            context.draw(Text("R").font(labelFont).foregroundColor(labelColor), at: CGPoint(x: size.width - 8, y: 24))
         }
     }
 
@@ -289,11 +370,24 @@ struct OscilloscopeView: View {
         size: CGSize
     ) {
         guard count > 1 else { return }
-        let n = min(count, 512)
         let bandCount = 32
-        let sampleRate: Float = 44100.0
-        let invNMinus1 = 1.0 / Float(max(1, n - 1))
-        let normScale = 4.0 / Float(n)
+        let fftInput: [Float]
+        if count >= 512 && !data.prefix(512).contains(where: { !$0.isFinite }) {
+            fftInput = data
+        } else {
+            var buf = [Float](repeating: 0, count: 512)
+            let copyCount = min(count, 512)
+            for i in 0..<copyCount {
+                let s = data[i]
+                buf[i] = s.isFinite ? s : 0
+            }
+            fftInput = buf
+        }
+
+        let mags = OutputSpectrumCalculator.shared.computeMagnitudes(from: fftInput)
+        let bands = Self.spectrumBands(from: mags, bandCount: bandCount)
+        guard bands.count == bandCount else { return }
+
         let slotW = size.width / CGFloat(bandCount)
         let barW = max(1.5, slotW * 0.72)
 
@@ -302,39 +396,7 @@ struct OscilloscopeView: View {
         fillPath.move(to: CGPoint(x: 0, y: size.height))
 
         for b in 0..<bandCount {
-            let frac = Float(b) / Float(bandCount - 1)
-            let freq = 40.0 * powf(400.0, frac)
-            let omega = 2.0 * Float.pi * freq / sampleRate
-            let cosW = cosf(omega)
-            let sinW = sinf(omega)
-            let coeff = 2.0 * cosW
-
-            var s1: Float = 0
-            var s2: Float = 0
-            if n == 512 {
-                for i in 0..<512 {
-                    let raw = data[i]
-                    let sample = raw.isFinite ? raw : 0
-                    let s0 = sample * Self.hannWindow512[i] + coeff * s1 - s2
-                    s2 = s1
-                    s1 = s0
-                }
-            } else {
-                for i in 0..<n {
-                    let raw = data[i]
-                    let sample = raw.isFinite ? raw : 0
-                    let win = 0.5 * (1.0 - cosf(2.0 * Float.pi * Float(i) * invNMinus1))
-                    let s0 = sample * win + coeff * s1 - s2
-                    s2 = s1
-                    s1 = s0
-                }
-            }
-            let re = s1 - s2 * cosW
-            let im = s2 * sinW
-            let mag = sqrtf(re * re + im * im) * normScale
-            let db = 20.0 * log10f(max(mag, 1.0e-4))
-            let level = CGFloat(max(0.0, min(1.0, (db + 60.0) / 60.0)))
-
+            let level = CGFloat(bands[b])
             let barH = max(1.0, level * (size.height - 4.0))
             let cx = (CGFloat(b) + 0.5) * slotW
             let topY = size.height - barH
@@ -385,20 +447,21 @@ struct OscilloscopeView: View {
         guard count > 1 else { return }
         let midX = size.width * 0.5
         let midY = size.height * 0.5
-        let scaleX = size.width * 0.44
-        let scaleY = size.height * 0.44
         let split = count / 2
+
+        var leftSamples = [Float](repeating: 0, count: count)
+        var rightSamples = [Float](repeating: 0, count: count)
+        for i in 0..<count {
+            leftSamples[i] = data[i]
+            rightSamples[i] = data[(i + 64) % count]
+        }
 
         var trailPath = Path()
         var freshPath = Path()
         var lastPt = CGPoint(x: midX, y: midY)
 
         for i in 0..<count {
-            let rx = data[i]
-            let ry = data[(i + 64) % count]
-            let sx = rx.isFinite ? min(1.0, max(-1.0, CGFloat(rx))) : 0
-            let sy = ry.isFinite ? min(1.0, max(-1.0, CGFloat(ry))) : 0
-            let pt = CGPoint(x: midX + sx * scaleX, y: midY - sy * scaleY)
+            let pt = Self.phaseScopePoint(left: leftSamples[i], right: rightSamples[i], size: size)
 
             if i < split {
                 if i == 0 { trailPath.move(to: pt) } else { trailPath.addLine(to: pt) }
@@ -419,6 +482,41 @@ struct OscilloscopeView: View {
             with: .color(strokeColor.opacity(0.95)),
             style: StrokeStyle(lineWidth: min(lineWidth, 1.6), lineCap: .round, lineJoin: .round)
         )
+
+        drawCorrelationBar(
+            correlation: Self.phaseCorrelation(left: leftSamples, right: rightSamples),
+            strokeColor: strokeColor,
+            context: &context,
+            size: size
+        )
+    }
+
+    private func drawCorrelationBar(
+        correlation: Float,
+        strokeColor: Color,
+        context: inout GraphicsContext,
+        size: CGSize
+    ) {
+        let barW = min(64.0, max(24.0, size.width * 0.42))
+        let barH: CGFloat = 3.0
+        let barX = (size.width - barW) * 0.5
+        let barY = size.height - 6.0
+        let trackRect = CGRect(x: barX, y: barY, width: barW, height: barH)
+        context.fill(Path(roundedRect: trackRect, cornerRadius: 1.5), with: .color(theme.border.opacity(0.45)))
+
+        let centerX = barX + barW * 0.5
+        let clamped = CGFloat(min(1.0, max(-1.0, correlation)))
+        let fillW = abs(clamped) * (barW * 0.5)
+        if fillW > 0.25 {
+            let fillX = clamped >= 0 ? centerX : centerX - fillW
+            let fillColor = clamped >= 0 ? strokeColor.opacity(0.85) : theme.destructive.opacity(0.9)
+            context.fill(
+                Path(roundedRect: CGRect(x: fillX, y: barY, width: fillW, height: barH), cornerRadius: 1.5),
+                with: .color(fillColor)
+            )
+        }
+        let tickRect = CGRect(x: centerX - 0.5, y: barY - 1, width: 1, height: barH + 2)
+        context.fill(Path(tickRect), with: .color(theme.textFaint.opacity(0.6)))
     }
 }
 
