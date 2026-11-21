@@ -120,10 +120,6 @@ public final class DSPFormantFilter {
     private var statesL: (ResonatorState, ResonatorState, ResonatorState, ResonatorState, ResonatorState)
     private var statesR: (ResonatorState, ResonatorState, ResonatorState, ResonatorState, ResonatorState)
 
-    // Preallocated buffers for block processing
-    private var scratchBufferL: [Float] = []
-    private var scratchBufferR: [Float] = []
-
     public init(sampleRate: Double = 44100.0, maxFrames: Int = 512) {
         let dummy = ResonatorCoeffs()
         self.coeffs = (dummy, dummy, dummy, dummy, dummy)
@@ -134,11 +130,8 @@ public final class DSPFormantFilter {
     }
 
     public func prepare(sampleRate: Double, maxFrames: Int) {
+        _ = maxFrames
         self.sampleRate = max(8000.0, Float(sampleRate))
-        if scratchBufferL.count < maxFrames {
-            scratchBufferL = Array(repeating: 0.0, count: maxFrames)
-            scratchBufferR = Array(repeating: 0.0, count: maxFrames)
-        }
         isDirty = true
         updateCoefficientsIfNeeded()
     }

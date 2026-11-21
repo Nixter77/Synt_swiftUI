@@ -5,66 +5,106 @@
 //  Manages saving and loading user presets using UserDefaults
 //
 
+import Combine
 import Foundation
 import SwiftUI
 
-public class PresetManager: ObservableObject {
+public class PresetManager: ObservableObject, @unchecked Sendable {
     public static let shared = PresetManager()
     public static let appGroupID = "group.com.nixter.synt"
+
+    public let objectWillChange = ObservableObjectPublisher()
 
     public var defaults: UserDefaults {
         UserDefaults(suiteName: Self.appGroupID) ?? .standard
     }
     
     private let userPresetsKey = "userPresets"
-    
-    @Published public var userPresets: [SynthPreset] = []
+    private let lock = NSLock()
+    private var _userPresets: [SynthPreset] = []
+
+    public var userPresets: [SynthPreset] {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _userPresets
+        }
+        set {
+            lock.lock()
+            _userPresets = newValue
+            lock.unlock()
+            notifyChangeOnMain()
+        }
+    }
     
     private init() {
-        loadPresets()
+        _userPresets = loadFromDefaultsLocked()
     }
-    
-    // MARK: - Load Presets
-    
-    public func loadPresets() {
-        guard let data = defaults.data(forKey: userPresetsKey) else {
-            userPresets = []
-            return
+
+    private func notifyChangeOnMain() {
+        PluginMainThread.perform { [weak self] in
+            self?.objectWillChange.send()
         }
-        
+    }
+
+    private func loadFromDefaultsLocked() -> [SynthPreset] {
+        guard let data = defaults.data(forKey: userPresetsKey) else {
+            return []
+        }
         do {
             let decoder = JSONDecoder()
-            userPresets = try decoder.decode([SynthPreset].self, from: data)
+            return try decoder.decode([SynthPreset].self, from: data).map { $0.sanitized() }
         } catch {
             print("Error loading presets: \(error)")
-            userPresets = []
+            return []
         }
     }
-    
-    // MARK: - Save Presets
-    
-    public func savePresets() {
+
+    private func savePresetsLocked() {
         do {
             let encoder = JSONEncoder()
-            let data = try encoder.encode(userPresets)
+            let data = try encoder.encode(_userPresets)
             defaults.set(data, forKey: userPresetsKey)
         } catch {
             print("Error saving presets: \(error)")
         }
     }
     
+    // MARK: - Load Presets
+    
+    public func loadPresets() {
+        lock.lock()
+        _userPresets = loadFromDefaultsLocked()
+        lock.unlock()
+        notifyChangeOnMain()
+    }
+    
+    // MARK: - Save Presets
+    
+    public func savePresets() {
+        lock.lock()
+        savePresetsLocked()
+        lock.unlock()
+    }
+    
     public func saveUserPreset(_ preset: SynthPreset) {
-        if let idx = userPresets.firstIndex(where: { $0.name == preset.name }) {
-            userPresets[idx] = preset
+        lock.lock()
+        if let idx = _userPresets.firstIndex(where: { $0.name == preset.name }) {
+            _userPresets[idx] = preset
         } else {
-            userPresets.append(preset)
+            _userPresets.append(preset)
         }
-        savePresets()
+        savePresetsLocked()
+        lock.unlock()
+        notifyChangeOnMain()
     }
 
     public func deleteUserPreset(name: String) {
-        userPresets.removeAll { $0.name == name }
-        savePresets()
+        lock.lock()
+        _userPresets.removeAll { $0.name == name }
+        savePresetsLocked()
+        lock.unlock()
+        notifyChangeOnMain()
     }
     
     // MARK: - CRUD Operations
@@ -72,37 +112,66 @@ public class PresetManager: ObservableObject {
     public func addPreset(_ preset: SynthPreset) {
         var newPreset = preset
         newPreset.id = UUID() // Ensure unique ID
-        userPresets.append(newPreset)
-        savePresets()
+        lock.lock()
+        _userPresets.append(newPreset)
+        savePresetsLocked()
+        lock.unlock()
+        notifyChangeOnMain()
     }
     
     public func updatePreset(_ preset: SynthPreset) {
-        if let index = userPresets.firstIndex(where: { $0.id == preset.id }) {
-            userPresets[index] = preset
-            savePresets()
+        lock.lock()
+        let updated: Bool
+        if let index = _userPresets.firstIndex(where: { $0.id == preset.id }) {
+            _userPresets[index] = preset
+            savePresetsLocked()
+            updated = true
+        } else {
+            updated = false
+        }
+        lock.unlock()
+        if updated {
+            notifyChangeOnMain()
         }
     }
     
     public func deletePreset(_ preset: SynthPreset) {
-        userPresets.removeAll { $0.id == preset.id }
-        savePresets()
+        lock.lock()
+        _userPresets.removeAll { $0.id == preset.id }
+        savePresetsLocked()
+        lock.unlock()
+        notifyChangeOnMain()
     }
     
     public func deletePreset(at indexSet: IndexSet) {
-        userPresets.remove(atOffsets: indexSet)
-        savePresets()
+        lock.lock()
+        _userPresets.remove(atOffsets: indexSet)
+        savePresetsLocked()
+        lock.unlock()
+        notifyChangeOnMain()
     }
     
     public func renamePreset(_ preset: SynthPreset, newName: String) {
-        if let index = userPresets.firstIndex(where: { $0.id == preset.id }) {
-            userPresets[index].name = newName
-            savePresets()
+        lock.lock()
+        let renamed: Bool
+        if let index = _userPresets.firstIndex(where: { $0.id == preset.id }) {
+            _userPresets[index].name = newName
+            savePresetsLocked()
+            renamed = true
+        } else {
+            renamed = false
+        }
+        lock.unlock()
+        if renamed {
+            notifyChangeOnMain()
         }
     }
     
     /// Check if preset name already exists in user presets
     public func nameExists(_ name: String) -> Bool {
-        return userPresets.contains { $0.name == name }
+        lock.lock()
+        defer { lock.unlock() }
+        return _userPresets.contains { $0.name == name }
     }
     
     // MARK: - File session and .synthpreset
@@ -169,10 +238,12 @@ public class PresetManager: ObservableObject {
 
     /// Generate unique name for preset
     public func generateUniqueName(baseName: String) -> String {
+        lock.lock()
+        defer { lock.unlock() }
         var name = baseName
         var counter = 1
         
-        while nameExists(name) {
+        while _userPresets.contains(where: { $0.name == name }) {
             name = "\(baseName) \(counter)"
             counter += 1
         }

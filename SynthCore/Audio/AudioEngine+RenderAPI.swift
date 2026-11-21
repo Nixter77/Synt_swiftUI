@@ -64,6 +64,19 @@ extension AudioEngine {
         distortion.reset()
         parametricEQL.reset()
         parametricEQR.reset()
+        busGlueCompressor.reset()
+        transientShaper.reset()
+        frequencyShifter.reset()
+        stereoTool.reset()
+        characterToneL.reset()
+        characterToneR.reset()
+        sceneHPF.reset()
+        sendFadeA = 0
+        sendFadeB = 0
+        lastRenderedSampleL = 0
+        lastRenderedSampleR = 0
+        envelopeFollowerRT = 0
+        envelopeFollowerValue = 0
     }
 
     /// UI / main thread. The audio thread applies the value from `commandQueue`.
@@ -190,7 +203,7 @@ extension AudioEngine {
             if cachedLfo2TempoSync {
                 lfo2.rate = cachedLfo2SyncDivision.frequency(bpm: cachedBPM)
             }
-            if cachedDelayTempoSync && cachedDelayPingPong {
+            if cachedDelayTempoSync && (cachedDelayPingPong || rendersAllDelayInDSP) {
                 let dur = cachedDelaySyncDivision.duration(bpm: cachedBPM)
                 pingPongDelay.delayTime = max(0.001, min(2, dur))
             }

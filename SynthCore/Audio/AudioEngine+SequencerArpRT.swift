@@ -112,13 +112,17 @@ public extension AudioEngine {
 
         if step.tie && seqMirror.heldNote >= 0 {
             // Slide / Tie: Retain existing voice, glide target frequency to new pitch
-            let newFreq = AudioMath.midiToFrequency(midi)
+            let newFreq = noteToFrequency(midi)
             for i in 0..<AudioEngine.maxVoices {
-                if voices[i].isActive && voices[i].midiNote == seqMirror.heldNote {
+                if voices[i].isActive && !voices[i].isReleasing && voices[i].midiNote == seqMirror.heldNote {
                     voices[i].midiNote = midi
                     voices[i].targetFrequency = newFreq
+                    if cachedPortamento <= 0.001 {
+                        voices[i].currentFrequency = newFreq
+                    }
                 }
             }
+            lastPlayedFrequency = newFreq
             seqMirror.heldNote = midi
         } else {
             releaseSequencerNote()

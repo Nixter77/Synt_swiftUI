@@ -34,17 +34,34 @@ public final class AtomicMeteringState: @unchecked Sendable {
     private let writeIndex = Atomic<Int>(0)
     private let readIndex = Atomic<Int>(3)
 
+    // Lock-free ring buffer for true stereo scope + phase correlation
+    private let stereoStorageL: UnsafeMutablePointer<Float>
+    private let stereoStorageR: UnsafeMutablePointer<Float>
+    private let stereoSlotEpoch: UnsafeMutablePointer<Atomic<UInt32>>
+    private let stereoWriteIndex = Atomic<Int>(0)
+    private let stereoReadIndex = Atomic<Int>(3)
+    private let phaseCorrelationBits = Atomic<UInt32>(Float(1.0).bitPattern)
+    private let hasStereoScopeBits = Atomic<Bool>(false)
+
     public init(bufferSize: Int = defaultScopeBufferSize) {
         self.scopeBufferSize = bufferSize
         let total = ringSlotCount * bufferSize
         rawStorage = .allocate(capacity: total)
         rawStorage.initialize(repeating: 0.0, count: total)
         slotEpoch = .allocate(capacity: ringSlotCount)
+        stereoStorageL = .allocate(capacity: total)
+        stereoStorageL.initialize(repeating: 0.0, count: total)
+        stereoStorageR = .allocate(capacity: total)
+        stereoStorageR.initialize(repeating: 0.0, count: total)
+        stereoSlotEpoch = .allocate(capacity: ringSlotCount)
         for i in 0..<ringSlotCount {
             (slotEpoch + i).initialize(to: Atomic<UInt32>(0))
+            (stereoSlotEpoch + i).initialize(to: Atomic<UInt32>(0))
         }
         writeIndex.store(0, ordering: .relaxed)
         readIndex.store(ringSlotCount - 1, ordering: .relaxed)
+        stereoWriteIndex.store(0, ordering: .relaxed)
+        stereoReadIndex.store(ringSlotCount - 1, ordering: .relaxed)
     }
 
     deinit {
@@ -53,6 +70,12 @@ public final class AtomicMeteringState: @unchecked Sendable {
         rawStorage.deallocate()
         slotEpoch.deinitialize(count: ringSlotCount)
         slotEpoch.deallocate()
+        stereoStorageL.deinitialize(count: total)
+        stereoStorageL.deallocate()
+        stereoStorageR.deinitialize(count: total)
+        stereoStorageR.deallocate()
+        stereoSlotEpoch.deinitialize(count: ringSlotCount)
+        stereoSlotEpoch.deallocate()
     }
 
     // MARK: - Audio Thread (Writer)
@@ -129,6 +152,63 @@ public final class AtomicMeteringState: @unchecked Sendable {
         }
     }
 
+    public func writeStereoScopeBuffer(left: UnsafeBufferPointer<Float>, right: UnsafeBufferPointer<Float>) {
+        guard left.count >= scopeBufferSize,
+              right.count >= scopeBufferSize,
+              let baseL = left.baseAddress,
+              let baseR = right.baseAddress else { return }
+
+        // Compute Pearson correlation: sum(L*R) / sqrt(sum(L^2) * sum(R^2)), defaulting to 1.0 on silence/non-finite.
+        var sumLR: Double = 0
+        var sumL2: Double = 0
+        var sumR2: Double = 0
+        for i in 0..<scopeBufferSize {
+            let l = Double(baseL[i])
+            let r = Double(baseR[i])
+            sumLR += l * r
+            sumL2 += l * l
+            sumR2 += r * r
+        }
+        let denom = sqrt(sumL2 * sumR2)
+        let correlation: Float
+        if denom > 1e-12 && denom.isFinite && sumLR.isFinite {
+            let c = sumLR / denom
+            correlation = c.isFinite ? Float(max(-1.0, min(1.0, c))) : 1.0
+        } else {
+            correlation = 1.0
+        }
+        phaseCorrelationBits.store(correlation.bitPattern, ordering: .relaxed)
+        hasStereoScopeBits.store(true, ordering: .releasing)
+
+        let currentWrite = stereoWriteIndex.load(ordering: .relaxed)
+        let nextWrite = (currentWrite + 1) % ringSlotCount
+
+        let currentRead = stereoReadIndex.load(ordering: .acquiring)
+        if nextWrite == currentRead {
+            return
+        }
+
+        let epochPtr = stereoSlotEpoch + currentWrite
+        let epoch = epochPtr.pointee.load(ordering: .relaxed)
+        epochPtr.pointee.store(epoch &+ 1, ordering: .releasing)
+
+        let destL = stereoStorageL + currentWrite * scopeBufferSize
+        let destR = stereoStorageR + currentWrite * scopeBufferSize
+        destL.update(from: baseL, count: scopeBufferSize)
+        destR.update(from: baseR, count: scopeBufferSize)
+
+        epochPtr.pointee.store(epoch &+ 2, ordering: .releasing)
+        stereoWriteIndex.store(nextWrite, ordering: .releasing)
+    }
+
+    public func writeStereoScopeBuffer(left: [Float], right: [Float]) {
+        left.withUnsafeBufferPointer { bufL in
+            right.withUnsafeBufferPointer { bufR in
+                writeStereoScopeBuffer(left: bufL, right: bufR)
+            }
+        }
+    }
+
     // MARK: - UI Thread (Reader)
 
     @inline(__always)
@@ -193,5 +273,34 @@ public final class AtomicMeteringState: @unchecked Sendable {
             if e1 == e2 { return frame }
         }
         return Array(repeating: 0, count: scopeBufferSize)
+    }
+
+    public var hasStereoScopeData: Bool {
+        hasStereoScopeBits.load(ordering: .acquiring)
+    }
+
+    @inline(__always)
+    public func getPhaseCorrelation() -> Float {
+        Float(bitPattern: phaseCorrelationBits.load(ordering: .relaxed))
+    }
+
+    public func readStereoScopeBuffer() -> (left: [Float], right: [Float]) {
+        for _ in 0..<4 {
+            let latestWrite = (stereoWriteIndex.load(ordering: .acquiring) + ringSlotCount - 1) % ringSlotCount
+            let epochPtr = stereoSlotEpoch + latestWrite
+            let e1 = epochPtr.pointee.load(ordering: .acquiring)
+            if e1 & 1 == 1 { continue }
+            stereoReadIndex.store(latestWrite, ordering: .releasing)
+            let srcL = stereoStorageL + latestWrite * scopeBufferSize
+            let srcR = stereoStorageR + latestWrite * scopeBufferSize
+            let frameL = Array(UnsafeBufferPointer(start: srcL, count: scopeBufferSize))
+            let frameR = Array(UnsafeBufferPointer(start: srcR, count: scopeBufferSize))
+            let e2 = epochPtr.pointee.load(ordering: .acquiring)
+            if e1 == e2 { return (left: frameL, right: frameR) }
+        }
+        return (
+            left: Array(repeating: 0, count: scopeBufferSize),
+            right: Array(repeating: 0, count: scopeBufferSize)
+        )
     }
 }

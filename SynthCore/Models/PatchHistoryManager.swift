@@ -94,6 +94,7 @@ public final class PatchHistoryManager: ObservableObject {
     // MARK: - Recording Changes
 
     public func recordChange(from before: SynthPreset, to after: SynthPreset) {
+        guard !isDragging else { return }
         guard before != after else { return }
 
         if activeSlot == .a {

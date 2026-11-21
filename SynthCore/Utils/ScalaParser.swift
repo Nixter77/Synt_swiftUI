@@ -50,50 +50,69 @@ public enum ScalaParser {
 
     /// Parses a Scala (.scl) formatted string into a `ScalaScale`.
     public static func parse(_ text: String) throws -> ScalaScale {
-        let lines = text.components(separatedBy: .newlines)
-        var filteredLines: [String] = []
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let lines = normalized.components(separatedBy: "\n")
 
+        // Filter comment lines (`!`), keeping blank lines so an empty description line is valid per .scl spec.
+        var nonCommentLines: [String] = []
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty || trimmed.hasPrefix("!") {
+            if trimmed.hasPrefix("!") {
                 continue
             }
-            // Strip inline comments if any
+            nonCommentLines.append(trimmed)
+        }
+
+        guard nonCommentLines.contains(where: { !$0.isEmpty }) else {
+            throw ScalaParseError.emptyFile
+        }
+
+        let rawDescription = nonCommentLines[0]
+        let description: String
+        if let excl = rawDescription.firstIndex(of: "!") {
+            description = String(rawDescription[..<excl]).trimmingCharacters(in: .whitespaces)
+        } else {
+            description = rawDescription
+        }
+
+        var filteredLines: [String] = []
+        for line in nonCommentLines.dropFirst() {
             let clean: String
-            if let excl = trimmed.firstIndex(of: "!") {
-                clean = String(trimmed[..<excl]).trimmingCharacters(in: .whitespaces)
+            if let excl = line.firstIndex(of: "!") {
+                clean = String(line[..<excl]).trimmingCharacters(in: .whitespaces)
             } else {
-                clean = trimmed
+                clean = line
             }
             if !clean.isEmpty {
                 filteredLines.append(clean)
             }
         }
 
-        guard !filteredLines.isEmpty else {
-            throw ScalaParseError.emptyFile
-        }
-
-        let description = filteredLines[0]
-        guard filteredLines.count > 1 else {
+        guard let countLine = filteredLines.first else {
             throw ScalaParseError.missingNoteCount
         }
 
-        let countLine = filteredLines[1]
         guard let noteCount = Int(countLine), noteCount > 0 else {
             throw ScalaParseError.invalidNoteCount(countLine)
         }
 
-        let pitchLines = Array(filteredLines.dropFirst(2))
+        let pitchLines = Array(filteredLines.dropFirst())
         guard pitchLines.count >= noteCount else {
             throw ScalaParseError.insufficientPitches(expected: noteCount, found: pitchLines.count)
         }
 
         var ratios: [Double] = []
+        ratios.reserveCapacity(noteCount)
         for i in 0..<noteCount {
             let pStr = pitchLines[i].components(separatedBy: .whitespaces).first ?? ""
             let ratio = try parsePitch(pStr)
             ratios.append(ratio)
+        }
+
+        guard let period = ratios.last, period.isFinite, period > 0 else {
+            throw ScalaParseError.invalidPitch(pitchLines.last ?? "")
         }
 
         return ScalaScale(description: description, noteCount: noteCount, ratios: ratios)
@@ -107,22 +126,31 @@ public enum ScalaParser {
         }
 
         if trimmed.contains(".") {
-            // Cents
-            guard let cents = Double(trimmed), cents > 0 else {
+            // Cents (0.0 cents = 1/1 is valid)
+            guard let cents = Double(trimmed), cents.isFinite, cents >= 0 else {
                 throw ScalaParseError.invalidPitch(token)
             }
-            return pow(2.0, cents / 1200.0)
+            let ratio = pow(2.0, cents / 1200.0)
+            guard ratio.isFinite, ratio > 0 else {
+                throw ScalaParseError.invalidPitch(token)
+            }
+            return ratio
         } else if trimmed.contains("/") {
             // Fractional ratio numerator/denominator
-            let parts = trimmed.split(separator: "/")
+            let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false)
             guard parts.count == 2,
                   let num = Double(parts[0]),
                   let den = Double(parts[1]),
+                  num.isFinite, den.isFinite,
                   den > 0, num > 0 else {
                 throw ScalaParseError.invalidPitch(token)
             }
-            return num / den
-        } else if let intVal = Double(trimmed), intVal > 0 {
+            let ratio = num / den
+            guard ratio.isFinite, ratio > 0 else {
+                throw ScalaParseError.invalidPitch(token)
+            }
+            return ratio
+        } else if let intVal = Double(trimmed), intVal.isFinite, intVal > 0 {
             // Whole number ratio (e.g. "2" for octave = 2/1)
             return intVal
         } else {
@@ -138,12 +166,26 @@ public enum ScalaParser {
         baseFrequency: Double = 261.6255653005986
     ) -> [Double] {
         let n = scale.noteCount
-        guard n > 0, !scale.ratios.isEmpty else {
+        guard n > 0,
+              scale.ratios.count >= n,
+              baseFrequency.isFinite,
+              baseFrequency > 0 else {
             return standard12TETTable()
         }
 
-        let period = scale.ratios.last ?? 2.0
+        let period = scale.ratios[n - 1]
+        guard period.isFinite, period > 0 else {
+            return standard12TETTable()
+        }
+        for i in 0..<n {
+            let ratio = scale.ratios[i]
+            guard ratio.isFinite, ratio > 0 else {
+                return standard12TETTable()
+            }
+        }
+
         var table = [Double](repeating: 0.0, count: 128)
+        let fallback = standard12TETTable()
 
         for m in 0..<128 {
             let diff = m - baseMIDINote
@@ -161,7 +203,8 @@ public enum ScalaParser {
                 noteRatio = scale.ratios[deg - 1]
             }
 
-            table[m] = baseFrequency * periodRatio * noteRatio
+            let freq = baseFrequency * periodRatio * noteRatio
+            table[m] = (freq.isFinite && freq > 0) ? freq : fallback[m]
         }
 
         return table

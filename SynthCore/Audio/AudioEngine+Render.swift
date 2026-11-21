@@ -1554,11 +1554,18 @@ public extension AudioEngine {
 
         if isCapturingScope {
             scopeBuffer[scopeIndex] = (outL + outR) * 0.5
+            scopeBufferL[scopeIndex] = outL
+            scopeBufferR[scopeIndex] = outR
             scopeIndex += 1
             if scopeIndex >= scopeBuffer.count {
                 scopeIndex = 0
                 scopeBuffer.withUnsafeBufferPointer { ptr in
                     meteringState.writeScopeBuffer(ptr)
+                }
+                scopeBufferL.withUnsafeBufferPointer { ptrL in
+                    scopeBufferR.withUnsafeBufferPointer { ptrR in
+                        meteringState.writeStereoScopeBuffer(left: ptrL, right: ptrR)
+                    }
                 }
             }
         }

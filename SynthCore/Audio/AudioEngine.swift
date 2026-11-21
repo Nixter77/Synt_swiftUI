@@ -708,6 +708,8 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     // Oscilloscope Capture (audio thread buffer → AtomicMeteringState)
     public var scopeBuffer: [Float] = Array(repeating: 0.0, count: 512)
+    public var scopeBufferL: [Float] = Array(repeating: 0.0, count: 512)
+    public var scopeBufferR: [Float] = Array(repeating: 0.0, count: 512)
     public var scopeIndex: Int = 0
     public var isCapturingScope: Bool = true
 
@@ -1693,37 +1695,60 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
     // MARK: - Audio Output Recorder
     @Published public var isRecording: Bool = false
+    private let recordingLock = NSLock()
     private var recordingFile: AVAudioFile?
     private var recordingURL: URL?
 
     @discardableResult
     public func startRecording(to fileURL: URL? = nil) -> Bool {
-        guard !isRecording else { return false }
+        recordingLock.lock()
+        guard !isRecording else {
+            recordingLock.unlock()
+            return false
+        }
         let targetURL = fileURL ?? FileManager.default.temporaryDirectory.appendingPathComponent("Synth_\(Int(Date().timeIntervalSince1970)).wav")
         let mixer = engine.mainMixerNode
         let format = mixer.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 && format.channelCount > 0 else { return false }
+        guard format.sampleRate > 0 && format.channelCount > 0 else {
+            recordingLock.unlock()
+            return false
+        }
 
         do {
-            recordingFile = try AVAudioFile(forWriting: targetURL, settings: format.settings)
+            let file = try AVAudioFile(forWriting: targetURL, settings: format.settings)
+            recordingFile = file
             recordingURL = targetURL
+            isRecording = true
+            recordingLock.unlock()
             mixer.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-                guard let self = self, let file = self.recordingFile else { return }
+                guard let self else { return }
+                self.recordingLock.lock()
+                defer { self.recordingLock.unlock() }
+                guard let file = self.recordingFile else { return }
                 try? file.write(from: buffer)
             }
-            isRecording = true
             return true
         } catch {
+            recordingFile = nil
+            recordingURL = nil
+            recordingLock.unlock()
             Self.log.error("Failed to start audio recording: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
 
     public func stopRecording() -> URL? {
-        guard isRecording else { return nil }
-        engine.mainMixerNode.removeTap(onBus: 0)
+        recordingLock.lock()
+        guard isRecording else {
+            recordingLock.unlock()
+            return nil
+        }
         recordingFile = nil
+        let finishedURL = recordingURL
+        recordingURL = nil
         isRecording = false
-        return recordingURL
+        recordingLock.unlock()
+        engine.mainMixerNode.removeTap(onBus: 0)
+        return finishedURL
     }
 }

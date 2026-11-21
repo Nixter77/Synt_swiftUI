@@ -21,10 +21,24 @@ public enum MIDIFileBuilder {
         rootNote: Int = 60,
         bpm: Float = 120.0,
         length: Int = 16,
-        ppqn: UInt16 = 480
+        ppqn: UInt16 = 480,
+        swing: Float = 0.0
     ) -> Data {
         var timedEvents: [TimedEvent] = []
-        let ticksPerStep: UInt32 = UInt32(ppqn) / 4 // 120 ticks for a 16th note
+        let ticksPerStep: UInt32 = max(1, UInt32(ppqn) / 4) // 120 ticks for a 16th note at 480 PPQN
+        let safeSwing = swing.isFinite ? max(0.0, min(1.0, swing)) : 0.0
+        let swingTicks = UInt32((Float(ticksPerStep) * safeSwing * 0.5).rounded())
+
+        func stepStartTick(_ index: Int) -> UInt32 {
+            UInt32(index) * ticksPerStep + (index % 2 == 1 ? swingTicks : 0)
+        }
+
+        func stepDurationTicks(_ index: Int) -> UInt32 {
+            if index % 2 == 0 {
+                return ticksPerStep + swingTicks
+            }
+            return max(1, ticksPerStep - swingTicks)
+        }
 
         // 1. Setup events at tick 0: Tempo and Time Signature
         let safeBpm = max(20.0, min(bpm, 300.0))
@@ -48,15 +62,16 @@ public enum MIDIFileBuilder {
             if step.isActive {
                 let note = midiPitch(for: step)
                 let velocity = UInt8(clamping: Int(max(0.05, min(step.velocity, 1.0)) * 127.0))
-                let startTick = UInt32(i) * ticksPerStep
+                let startTick = stepStartTick(i)
 
                 let rCount = max(1, min(4, step.ratchet))
                 if rCount > 1 {
-                    let subTicks = ticksPerStep / UInt32(rCount)
+                    let stepTicks = stepDurationTicks(i)
+                    let subTicks = max(1, stepTicks / UInt32(rCount))
+                    let subGate = max(0.05, min(step.gate, 1.0))
+                    let subDuration = max(1, min(subTicks, UInt32(Float(subTicks) * subGate)))
                     for r in 0..<rCount {
                         let subStart = startTick + UInt32(r) * subTicks
-                        let subGate = max(0.05, min(step.gate, 1.0))
-                        let subDuration = max(5, UInt32(Float(subTicks) * subGate))
                         let subEnd = subStart + subDuration
                         timedEvents.append(TimedEvent(tick: subStart, bytes: [0x90, note, velocity], isNoteOff: false))
                         timedEvents.append(TimedEvent(tick: subEnd, bytes: [0x80, note, 0x40], isNoteOff: true))
@@ -74,16 +89,19 @@ public enum MIDIFileBuilder {
                     lookahead += 1
                 }
 
-                let spannedSteps = UInt32(lookahead - i)
                 let lastStep = steps[lookahead]
                 let slidesIntoDifferentPitch = (lookahead + 1 < stepCount)
                     && steps[lookahead + 1].isActive
                     && (lastStep.tie || steps[lookahead + 1].tie)
 
+                let lastStepTicks = stepDurationTicks(lookahead)
+                let spanTicks = stepStartTick(lookahead) - startTick
                 let tailGate: Float = slidesIntoDifferentPitch ? 1.0 : max(0.05, min(lastStep.gate, 1.0))
-                let duration = spannedSteps * ticksPerStep + UInt32(Float(ticksPerStep) * tailGate)
+                let rawTail = UInt32(Float(lastStepTicks) * tailGate)
+                let clampedTail = max(1, min(lastStepTicks, rawTail))
+                let duration = spanTicks + clampedTail
 
-                let endTick = startTick + max(10, duration)
+                let endTick = startTick + duration
                 timedEvents.append(TimedEvent(tick: startTick, bytes: [0x90, note, velocity], isNoteOff: false))
                 timedEvents.append(TimedEvent(tick: endTick, bytes: [0x80, note, 0x40], isNoteOff: true))
 
