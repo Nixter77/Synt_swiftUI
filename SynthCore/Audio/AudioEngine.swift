@@ -214,6 +214,18 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
     public let voiceFormantPtr: UnsafeMutablePointer<Unmanaged<DSPFormantFilter>>
     public let voiceCombPtr: UnsafeMutablePointer<Unmanaged<DSPCombFilter>>
     public var activeVoiceCountRT: Int = 0
+    /// Steal de-click residual (audio thread). See `absorbStolenVoiceOutput(at:)`.
+    public var stealDeclickL: Float = 0
+    public var stealDeclickR: Float = 0
+    /// Per-sample decay, ~0.7 ms time constant (≈ −60 dB in 5 ms). Refreshed with the sample rate.
+    public var stealDeclickCoef: Float = AudioEngine.stealDeclickCoef(sampleRate: 44_100)
+    /// Hard steals since the last reset (diagnostics / tests).
+    public var stealCountRT: Int = 0
+
+    public static func stealDeclickCoef(sampleRate: Double) -> Float {
+        let sr = max(8_000, sampleRate)
+        return Float(exp(-1.0 / (0.0007 * sr)))
+    }
     /// Audio-thread note-off counter. Newer releases have a higher serial.
     public var releaseSerialRT: Int = 1
 
@@ -994,6 +1006,7 @@ public final class AudioEngine: ObservableObject, @unchecked Sendable {
 
         if needsRateChange {
             sampleRate = rate
+            stealDeclickCoef = Self.stealDeclickCoef(sampleRate: rate)
             pushSampleRateToDSP(rate)
         }
         if needsGraph {

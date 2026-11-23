@@ -151,6 +151,8 @@ public extension AudioEngine {
             resetVoiceToneBanks(at: i)
         }
         activeVoiceCountRT = 0
+        stealDeclickL = 0
+        stealDeclickR = 0
         lastPlayedFrequency = nil
         releaseSerialRT = 1
         sustainedLo = 0
@@ -491,6 +493,18 @@ public extension AudioEngine {
         return count
     }
 
+    /// Audio thread. A voice is about to be hard-stolen: carry its last output into
+    /// the de-click residual so the mix decays instead of stepping (Logic click on
+    /// pedal-held keys once the pool is full).
+    @inline(__always)
+    func absorbStolenVoiceOutput(at index: Int) {
+        let l = voices[index].lastOutL
+        let r = voices[index].lastOutR
+        if l.isFinite { stealDeclickL += l }
+        if r.isFinite { stealDeclickR += r }
+        stealCountRT &+= 1
+    }
+
     func findFreeVoiceSlot() -> Int? {
         let upper: Int
         if cachedPolyphonyLimit >= AudioEngine.maxVoices || cachedPolyphonyLimit <= 0 {
@@ -519,6 +533,7 @@ public extension AudioEngine {
             }
         }
         if let quietRelease {
+            absorbStolenVoiceOutput(at: quietRelease)
             voices[quietRelease].deactivate()
             resetVoiceToneBanks(at: quietRelease)
             activeVoiceCountRT = max(0, activeVoiceCountRT - 1)
@@ -527,6 +542,7 @@ public extension AudioEngine {
         // Soft-steal: start 6 ms fade; try to find another free after... we need a slot now.
         // Deactivate only if already very quiet; otherwise force-fade and take quietest.
         if let bestSteal, bestStealEnv < 0.08 {
+            absorbStolenVoiceOutput(at: bestSteal)
             voices[bestSteal].deactivate()
             resetVoiceToneBanks(at: bestSteal)
             activeVoiceCountRT = max(0, activeVoiceCountRT - 1)
@@ -534,6 +550,7 @@ public extension AudioEngine {
         }
         if let bestSteal {
             // Last resort hard take after starting fade was not enough — take quietest
+            absorbStolenVoiceOutput(at: bestSteal)
             voices[bestSteal].deactivate()
             resetVoiceToneBanks(at: bestSteal)
             activeVoiceCountRT = max(0, activeVoiceCountRT - 1)

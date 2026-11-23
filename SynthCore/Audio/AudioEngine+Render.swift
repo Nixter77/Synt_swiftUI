@@ -1204,8 +1204,12 @@ public extension AudioEngine {
                 angleR = angle
             }
 
-            mixedSampleL += ampL * cos(angleL)
-            mixedSampleR += ampR * sin(angleR)
+            let contribL = ampL * cos(angleL)
+            let contribR = ampR * sin(angleR)
+            mixedSampleL += contribL
+            mixedSampleR += contribR
+            v.lastOutL = contribL
+            v.lastOutR = contribR
 
             if v.envelopePhase == .finished {
                 v.deactivate()
@@ -1273,6 +1277,20 @@ public extension AudioEngine {
             liveModulation.store(0, for: .noiseLevel)
             liveModulation.store(0, for: .filterEnvAmount)
             liveModulation.store(0, for: .unisonDetune)
+        }
+
+        // Hard voice steal: the stolen voice's last sample decays here over ~2 ms
+        // instead of jumping to zero (click). Zero unless a steal happened, so the
+        // branch is skipped and every non-steal render stays bit-identical.
+        if stealDeclickL != 0 || stealDeclickR != 0 {
+            mixedSampleL += stealDeclickL
+            mixedSampleR += stealDeclickR
+            stealDeclickL *= stealDeclickCoef
+            stealDeclickR *= stealDeclickCoef
+            if abs(stealDeclickL) < 1.0e-6 { stealDeclickL = 0 }
+            if abs(stealDeclickR) < 1.0e-6 { stealDeclickR = 0 }
+            if !stealDeclickL.isFinite { stealDeclickL = 0 }
+            if !stealDeclickR.isFinite { stealDeclickR = 0 }
         }
 
         if !mixedSampleL.isFinite { mixedSampleL = 0 }

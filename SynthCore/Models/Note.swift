@@ -67,6 +67,10 @@ public struct ActiveNote {
     public var microFadeRemaining: Int = 0
     public var microFadeGain: Float = 1
     public var microFadeStep: Float = 0
+    /// Last stereo sample this voice added to the mix (post amp/pan). A hard steal
+    /// hands it to the engine's steal de-click so the mix does not step to zero.
+    public var lastOutL: Float = 0
+    public var lastOutR: Float = 0
     public var phase: Double = 0.0
     public var phase2: Double = 0.0
     public var subPhase: Double = 0.0
@@ -326,6 +330,8 @@ public struct ActiveNote {
         mpeTimbre = 0
         filter.reset()
         ladder.reset()
+        lastOutL = 0
+        lastOutR = 0
     }
 }
 
