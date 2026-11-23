@@ -71,12 +71,7 @@ struct CompressorV2Tests {
         engine.applyPresetForTesting()
         #expect(engine.cachedBusGlueEnabled)
         #expect(engine.busGlueCompressor.enabled)
-        // c9fb618 re-voiced the factory library and a single Growl note no longer reaches
-        // the −18 dB glue threshold. A full-velocity chord keeps the input hot on purpose:
-        // this test is about the flag reaching the render path, not about Growl's level.
-        for note in [48, 55, 60, 64] {
-            engine.noteOn(midiNote: note, velocity: 1)
-        }
+        engine.noteOn(midiNote: 60, velocity: 1)
         engine.processCommandsForTesting()
         var peak: Float = 0
         var maxGR: Float = 0
